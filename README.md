@@ -39,16 +39,20 @@ open-tools/
 │   │   ├── base.css       # 全局基础样式
 │   │   └── controls.css   # 共用控件：按钮 .btn、分段选择 .seg、复选框 .check
 │   ├── utils/
-│   │   └── saveFile.ts    # 保存文件：桌面版弹出「另存为」，浏览器中直接下载
+│   │   ├── saveFile.ts    # 保存文件：桌面版弹出「另存为」，浏览器中直接下载
+│   │   └── time.ts        # 时间格式化、相对时间
 │   ├── composables/       # 可复用的逻辑
 │   │   ├── useStoredRef.ts  # 自动保存到 localStorage 的状态
 │   │   ├── useTheme.ts      # 浅色 / 深色主题
 │   │   └── useClipboard.ts  # 复制、粘贴
 │   ├── components/
 │   │   ├── layout/        # 外框：AppHeader 顶栏、AppSidebar 侧栏
-│   │   ├── tool/          # ToolView 工具区（标题栏右侧可放工具选项）、TextTransform 通用文本转换界面
+│   │   ├── tool/          # 工具区与通用工具界面：
+│   │   │                  #   ToolView 工具区（标题栏右侧可放工具选项）
+│   │   │                  #   TextTransform 「输入 → 按钮 → 输出」界面
+│   │   │                  #   TwoWayConvert 左右双向实时转换界面（改哪边另一边自动更新）
 │   │   └── common/        # 通用组件：TextPane 文本框（设置 language 后变成带行号/折叠的代码编辑器）、
-│   │                      #   CodeEditor 代码编辑器、EmptyState 空状态、CommandPalette 搜索
+│   │                      #   CopyList 多个结果 + 复制按钮、CodeEditor、EmptyState、CommandPalette 搜索
 │   └── tools/             # 所有工具，一个分类一个文件夹
 │       ├── index.ts       # 分类注册表（决定顶部分类及顺序）
 │       ├── types.ts       # Tool / Category 类型定义

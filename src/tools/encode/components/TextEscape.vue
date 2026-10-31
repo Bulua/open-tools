@@ -1,0 +1,36 @@
+<script setup lang="ts">
+import { computed } from "vue";
+import TwoWayConvert from "@/components/tool/TwoWayConvert.vue";
+import { useStoredRef } from "@/composables/useStoredRef";
+import { TOOL_ACTIONS } from "@/components/tool/toolActions";
+import * as t from "../transforms";
+
+/** URL / Unicode / HTML 三种编码，在标题栏切换，双向实时转换 */
+type Kind = "url" | "unicode" | "html";
+
+const KINDS: Record<Kind, { label: string; right: string; encode: (s: string) => string; decode: (s: string) => string; example: string }> = {
+  url: { label: "URL", right: "URL 编码", encode: t.urlEncode, decode: t.urlDecode, example: "a%3D1%26b%3D%E5%B7%A5%E5%85%B7" },
+  unicode: { label: "Unicode", right: "Unicode 编码", encode: t.unicodeEscape, decode: t.unicodeUnescape, example: "\\u5de5\\u5177" },
+  html: { label: "HTML 实体", right: "HTML 实体", encode: t.htmlEscape, decode: t.htmlUnescape, example: "&lt;div&gt;" },
+};
+
+const kind = useStoredRef<Kind>("text-escape.kind", "url");
+const current = computed(() => KINDS[kind.value] ?? KINDS.url);
+</script>
+
+<template>
+  <Teleport defer :to="TOOL_ACTIONS">
+    <div class="seg">
+      <button v-for="(k, key) in KINDS" :key="key" :class="{ on: kind === key }" @click="kind = key">{{ k.label }}</button>
+    </div>
+  </Teleport>
+
+  <TwoWayConvert
+    left-label="原文"
+    :right-label="current.right"
+    :encode="current.encode"
+    :decode="current.decode"
+    left-placeholder="输入原文，右侧实时编码"
+    :right-placeholder="`或粘贴编码后的内容，左侧实时还原，例如 ${current.example}`"
+  />
+</template>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { PanelLeftClose, PanelLeftOpen, Search } from "lucide-vue-next";
+import { PanelLeftClose, PanelLeftOpen, Search, X } from "lucide-vue-next";
 import { isAvailable, type Category } from "@/tools";
 
 const props = defineProps<{ category: Category; activeId?: string; collapsed: boolean }>();
@@ -21,9 +21,10 @@ const filtered = computed(() => {
 
 <template>
   <aside class="sidebar" :class="{ collapsed }">
-    <label v-if="!collapsed && category.tools.length > 6" class="filter">
+    <label v-if="!collapsed" class="filter">
       <Search :size="14" />
-      <input v-model="keyword" placeholder="筛选" />
+      <input v-model="keyword" :placeholder="`搜索 ${category.name}`" @keydown.esc="keyword = ''" />
+      <button v-if="keyword" class="clear" title="清空" @click="keyword = ''"><X :size="12" /></button>
     </label>
 
     <ul class="list">
@@ -54,7 +55,7 @@ const filtered = computed(() => {
 
 <style scoped>
 .sidebar {
-  width: 232px;
+  width: 240px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -90,6 +91,22 @@ const filtered = computed(() => {
   outline: none;
   background: none;
   font-size: 13px;
+}
+.filter input::placeholder {
+  color: var(--text-3);
+}
+.clear {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--active);
+  color: var(--text-2);
+}
+.clear:hover {
+  color: var(--text);
 }
 
 .list {

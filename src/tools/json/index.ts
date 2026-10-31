@@ -1,5 +1,5 @@
 import { defineAsyncComponent } from "vue";
-import { Braces, FileCode2, GitCompare, Quote, ScrollText } from "lucide-vue-next";
+import { Braces, FileCode2, GitCompare, Quote } from "lucide-vue-next";
 import type { Category } from "../types";
 import * as t from "./utils";
 
@@ -9,22 +9,22 @@ const json: Category = {
   tools: [
     {
       id: "json-format",
-      name: "格式化 / 校验",
+      name: "JSON 格式化校验",
       desc: "美化、压缩、树形查看 JSON，实时校验并定位错误",
       icon: Braces,
       component: defineAsyncComponent(() => import("./components/JsonFormat.vue")),
     },
     {
       id: "json-diff",
-      name: "JSON 对比",
+      name: "JSON 差异对比",
       desc: "对比两段 JSON，列出新增、删除和修改的字段",
       icon: GitCompare,
       component: defineAsyncComponent(() => import("./components/JsonDiff.vue")),
     },
     {
       id: "json-escape",
-      name: "转义 / 去转义",
-      desc: "处理日志里被转义成字符串的 JSON",
+      name: "JSON 字符串转义",
+      desc: "把日志里 {\\\"a\\\":1} 这种被转义的 JSON 还原，或反过来转义",
       icon: Quote,
       inputPlaceholder: '例如 {\\"name\\":\\"Open Tools\\"}',
       actions: [
@@ -42,21 +42,16 @@ const json: Category = {
       ],
     },
     {
-      id: "json-yaml",
-      name: "JSON ↔ YAML",
-      desc: "JSON 与 YAML 互相转换",
-      icon: ScrollText,
-      actions: [
-        { label: "转 YAML", primary: true, run: t.jsonToYaml },
-        { label: "转 JSON", run: t.yamlToJson },
-      ],
-    },
-    {
-      id: "json-to-ts",
-      name: "生成 TS 类型",
-      desc: "根据 JSON 示例生成 TypeScript interface",
+      id: "json-convert",
+      name: "JSON 转 YAML / TS 类型",
+      desc: "JSON 与 YAML 互转，或根据 JSON 生成 TypeScript 类型定义",
       icon: FileCode2,
-      actions: [{ label: "生成类型", primary: true, run: (s) => t.jsonToTypeScript(JSON.parse(s)) }],
+      inputPlaceholder: "粘贴 JSON（或 YAML），再点击下方按钮转换",
+      actions: [
+        { label: "JSON 转 YAML", primary: true, run: t.jsonToYaml },
+        { label: "YAML 转 JSON", run: t.yamlToJson },
+        { label: "JSON 转 TS 类型", run: (s) => t.jsonToTypeScript(JSON.parse(s)) },
+      ],
     },
   ],
 };

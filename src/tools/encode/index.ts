@@ -1,7 +1,6 @@
 import { defineAsyncComponent } from "vue";
-import { Binary, Code2, Fingerprint, KeyRound, Languages, Link2, ShieldCheck } from "lucide-vue-next";
+import { Binary, Fingerprint, KeyRound, Link2 } from "lucide-vue-next";
 import type { Category } from "../types";
-import * as t from "./transforms";
 
 const encode: Category = {
   id: "encode",
@@ -9,54 +8,32 @@ const encode: Category = {
   tools: [
     {
       id: "base64",
-      name: "Base64",
-      desc: "文本、图片、任意文件与 Base64 互相转换",
+      name: "Base64 编解码",
+      desc: "文本、图片、任意文件与 Base64 互相转换，解码后可下载",
       icon: Binary,
       component: defineAsyncComponent(() => import("./components/Base64.vue")),
     },
     {
-      id: "url",
-      name: "URL 编解码",
-      desc: "对 URL 参数进行编码或解码",
+      id: "text-escape",
+      name: "URL/Unicode/HTML 编码",
+      desc: "URL 参数编码、中文转 \\uXXXX、HTML 特殊字符转义，双向实时转换",
       icon: Link2,
-      actions: [
-        { label: "编码", primary: true, run: encodeURIComponent },
-        { label: "解码", run: decodeURIComponent },
-      ],
+      component: defineAsyncComponent(() => import("./components/TextEscape.vue")),
     },
     {
-      id: "unicode",
-      name: "Unicode",
-      desc: "中文与 \\uXXXX 互相转换",
-      icon: Languages,
-      actions: [
-        { label: "转 Unicode", primary: true, run: t.unicodeEscape },
-        { label: "转中文", run: t.unicodeUnescape },
-      ],
-    },
-    {
-      id: "html",
-      name: "HTML 实体",
-      desc: "HTML 特殊字符转义与反转义",
-      icon: Code2,
-      actions: [
-        { label: "转义", primary: true, run: t.htmlEscape },
-        { label: "反转义", run: t.htmlUnescape },
-      ],
-    },
-    {
-      id: "sha",
-      name: "SHA 哈希",
-      desc: "计算 SHA-1 / SHA-256 / SHA-512",
+      id: "hash",
+      name: "哈希计算（MD5 / SHA）",
+      desc: "计算文本或文件的 MD5、SHA-1、SHA-256、SHA-512",
       icon: Fingerprint,
-      actions: [
-        { label: "SHA-256", primary: true, run: (s) => t.sha("SHA-256", s) },
-        { label: "SHA-1", run: (s) => t.sha("SHA-1", s) },
-        { label: "SHA-512", run: (s) => t.sha("SHA-512", s) },
-      ],
+      component: defineAsyncComponent(() => import("./components/HashCalc.vue")),
     },
-    { id: "md5", name: "MD5", desc: "计算文本 MD5 摘要", icon: ShieldCheck },
-    { id: "jwt", name: "JWT 解析", desc: "解析 JWT 的 Header 与 Payload", icon: KeyRound },
+    {
+      id: "jwt",
+      name: "JWT 解码",
+      desc: "查看 JWT 的 Header、Payload 和过期时间",
+      icon: KeyRound,
+      component: defineAsyncComponent(() => import("./components/JwtDecode.vue")),
+    },
   ],
 };
 
