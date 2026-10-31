@@ -63,9 +63,12 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
         @toggle="sidebarCollapsed = !sidebarCollapsed"
       />
       <main class="main">
-        <ToolView v-if="activeTool" :key="activeTool.id" :tool="activeTool" />
+        <!-- 切换工具时保留之前工具的输入和结果，最多缓存 12 个 -->
+        <KeepAlive :max="12">
+          <ToolView v-if="activeTool" :key="activeTool.id" :tool="activeTool" />
+        </KeepAlive>
         <EmptyState
-          v-else
+          v-if="!activeTool"
           :title="`${activeCategory.name}，敬请期待`"
           description="这个分类下的工具正在规划中。你可以按 Ctrl K 搜索其他分类的工具。"
         />

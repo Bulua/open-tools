@@ -5,7 +5,7 @@ import TextPane from "@/components/common/TextPane.vue";
 import CopyList from "@/components/common/CopyList.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { TOOL_ACTIONS } from "@/components/tool/toolActions";
-import { formatBytes } from "../base64";
+import { formatBytes } from "@/utils/format";
 import { HASH_ALGORITHMS, hashBytes, hashText, type HashAlgorithm } from "../hash";
 
 /** 计算文本或文件的 MD5 / SHA-1 / SHA-256 / SHA-512，一次全部显示 */

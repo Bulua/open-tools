@@ -6,7 +6,8 @@ import type { Category } from "./types";
 import json from "./json";
 import encode from "./encode";
 import convert from "./convert";
+import image from "./image";
 
-export const categories: Category[] = [json, encode, convert];
+export const categories: Category[] = [json, encode, convert, image];
 
 export * from "./types";

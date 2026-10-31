@@ -1,0 +1,222 @@
+<script setup lang="ts">
+import { computed, ref, shallowRef, watch } from "vue";
+import { Download, RefreshCw } from "lucide-vue-next";
+import FileDropZone from "@/components/common/FileDropZone.vue";
+import { useStoredRef } from "@/composables/useStoredRef";
+import { saveFile, saveFiles } from "@/utils/saveFile";
+import { formatBytes } from "@/utils/format";
+import { canvasToBytes, createCanvas, loadImage, writeIco } from "../utils";
+
+/**
+ * 把图片生成多尺寸 ICO 图标（网站 favicon、Windows 程序图标），也可以导出各尺寸 PNG。
+ * 非正方形图片可以选择「完整显示」（四周留透明）或「裁切铺满」。
+ */
+const ALL_SIZES = [16, 24, 32, 48, 64, 128, 256];
+const sizes = useStoredRef<number[]>("ico.sizes", [16, 32, 48, 256]);
+const fit = useStoredRef<"contain" | "cover">("ico.fit", "contain");
+
+const img = shallowRef<HTMLImageElement | null>(null);
+const fileName = ref("");
+const loadError = ref("");
+
+const onFiles = async ([file]: File[]) => {
+  loadError.value = "";
+  try {
+    img.value = await loadImage(file);
+    fileName.value = file.name;
+  } catch (e) {
+    loadError.value = e instanceof Error ? e.message : String(e);
+  }
+};
+
+const toggleSize = (s: number) => {
+  sizes.value = sizes.value.includes(s) ? sizes.value.filter((x) => x !== s) : [...sizes.value, s].sort((a, b) => a - b);
+};
+
+/** 生成一个尺寸的正方形 PNG */
+const renderSize = async (source: HTMLImageElement, size: number) => {
+  const { canvas, ctx } = createCanvas(size, size);
+  ctx.imageSmoothingQuality = "high";
+  const { naturalWidth: w, naturalHeight: h } = source;
+  const scale = fit.value === "contain" ? Math.min(size / w, size / h) : Math.max(size / w, size / h);
+  const dw = w * scale;
+  const dh = h * scale;
+  ctx.drawImage(source, (size - dw) / 2, (size - dh) / 2, dw, dh);
+  return { size, png: await canvasToBytes(canvas, "image/png"), url: canvas.toDataURL("image/png") };
+};
+
+const outputs = ref<{ size: number; png: Uint8Array; url: string }[]>([]);
+// 选项变化很快时，丢弃过期的生成结果
+let run = 0;
+watch(
+  [img, sizes, fit],
+  async () => {
+    const id = ++run;
+    const source = img.value;
+    const result = source ? await Promise.all(sizes.value.map((s) => renderSize(source, s))) : [];
+    if (id === run) outputs.value = result;
+  },
+  { deep: true },
+);
+
+const ico = computed(() => (outputs.value.length ? writeIco(outputs.value) : null));
+const baseName = computed(() => fileName.value.replace(/\.[^.]+$/, "") || "favicon");
+
+const downloadIco = () => ico.value && saveFile(ico.value, `${baseName.value}.ico`);
+const downloadPngs = () =>
+  saveFiles(
+    outputs.value.map((o) => ({ name: `${baseName.value}-${o.size}.png`, data: o.png })),
+    `${baseName.value}-png.zip`,
+  );
+</script>
+
+<template>
+  <FileDropZone
+    v-if="!img"
+    accept="image/*"
+    title="拖入图片，或点击选择"
+    hint="建议使用 256 × 256 以上的正方形 PNG；也可以按 Ctrl + V 粘贴"
+    @files="onFiles"
+  >
+    <span v-if="loadError" class="load-error">{{ loadError }}</span>
+  </FileDropZone>
+
+  <div v-else class="ico">
+    <section class="card options">
+      <div class="option">
+        <span class="label">图片</span>
+        <span class="file" :title="fileName">{{ fileName }}（{{ img.naturalWidth }} × {{ img.naturalHeight }}）</span>
+        <label class="btn subtle">
+          <RefreshCw :size="14" />更换
+          <input type="file" accept="image/*" hidden @change="onFiles([...(($event.target as HTMLInputElement).files ?? [])])" />
+        </label>
+      </div>
+      <div class="option">
+        <span class="label">包含尺寸</span>
+        <label v-for="s in ALL_SIZES" :key="s" class="check">
+          <input type="checkbox" :checked="sizes.includes(s)" @change="toggleSize(s)" />{{ s }}
+        </label>
+      </div>
+      <div v-if="img.naturalWidth !== img.naturalHeight" class="option">
+        <span class="label">非正方形</span>
+        <div class="seg">
+          <button :class="{ on: fit === 'contain' }" @click="fit = 'contain'">完整显示</button>
+          <button :class="{ on: fit === 'cover' }" @click="fit = 'cover'">裁切铺满</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card sunken previews">
+      <div class="card-title">预览</div>
+      <div v-if="outputs.length" class="grid">
+        <figure v-for="o in outputs" :key="o.size">
+          <div class="tile checker">
+            <!-- 小尺寸按原始像素显示，看起来和实际效果一致 -->
+            <img :src="o.url" :style="{ width: `${Math.min(o.size, 128)}px`, height: `${Math.min(o.size, 128)}px` }" alt="" />
+          </div>
+          <figcaption>{{ o.size }} × {{ o.size }}</figcaption>
+        </figure>
+      </div>
+      <p v-else class="empty">请至少选择一个尺寸</p>
+    </section>
+
+    <footer class="actions">
+      <span v-if="ico" class="size">ICO 文件大小 {{ formatBytes(ico.length) }}</span>
+      <button class="btn" :disabled="!outputs.length" @click="downloadPngs"><Download :size="14" />下载 PNG（{{ outputs.length > 1 ? "ZIP" : "单张" }}）</button>
+      <button class="btn primary" :disabled="!ico" @click="downloadIco"><Download :size="14" />下载 ICO</button>
+    </footer>
+  </div>
+</template>
+
+<style scoped>
+.ico {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 980px;
+}
+.options {
+  gap: 12px;
+  padding: 14px 16px;
+}
+.option {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+.label {
+  flex: 0 0 64px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.file {
+  min-width: 0;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 10px 16px 16px;
+}
+figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.tile {
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.tile img {
+  image-rendering: pixelated;
+}
+figcaption {
+  font-size: 12px;
+  color: var(--text-3);
+}
+.checker {
+  background-color: var(--surface);
+  background-image:
+    linear-gradient(45deg, var(--active) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--active) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--active) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--active) 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+}
+.empty {
+  margin: 4px 16px 14px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.size {
+  margin-right: auto;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.load-error {
+  margin-top: 8px;
+  color: var(--danger);
+}
+</style>

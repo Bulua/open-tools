@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseTimeInput } from "./timestamp";
 import { formatInteger, groupBinary, parseInteger } from "./radix";
-import { parseColor, toHex, toHsl, toRgb } from "./color";
+import { parseColor, toHex, toHsl, toRgb } from "@/utils/color";
 
 describe("时间戳", () => {
   it("自动区分秒和毫秒", () => {

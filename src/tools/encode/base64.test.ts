@@ -5,11 +5,11 @@ import {
   bytesToBase64,
   decodeFile,
   detectFileKind,
-  formatBytes,
   formatFileOutput,
   parseDataUri,
   textToBase64,
 } from "./base64";
+import { formatBytes } from "@/utils/format";
 
 // 1x1 透明 PNG
 const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";

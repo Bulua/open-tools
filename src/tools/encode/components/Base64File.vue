@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
+import { useWindowEvent } from "@/composables/useWindowEvent";
 import { Download, FilePlus2, FileText, RefreshCw, X } from "lucide-vue-next";
 import TextPane from "@/components/common/TextPane.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { TOOL_ACTIONS } from "@/components/tool/toolActions";
 import { saveFile } from "@/utils/saveFile";
-import { FILE_OUTPUT_FORMATS, decodeFile, formatBytes, formatFileOutput, type FileOutputFormat } from "../base64";
+import { formatBytes } from "@/utils/format";
+import { FILE_OUTPUT_FORMATS, decodeFile, formatFileOutput, type FileOutputFormat } from "../base64";
 
 /** 文件 / 图片 ↔ Base64。任何文件都可以编码；解码时自动识别类型，图片可预览，均可下载 */
 const direction = useStoredRef<"encode" | "decode">("base64-file.direction", "encode");
@@ -68,8 +70,7 @@ const onPaste = (e: ClipboardEvent) => {
     loadFile(f.name ? f : new File([f], "粘贴的图片.png", { type: f.type }));
   }
 };
-onMounted(() => window.addEventListener("paste", onPaste));
-onBeforeUnmount(() => window.removeEventListener("paste", onPaste));
+useWindowEvent("paste", onPaste);
 
 // ---------- Base64 → 文件 ----------
 

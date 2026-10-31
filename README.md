@@ -39,8 +39,10 @@ open-tools/
 │   │   ├── base.css       # 全局基础样式
 │   │   └── controls.css   # 共用控件：按钮 .btn、分段选择 .seg、复选框 .check
 │   ├── utils/
-│   │   ├── saveFile.ts    # 保存文件：桌面版弹出「另存为」，浏览器中直接下载
-│   │   └── time.ts        # 时间格式化、相对时间
+│   │   ├── saveFile.ts    # 保存文件（桌面版弹出「另存为」，浏览器中直接下载）、多个文件打包 ZIP
+│   │   ├── time.ts        # 时间格式化、相对时间
+│   │   ├── color.ts       # 颜色解析与 HEX / RGB / HSL 格式化
+│   │   └── format.ts      # 文件大小等显示格式
 │   ├── composables/       # 可复用的逻辑
 │   │   ├── useStoredRef.ts  # 自动保存到 localStorage 的状态
 │   │   ├── useTheme.ts      # 浅色 / 深色主题
@@ -52,7 +54,8 @@ open-tools/
 │   │   │                  #   TextTransform 「输入 → 按钮 → 输出」界面
 │   │   │                  #   TwoWayConvert 左右双向实时转换界面（改哪边另一边自动更新）
 │   │   └── common/        # 通用组件：TextPane 文本框（设置 language 后变成带行号/折叠的代码编辑器）、
-│   │                      #   CopyList 多个结果 + 复制按钮、CodeEditor、EmptyState、CommandPalette 搜索
+│   │                      #   CopyList 多个结果 + 复制按钮、FileDropZone 文件拖放/选择/粘贴、
+│   │                      #   CodeEditor、EmptyState、CommandPalette 搜索
 │   └── tools/             # 所有工具，一个分类一个文件夹
 │       ├── index.ts       # 分类注册表（决定顶部分类及顺序）
 │       ├── types.ts       # Tool / Category 类型定义
@@ -62,7 +65,8 @@ open-tools/
 │       │   ├── utils.test.ts  # 单元测试
 │       │   └── components/    # 需要自定义界面的工具
 │       ├── encode/
-│       └── convert/
+│       ├── convert/
+│       └── image/
 ├── src-tauri/             # 桌面端（Rust），一般不需要改
 │   ├── tauri.conf.json    # 窗口大小、应用名、版本号
 │   ├── icons/             # 应用图标（由 app-icon.svg 生成）

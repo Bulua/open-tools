@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref } from "vue";
 import { Pause, Play } from "lucide-vue-next";
 import CopyList from "@/components/common/CopyList.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
@@ -12,9 +12,18 @@ import { parseTimeInput, type TimestampUnit } from "../timestamp";
 // ---------- 当前时间 ----------
 const now = ref(Date.now());
 const running = ref(true);
+// 工具切到后台时停止计时，回来时立即刷新
 let timer: ReturnType<typeof setInterval> | undefined;
-onMounted(() => (timer = setInterval(() => running.value && (now.value = Date.now()), 1000)));
-onBeforeUnmount(() => clearInterval(timer));
+const startClock = () => {
+  clearInterval(timer);
+  now.value = Date.now();
+  timer = setInterval(() => running.value && (now.value = Date.now()), 1000);
+};
+const stopClock = () => clearInterval(timer);
+onMounted(startClock);
+onActivated(startClock);
+onDeactivated(stopClock);
+onBeforeUnmount(stopClock);
 
 const nowItems = computed(() => [
   { label: "秒", value: String(Math.floor(now.value / 1000)) },

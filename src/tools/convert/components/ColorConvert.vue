@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import CopyList from "@/components/common/CopyList.vue";
-import { parseColor, rgbToHsl, toHex, toHsl, toRgb } from "../color";
+import { parseColor, rgbToHsl, toHex, toHsl, toRgb } from "@/utils/color";
 
 /** HEX / RGB / HSL 互转：输入任意写法或用取色器选择，一次显示所有格式 */
 const input = ref("#c96442");
