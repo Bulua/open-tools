@@ -25,6 +25,8 @@ export interface Tool {
   component?: Component;
   actions?: ToolAction[];
   inputPlaceholder?: string;
+  /** 支持多会话：同一个工具可以开多个标签，各自独立输入和处理 */
+  sessions?: boolean;
 }
 
 /** 顶部的一个分类 */

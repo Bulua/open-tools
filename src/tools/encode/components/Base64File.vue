@@ -4,7 +4,7 @@ import { Download, FileText, RefreshCw, X } from "lucide-vue-next";
 import TextPane from "@/components/common/TextPane.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
-import { TOOL_ACTIONS } from "@/components/tool/toolActions";
+import ToolActions from "@/components/tool/ToolActions.vue";
 import { saveFile } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
 import { FILE_OUTPUT_FORMATS, decodeFile, formatFileOutput, type FileOutputFormat } from "../base64";
@@ -122,12 +122,12 @@ const decodeInfo = computed(() => {
 
 <template>
   <div class="base64-file">
-    <Teleport defer :to="TOOL_ACTIONS">
+    <ToolActions>
       <div class="seg">
         <button :class="{ on: direction === 'encode' }" @click="direction = 'encode'">文件 → Base64</button>
         <button :class="{ on: direction === 'decode' }" @click="direction = 'decode'">Base64 → 文件</button>
       </div>
-    </Teleport>
+    </ToolActions>
 
     <!-- ========== 文件 → Base64 ========== -->
     <template v-if="direction === 'encode'">

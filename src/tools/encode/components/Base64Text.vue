@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import TwoWayConvert from "@/components/tool/TwoWayConvert.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
-import { TOOL_ACTIONS } from "@/components/tool/toolActions";
+import ToolActions from "@/components/tool/ToolActions.vue";
 import { base64ToText, textToBase64 } from "../base64";
 
 /** 文本 ↔ Base64，双向实时转换 */
@@ -11,11 +11,11 @@ const encode = computed(() => (text: string) => textToBase64(text, urlSafe.value
 </script>
 
 <template>
-  <Teleport defer :to="TOOL_ACTIONS">
+  <ToolActions>
     <label class="check" title="+ / 替换为 - _，并去掉末尾的 =，适合放在 URL 中">
       <input v-model="urlSafe" type="checkbox" />URL 安全
     </label>
-  </Teleport>
+  </ToolActions>
 
   <TwoWayConvert
     left-label="文本"

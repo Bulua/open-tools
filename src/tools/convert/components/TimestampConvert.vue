@@ -3,7 +3,7 @@ import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref }
 import { Pause, Play } from "lucide-vue-next";
 import CopyList from "@/components/common/CopyList.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
-import { TOOL_ACTIONS } from "@/components/tool/toolActions";
+import ToolActions from "@/components/tool/ToolActions.vue";
 import { formatDateTime, relativeTime } from "@/utils/time";
 import { parseTimeInput, type TimestampUnit } from "../timestamp";
 
@@ -56,13 +56,13 @@ const useNow = () => (input.value = String(Math.floor(Date.now() / 1000)));
 
 <template>
   <div class="timestamp">
-    <Teleport defer :to="TOOL_ACTIONS">
+    <ToolActions>
       <div class="seg" title="输入数字时如何理解">
         <button :class="{ on: unit === 'auto' }" @click="unit = 'auto'">自动识别</button>
         <button :class="{ on: unit === 's' }" @click="unit = 's'">秒</button>
         <button :class="{ on: unit === 'ms' }" @click="unit = 'ms'">毫秒</button>
       </div>
-    </Teleport>
+    </ToolActions>
 
     <!-- 左：转换（主要功能） -->
     <section class="card convert">

@@ -4,7 +4,7 @@ import { ChevronsDownUp, ChevronsUpDown, CircleAlert, CircleCheck } from "lucide
 import TextPane from "@/components/common/TextPane.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
-import { TOOL_ACTIONS } from "@/components/tool/toolActions";
+import ToolActions from "@/components/tool/ToolActions.vue";
 import { describeError, editorErrorOf, formatJson, minifyJson, parseJson, sortKeys, type Indent } from "../utils";
 import JsonTreeView from "./JsonTreeView.vue";
 
@@ -47,7 +47,7 @@ const locate = () => {
 <template>
   <div class="json-format">
     <!-- 选项放到标题栏右侧；树形视图下格式选项不起作用，隐藏 -->
-    <Teleport defer :to="TOOL_ACTIONS">
+    <ToolActions>
       <template v-if="view === 'code'">
         <div class="seg">
           <button :class="{ on: mode === 'format' }" @click="mode = 'format'">格式化</button>
@@ -60,7 +60,7 @@ const locate = () => {
         </div>
       </template>
       <label class="check"><input v-model="sort" type="checkbox" />按键名排序</label>
-    </Teleport>
+    </ToolActions>
 
     <TextPane
       ref="inputPane"

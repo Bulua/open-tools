@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useStoredRef } from "@/composables/useStoredRef";
-import { TOOL_ACTIONS } from "@/components/tool/toolActions";
+import ToolActions from "@/components/tool/ToolActions.vue";
 import Base64Text from "./Base64Text.vue";
 import Base64File from "./Base64File.vue";
 
@@ -9,12 +9,12 @@ const mode = useStoredRef<"text" | "file">("base64.mode", "text");
 </script>
 
 <template>
-  <Teleport defer :to="TOOL_ACTIONS">
+  <ToolActions>
     <div class="seg">
       <button :class="{ on: mode === 'text' }" @click="mode = 'text'">文本</button>
       <button :class="{ on: mode === 'file' }" @click="mode = 'file'">文件 / 图片</button>
     </div>
-  </Teleport>
+  </ToolActions>
 
   <Base64Text v-if="mode === 'text'" />
   <Base64File v-else />

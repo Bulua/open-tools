@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import TwoWayConvert from "@/components/tool/TwoWayConvert.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
-import { TOOL_ACTIONS } from "@/components/tool/toolActions";
+import ToolActions from "@/components/tool/ToolActions.vue";
 import * as t from "../transforms";
 
 /** URL / Unicode / HTML 三种编码，在标题栏切换，双向实时转换 */
@@ -19,11 +19,11 @@ const current = computed(() => KINDS[kind.value] ?? KINDS.url);
 </script>
 
 <template>
-  <Teleport defer :to="TOOL_ACTIONS">
+  <ToolActions>
     <div class="seg">
       <button v-for="(k, key) in KINDS" :key="key" :class="{ on: kind === key }" @click="kind = key">{{ k.label }}</button>
     </div>
-  </Teleport>
+  </ToolActions>
 
   <TwoWayConvert
     left-label="原文"

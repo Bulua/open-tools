@@ -1,27 +1,58 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import type { Tool } from "@/tools/types";
-import TextTransform from "./TextTransform.vue";
-import EmptyState from "@/components/common/EmptyState.vue";
+import ToolSession from "./ToolSession.vue";
+import SessionTabs, { type Session } from "./SessionTabs.vue";
 
 /**
  * 右侧工具区：顶部一条工具栏 + 下方工作区。
  *
- * 工具栏左边是工具图标、名称和一句说明，右边留给工具放选项。
- * 工具组件里用 <Teleport defer :to="TOOL_ACTIONS"> 把选项放到这里（参考 JsonFormat.vue），
- * TOOL_ACTIONS 定义在 toolActions.ts。
+ * 工具栏左边是工具图标、名称和一句说明，右边留给工具放选项：
+ * 工具组件里用 <ToolActions>…</ToolActions> 把选项放到这里（参考 JsonFormat.vue）。
  *
- * 工作区按以下顺序决定内容：
- *   1. 工具定义了 component → 渲染自定义界面
- *   2. 工具定义了 actions   → 渲染通用文本转换界面
- *   3. 都没有               → 显示「即将上线」
+ * 工具定义了 sessions: true 时，工作区上方显示会话标签栏。
+ * 每个会话是一个独立的工具实例，切换时只是隐藏，内容都会保留；关闭会话才会销毁。
  */
-defineProps<{ tool: Tool }>();
+const props = defineProps<{ tool: Tool }>();
+
+const MAX_SESSIONS = 10;
+let nextId = 1;
+const newSession = (): Session => ({ id: nextId, name: `会话 ${nextId++}` });
+
+const sessions = ref<Session[]>([newSession()]);
+const activeId = ref(sessions.value[0].id);
+
+const addSession = () => {
+  if (sessions.value.length >= MAX_SESSIONS) return;
+  const s = newSession();
+  sessions.value.push(s);
+  activeId.value = s.id;
+};
+
+const closeSession = (id: number) => {
+  const index = sessions.value.findIndex((s) => s.id === id);
+  if (index < 0) return;
+  // 关闭最后一个会话时，换成一个新的空会话
+  if (sessions.value.length === 1) {
+    nextId = 1;
+    sessions.value = [newSession()];
+    activeId.value = sessions.value[0].id;
+    return;
+  }
+  sessions.value.splice(index, 1);
+  if (activeId.value === id) activeId.value = sessions.value[Math.min(index, sessions.value.length - 1)].id;
+};
+
+const renameSession = (id: number, name: string) => {
+  const s = sessions.value.find((x) => x.id === id);
+  if (s) s.name = name;
+};
 </script>
 
 <template>
   <div class="tool-view">
     <header class="bar">
-      <span class="icon"><component :is="tool.icon" :size="16" :stroke-width="1.75" /></span>
+      <span class="icon"><component :is="props.tool.icon" :size="16" :stroke-width="1.75" /></span>
       <div class="title">
         <h1>{{ tool.name }}</h1>
         <p :title="tool.desc">{{ tool.desc }}</p>
@@ -29,10 +60,25 @@ defineProps<{ tool: Tool }>();
       <div id="tool-actions" class="actions" />
     </header>
 
+    <div v-if="tool.sessions" class="session-bar">
+      <SessionTabs
+        :sessions="sessions"
+        :active-id="activeId"
+        :max="MAX_SESSIONS"
+        @select="activeId = $event"
+        @add="addSession"
+        @close="closeSession"
+        @rename="renameSession"
+      />
+    </div>
+
     <div class="workspace">
-      <component :is="tool.component" v-if="tool.component" />
-      <TextTransform v-else-if="tool.actions" :actions="tool.actions" :placeholder="tool.inputPlaceholder" />
-      <EmptyState v-else title="即将上线" :description="`「${tool.name}」还在打磨中，很快就能在这里使用。`" />
+      <template v-if="tool.sessions">
+        <div v-for="s in sessions" v-show="s.id === activeId" :key="s.id" class="session">
+          <ToolSession :tool="tool" :active="s.id === activeId" />
+        </div>
+      </template>
+      <ToolSession v-else :tool="tool" />
     </div>
   </div>
 </template>
@@ -45,8 +91,7 @@ defineProps<{ tool: Tool }>();
   flex-direction: column;
 }
 
-/* 工具栏：一行放下名称、说明和选项 */
-/* 空间不够时，右侧选项自动换到第二行，不会遮住标题 */
+/* 工具栏：一行放下名称、说明和选项；空间不够时右侧选项自动换到第二行 */
 .bar {
   flex-shrink: 0;
   display: flex;
@@ -105,6 +150,14 @@ h1 {
   display: none;
 }
 
+/* 会话标签栏：贴在工作区上方 */
+.session-bar {
+  flex-shrink: 0;
+  padding: 8px 24px 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-sunken);
+}
+
 /* 工作区：铺满剩余空间 */
 .workspace {
   flex: 1;
@@ -113,5 +166,11 @@ h1 {
   flex-direction: column;
   padding: 16px 24px 20px;
   overflow: auto;
+}
+.session {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 </style>

@@ -30,10 +30,13 @@ open-tools/
 │   ├── components/
 │   │   ├── layout/          # 外框：AppHeader 顶栏、AppSidebar 侧栏、AppLogo、UpdateDialog 更新对话框
 │   │   ├── tool/            # 工具区与通用工具界面
-│   │   │   ├── ToolView.vue        # 工具栏（名称、说明、选项）+ 工作区
+│   │   │   ├── ToolView.vue        # 工具栏（名称、说明、选项）+ 会话标签栏 + 工作区
+│   │   │   ├── ToolSession.vue     # 工具主体的一个实例（一个会话）
+│   │   │   ├── SessionTabs.vue     # 会话标签栏：新建、切换、关闭、重命名
+│   │   │   ├── ToolActions.vue     # 把选项放进工具栏右侧
 │   │   │   ├── TextTransform.vue   # 「输入 → 按钮 → 输出」界面
 │   │   │   ├── TwoWayConvert.vue   # 左右双向实时转换界面
-│   │   │   └── toolActions.ts      # 工具栏右侧选项区的位置
+│   │   │   └── toolActions.ts      # 工具栏选项区位置、当前会话标记
 │   │   └── common/          # 通用组件
 │   │       ├── TextPane.vue        # 带标题栏的文本框；设置 language="json" 变成代码编辑器
 │   │       ├── CodeEditor.vue      # CodeMirror 编辑器（行号、折叠、错误标记）
@@ -99,20 +102,34 @@ open-tools/
 
 ### 把选项放到工具栏
 
-工具栏右侧可以放这个工具的选项（模式切换、复选框等），在组件里使用 `Teleport`：
+工具栏右侧可以放这个工具的选项（模式切换、复选框等），在组件里使用 `ToolActions`：
 
 ```vue
 <script setup lang="ts">
-import { TOOL_ACTIONS } from "@/components/tool/toolActions";
+import ToolActions from "@/components/tool/ToolActions.vue";
 </script>
 
 <template>
-  <Teleport defer :to="TOOL_ACTIONS">
+  <ToolActions>
     <label class="check"><input v-model="sort" type="checkbox" />按键名排序</label>
-  </Teleport>
+  </ToolActions>
   <!-- 工具主体 -->
 </template>
 ```
+
+### 多会话
+
+在工具定义里加上 `sessions: true`，工作区上方就会出现会话标签栏，同一个工具可以开多个标签，各自独立输入和处理：
+
+```ts
+{ id: "json-format", name: "JSON 格式化校验", ..., sessions: true },
+```
+
+每个会话是工具组件的一个独立实例，工具组件本身不需要改动。注意两点：
+
+- 工具栏选项请用 `ToolActions`，它只显示当前会话的选项。
+- 监听 `window` 事件请用 `useWindowEvent`，它只把事件交给当前会话。
+- 需要判断自己是否是当前会话时，用 `useToolActive()`。
 
 ## 新增一个分类
 

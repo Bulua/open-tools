@@ -5,7 +5,7 @@ import TextPane from "@/components/common/TextPane.vue";
 import CopyList from "@/components/common/CopyList.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
-import { TOOL_ACTIONS } from "@/components/tool/toolActions";
+import ToolActions from "@/components/tool/ToolActions.vue";
 import { formatBytes } from "@/utils/format";
 import { HASH_ALGORITHMS, hashBytes, hashText, type HashAlgorithm } from "../hash";
 
@@ -50,13 +50,13 @@ const items = computed(() =>
 
 <template>
   <div class="hash">
-    <Teleport defer :to="TOOL_ACTIONS">
+    <ToolActions>
       <div class="seg">
         <button :class="{ on: source === 'text' }" @click="source = 'text'">文本</button>
         <button :class="{ on: source === 'file' }" @click="source = 'file'">文件</button>
       </div>
       <label class="check"><input v-model="uppercase" type="checkbox" />大写</label>
-    </Teleport>
+    </ToolActions>
 
     <TextPane v-if="source === 'text'" v-model="text" class="input" label="文本" placeholder="输入要计算哈希的文本（按 UTF-8 计算）" />
 

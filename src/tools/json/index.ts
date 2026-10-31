@@ -13,6 +13,7 @@ const json: Category = {
       desc: "美化、压缩、树形查看 JSON，实时校验并定位错误",
       icon: Braces,
       component: defineAsyncComponent(() => import("./components/JsonFormat.vue")),
+      sessions: true,
     },
     {
       id: "json-diff",
@@ -20,6 +21,7 @@ const json: Category = {
       desc: "对比两段 JSON，列出新增、删除和修改的字段",
       icon: GitCompare,
       component: defineAsyncComponent(() => import("./components/JsonDiff.vue")),
+      sessions: true,
     },
     {
       id: "json-escape",
@@ -27,6 +29,7 @@ const json: Category = {
       desc: "把日志里 {\\\"a\\\":1} 这种被转义的 JSON 还原，或反过来转义",
       icon: Quote,
       inputPlaceholder: '例如 {\\"name\\":\\"Open Tools\\"}',
+      sessions: true,
       actions: [
         {
           label: "去转义",
@@ -47,6 +50,7 @@ const json: Category = {
       desc: "JSON 与 YAML 互转，或根据 JSON 生成 TypeScript 类型定义",
       icon: FileCode2,
       inputPlaceholder: "粘贴 JSON（或 YAML），再点击下方按钮转换",
+      sessions: true,
       actions: [
         { label: "JSON 转 YAML", primary: true, run: t.jsonToYaml },
         { label: "YAML 转 JSON", run: t.yamlToJson },
