@@ -78,7 +78,7 @@ defineExpose({ open: () => input.value?.click() });
   >
     <input ref="input" type="file" :accept="accept" :multiple="multiple" hidden @change="onPick" />
     <FilePlus2 :size="compact ? 16 : 28" :stroke-width="1.5" />
-    <strong>{{ title }}</strong>
+    <strong v-if="title">{{ title }}</strong>
     <span v-if="hint">{{ hint }}</span>
     <slot />
   </button>

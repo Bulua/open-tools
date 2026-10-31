@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, reactive, ref, shallowRef, watch } from "vue";
+import { computed, nextTick, reactive, ref, shallowRef, watch } from "vue";
 import { Crop, Download, FlipHorizontal2, FlipVertical2, Lock, LockOpen, RefreshCw, RotateCcw, RotateCw, Undo2 } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
+import { useFitFrame } from "@/composables/useFitFrame";
 import { saveFile } from "@/utils/saveFile";
 import { IMAGE_FORMATS, canvasToBytes, createCanvas, formatInfo, loadImage, outputFormatOf, type ImageFormat } from "../utils";
 import { initialCrop, updateCrop, type CropHandle, type Rect } from "../crop";
@@ -48,39 +49,9 @@ const reset = () => {
 
 // ---------- 预览 ----------
 const view = ref<HTMLCanvasElement>();
-const areaSize = ref({ width: 0, height: 0 });
+// 图片在预览区内完整显示
+const { observeArea, frameStyle } = useFitFrame(current);
 
-// 记录预览区大小，计算图片完整显示（不超出、不放大）时的尺寸。
-// 注意：函数 ref 在组件每次重新渲染时都会被调用，
-// 所以只在元素真正变化时才重新监听，尺寸也只在数值变化时才更新，否则会无限循环渲染。
-let observer: ResizeObserver | undefined;
-let observed: HTMLElement | null = null;
-
-const setAreaSize = (width: number, height: number) => {
-  if (width !== areaSize.value.width || height !== areaSize.value.height) areaSize.value = { width, height };
-};
-
-const observeArea = (el: unknown) => {
-  const target = el instanceof HTMLElement ? el : null;
-  if (target === observed) return;
-  observer?.disconnect();
-  observer = undefined;
-  observed = target;
-  if (!target) return;
-  // 先立即量一次，之后窗口或布局变化时由 ResizeObserver 更新
-  nextTick(() => setAreaSize(target.clientWidth, target.clientHeight));
-  observer = new ResizeObserver(([entry]) => setAreaSize(entry.contentRect.width, entry.contentRect.height));
-  observer.observe(target);
-};
-onBeforeUnmount(() => observer?.disconnect());
-
-const frameStyle = computed(() => {
-  const src = current.value;
-  const { width, height } = areaSize.value;
-  if (!src || !width || !height) return {};
-  const scale = Math.min(1, width / src.width, height / src.height);
-  return { width: `${src.width * scale}px`, height: `${src.height * scale}px` };
-});
 watch(current, async (src) => {
   await nextTick();
   if (!src || !view.value) return;

@@ -1,5 +1,5 @@
 import { defineAsyncComponent } from "vue";
-import { AppWindow, Crop, Minimize2, Pipette } from "lucide-vue-next";
+import { AppWindow, Crop, Eraser, Grid3x3, LayoutGrid, Minimize2, Pipette, Stamp } from "lucide-vue-next";
 import type { Category } from "../types";
 
 const image: Category = {
@@ -19,6 +19,34 @@ const image: Category = {
       desc: "裁剪、旋转、翻转、调整尺寸，调节亮度、对比度、饱和度",
       icon: Crop,
       component: defineAsyncComponent(() => import("./components/ImageEdit.vue")),
+    },
+    {
+      id: "image-stitch",
+      name: "图片拼接",
+      desc: "多张图片横向、纵向或按宫格拼成一张",
+      icon: LayoutGrid,
+      component: defineAsyncComponent(() => import("./components/ImageStitch.vue")),
+    },
+    {
+      id: "image-mosaic",
+      name: "图片马赛克",
+      desc: "框选或涂抹区域，打上马赛克或模糊，遮挡隐私信息",
+      icon: Grid3x3,
+      component: defineAsyncComponent(() => import("./components/ImageMosaic.vue")),
+    },
+    {
+      id: "image-watermark",
+      name: "图片水印",
+      desc: "添加文字或图片水印，支持平铺和批量处理",
+      icon: Stamp,
+      component: defineAsyncComponent(() => import("./components/ImageWatermark.vue")),
+    },
+    {
+      id: "image-removebg",
+      name: "图片去背景",
+      desc: "去除纯色背景变为透明，或换成白、蓝、红等底色",
+      icon: Eraser,
+      component: defineAsyncComponent(() => import("./components/ImageRemoveBg.vue")),
     },
     {
       id: "image-color",
