@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import TextPane from "@/components/common/TextPane.vue";
-import { diffJson, parseJson, preview, type DiffKind, type ParseResult } from "../utils";
+import { describeError, diffJson, editorErrorOf, parseJson, preview, type DiffKind, type ParseResult } from "../utils";
 
 const left = ref("");
 const right = ref("");
@@ -10,8 +10,7 @@ const parse = (text: string) => (text.trim() ? parseJson(text) : null);
 const leftResult = computed(() => parse(left.value));
 const rightResult = computed(() => parse(right.value));
 
-const errorOf = (r: ParseResult | null, side: string) =>
-  r && !r.ok ? `${side}：${r.line ? `第 ${r.line} 行第 ${r.column} 列，` : ""}${r.message}` : "";
+const errorOf = (r: ParseResult | null, side: string) => (r && !r.ok ? `${side} ${describeError(r)}` : "");
 
 const error = computed(() =>
   [errorOf(leftResult.value, "左侧"), errorOf(rightResult.value, "右侧")].filter(Boolean).join("\n"),
@@ -31,8 +30,20 @@ const KIND_LABEL: Record<DiffKind, string> = { added: "新增", removed: "删除
 <template>
   <div class="json-diff">
     <div class="panes">
-      <TextPane v-model="left" label="原始 JSON（左）" nowrap placeholder="粘贴修改前的 JSON" />
-      <TextPane v-model="right" label="新 JSON（右）" nowrap placeholder="粘贴修改后的 JSON" />
+      <TextPane
+        v-model="left"
+        label="原始 JSON（左）"
+        language="json"
+        :code-error="editorErrorOf(leftResult)"
+        placeholder="粘贴修改前的 JSON"
+      />
+      <TextPane
+        v-model="right"
+        label="新 JSON（右）"
+        language="json"
+        :code-error="editorErrorOf(rightResult)"
+        placeholder="粘贴修改后的 JSON"
+      />
     </div>
 
     <section class="result">

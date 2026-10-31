@@ -1,5 +1,5 @@
 import { defineAsyncComponent } from "vue";
-import { Braces, FileCode2, GitCompare, ListTree, Quote, ScrollText } from "lucide-vue-next";
+import { Braces, FileCode2, GitCompare, Quote, ScrollText } from "lucide-vue-next";
 import type { Category } from "../types";
 import * as t from "./utils";
 
@@ -10,16 +10,9 @@ const json: Category = {
     {
       id: "json-format",
       name: "格式化 / 校验",
-      desc: "美化、压缩 JSON，实时校验并定位错误",
+      desc: "美化、压缩、树形查看 JSON，实时校验并定位错误",
       icon: Braces,
       component: defineAsyncComponent(() => import("./components/JsonFormat.vue")),
-    },
-    {
-      id: "json-tree",
-      name: "树形查看",
-      desc: "以可折叠的树形结构浏览 JSON，复制节点路径",
-      icon: ListTree,
-      component: defineAsyncComponent(() => import("./components/JsonTree.vue")),
     },
     {
       id: "json-diff",

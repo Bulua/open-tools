@@ -1,13 +1,19 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { Check, ClipboardPaste, Copy, X } from "lucide-vue-next";
+import { defineAsyncComponent, ref } from "vue";
+import { Check, ChevronsDownUp, ChevronsUpDown, ClipboardPaste, Copy, X } from "lucide-vue-next";
 import { useClipboard } from "@/composables/useClipboard";
+import type CodeEditorComponent from "./CodeEditor.vue";
+import type { EditorError } from "./CodeEditor.vue";
+
+// 编辑器体积较大，用到时再加载
+const CodeEditor = defineAsyncComponent(() => import("./CodeEditor.vue"));
 
 /**
  * 带标题栏的多行文本框，工具里的输入框/输出框都用它。
- * - 可编辑时右上角提供「粘贴」「清空」
- * - 只读时提供「复制」
- * - 通过 #actions 插槽可以在右上角追加按钮
+ * - 可编辑时右上角提供「粘贴」「清空」，只读时提供「复制」
+ * - 指定 language="json" 时变成代码编辑器：行号、折叠、语法高亮，并多出「全部折叠/展开」
+ * - 通过 #actions 插槽可以在右上角追加内容
+ * - 通过 #body 插槽可以替换内容区（例如结果的树形视图），标题栏保持一致
  */
 const props = withDefaults(
   defineProps<{
@@ -18,14 +24,19 @@ const props = withDefaults(
     error?: string;
     /** 不自动换行（适合格式化后的代码） */
     nowrap?: boolean;
+    /** 代码语言，设置后使用代码编辑器 */
+    language?: "json";
+    /** 代码编辑器中标记的错误位置 */
+    codeError?: EditorError | null;
   }>(),
-  { placeholder: "", readonly: false, error: "", nowrap: false },
+  { placeholder: "", readonly: false, error: "", nowrap: false, language: undefined, codeError: null },
 );
 
 const model = defineModel<string>({ default: "" });
 
 const { copied, copy, paste } = useClipboard();
 const textarea = ref<HTMLTextAreaElement>();
+const editor = ref<InstanceType<typeof CodeEditorComponent>>();
 
 const onPaste = async () => {
   model.value = await paste();
@@ -33,6 +44,7 @@ const onPaste = async () => {
 
 /** 聚焦并选中指定位置的字符，用于定位错误 */
 const focusAt = (position: number) => {
+  if (editor.value) return editor.value.focusAt(position);
   const el = textarea.value;
   if (!el) return;
   el.focus();
@@ -48,6 +60,10 @@ defineExpose({ focusAt });
       <span class="pane-label">{{ label }}</span>
       <div class="pane-actions">
         <slot name="actions" />
+        <template v-if="language && !$slots.body">
+          <button class="icon-btn" title="全部折叠" @click="editor?.foldAll()"><ChevronsDownUp :size="14" /></button>
+          <button class="icon-btn" title="全部展开" @click="editor?.unfoldAll()"><ChevronsUpDown :size="14" /></button>
+        </template>
         <template v-if="!props.readonly">
           <button class="icon-btn" title="粘贴" @click="onPaste"><ClipboardPaste :size="14" /></button>
           <button class="icon-btn" title="清空" @click="model = ''"><X :size="14" /></button>
@@ -59,6 +75,17 @@ defineExpose({ focusAt });
       </div>
     </header>
     <p v-if="error" class="pane-error">{{ error }}</p>
+    <slot v-else-if="$slots.body" name="body" />
+    <CodeEditor
+      v-else-if="language"
+      ref="editor"
+      v-model="model"
+      :language="language"
+      :readonly="props.readonly"
+      :placeholder="placeholder"
+      :error="codeError"
+      :wrap="!props.nowrap"
+    />
     <textarea
       v-else
       ref="textarea"
@@ -99,10 +126,17 @@ defineExpose({ focusAt });
   font-size: 12px;
   color: var(--text-3);
 }
+.pane-label {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 .pane-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 2px;
+  min-width: 0;
+  margin-left: 12px;
 }
 textarea {
   flex: 1;

@@ -43,6 +43,7 @@
 
 /* 小图标按钮，用于面板右上角 */
 .icon-btn {
+  flex-shrink: 0;
   width: 26px;
   height: 26px;
   display: inline-grid;

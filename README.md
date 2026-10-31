@@ -44,8 +44,9 @@ open-tools/
 │   │   └── useClipboard.ts  # 复制、粘贴
 │   ├── components/
 │   │   ├── layout/        # 外框：AppHeader 顶栏、AppSidebar 侧栏
-│   │   ├── tool/          # ToolView 工具区、TextTransform 通用文本转换界面
-│   │   └── common/        # 通用组件：TextPane 文本框、EmptyState 空状态、CommandPalette 搜索
+│   │   ├── tool/          # ToolView 工具区（标题栏右侧可放工具选项）、TextTransform 通用文本转换界面
+│   │   └── common/        # 通用组件：TextPane 文本框（设置 language 后变成带行号/折叠的代码编辑器）、
+│   │                      #   CodeEditor 代码编辑器、EmptyState 空状态、CommandPalette 搜索
 │   └── tools/             # 所有工具，一个分类一个文件夹
 │       ├── index.ts       # 分类注册表（决定顶部分类及顺序）
 │       ├── types.ts       # Tool / Category 类型定义

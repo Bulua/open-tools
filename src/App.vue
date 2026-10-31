@@ -63,12 +63,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
         @toggle="sidebarCollapsed = !sidebarCollapsed"
       />
       <main class="main">
-        <ToolView
-          v-if="activeTool"
-          :key="activeTool.id"
-          :tool="activeTool"
-          :category-name="activeCategory.name"
-        />
+        <ToolView v-if="activeTool" :key="activeTool.id" :tool="activeTool" />
         <EmptyState
           v-else
           :title="`${activeCategory.name}，敬请期待`"
@@ -102,7 +97,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
   min-width: 0;
   display: flex;
   flex-direction: column;
-  padding: 28px 40px 32px;
+  padding: 24px 40px 28px;
   overflow: auto;
 }
 </style>

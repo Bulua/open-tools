@@ -22,7 +22,7 @@
   --warning-soft: rgba(154, 107, 31, 0.1);
 
   /* 代码/数据高亮 */
-  --syntax-key: #141413;
+  --syntax-key: #3b5a7a;
   --syntax-string: #4c7a4f;
   --syntax-number: #b55a3b;
   --syntax-literal: #6a5a9c;
@@ -59,7 +59,7 @@
   --warning: #d9a85b;
   --warning-soft: rgba(217, 168, 91, 0.12);
 
-  --syntax-key: #f5f4ef;
+  --syntax-key: #a3bcd8;
   --syntax-string: #a5c99a;
   --syntax-number: #e9a185;
   --syntax-literal: #b9a6e0;

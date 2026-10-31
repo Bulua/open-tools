@@ -24,6 +24,12 @@ describe("parseJson", () => {
       expect(r.column).toBe(7);
     }
   });
+
+  it("缺少结尾括号时指向文本末尾", () => {
+    const r = parseJson('{\n  "a": [1, 2]\n');
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.line).toBe(2);
+  });
 });
 
 describe("格式化与压缩", () => {

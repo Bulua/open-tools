@@ -16,8 +16,11 @@ export function parseJson(text: string): ParseResult {
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     const match = /position (\d+)/.exec(message);
-    if (!match) return { ok: false, message };
-    const position = Number(match[1]);
+    const end = text.trimEnd().length;
+    // 「意外结束」类错误没有位置信息；位置落在末尾空白里时，都指向最后一个有内容的字符
+    const raw = match ? Number(match[1]) : /end of JSON/i.test(message) ? end : undefined;
+    if (raw === undefined) return { ok: false, message };
+    const position = Math.min(raw, end);
     const before = text.slice(0, position).split("\n");
     return {
       ok: false,
@@ -28,6 +31,18 @@ export function parseJson(text: string): ParseResult {
       column: before[before.length - 1].length + 1,
     };
   }
+}
+
+/** 解析失败时的完整提示，例如「第 3 行第 7 列：Expected ':' after property name」 */
+export function describeError(result: ParseResult): string {
+  if (result.ok) return "";
+  return result.line ? `第 ${result.line} 行第 ${result.column} 列：${result.message}` : result.message;
+}
+
+/** 转成代码编辑器需要的错误标记 */
+export function editorErrorOf(result: ParseResult | null) {
+  if (!result || result.ok || result.position === undefined) return null;
+  return { position: result.position, message: describeError(result) };
 }
 
 /** 递归按键名排序 */

@@ -23,11 +23,11 @@ const entries = computed<[string | number, JsonValue][]>(() => {
   return [];
 });
 
-// 默认展开前两层，响应「全部展开 / 全部折叠」
+// 默认展开前两层，响应「全部展开 / 全部折叠」（折叠时最外层保持展开）
 const open = ref(props.depth < 2);
 watch(
   () => ctx.signal.value,
-  (s) => (open.value = s.expand),
+  (s) => (open.value = s.expand || props.depth === 0),
 );
 
 const childPath = (key: string | number) =>
