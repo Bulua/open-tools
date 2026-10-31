@@ -44,6 +44,11 @@ export const editorTheme = EditorView.theme({
   ".cm-foldGutter .cm-gutterElement": { display: "flex", alignItems: "center", padding: "0 2px" },
   ".cm-line": { padding: "0 12px 0 2px" },
 
+  // 匹配高亮：两种颜色交替，相邻的匹配也能分清
+  ".cm-mark-a": { backgroundColor: "rgba(201, 100, 66, 0.22)", borderRadius: "2px" },
+  ".cm-mark-b": { backgroundColor: "rgba(59, 90, 122, 0.22)", borderRadius: "2px" },
+  ".cm-mark-active": { outline: "1.5px solid var(--accent)", borderRadius: "2px" },
+
   // 错误所在行：浅红底色 + 红色加粗行号
   ".cm-error-line": { backgroundColor: "var(--danger-soft)" },
   ".cm-gutterElement.cm-error-gutter": { color: "var(--danger)", fontWeight: "600" },

@@ -18,11 +18,17 @@ const props = withDefaults(
     paste?: boolean;
     /** 紧凑样式：单行、矮一些，适合放在列表下方「继续添加」 */
     compact?: boolean;
+    /** 允许拖入文件夹：会展开文件夹内的所有文件，并通过 entries 事件给出相对路径 */
+    directories?: boolean;
   }>(),
-  { accept: "", multiple: false, title: "拖入文件，或点击选择", hint: "", paste: true, compact: false },
+  { accept: "", multiple: false, title: "拖入文件，或点击选择", hint: "", paste: true, compact: false, directories: false },
 );
 
-const emit = defineEmits<{ files: [files: File[]] }>();
+const emit = defineEmits<{
+  files: [files: File[]];
+  /** directories 为 true 时触发：每个文件及其相对路径（如「照片/2024/a.jpg」） */
+  entries: [entries: { file: File; path: string }[]];
+}>();
 
 const input = ref<HTMLInputElement>();
 const dragging = ref(false);
@@ -39,17 +45,46 @@ const accepts = (file: File) => {
 
 const deliver = (list: FileList | File[] | null | undefined) => {
   const files = [...(list ?? [])].filter(accepts);
-  if (files.length) emit("files", props.multiple ? files : files.slice(0, 1));
+  if (!files.length) return;
+  emit("files", props.multiple ? files : files.slice(0, 1));
+  if (props.directories) emit("entries", files.map((file) => ({ file, path: file.webkitRelativePath || file.name })));
 };
 
-const onDrop = (e: DragEvent) => {
+// ---------- 文件夹：拖入时逐层读取文件夹里的所有文件 ----------
+
+const readEntry = async (entry: FileSystemEntry, base: string): Promise<{ file: File; path: string }[]> => {
+  const path = base ? `${base}/${entry.name}` : entry.name;
+  if (entry.isFile) {
+    const file = await new Promise<File>((resolve, reject) => (entry as FileSystemFileEntry).file(resolve, reject));
+    return [{ file, path }];
+  }
+  const reader = (entry as FileSystemDirectoryEntry).createReader();
+  const children: FileSystemEntry[] = [];
+  // readEntries 每次最多返回一部分，需要读到返回空为止
+  for (;;) {
+    const batch = await new Promise<FileSystemEntry[]>((resolve, reject) => reader.readEntries(resolve, reject));
+    if (!batch.length) break;
+    children.push(...batch);
+  }
+  return (await Promise.all(children.map((c) => readEntry(c, path)))).flat();
+};
+
+const onDrop = async (e: DragEvent) => {
   dragging.value = false;
-  deliver(e.dataTransfer?.files);
+  const items = [...(e.dataTransfer?.items ?? [])];
+  const entries = props.directories ? items.map((i) => i.webkitGetAsEntry()).filter((x): x is FileSystemEntry => !!x) : [];
+  if (!entries.some((x) => x.isDirectory)) return deliver(e.dataTransfer?.files);
+
+  const all = (await Promise.all(entries.map((x) => readEntry(x, "")))).flat().filter((x) => accepts(x.file));
+  if (!all.length) return;
+  emit("files", all.map((x) => x.file));
+  emit("entries", all);
 };
 
-const onPick = () => {
-  deliver(input.value?.files);
-  if (input.value) input.value.value = "";
+const onPick = (e: Event) => {
+  const target = e.target as HTMLInputElement;
+  deliver(target.files);
+  target.value = "";
 };
 
 const onPaste = (e: ClipboardEvent) => {
@@ -64,7 +99,14 @@ const onPaste = (e: ClipboardEvent) => {
 
 useWindowEvent("paste", onPaste, () => props.paste);
 
-defineExpose({ open: () => input.value?.click() });
+const folderInput = ref<HTMLInputElement>();
+
+defineExpose({
+  /** 打开文件选择框 */
+  open: () => input.value?.click(),
+  /** 打开文件夹选择框（需要 directories） */
+  openFolder: () => folderInput.value?.click(),
+});
 </script>
 
 <template>
@@ -77,6 +119,7 @@ defineExpose({ open: () => input.value?.click() });
     @drop.prevent="onDrop"
   >
     <input ref="input" type="file" :accept="accept" :multiple="multiple" hidden @change="onPick" />
+    <input v-if="directories" ref="folderInput" type="file" webkitdirectory hidden @change="onPick" />
     <FilePlus2 :size="compact ? 16 : 28" :stroke-width="1.5" />
     <strong v-if="title">{{ title }}</strong>
     <span v-if="hint">{{ hint }}</span>

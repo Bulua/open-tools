@@ -7,7 +7,9 @@ import json from "./json";
 import encode from "./encode";
 import convert from "./convert";
 import image from "./image";
+import network from "./network";
+import utility from "./utility";
 
-export const categories: Category[] = [json, encode, convert, image];
+export const categories: Category[] = [json, encode, convert, image, network, utility];
 
 export * from "./types";

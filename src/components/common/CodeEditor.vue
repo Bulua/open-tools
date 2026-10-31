@@ -32,7 +32,7 @@ import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
 import { setDiagnostics, type Diagnostic } from "@codemirror/lint";
 import { json } from "@codemirror/lang-json";
 import { editorTheme, highlightStyle } from "./codeEditorTheme";
-import { errorLineField, foldFirstLevel, setErrorLine } from "./codeEditorExtensions";
+import { errorLineField, foldFirstLevel, marksField, setErrorLine, setMarks, type TextMark } from "./codeEditorExtensions";
 
 /**
  * 代码编辑器（基于 CodeMirror 6）：行号、折叠、语法高亮、错误标记。
@@ -47,8 +47,10 @@ const props = withDefaults(
     error?: EditorError | null;
     /** 长行自动换行 */
     wrap?: boolean;
+    /** 高亮显示的区间（如正则匹配结果） */
+    marks?: TextMark[];
   }>(),
-  { language: "text", readonly: false, placeholder: "", error: null, wrap: false },
+  { language: "text", readonly: false, placeholder: "", error: null, wrap: false, marks: () => [] },
 );
 
 const model = defineModel<string>({ default: "" });
@@ -94,6 +96,7 @@ onMounted(() => {
         // 只读的结果框不需要高亮当前行
         props.readonly ? [] : [highlightActiveLineGutter(), highlightActiveLine()],
         errorLineField,
+        marksField,
         drawSelection(),
         history(),
         indentOnInput(),
@@ -121,6 +124,7 @@ onMounted(() => {
     }),
   });
   showError();
+  showMarks();
 });
 
 onBeforeUnmount(() => view?.destroy());
@@ -132,6 +136,11 @@ watch(model, (value) => {
 });
 
 watch(() => props.error, showError);
+
+function showMarks() {
+  view?.dispatch({ effects: setMarks.of(props.marks) });
+}
+watch(() => props.marks, showMarks);
 
 /** 光标移到指定位置并滚动到可见区域 */
 const focusAt = (position: number) => {

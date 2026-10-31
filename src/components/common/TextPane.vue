@@ -4,6 +4,7 @@ import { Check, ChevronsDownUp, ChevronsUpDown, ClipboardPaste, Copy, X } from "
 import { useClipboard } from "@/composables/useClipboard";
 import type CodeEditorComponent from "./CodeEditor.vue";
 import type { EditorError } from "./CodeEditor.vue";
+import type { TextMark } from "./codeEditorExtensions";
 
 // 编辑器体积较大，用到时再加载
 const CodeEditor = defineAsyncComponent(() => import("./CodeEditor.vue"));
@@ -11,7 +12,7 @@ const CodeEditor = defineAsyncComponent(() => import("./CodeEditor.vue"));
 /**
  * 带标题栏的多行文本框，工具里的输入框/输出框都用它。
  * - 可编辑时右上角提供「粘贴」「清空」，只读时提供「复制」
- * - 指定 language="json" 时变成代码编辑器：行号、折叠、语法高亮，并多出「全部折叠/展开」
+ * - 指定 language 时变成代码编辑器：带行号；json 还有语法高亮、折叠和「全部折叠/展开」
  * - 通过 #actions 插槽可以在右上角追加内容
  * - 通过 #body 插槽可以替换内容区（例如结果的树形视图），标题栏保持一致
  */
@@ -24,12 +25,14 @@ const props = withDefaults(
     error?: string;
     /** 不自动换行（适合格式化后的代码） */
     nowrap?: boolean;
-    /** 代码语言，设置后使用代码编辑器 */
-    language?: "json";
+    /** 代码语言，设置后使用代码编辑器；text 为纯文本（带行号，可以高亮区间） */
+    language?: "json" | "text";
     /** 代码编辑器中标记的错误位置 */
     codeError?: EditorError | null;
+    /** 代码编辑器中高亮的区间 */
+    codeMarks?: TextMark[];
   }>(),
-  { placeholder: "", readonly: false, error: "", nowrap: false, language: undefined, codeError: null },
+  { placeholder: "", readonly: false, error: "", nowrap: false, language: undefined, codeError: null, codeMarks: () => [] },
 );
 
 const model = defineModel<string>({ default: "" });
@@ -60,7 +63,7 @@ defineExpose({ focusAt });
       <span class="pane-label">{{ label }}</span>
       <div class="pane-actions">
         <slot name="actions" />
-        <template v-if="language && !$slots.body">
+        <template v-if="language === 'json' && !$slots.body">
           <button class="icon-btn" title="全部折叠" @click="editor?.foldAll()"><ChevronsDownUp :size="14" /></button>
           <button class="icon-btn" title="全部展开" @click="editor?.unfoldAll()"><ChevronsUpDown :size="14" /></button>
         </template>
@@ -84,6 +87,7 @@ defineExpose({ focusAt });
       :readonly="props.readonly"
       :placeholder="placeholder"
       :error="codeError"
+      :marks="codeMarks"
       :wrap="!props.nowrap"
     />
     <textarea

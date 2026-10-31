@@ -28,6 +28,34 @@ export const errorLineField = StateField.define<number | null>({
   ],
 });
 
+// ---------- 高亮区间（正则匹配结果等） ----------
+
+export interface TextMark {
+  from: number;
+  to: number;
+  /** 对应 codeEditorTheme 中的样式，例如 cm-mark-a、cm-mark-b 交替显示相邻的匹配 */
+  className: string;
+}
+
+export const setMarks = StateEffect.define<TextMark[]>();
+
+export const marksField = StateField.define({
+  create: () => Decoration.none,
+  update(value, tr) {
+    for (const effect of tr.effects) {
+      if (effect.is(setMarks)) {
+        const ranges = effect.value
+          .filter((m) => m.to > m.from && m.to <= tr.state.doc.length)
+          .sort((a, b) => a.from - b.from)
+          .map((m) => Decoration.mark({ class: m.className }).range(m.from, m.to));
+        return Decoration.set(ranges);
+      }
+    }
+    return value.map(tr.changes);
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
+
 // ---------- 折叠到第一层 ----------
 
 /**

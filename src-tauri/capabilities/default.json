@@ -6,7 +6,9 @@
   "permissions": [
     "core:default",
     "dialog:allow-save",
+    "dialog:allow-open",
     "fs:allow-write-file",
+    "fs:allow-mkdir",
     "updater:default",
     "process:allow-restart"
   ]

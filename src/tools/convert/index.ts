@@ -1,11 +1,18 @@
 import { defineAsyncComponent } from "vue";
-import { CaseSensitive, Clock, Hash, Palette } from "lucide-vue-next";
+import { CaseSensitive, Clock, Hash, Palette, Thermometer } from "lucide-vue-next";
 import type { Category } from "../types";
 
 const convert: Category = {
   id: "convert",
   name: "转换",
   tools: [
+    {
+      id: "units",
+      name: "温度 / 单位换算",
+      desc: "温度、长度、重量、面积、体积、数据大小、速度、时间的单位换算",
+      icon: Thermometer,
+      component: defineAsyncComponent(() => import("./components/UnitConvert.vue")),
+    },
     {
       id: "timestamp",
       name: "时间戳转换",
