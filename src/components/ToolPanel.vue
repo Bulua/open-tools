@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { Copy, Check, Trash2, ArrowDownUp, ClipboardPaste } from "lucide-vue-next";
+import { ArrowDownUp, Check, ClipboardPaste, Copy, X } from "lucide-vue-next";
 import type { Tool, ToolAction } from "../tools";
 import EmptyState from "./EmptyState.vue";
 
-const props = defineProps<{ tool: Tool }>();
+defineProps<{ tool: Tool; categoryName: string }>();
 
 const input = ref("");
 const output = ref("");
@@ -45,29 +45,27 @@ const clear = () => {
 <template>
   <div class="panel">
     <header class="head">
-      <div class="head-icon"><component :is="props.tool.icon" :size="22" /></div>
-      <div>
-        <h2>{{ tool.name }}</h2>
-        <p>{{ tool.desc }}</p>
-      </div>
+      <div class="crumb">{{ categoryName }}</div>
+      <h1>{{ tool.name }}</h1>
+      <p>{{ tool.desc }}</p>
     </header>
 
     <EmptyState
       v-if="!tool.actions"
-      title="工具开发中"
-      :description="`「${tool.name}」即将上线，界面与功能正在设计中。`"
+      title="即将上线"
+      :description="`「${tool.name}」还在打磨中，很快就能在这里使用。`"
     />
 
     <div v-else class="workspace">
-      <section class="card">
-        <div class="card-head">
-          <span class="label">输入</span>
-          <div class="tools">
-            <button class="ghost" title="粘贴" @click="paste"><ClipboardPaste :size="15" /></button>
-            <button class="ghost" title="清空" @click="clear"><Trash2 :size="15" /></button>
+      <section class="box">
+        <div class="box-head">
+          <span>输入</span>
+          <div class="box-tools">
+            <button title="粘贴" @click="paste"><ClipboardPaste :size="14" /></button>
+            <button title="清空" @click="clear"><X :size="14" /></button>
           </div>
         </div>
-        <textarea v-model="input" spellcheck="false" :placeholder="tool.inputPlaceholder ?? '在此输入或粘贴内容…'" />
+        <textarea v-model="input" spellcheck="false" :placeholder="tool.inputPlaceholder ?? '输入或粘贴内容'" />
       </section>
 
       <div class="bar">
@@ -81,21 +79,24 @@ const clear = () => {
           {{ a.label }}
         </button>
         <span class="spacer" />
-        <button class="btn" title="交换输入与输出" @click="swap"><ArrowDownUp :size="15" />交换</button>
+        <button class="btn subtle" title="交换输入与输出" @click="swap">
+          <ArrowDownUp :size="14" />
+          交换
+        </button>
       </div>
 
-      <section class="card">
-        <div class="card-head">
-          <span class="label">输出</span>
-          <div class="tools">
-            <button class="ghost" :class="{ ok: copied }" title="复制" @click="copy">
-              <Check v-if="copied" :size="15" />
-              <Copy v-else :size="15" />
+      <section class="box output">
+        <div class="box-head">
+          <span>输出</span>
+          <div class="box-tools">
+            <button :class="{ ok: copied }" title="复制" @click="copy">
+              <Check v-if="copied" :size="14" />
+              <Copy v-else :size="14" />
             </button>
           </div>
         </div>
-        <div v-if="error" class="error">{{ error }}</div>
-        <textarea v-else v-model="output" readonly spellcheck="false" placeholder="结果将显示在这里" />
+        <p v-if="error" class="error">{{ error }}</p>
+        <textarea v-else v-model="output" readonly spellcheck="false" placeholder="结果会显示在这里" />
       </section>
     </div>
   </div>
@@ -103,47 +104,44 @@ const clear = () => {
 
 <style scoped>
 .panel {
-  height: 100%;
+  flex: 1;
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  min-height: 460px;
+  min-height: 480px;
 }
 
 .head {
-  display: flex;
-  align-items: center;
-  gap: 14px;
+  padding: 8px 0 24px;
 }
-.head-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  color: var(--accent-text);
-  background: var(--accent-soft);
+.crumb {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-bottom: 6px;
 }
-h2 {
+h1 {
   margin: 0;
-  font-size: 18px;
-  font-weight: 650;
+  font-family: var(--font-serif);
+  font-size: 28px;
+  font-weight: 400;
+  letter-spacing: -0.3px;
 }
 .head p {
-  margin: 2px 0 0;
-  font-size: 13px;
-  color: var(--text-3);
+  margin: 6px 0 0;
+  color: var(--text-2);
 }
 
 .workspace {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
   min-height: 0;
 }
 
-.card {
+.box {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -151,49 +149,45 @@ h2 {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  overflow: hidden;
+  box-shadow: var(--shadow-sm);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.card:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+.box:focus-within {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow);
 }
-.card-head {
-  height: 40px;
+.box.output {
+  background: var(--bg-sunken);
+  box-shadow: none;
+}
+.box-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 8px 0 14px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-2);
-}
-.label {
+  padding: 8px 8px 0 16px;
   font-size: 12px;
-  font-weight: 600;
-  color: var(--text-2);
-  letter-spacing: 0.5px;
+  color: var(--text-3);
 }
-.tools {
+.box-tools {
   display: flex;
   gap: 2px;
 }
-.ghost {
-  width: 28px;
-  height: 28px;
+.box-tools button {
+  width: 26px;
+  height: 26px;
   display: grid;
   place-items: center;
   border: none;
-  border-radius: 7px;
-  background: transparent;
+  border-radius: 6px;
+  background: none;
   color: var(--text-3);
 }
-.ghost:hover {
-  background: var(--border);
+.box-tools button:hover {
+  background: var(--hover);
   color: var(--text);
 }
-.ghost.ok {
-  color: #30a46c;
+.box-tools button.ok {
+  color: var(--success);
 }
 
 textarea {
@@ -202,18 +196,20 @@ textarea {
   resize: none;
   border: none;
   outline: none;
-  padding: 12px 14px;
+  padding: 6px 16px 14px;
   background: transparent;
-  font-family: "Cascadia Code", Consolas, "Courier New", monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.7;
 }
 textarea::placeholder {
   color: var(--text-3);
+  font-family: var(--font-sans);
 }
 
 .error {
-  padding: 12px 14px;
+  margin: 0;
+  padding: 6px 16px 14px;
   color: var(--danger);
   font-size: 13px;
 }
@@ -227,32 +223,41 @@ textarea::placeholder {
   flex: 1;
 }
 .btn {
-  height: 34px;
-  padding: 0 16px;
+  height: 32px;
+  padding: 0 14px;
   display: flex;
   align-items: center;
   gap: 6px;
-  border-radius: 9px;
-  border: 1px solid var(--border);
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
   background: var(--surface);
   color: var(--text);
+  font-size: 13px;
   font-weight: 500;
-  transition: border-color 0.15s, color 0.15s, transform 0.05s, filter 0.15s;
+  transition: background 0.15s, border-color 0.15s;
 }
 .btn:hover {
-  border-color: var(--accent);
-  color: var(--accent-text);
+  background: var(--hover);
 }
 .btn:active {
   transform: translateY(1px);
 }
 .btn.primary {
-  border-color: transparent;
+  border-color: var(--accent);
+  background: var(--accent);
   color: #fff;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
 }
 .btn.primary:hover {
-  filter: brightness(1.08);
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+.btn.subtle {
+  border-color: transparent;
+  background: none;
+  color: var(--text-2);
+}
+.btn.subtle:hover {
+  background: var(--hover);
+  color: var(--text);
 }
 </style>

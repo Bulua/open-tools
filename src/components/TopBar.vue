@@ -1,39 +1,89 @@
 <script setup lang="ts">
-import { Moon, Sun, Boxes } from "lucide-vue-next";
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { ChevronLeft, ChevronRight, Moon, Search, Sun } from "lucide-vue-next";
 import type { Category } from "../tools";
 
-defineProps<{ categories: Category[]; activeId: string; theme: "light" | "dark" }>();
-defineEmits<{ select: [id: string]; toggleTheme: [] }>();
+const props = defineProps<{ categories: Category[]; activeId: string; theme: "light" | "dark" }>();
+defineEmits<{ select: [id: string]; toggleTheme: []; openSearch: [] }>();
+
+// 分类多了以后横向滚动，两侧出现箭头
+const scroller = ref<HTMLElement>();
+const canLeft = ref(false);
+const canRight = ref(false);
+
+const update = () => {
+  const el = scroller.value;
+  if (!el) return;
+  canLeft.value = el.scrollLeft > 1;
+  canRight.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+};
+
+const scrollBy = (dir: number) => {
+  scroller.value?.scrollBy({ left: dir * scroller.value.clientWidth * 0.6, behavior: "smooth" });
+};
+
+// 鼠标滚轮纵向滚动时也能横向翻分类
+const onWheel = (e: WheelEvent) => {
+  if (!scroller.value || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+  scroller.value.scrollLeft += e.deltaY;
+};
+
+let observer: ResizeObserver | undefined;
+onMounted(() => {
+  observer = new ResizeObserver(update);
+  observer.observe(scroller.value!);
+  update();
+});
+onBeforeUnmount(() => observer?.disconnect());
+
+watch(
+  () => props.activeId,
+  async (id) => {
+    await nextTick();
+    scroller.value
+      ?.querySelector<HTMLElement>(`[data-id="${id}"]`)
+      ?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  },
+);
 </script>
 
 <template>
   <header class="topbar">
     <div class="brand">
-      <div class="logo"><Boxes :size="18" /></div>
-      <div class="brand-text">
-        <span class="name">Open Tools</span>
-        <span class="sub">工具百宝箱</span>
-      </div>
+      <span class="mark" />
+      <span class="name">Open Tools</span>
     </div>
 
-    <nav class="tabs">
-      <button
-        v-for="c in categories"
-        :key="c.id"
-        class="tab"
-        :class="{ active: c.id === activeId }"
-        @click="$emit('select', c.id)"
-      >
-        <component :is="c.icon" :size="16" />
-        <span>{{ c.name }}</span>
-        <span class="count">{{ c.tools.length }}</span>
+    <div class="tabs-wrap" :class="{ 'fade-left': canLeft, 'fade-right': canRight }">
+      <button v-show="canLeft" class="arrow left" aria-label="向左滚动" @click="scrollBy(-1)">
+        <ChevronLeft :size="16" />
       </button>
-    </nav>
+      <nav ref="scroller" class="tabs" @scroll="update" @wheel.prevent="onWheel">
+        <button
+          v-for="c in categories"
+          :key="c.id"
+          :data-id="c.id"
+          class="tab"
+          :class="{ active: c.id === activeId }"
+          @click="$emit('select', c.id)"
+        >
+          {{ c.name }}
+        </button>
+      </nav>
+      <button v-show="canRight" class="arrow right" aria-label="向右滚动" @click="scrollBy(1)">
+        <ChevronRight :size="16" />
+      </button>
+    </div>
 
     <div class="actions">
-      <button class="icon-btn" :title="theme === 'dark' ? '切换到浅色' : '切换到深色'" @click="$emit('toggleTheme')">
-        <Sun v-if="theme === 'dark'" :size="18" />
-        <Moon v-else :size="18" />
+      <button class="search" @click="$emit('openSearch')">
+        <Search :size="14" />
+        <span>搜索工具</span>
+        <kbd>Ctrl K</kbd>
+      </button>
+      <button class="icon-btn" :title="theme === 'dark' ? '浅色模式' : '深色模式'" @click="$emit('toggleTheme')">
+        <Sun v-if="theme === 'dark'" :size="16" />
+        <Moon v-else :size="16" />
       </button>
     </div>
   </header>
@@ -41,106 +91,153 @@ defineEmits<{ select: [id: string]; toggleTheme: [] }>();
 
 <style scoped>
 .topbar {
-  height: 60px;
+  height: 52px;
   flex-shrink: 0;
-  display: grid;
-  grid-template-columns: 240px 1fr auto;
-  align-items: center;
-  padding: 0 20px 0 0;
-  background: var(--surface);
+  display: flex;
+  align-items: stretch;
+  gap: 24px;
+  padding: 0 16px 0 20px;
   border-bottom: 1px solid var(--border);
+  background: var(--bg-sunken);
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding-left: 20px;
+  gap: 9px;
+  flex-shrink: 0;
 }
-.logo {
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
-}
-.brand-text {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.15;
+.mark {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--accent);
+  transform: rotate(45deg) scale(0.85);
 }
 .name {
-  font-weight: 700;
-  font-size: 15px;
-  letter-spacing: 0.2px;
-}
-.sub {
-  font-size: 11px;
-  color: var(--text-3);
+  font-family: var(--font-serif);
+  font-size: 17px;
+  letter-spacing: -0.2px;
 }
 
+.tabs-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
 .tabs {
+  flex: 1;
   display: flex;
   gap: 4px;
-  padding: 4px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  justify-self: start;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+.fade-left .tabs {
+  mask-image: linear-gradient(to right, transparent 0, #000 40px);
+}
+.fade-right .tabs {
+  mask-image: linear-gradient(to left, transparent 0, #000 40px);
+}
+.fade-left.fade-right .tabs {
+  mask-image: linear-gradient(to right, transparent 0, #000 40px, #000 calc(100% - 40px), transparent 100%);
+}
+
 .tab {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  height: 34px;
-  padding: 0 14px;
+  position: relative;
+  flex-shrink: 0;
+  padding: 0 12px;
   border: none;
-  border-radius: 9px;
-  background: transparent;
+  background: none;
   color: var(--text-2);
-  font-weight: 500;
-  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+  transition: color 0.15s;
 }
 .tab:hover {
   color: var(--text);
 }
 .tab.active {
-  background: var(--surface);
-  color: var(--accent-text);
-  box-shadow: var(--shadow);
+  color: var(--text);
+  font-weight: 600;
 }
-.count {
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
-  font-size: 11px;
-  line-height: 18px;
-  text-align: center;
-  background: var(--border);
-  color: var(--text-2);
-}
-.tab.active .count {
-  background: var(--accent-soft);
-  color: var(--accent-text);
+.tab.active::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
 }
 
-.icon-btn {
-  width: 36px;
-  height: 36px;
+.arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  width: 24px;
+  height: 24px;
+  transform: translateY(-50%);
   display: grid;
   place-items: center;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface);
+  border-radius: 6px;
+  background: var(--bg);
   color: var(--text-2);
-  transition: color 0.15s, border-color 0.15s;
+}
+.arrow:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.arrow.left {
+  left: 0;
+}
+.arrow.right {
+  right: 0;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.search {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-3);
+  font-size: 13px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.search span {
+  width: 120px;
+  text-align: left;
+}
+.search:hover {
+  border-color: var(--border-strong);
+  color: var(--text-2);
+}
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-2);
 }
 .icon-btn:hover {
-  color: var(--accent-text);
-  border-color: var(--accent);
+  background: var(--hover);
+  color: var(--text);
 }
 </style>

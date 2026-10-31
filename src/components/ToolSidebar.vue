@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { Search, PackageOpen } from "lucide-vue-next";
+import { PanelLeftClose, PanelLeftOpen, Search } from "lucide-vue-next";
 import type { Category } from "../tools";
 
-const props = defineProps<{ category: Category; activeId?: string }>();
-defineEmits<{ select: [id: string] }>();
+const props = defineProps<{ category: Category; activeId?: string; collapsed: boolean }>();
+defineEmits<{ select: [id: string]; toggle: [] }>();
 
 const keyword = ref("");
 watch(
@@ -20,182 +20,181 @@ const filtered = computed(() => {
 </script>
 
 <template>
-  <aside class="sidebar">
-    <div class="search">
-      <Search :size="15" class="search-icon" />
-      <input v-model="keyword" placeholder="搜索工具" />
+  <aside class="sidebar" :class="{ collapsed }">
+    <div v-if="!collapsed" class="head">
+      <h2>{{ category.name }}</h2>
+      <span class="count">{{ category.tools.length }}</span>
     </div>
 
-    <div class="section-title">
-      {{ category.name }}
-      <span>{{ filtered.length }}</span>
-    </div>
+    <label v-if="!collapsed && category.tools.length > 6" class="filter">
+      <Search :size="14" />
+      <input v-model="keyword" placeholder="筛选" />
+    </label>
 
-    <ul v-if="filtered.length" class="list">
-      <li
-        v-for="t in filtered"
-        :key="t.id"
-        class="item"
-        :class="{ active: t.id === activeId }"
-        @click="$emit('select', t.id)"
-      >
-        <div class="item-icon"><component :is="t.icon" :size="17" /></div>
-        <div class="item-text">
-          <div class="item-name">
-            {{ t.name }}
-            <span v-if="!t.actions" class="badge">开发中</span>
-          </div>
-          <div class="item-desc">{{ t.desc }}</div>
-        </div>
+    <ul class="list">
+      <li v-for="t in filtered" :key="t.id">
+        <button
+          class="item"
+          :class="{ active: t.id === activeId }"
+          :title="collapsed ? t.name : t.desc"
+          @click="$emit('select', t.id)"
+        >
+          <component :is="t.icon" :size="16" :stroke-width="1.75" class="icon" />
+          <span v-if="!collapsed" class="label">{{ t.name }}</span>
+          <span v-if="!collapsed && !t.actions" class="soon">即将上线</span>
+        </button>
       </li>
     </ul>
 
-    <div v-else class="empty">
-      <PackageOpen :size="28" />
-      <span>{{ category.tools.length ? "没有匹配的工具" : "暂无工具" }}</span>
-    </div>
+    <p v-if="!collapsed && !filtered.length" class="empty">
+      {{ category.tools.length ? "没有匹配的工具" : "这个分类还是空的" }}
+    </p>
+
+    <button class="toggle" :title="collapsed ? '展开侧栏' : '收起侧栏'" @click="$emit('toggle')">
+      <PanelLeftOpen v-if="collapsed" :size="16" />
+      <PanelLeftClose v-else :size="16" />
+    </button>
   </aside>
 </template>
 
 <style scoped>
 .sidebar {
-  width: 240px;
+  width: 232px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  background: var(--surface);
+  padding: 20px 10px 10px;
+  background: var(--bg-sunken);
   border-right: 1px solid var(--border);
-  padding: 16px 12px;
+  transition: width 0.2s ease;
   overflow: hidden;
 }
-
-.search {
-  position: relative;
-  margin-bottom: 16px;
-}
-.search-icon {
-  position: absolute;
-  left: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-3);
-}
-.search input {
-  width: 100%;
-  height: 34px;
-  padding: 0 10px 0 32px;
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  background: var(--surface-2);
-  outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-.search input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
-.search input::placeholder {
-  color: var(--text-3);
+.sidebar.collapsed {
+  width: 56px;
+  padding-top: 14px;
 }
 
-.section-title {
+.head {
   display: flex;
+  align-items: baseline;
   justify-content: space-between;
-  padding: 0 8px 8px;
+  padding: 0 10px 12px;
+}
+h2 {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+.count {
   font-size: 12px;
-  font-weight: 600;
   color: var(--text-3);
-  letter-spacing: 0.5px;
+}
+
+.filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 4px 10px;
+  padding: 0 8px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-3);
+}
+.filter:focus-within {
+  border-color: var(--border-strong);
+}
+.filter input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: none;
+  font-size: 13px;
 }
 
 .list {
+  min-height: 0;
   list-style: none;
   margin: 0;
   padding: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 .item {
-  position: relative;
+  width: 100%;
+  height: 34px;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: background 0.15s;
+  padding: 0 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-2);
+  text-align: left;
+  white-space: nowrap;
+}
+.collapsed .item {
+  justify-content: center;
+  padding: 0;
 }
 .item:hover {
-  background: var(--surface-2);
+  background: var(--hover);
+  color: var(--text);
 }
 .item.active {
-  background: var(--accent-soft);
-}
-.item.active::before {
-  content: "";
-  position: absolute;
-  left: -12px;
-  top: 10px;
-  bottom: 10px;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: var(--accent);
-}
-.item-icon {
-  width: 32px;
-  height: 32px;
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  border-radius: 9px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text-2);
-}
-.item.active .item-icon {
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  border-color: transparent;
-  color: #fff;
-}
-.item-text {
-  min-width: 0;
-}
-.item-name {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  background: var(--active);
+  color: var(--text);
   font-weight: 500;
 }
-.item.active .item-name {
-  color: var(--accent-text);
+.item.active .icon {
+  color: var(--accent);
 }
-.item-desc {
-  font-size: 12px;
-  color: var(--text-3);
-  white-space: nowrap;
+.icon {
+  flex-shrink: 0;
+}
+.label {
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.badge {
-  font-size: 10px;
-  padding: 0 5px;
-  border-radius: 4px;
-  line-height: 16px;
-  font-weight: 500;
+.soon {
+  font-size: 11px;
   color: var(--text-3);
-  border: 1px solid var(--border);
+  font-weight: 400;
 }
 
 .empty {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: var(--text-3);
+  margin: 0;
+  padding: 4px 10px;
   font-size: 13px;
+  color: var(--text-3);
+}
+
+.toggle {
+  align-self: flex-start;
+  width: 32px;
+  height: 32px;
+  margin: auto 2px 0;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-3);
+}
+.collapsed .toggle {
+  align-self: center;
+  margin: auto 0 0;
+}
+.toggle:hover {
+  background: var(--hover);
+  color: var(--text);
 }
 </style>

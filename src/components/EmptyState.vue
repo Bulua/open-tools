@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import { Sparkles } from "lucide-vue-next";
-
 defineProps<{ title: string; description: string }>();
 </script>
 
 <template>
   <div class="empty-state">
-    <div class="art"><Sparkles :size="34" /></div>
+    <span class="mark" />
     <h3>{{ title }}</h3>
     <p>{{ description }}</p>
   </div>
@@ -14,34 +12,33 @@ defineProps<{ title: string; description: string }>();
 
 <style scoped>
 .empty-state {
-  height: 100%;
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
-  background: var(--surface);
-  border: 1px dashed var(--border);
-  border-radius: var(--radius);
+  padding: 48px 24px;
 }
-.art {
-  width: 72px;
-  height: 72px;
-  border-radius: 20px;
-  display: grid;
-  place-items: center;
-  color: var(--accent);
-  background: var(--accent-soft);
-  margin-bottom: 16px;
+.mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--accent);
+  opacity: 0.85;
+  transform: rotate(45deg);
+  margin-bottom: 24px;
 }
 h3 {
-  margin: 0 0 6px;
-  font-size: 16px;
+  margin: 0 0 8px;
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 400;
 }
 p {
   margin: 0;
-  max-width: 320px;
-  color: var(--text-3);
-  line-height: 1.6;
+  max-width: 340px;
+  color: var(--text-2);
+  line-height: 1.7;
 }
 </style>
