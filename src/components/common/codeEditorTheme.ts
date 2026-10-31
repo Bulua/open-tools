@@ -117,4 +117,13 @@ export const highlightStyle = HighlightStyle.define([
   { tag: tags.number, color: "var(--syntax-number)" },
   { tag: [tags.bool, tags.null], color: "var(--syntax-literal)" },
   { tag: [tags.separator, tags.brace, tags.squareBracket, tags.punctuation], color: "var(--text-3)" },
+  // Markdown
+  { tag: tags.heading, color: "var(--text)", fontWeight: "600" },
+  { tag: tags.strong, fontWeight: "600" },
+  { tag: tags.emphasis, fontStyle: "italic" },
+  { tag: tags.strikethrough, textDecoration: "line-through" },
+  { tag: [tags.link, tags.url], color: "var(--syntax-key)" },
+  { tag: tags.monospace, color: "var(--syntax-number)" },
+  { tag: tags.quote, color: "var(--text-2)" },
+  { tag: [tags.processingInstruction, tags.contentSeparator], color: "var(--accent)" },
 ]);

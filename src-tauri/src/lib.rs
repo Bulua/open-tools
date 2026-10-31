@@ -1,3 +1,4 @@
+mod document;
 mod network;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -10,7 +11,12 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         // 前端可以调用的命令
-        .invoke_handler(tauri::generate_handler![network::ping_once, network::local_ip])
+        .invoke_handler(tauri::generate_handler![
+            network::ping_once,
+            network::local_ip,
+            document::office_engines,
+            document::office_to_pdf
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

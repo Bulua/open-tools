@@ -26,7 +26,7 @@ const props = withDefaults(
     /** 不自动换行（适合格式化后的代码） */
     nowrap?: boolean;
     /** 代码语言，设置后使用代码编辑器；text 为纯文本（带行号，可以高亮区间） */
-    language?: "json" | "text";
+    language?: "json" | "markdown" | "text";
     /** 代码编辑器中标记的错误位置 */
     codeError?: EditorError | null;
     /** 代码编辑器中高亮的区间 */

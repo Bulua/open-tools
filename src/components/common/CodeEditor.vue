@@ -31,6 +31,7 @@ import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
 import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
 import { setDiagnostics, type Diagnostic } from "@codemirror/lint";
 import { json } from "@codemirror/lang-json";
+import { markdown } from "@codemirror/lang-markdown";
 import { editorTheme, highlightStyle } from "./codeEditorTheme";
 import { errorLineField, foldFirstLevel, marksField, setErrorLine, setMarks, type TextMark } from "./codeEditorExtensions";
 
@@ -40,7 +41,7 @@ import { errorLineField, foldFirstLevel, marksField, setErrorLine, setMarks, typ
  */
 const props = withDefaults(
   defineProps<{
-    language?: "json" | "text";
+    language?: "json" | "markdown" | "text";
     readonly?: boolean;
     placeholder?: string;
     /** 标记错误：所在行变红，出错处显示波浪线，鼠标悬停显示提示 */
@@ -57,7 +58,7 @@ const model = defineModel<string>({ default: "" });
 const host = ref<HTMLDivElement>();
 let view: EditorView | undefined;
 
-const languageExtension = (): Extension => (props.language === "json" ? json() : []);
+const languageExtension = (): Extension => (props.language === "json" ? json() : props.language === "markdown" ? markdown() : []);
 
 const foldMarker = (open: boolean) => {
   const el = document.createElement("span");

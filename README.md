@@ -6,7 +6,7 @@
 
 **开发者工具百宝箱 · Windows 桌面应用**
 
-JSON、编码、转换、图片处理等常用小工具，集中在一个轻量、离线、开箱即用的桌面程序里。
+JSON、编码、转换、图片、文档处理等常用小工具，集中在一个轻量、离线、开箱即用的桌面程序里。
 
 [![构建状态](https://github.com/Bulua/open-tools/actions/workflows/build.yml/badge.svg)](https://github.com/Bulua/open-tools/actions/workflows/build.yml)
 [![最新版本](https://img.shields.io/github/v/release/Bulua/open-tools?label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC)](https://github.com/Bulua/open-tools/releases/latest)
@@ -33,7 +33,7 @@ Open Tools 把这些常用工具放进一个桌面程序：
 
 ## 功能一览
 
-目前共 6 个分类、26 个工具。
+目前共 8 个分类、31 个工具。
 
 ### Json 工具
 
@@ -76,6 +76,21 @@ Open Tools 把这些常用工具放进一个桌面程序：
 | 图片取色 | 点击图片任意位置取色，自动提取主色调 |
 | ICO 图标生成 | 由图片生成多尺寸 ICO 图标（网站 favicon、程序图标），也可导出各尺寸 PNG |
 
+### 文档
+
+| 工具 | 说明 |
+| --- | --- |
+| Word 转 PDF | 调用本机安装的 Word / WPS / LibreOffice 转换，排版与原文档完全一致，可批量转换（仅桌面版）；没有安装 Office 时可用打印另存为 PDF |
+| Word 添加水印 | 文字或图片水印，斜式 / 水平 / 平铺，可调字体、颜色、透明度；生成的是 Word 原生水印，可在 Word 中修改或删除，支持批量 |
+| PDF 页面编辑 | 删除、旋转、拖动调整页面顺序，按页码范围选择，支持撤销；多个 PDF 可合并为一个 |
+
+### Markdown
+
+| 工具 | 说明 |
+| --- | --- |
+| Markdown 编辑预览 | 左侧编辑、右侧实时预览，支持表格、任务列表、代码高亮和目录；可导出 Word 或单独的 HTML 网页 |
+| Markdown 转 Word | 批量把 .md 转成 Word，标题使用 Word 标题样式，保留列表、表格、代码块；和图片一起拖入即可嵌入图片 |
+
 ### 网络
 
 | 工具 | 说明 |
@@ -112,7 +127,7 @@ Open Tools 把这些常用工具放进一个桌面程序：
 | --- | --- |
 | <kbd>Ctrl</kbd> + <kbd>K</kbd> | 打开全局搜索，按工具名或说明查找所有分类中的工具，回车直接打开 |
 | 左侧搜索框 | 只在当前分类中筛选工具 |
-| 会话标签 | Json 工具和正则测试支持多个会话：点 <kbd>+</kbd> 新建，各会话独立输入；双击标签重命名，中键或 × 关闭 |
+| 会话标签 | Json 工具、正则测试和 Markdown 编辑预览支持多个会话：点 <kbd>+</kbd> 新建，各会话独立输入；双击标签重命名，中键或 × 关闭 |
 | <kbd>Ctrl</kbd> + <kbd>V</kbd> | 在图片、文件类工具中直接粘贴截图或复制的文件 |
 | 拖放 | 图片和文件可以直接拖进窗口 |
 | <kbd>Ctrl</kbd> + <kbd>F</kbd> | 在 JSON 编辑器中搜索 |
@@ -171,6 +186,7 @@ npm run dev
 | 桌面框架 | Tauri 2（Rust + 系统 WebView2） |
 | 界面 | Vue 3 · TypeScript · Vite |
 | 代码编辑器 | CodeMirror 6 |
+| 文档处理 | PDF.js · pdf-lib · docx · docx-preview · marked |
 | 图标 | Lucide |
 | 测试 | Vitest |
 | 打包与发布 | GitHub Actions · tauri-action |

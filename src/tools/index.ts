@@ -8,8 +8,10 @@ import encode from "./encode";
 import convert from "./convert";
 import image from "./image";
 import network from "./network";
+import document from "./document";
+import markdown from "./markdown";
 import utility from "./utility";
 
-export const categories: Category[] = [json, encode, convert, image, network, utility];
+export const categories: Category[] = [json, encode, convert, image, document, markdown, network, utility];
 
 export * from "./types";
