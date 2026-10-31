@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
-import { Download, Trash2, X } from "lucide-vue-next";
+import { Download, Plus, Trash2, X } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { saveFile, saveFiles } from "@/utils/saveFile";
@@ -37,6 +37,7 @@ interface Item {
 
 const items = ref<Item[]>([]);
 const processing = ref(false);
+const dropZone = ref<InstanceType<typeof FileDropZone>>();
 let nextId = 1;
 
 const addFiles = async (files: File[]) => {
@@ -136,56 +137,75 @@ const parseSize = (e: Event) => Math.max(0, Math.floor(Number((e.target as HTMLI
 
 <template>
   <div class="compress">
-    <section class="card options">
-      <div class="option">
-        <span class="label">输出格式</span>
-        <div class="seg">
-          <button :class="{ on: format === 'keep' }" @click="format = 'keep'">保持原格式</button>
+    <!-- 左：设置 + 结果汇总 -->
+    <aside class="card settings">
+      <div class="card-title">压缩设置</div>
+
+      <section class="section">
+        <h3>输出格式</h3>
+        <div class="seg fill">
+          <button :class="{ on: format === 'keep' }" @click="format = 'keep'">原格式</button>
           <button v-for="f in IMAGE_FORMATS" :key="f.value" :class="{ on: format === f.value }" @click="format = f.value">
             {{ f.label }}
           </button>
         </div>
-      </div>
+      </section>
 
-      <div class="option">
-        <span class="label">质量</span>
-        <input v-model.number="quality" type="range" min="10" max="100" step="5" :disabled="lossless" />
-        <span class="value">{{ lossless ? "无损" : `${quality}%` }}</span>
-      </div>
+      <section class="section">
+        <h3>质量 <b class="value">{{ lossless ? "无损" : `${quality}%` }}</b></h3>
+        <input v-model.number="quality" class="range" type="range" min="10" max="100" step="5" :disabled="lossless" />
+        <p class="tip">{{ lossless ? "PNG 为无损格式，只能通过缩小尺寸减小体积" : "数值越小文件越小，80% 左右肉眼几乎看不出差别" }}</p>
+      </section>
 
-      <div class="option">
-        <span class="label">最大尺寸</span>
-        <input class="field size" type="number" min="0" :value="maxWidth || ''" placeholder="宽度不限" @change="maxWidth = parseSize($event)" />
-        <span class="times">×</span>
-        <input class="field size" type="number" min="0" :value="maxHeight || ''" placeholder="高度不限" @change="maxHeight = parseSize($event)" />
-        <span class="hint">超过时等比缩小</span>
-      </div>
-    </section>
+      <section class="section">
+        <h3>最大尺寸 <span class="tip inline">超过时等比缩小</span></h3>
+        <div class="size-row">
+          <input class="field size" type="number" min="0" :value="maxWidth || ''" placeholder="宽不限" @change="maxWidth = parseSize($event)" />
+          <span class="times">×</span>
+          <input class="field size" type="number" min="0" :value="maxHeight || ''" placeholder="高不限" @change="maxHeight = parseSize($event)" />
+        </div>
+      </section>
 
-    <FileDropZone
-      v-if="!items.length"
-      accept="image/*"
-      multiple
-      title="拖入图片，或点击选择（可多选）"
-      hint="支持 JPG、PNG、WebP、GIF、BMP，也可以按 Ctrl + V 粘贴截图"
-      @files="addFiles"
-    />
+      <!-- 结果汇总：最重要的信息，放大显示 -->
+      <section class="section total">
+        <h3>结果<em v-if="processing">处理中…</em></h3>
+        <div class="saving" :class="{ empty: !done.length, bad: done.length && totalAfter > totalBefore }">
+          {{ done.length ? percent(totalBefore, totalAfter) : "—" }}
+        </div>
+        <p class="tip">
+          <template v-if="done.length">
+            {{ done.length }} 张 · {{ formatBytes(totalBefore) }} → {{ formatBytes(totalAfter) }}
+          </template>
+          <template v-else>添加图片后显示压缩效果</template>
+        </p>
+        <button class="btn primary full" :disabled="!done.length || processing" @click="downloadAll">
+          <Download :size="14" />{{ done.length > 1 ? "全部下载（ZIP）" : "下载" }}
+        </button>
+      </section>
+    </aside>
 
-    <template v-else>
-      <section class="card list">
-        <header class="list-head">
-          <span class="summary">
-            共 {{ items.length }} 张<template v-if="done.length">，{{ formatBytes(totalBefore) }} → {{ formatBytes(totalAfter) }}
-              <b :class="totalAfter <= totalBefore ? 'good' : 'bad'">{{ percent(totalBefore, totalAfter) }}</b>
-            </template>
-            <em v-if="processing">处理中…</em>
-          </span>
-          <button class="btn subtle" @click="clear"><Trash2 :size="14" />清空</button>
-          <button class="btn primary" :disabled="!done.length || processing" @click="downloadAll">
-            <Download :size="14" />{{ done.length > 1 ? "全部下载（ZIP）" : "下载" }}
-          </button>
-        </header>
+    <!-- 右：图片列表 -->
+    <section class="card list">
+      <header class="card-title">
+        <span class="list-title">图片<em v-if="items.length">{{ items.length }}</em></span>
+        <template v-if="items.length">
+          <button class="btn small subtle" @click="dropZone?.open()"><Plus :size="14" />添加</button>
+          <button class="btn small subtle" @click="clear"><Trash2 :size="14" />清空</button>
+        </template>
+      </header>
 
+      <FileDropZone
+        v-if="!items.length"
+        ref="dropZone"
+        class="drop"
+        accept="image/*"
+        multiple
+        title="拖入图片，或点击选择（可多选）"
+        hint="支持 JPG、PNG、WebP、GIF、BMP，也可以按 Ctrl + V 粘贴截图"
+        @files="addFiles"
+      />
+
+      <template v-else>
         <ul class="rows">
           <li v-for="item in items" :key="item.id" class="row">
             <img v-if="item.thumb" class="thumb" :src="item.thumb" alt="" />
@@ -194,115 +214,185 @@ const parseSize = (e: Event) => Math.max(0, Math.floor(Number((e.target as HTMLI
               <span class="name" :title="item.file.name">{{ item.file.name }}</span>
               <span class="sub">
                 {{ item.img.naturalWidth }} × {{ item.img.naturalHeight }}
-                <template v-if="item.result && (item.result.width !== item.img.naturalWidth)">→ {{ item.result.width }} × {{ item.result.height }}</template>
+                <template v-if="item.result && item.result.width !== item.img.naturalWidth">→ {{ item.result.width }} × {{ item.result.height }}</template>
                 <template v-if="item.result"> · {{ formatInfo(item.result.format).label }}</template>
               </span>
             </div>
+
             <span v-if="item.error" class="error">{{ item.error }}</span>
-            <span v-else-if="item.result" class="sizes">
-              {{ formatBytes(item.file.size) }} → {{ formatBytes(item.result.bytes.length) }}
-              <b :class="item.result.bytes.length <= item.file.size ? 'good' : 'bad'">
-                {{ item.result.keptOriginal ? "已是最小，保留原图" : percent(item.file.size, item.result.bytes.length) }}
-              </b>
-            </span>
+            <div v-else-if="item.result" class="sizes">
+              <span class="size-text">
+                {{ formatBytes(item.file.size) }} → <strong>{{ formatBytes(item.result.bytes.length) }}</strong>
+              </span>
+              <!-- 压缩后占原图的比例 -->
+              <span class="bar"><i :style="{ width: `${Math.min(100, (item.result.bytes.length / item.file.size) * 100)}%` }" /></span>
+            </div>
             <span v-else class="sizes muted">处理中…</span>
+
+            <b v-if="item.result" class="badge" :class="item.result.bytes.length <= item.file.size ? 'good' : 'bad'">
+              {{ item.result.keptOriginal ? "保留原图" : percent(item.file.size, item.result.bytes.length) }}
+            </b>
             <button class="icon-btn" title="下载" :disabled="!item.result" @click="downloadOne(item)"><Download :size="14" /></button>
             <button class="icon-btn" title="移除" @click="remove(item)"><X :size="14" /></button>
           </li>
         </ul>
-      </section>
-
-      <FileDropZone compact accept="image/*" multiple title="继续添加图片" @files="addFiles" />
-    </template>
+        <FileDropZone ref="dropZone" compact class="more" accept="image/*" multiple title="拖入或点击继续添加" @files="addFiles" />
+      </template>
+    </section>
   </div>
 </template>
 
 <style scoped>
+/* 左侧设置（固定宽），右侧列表；整体高度由内容决定，不留大片空白 */
 .compress {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 272px minmax(0, 1fr);
+  align-items: stretch;
   gap: 14px;
-  min-height: 0;
 }
 
-.options {
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 12px 32px;
-  padding: 14px 16px;
-}
-.option {
+/* ---------- 左侧设置 ---------- */
+.section {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
 }
-.label {
+.section + .section {
+  border-top: 1px solid var(--border);
+}
+h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
   font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+h3 em {
+  margin-left: auto;
+  font-style: normal;
+  font-weight: 400;
   color: var(--text-3);
 }
-input[type="range"] {
-  width: 160px;
-  accent-color: var(--accent);
-}
 .value {
-  min-width: 36px;
+  margin-left: auto;
   font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
   font-variant-numeric: tabular-nums;
 }
+.tip {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-3);
+}
+.tip.inline {
+  margin-left: auto;
+  font-weight: 400;
+}
+.seg.fill {
+  display: flex;
+}
+.seg.fill button {
+  flex: 1;
+  padding: 0 4px;
+}
+.range {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.size-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .field.size {
-  width: 96px;
+  flex: 1;
+  width: 0;
   height: 32px;
   font-size: 13px;
 }
-.times,
-.hint {
+.times {
   font-size: 12px;
   color: var(--text-3);
 }
 
+/* 结果汇总 */
+.total {
+  gap: 6px;
+  padding-bottom: 14px;
+}
+.saving {
+  font-family: var(--font-serif);
+  font-size: 40px;
+  line-height: 1.1;
+  color: var(--success);
+  font-variant-numeric: tabular-nums;
+}
+.saving.empty {
+  color: var(--text-3);
+}
+.saving.bad {
+  color: var(--danger);
+}
+.total .btn {
+  margin-top: 6px;
+}
+.btn.full {
+  justify-content: center;
+}
+.btn.small {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+/* ---------- 右侧列表 ---------- */
 .list {
   min-height: 0;
+}
+.list-title {
   flex: 1;
-  overflow: hidden;
 }
-.list-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px 6px 16px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-sunken);
-}
-.summary {
-  flex: 1;
-  font-size: 13px;
-  color: var(--text-2);
-}
-.summary em {
-  margin-left: 8px;
+.list-title em {
+  margin-left: 6px;
   font-style: normal;
+  font-weight: 400;
   color: var(--text-3);
+}
+/* 还没有图片时，拖放区填满列表面板（与左侧同高） */
+.drop {
+  margin: 12px;
+  border-width: 1.5px;
 }
 .rows {
   list-style: none;
   margin: 0;
-  padding: 6px 8px;
-  overflow: auto;
+  padding: 6px;
+}
+.more {
+  margin: 0 12px 12px;
 }
 .row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 6px 8px;
+  gap: 14px;
+  padding: 8px 10px;
   border-radius: 8px;
+}
+.row + .row {
+  border-top: 1px solid var(--border);
+  border-radius: 0;
 }
 .row:hover {
   background: var(--hover);
 }
 .thumb {
-  width: 44px;
-  height: 44px;
+  width: 52px;
+  height: 52px;
   flex-shrink: 0;
   border-radius: 6px;
   object-fit: cover;
@@ -310,7 +400,7 @@ input[type="range"] {
 }
 .meta {
   flex: 1;
-  min-width: 0;
+  min-width: 90px;
   display: flex;
   flex-direction: column;
 }
@@ -323,26 +413,51 @@ input[type="range"] {
   font-size: 12px;
   color: var(--text-3);
 }
+/* 窗口窄时这一列可以收窄，优先保证文件名可读 */
 .sizes {
-  font-size: 13px;
+  flex: 0 1 200px;
+  min-width: 110px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-3);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.sizes.muted {
-  color: var(--text-3);
+.sizes strong {
+  font-weight: 500;
+  color: var(--text);
 }
-b {
-  margin-left: 6px;
-  padding: 1px 6px;
+.sizes.muted {
+  display: block;
+}
+/* 压缩后大小占原图的比例 */
+.bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--active);
+  overflow: hidden;
+}
+.bar i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.badge {
+  flex: 0 0 72px;
+  padding: 2px 6px;
   border-radius: 5px;
   font-size: 12px;
   font-weight: 500;
+  text-align: center;
 }
-b.good {
+.badge.good {
   color: var(--success);
   background: var(--success-soft);
 }
-b.bad {
+.badge.bad {
   color: var(--danger);
   background: var(--danger-soft);
 }
