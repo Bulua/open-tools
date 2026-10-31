@@ -3,6 +3,7 @@ import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { ArrowUpCircle, ChevronLeft, ChevronRight, Moon, Search, Sun } from "lucide-vue-next";
 import type { Category } from "@/tools";
 import { useUpdater } from "@/composables/useUpdater";
+import AppLogo from "./AppLogo.vue";
 
 const props = defineProps<{
   categories: Category[];
@@ -59,7 +60,7 @@ watch(
 <template>
   <header class="topbar">
     <div class="brand" :class="{ compact }">
-      <span class="mark" />
+      <AppLogo :size="22" />
       <span v-if="!compact" class="name">Open Tools</span>
     </div>
 
@@ -130,13 +131,6 @@ watch(
   flex-basis: 56px;
   padding-left: 0;
   justify-content: center;
-}
-.mark {
-  width: 14px;
-  height: 14px;
-  border-radius: 4px;
-  background: var(--accent);
-  transform: rotate(45deg) scale(0.85);
 }
 .name {
   font-family: var(--font-serif);

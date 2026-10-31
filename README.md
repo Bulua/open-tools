@@ -1,152 +1,156 @@
-# Open Tools 工具百宝箱
+<div align="center">
 
-一个 Windows 桌面工具箱，基于 [Tauri 2](https://v2.tauri.app/) + [Vue 3](https://vuejs.org/) + TypeScript。
+<img src="app-icon.svg" width="96" height="96" alt="Open Tools" />
 
-顶部选择分类，左侧选择工具，右侧使用工具。按 `Ctrl K` 可以搜索所有工具。
+# Open Tools
 
-## 下载
+**开发者工具百宝箱 · Windows 桌面应用**
 
-- **正式版本**：在仓库的 [Releases](https://github.com/Bulua/open-tools/releases) 页面下载 `*-setup.exe` 安装包。
-- **最新构建**：在 [Actions](https://github.com/Bulua/open-tools/actions) 里打开最近一次成功的运行，从页面底部的 Artifacts 下载。
+JSON、编码、转换、图片处理等常用小工具，集中在一个轻量、离线、开箱即用的桌面程序里。
 
-## 本地开发
+[![构建状态](https://github.com/Bulua/open-tools/actions/workflows/build.yml/badge.svg)](https://github.com/Bulua/open-tools/actions/workflows/build.yml)
+[![最新版本](https://img.shields.io/github/v/release/Bulua/open-tools?label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC)](https://github.com/Bulua/open-tools/releases/latest)
+[![平台](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-Windows%2010%20%2F%2011-c96442)](#下载与安装)
+[![许可证](https://img.shields.io/github/license/Bulua/open-tools?label=%E8%AE%B8%E5%8F%AF%E8%AF%81)](LICENSE)
+
+[下载](#下载与安装) · [功能](#功能一览) · [使用技巧](#使用技巧) · [参与开发](#参与开发)
+
+</div>
+
+---
+
+## 简介
+
+日常开发中经常需要格式化一段 JSON、解一个 Base64、换算时间戳、压缩几张图片……这些事情往往要打开不同的网站，还要担心数据被上传。
+
+Open Tools 把这些常用工具放进一个桌面程序：
+
+- **离线运行，数据不出本机**：所有处理都在你的电脑上完成，不联网、不上传。
+- **轻量**：安装包只有几 MB，启动快，占用内存少。
+- **一个窗口搞定**：顶部切换分类，左侧选择工具，`Ctrl K` 随时搜索。
+- **切换不丢数据**：在不同工具之间来回切换，之前的输入和结果都会保留。
+- **自动更新**：有新版本时程序内提示，一键更新。
+
+## 功能一览
+
+目前共 4 个分类、16 个工具。
+
+### Json 工具
+
+| 工具 | 说明 |
+| --- | --- |
+| JSON 格式化校验 | 美化、压缩、按键名排序；实时校验，错误定位到具体行；支持代码 / 树形两种视图，可折叠，可复制节点路径 |
+| JSON 差异对比 | 对比两段 JSON，列出新增、删除、修改的字段及其路径 |
+| JSON 字符串转义 | 还原日志里 `{\"a\":1}` 这类被转义的 JSON，或反向转义 |
+| JSON 转 YAML / TS 类型 | JSON 与 YAML 互转；根据 JSON 示例生成 TypeScript 类型定义 |
+
+### 编码 / 加密
+
+| 工具 | 说明 |
+| --- | --- |
+| Base64 编解码 | 文本双向实时转换（支持 URL 安全写法）；任意文件 / 图片转 Base64，解码后自动识别文件类型并可下载 |
+| URL/Unicode/HTML 编码 | URL 参数编码、中文与 `\uXXXX` 互转、HTML 特殊字符转义，双向实时转换 |
+| 哈希计算（MD5 / SHA） | 一次算出 MD5、SHA-1、SHA-256、SHA-512，支持文本与文件 |
+| JWT 解码 | 查看 Header、Payload，显示签发与过期时间，标出是否已过期 |
+
+### 转换
+
+| 工具 | 说明 |
+| --- | --- |
+| 时间戳转换 | 秒 / 毫秒时间戳与日期互转（自动识别单位），实时显示当前时间戳 |
+| 进制转换 | 二、八、十、十六进制及 2～36 任意进制互转，支持超大整数 |
+| 颜色转换 HEX/RGB/HSL | 任意写法互转，支持透明度，带取色器 |
+| 命名风格转换 | 变量名一次转换为小驼峰、大驼峰、下划线、常量、短横线等 8 种写法 |
+
+### 图片
+
+| 工具 | 说明 |
+| --- | --- |
+| 图片压缩 / 格式转换 | 批量压缩，JPG / PNG / WebP 互转，限制最大尺寸；显示压缩前后对比，可打包下载 |
+| 图片裁剪 / 旋转 / 调色 | 按比例裁剪、旋转、翻转、调整尺寸，调节亮度 / 对比度 / 饱和度，支持撤销 |
+| 图片取色 | 点击图片任意位置取色，自动提取主色调 |
+| ICO 图标生成 | 由图片生成多尺寸 ICO 图标（网站 favicon、程序图标），也可导出各尺寸 PNG |
+
+## 下载与安装
+
+1. 打开 [Releases](https://github.com/Bulua/open-tools/releases/latest) 页面。
+2. 下载 `Open Tools_x.x.x_x64-setup.exe`。
+3. 双击安装，完成后从开始菜单或桌面快捷方式打开。
+
+**系统要求**：Windows 10 / 11（64 位）。程序依赖系统自带的 WebView2，Windows 10 及以上已内置，无需另外安装。
+
+> **首次运行提示「Windows 已保护你的电脑」？**
+> 这是因为程序暂未购买代码签名证书，并非安全问题。点击「更多信息」→「仍要运行」即可，之后不会再提示。
+
+### 更新
+
+程序启动时会自动检查新版本，有更新时右上角会出现「新版本」提示，点击即可下载安装并自动重启。也可以随时点击右上角的 <kbd>↑</kbd> 图标手动检查。
+
+## 使用技巧
+
+| 操作 | 说明 |
+| --- | --- |
+| <kbd>Ctrl</kbd> + <kbd>K</kbd> | 打开全局搜索，按工具名或说明查找所有分类中的工具，回车直接打开 |
+| 左侧搜索框 | 只在当前分类中筛选工具 |
+| <kbd>Ctrl</kbd> + <kbd>V</kbd> | 在图片、文件类工具中直接粘贴截图或复制的文件 |
+| 拖放 | 图片和文件可以直接拖进窗口 |
+| <kbd>Ctrl</kbd> + <kbd>F</kbd> | 在 JSON 编辑器中搜索 |
+| 侧栏左下角按钮 | 收起侧栏，给工作区腾出空间 |
+| 右上角 ☾ / ☀ | 切换深色 / 浅色主题 |
+
+程序会记住你上次打开的分类和工具、主题、各工具的常用选项，下次打开直接继续使用。
+
+## 隐私
+
+- 所有工具都在本地运行，**不会上传任何内容**。
+- 唯一的网络请求是检查更新：访问本仓库在 GitHub 上的版本信息文件，不携带任何个人数据。
+
+## 参与开发
+
+基于 [Tauri 2](https://v2.tauri.app/) + [Vue 3](https://vuejs.org/) + TypeScript 构建。
 
 ```bash
-npm install        # 安装依赖
-npm run dev        # 在浏览器中开发界面：http://localhost:1420
-npm run tauri dev  # 以桌面窗口运行（需要先安装 Rust）
+git clone https://github.com/Bulua/open-tools.git
 ```
 
-| 命令                | 作用                                         |
-| ------------------- | -------------------------------------------- |
-| `npm run typecheck` | TypeScript 类型检查                          |
-| `npm test`          | 运行单元测试                                 |
-| `npm run build`     | 构建前端到 `dist/`                           |
-| `npm run tauri build` | 打包 exe 与安装包（需要 Rust）             |
-
-不想在本地安装 Rust 的话，推送代码后由 GitHub Actions 云端打包即可。
-
-## 目录结构
-
-```
-open-tools/
-├── .github/workflows/     # GitHub Actions：云端检查与打包
-├── src/                   # 前端代码（界面全部在这里）
-│   ├── main.ts            # 入口
-│   ├── App.vue            # 整体布局：顶栏 + 侧栏 + 工具区，记住上次打开的工具
-│   ├── styles/
-│   │   ├── theme.css      # 颜色、字体等设计变量（改主题只改这里）
-│   │   ├── base.css       # 全局基础样式
-│   │   └── controls.css   # 共用控件：按钮 .btn、分段选择 .seg、复选框 .check
-│   ├── utils/
-│   │   ├── saveFile.ts    # 保存文件（桌面版弹出「另存为」，浏览器中直接下载）、多个文件打包 ZIP
-│   │   ├── time.ts        # 时间格式化、相对时间
-│   │   ├── color.ts       # 颜色解析与 HEX / RGB / HSL 格式化
-│   │   └── format.ts      # 文件大小等显示格式
-│   ├── composables/       # 可复用的逻辑
-│   │   ├── useStoredRef.ts  # 自动保存到 localStorage 的状态
-│   │   ├── useTheme.ts      # 浅色 / 深色主题
-│   │   └── useClipboard.ts  # 复制、粘贴
-│   ├── components/
-│   │   ├── layout/        # 外框：AppHeader 顶栏、AppSidebar 侧栏
-│   │   ├── tool/          # 工具区与通用工具界面：
-│   │   │                  #   ToolView 工具区（标题栏右侧可放工具选项）
-│   │   │                  #   TextTransform 「输入 → 按钮 → 输出」界面
-│   │   │                  #   TwoWayConvert 左右双向实时转换界面（改哪边另一边自动更新）
-│   │   └── common/        # 通用组件：TextPane 文本框（设置 language 后变成带行号/折叠的代码编辑器）、
-│   │                      #   CopyList 多个结果 + 复制按钮、FileDropZone 文件拖放/选择/粘贴、
-│   │                      #   CodeEditor、EmptyState、CommandPalette 搜索
-│   └── tools/             # 所有工具，一个分类一个文件夹
-│       ├── index.ts       # 分类注册表（决定顶部分类及顺序）
-│       ├── types.ts       # Tool / Category 类型定义
-│       ├── json/
-│       │   ├── index.ts       # 分类定义：包含哪些工具
-│       │   ├── utils.ts       # 纯逻辑（解析、对比、生成类型…）
-│       │   ├── utils.test.ts  # 单元测试
-│       │   └── components/    # 需要自定义界面的工具
-│       ├── encode/
-│       ├── convert/
-│       └── image/
-├── src-tauri/             # 桌面端（Rust），一般不需要改
-│   ├── tauri.conf.json    # 窗口大小、应用名、版本号
-│   ├── icons/             # 应用图标（由 app-icon.svg 生成）
-│   └── src/               # Rust 入口
-└── app-icon.svg           # 图标源文件
+```bash
+cd open-tools && npm install
 ```
 
-## 新增一个工具
-
-工具定义在 `src/tools/<分类>/index.ts` 中，有两种写法。
-
-**简单的文本转换**（输入 → 点按钮 → 输出）：只写函数，不用写界面。
-
-```ts
-// src/tools/encode/index.ts
-{
-  id: "reverse",
-  name: "文本反转",
-  desc: "把文本倒过来",
-  icon: Repeat,                       // 从 lucide-vue-next 引入
-  actions: [
-    { label: "反转", primary: true, run: (s) => [...s].reverse().join("") },
-  ],
-},
+```bash
+npm run dev
 ```
 
-**需要自定义界面的工具**：在 `components/` 下写一个 Vue 组件，然后：
+浏览器打开 http://localhost:1420 即可开发界面；以桌面窗口运行需要先安装 [Rust](https://rustup.rs)，然后执行 `npm run tauri dev`。
 
-```ts
-{
-  id: "json-diff",
-  name: "JSON 对比",
-  desc: "对比两段 JSON",
-  icon: GitCompare,
-  component: defineAsyncComponent(() => import("./components/JsonDiff.vue")),
-},
-```
+| 命令 | 作用 |
+| --- | --- |
+| `npm run dev` | 在浏览器中开发界面 |
+| `npm run tauri dev` | 以桌面窗口运行（需要 Rust） |
+| `npm run typecheck` | TypeScript 类型检查 |
+| `npm test` | 运行单元测试 |
+| `npm run tauri build` | 打包安装程序（需要 Rust） |
 
-只写 `id`、`name`、`desc`、`icon` 的工具会显示为「即将上线」。
+不想在本地安装 Rust，也可以直接推送代码，由 GitHub Actions 在云端打包。
 
-约定：
+更多说明：
 
-- 处理数据的逻辑写成纯函数放在 `utils.ts` / `transforms.ts`，并在旁边的 `*.test.ts` 里写测试。
-- 界面优先复用 `TextPane` 和 `controls.css` 里的样式，保持风格一致。
-- 图标在 [lucide.dev/icons](https://lucide.dev/icons) 查找。
+- [开发指南](docs/DEVELOPMENT.md)：项目结构、如何新增工具和分类、代码约定
+- [发布指南](docs/RELEASE.md)：发布新版本、在线更新与签名密钥
 
-## 新增一个分类
+欢迎通过 [Issues](https://github.com/Bulua/open-tools/issues) 反馈问题或建议新工具。
 
-1. 新建 `src/tools/<分类>/index.ts`，导出一个 `Category`（参考 `convert/index.ts`）。
-2. 在 `src/tools/index.ts` 的 `categories` 数组里加上它。
+## 技术栈
 
-## 发布新版本
+| 部分 | 选型 |
+| --- | --- |
+| 桌面框架 | Tauri 2（Rust + 系统 WebView2） |
+| 界面 | Vue 3 · TypeScript · Vite |
+| 代码编辑器 | CodeMirror 6 |
+| 图标 | Lucide |
+| 测试 | Vitest |
+| 打包与发布 | GitHub Actions · tauri-action |
 
-版本号只在 `package.json` 里维护，程序版本会自动读取它。
+## 许可证
 
-1. 修改版本号并提交：
-
-   ```bash
-   npm version 0.2.0 --no-git-tag-version
-   git commit -am "chore: 发布 v0.2.0"
-   ```
-
-2. 打带说明的标签并推送，`-m` 后面的文字就是用户在更新对话框里看到的「更新内容」：
-
-   ```bash
-   git tag -a v0.2.0 -m "新增图片工具；修复若干问题"
-   git push origin master v0.2.0
-   ```
-
-GitHub Actions 会自动打包、发布到 Releases，并生成在线更新文件 `latest.json`。
-已安装的程序启动后会自动发现新版本，也可以点右上角的「检查更新」。
-
-## 在线更新的签名密钥
-
-更新包需要签名，程序只会安装签名正确的更新，防止被伪造。
-
-- **公钥**：已写在 `src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`。
-- **私钥**：保存在本机 `C:\Users\<用户名>\.tauri\open-tools.key`，**不要提交到仓库**。
-  需要在 GitHub 仓库的 Settings → Secrets and variables → Actions 中添加：
-  - `TAURI_SIGNING_PRIVATE_KEY`：私钥文件的全部内容
-  - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`：私钥密码（当前没有设置密码，可以不添加）
-
-**请备份好私钥。** 私钥丢失后，已安装的程序将无法再收到更新，只能让用户手动重新安装。
+[MIT](LICENSE) © Bulua
