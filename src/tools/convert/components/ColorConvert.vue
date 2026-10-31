@@ -27,9 +27,12 @@ const onPick = (e: Event) => (input.value = (e.target as HTMLInputElement).value
 
 <template>
   <div class="color">
+    <!-- 左：大色块（点击打开取色器）+ 输入 -->
     <section class="card picker">
+      <div class="card-title">颜色</div>
       <label class="swatch" title="点击打开取色器">
         <span class="swatch-color" :style="{ background: color ? toRgb(color) : 'transparent' }" />
+        <span class="swatch-hint">点击选择颜色</span>
         <input type="color" :value="pickerValue" @input="onPick" />
       </label>
       <div class="picker-body">
@@ -41,11 +44,12 @@ const onPick = (e: Event) => (input.value = (e.target as HTMLInputElement).value
           placeholder="#c96442、rgb(201, 100, 66)、hsl(15, 56%, 52%)"
         />
         <p v-if="!color && input.trim()" class="error">无法识别，支持 HEX、RGB、HSL 三种写法</p>
-        <p v-else class="hint">点击左侧色块打开取色器，也可以直接输入任意写法</p>
+        <p v-else class="hint">支持 HEX、RGB、HSL，带透明度也可以</p>
       </div>
     </section>
 
-    <section class="card sunken">
+    <!-- 右：各种格式 -->
+    <section class="card">
       <div class="card-title">结果</div>
       <CopyList :items="items" />
       <p v-if="!items.length" class="empty">输入颜色后显示各种格式</p>
@@ -55,24 +59,23 @@ const onPick = (e: Event) => (input.value = (e.target as HTMLInputElement).value
 
 <style scoped>
 .color {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(260px, 2fr) minmax(0, 3fr);
+  align-items: start;
   gap: 14px;
-  max-width: 820px;
 }
-.picker {
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 16px;
-  padding: 16px;
+@media (max-width: 1000px) {
+  .color {
+    grid-template-columns: 1fr;
+  }
 }
 /* 色块下面垫棋盘格，半透明颜色也能看出来 */
 .swatch {
   position: relative;
-  flex-shrink: 0;
-  width: 88px;
-  height: 88px;
-  border-radius: 12px;
+  display: block;
+  height: 160px;
+  margin: 14px 16px 0;
+  border-radius: 8px;
   overflow: hidden;
   cursor: pointer;
   border: 1px solid var(--border);
@@ -88,6 +91,21 @@ const onPick = (e: Event) => (input.value = (e.target as HTMLInputElement).value
   position: absolute;
   inset: 0;
 }
+.swatch-hint {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 11px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.swatch:hover .swatch-hint {
+  opacity: 1;
+}
 .swatch input {
   position: absolute;
   inset: 0;
@@ -95,8 +113,7 @@ const onPick = (e: Event) => (input.value = (e.target as HTMLInputElement).value
   cursor: pointer;
 }
 .picker-body {
-  flex: 1;
-  min-width: 0;
+  padding: 12px 16px 14px;
 }
 .hint,
 .error,

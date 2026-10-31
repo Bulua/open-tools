@@ -270,8 +270,9 @@ input[type="range"] {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px 10px 16px;
+  padding: 6px 8px 6px 16px;
   border-bottom: 1px solid var(--border);
+  background: var(--bg-sunken);
 }
 .summary {
   flex: 1;

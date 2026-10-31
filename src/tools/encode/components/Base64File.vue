@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { useWindowEvent } from "@/composables/useWindowEvent";
-import { Download, FilePlus2, FileText, RefreshCw, X } from "lucide-vue-next";
+import { Download, FileText, RefreshCw, X } from "lucide-vue-next";
 import TextPane from "@/components/common/TextPane.vue";
+import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { TOOL_ACTIONS } from "@/components/tool/toolActions";
 import { saveFile } from "@/utils/saveFile";
@@ -23,9 +23,8 @@ interface LoadedFile {
 }
 
 const file = ref<LoadedFile | null>(null);
-const dragging = ref(false);
 const loadError = ref("");
-const fileInput = ref<HTMLInputElement>();
+const dropZone = ref<InstanceType<typeof FileDropZone>>();
 
 const isImage = computed(() => !!file.value?.mime.startsWith("image/"));
 // CSS / HTML 只对图片有意义
@@ -48,29 +47,6 @@ const loadFile = (f: File) => {
   reader.onerror = () => (loadError.value = "读取文件失败");
   reader.readAsDataURL(f);
 };
-
-const onPick = (e: Event) => {
-  const input = e.target as HTMLInputElement;
-  if (input.files?.[0]) loadFile(input.files[0]);
-  input.value = "";
-};
-
-const onDrop = (e: DragEvent) => {
-  dragging.value = false;
-  const f = e.dataTransfer?.files[0];
-  if (f) loadFile(f);
-};
-
-// 编码模式下 Ctrl+V 可以直接粘贴截图或复制的文件
-const onPaste = (e: ClipboardEvent) => {
-  if (direction.value !== "encode") return;
-  const f = e.clipboardData?.files[0];
-  if (f) {
-    e.preventDefault();
-    loadFile(f.name ? f : new File([f], "粘贴的图片.png", { type: f.type }));
-  }
-};
-useWindowEvent("paste", onPaste);
 
 // ---------- Base64 → 文件 ----------
 
@@ -155,43 +131,35 @@ const decodeInfo = computed(() => {
 
     <!-- ========== 文件 → Base64 ========== -->
     <template v-if="direction === 'encode'">
-      <section
-        class="card source"
-        :class="{ dragging }"
-        @dragover.prevent="dragging = true"
-        @dragleave="dragging = false"
-        @drop.prevent="onDrop"
-      >
-        <input ref="fileInput" type="file" hidden @change="onPick" />
-
-        <template v-if="file">
-          <header class="card-head">
-            <span class="file-name" :title="file.name">{{ file.name }}</span>
-            <div class="card-actions">
-              <button class="icon-btn" title="更换文件" @click="fileInput?.click()"><RefreshCw :size="14" /></button>
-              <button class="icon-btn" title="清除" @click="file = null"><X :size="14" /></button>
-            </div>
-          </header>
-          <div v-if="isImage" class="preview checker"><img :src="file.dataUri" alt="预览" /></div>
-          <div v-else class="preview file-icon">
-            <FileText :size="40" :stroke-width="1.25" />
-            <span>{{ file.name }}</span>
-          </div>
-          <dl class="info">
-            <template v-for="row in encodeInfo" :key="row.label">
-              <dt>{{ row.label }}</dt>
-              <dd>{{ row.value }}</dd>
-            </template>
-          </dl>
-        </template>
-
-        <button v-else class="dropzone" @click="fileInput?.click()">
-          <FilePlus2 :size="28" :stroke-width="1.5" />
-          <strong>拖入文件，或点击选择</strong>
-          <span>支持图片、PDF、压缩包等任意文件，也可以按 Ctrl + V 粘贴截图</span>
-          <span v-if="loadError" class="error">{{ loadError }}</span>
-        </button>
+      <section v-if="file" class="card source">
+        <header class="card-title">
+          <span class="file-name" :title="file.name">{{ file.name }}</span>
+          <button class="icon-btn" title="更换文件" @click="dropZone?.open()"><RefreshCw :size="14" /></button>
+          <button class="icon-btn" title="清除" @click="file = null"><X :size="14" /></button>
+        </header>
+        <div v-if="isImage" class="preview checker"><img :src="file.dataUri" alt="预览" /></div>
+        <div v-else class="preview file-icon">
+          <FileText :size="40" :stroke-width="1.25" />
+          <span>{{ file.name }}</span>
+        </div>
+        <dl class="info">
+          <template v-for="row in encodeInfo" :key="row.label">
+            <dt>{{ row.label }}</dt>
+            <dd>{{ row.value }}</dd>
+          </template>
+        </dl>
       </section>
+      <!-- 选好文件后隐藏但保留，「更换文件」和 Ctrl+V 粘贴仍由它处理 -->
+      <FileDropZone
+        v-show="!file"
+        ref="dropZone"
+        class="source"
+        title="拖入文件，或点击选择"
+        hint="支持图片、PDF、压缩包等任意文件，也可以按 Ctrl + V 粘贴截图"
+        @files="loadFile($event[0])"
+      >
+        <span v-if="loadError" class="error">{{ loadError }}</span>
+      </FileDropZone>
 
       <TextPane :model-value="output" class="result" label="Base64" readonly placeholder="选择文件后，这里会显示编码结果">
         <template #actions>
@@ -214,7 +182,7 @@ const decodeInfo = computed(() => {
       />
 
       <section class="card result">
-        <header class="card-head"><span>解码结果</span></header>
+        <header class="card-title">解码结果</header>
 
         <template v-if="decoded?.ok">
           <div v-if="decoded.file.isImage" class="preview checker"><img :src="decoded.file.dataUri" alt="预览" /></div>
@@ -267,69 +235,16 @@ const decodeInfo = computed(() => {
 }
 
 .card {
-  display: flex;
-  flex-direction: column;
   min-height: 0;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-  transition: border-color 0.15s, background 0.15s;
-}
-.card.dragging {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-.card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 34px;
-  padding: 4px 8px 0 16px;
-  font-size: 12px;
-  color: var(--text-3);
 }
 .file-name {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.card-actions {
-  display: flex;
-  gap: 2px;
-}
-
-.dropzone {
-  flex: 1;
-  margin: 10px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border: 1.5px dashed var(--border-strong);
-  border-radius: 10px;
-  background: none;
-  color: var(--text-3);
-  font-size: 12px;
-  text-align: center;
-  transition: border-color 0.15s, color 0.15s;
-}
-.dropzone:hover,
-.dragging .dropzone {
-  border-color: var(--accent);
-  color: var(--text-2);
-}
-.dropzone strong {
-  margin-top: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text);
-}
-.dropzone .error {
+.error {
   margin-top: 6px;
   color: var(--danger);
 }

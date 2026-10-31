@@ -3,7 +3,13 @@ import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { ChevronLeft, ChevronRight, Moon, Search, Sun } from "lucide-vue-next";
 import type { Category } from "@/tools";
 
-const props = defineProps<{ categories: Category[]; activeId: string; theme: "light" | "dark" }>();
+const props = defineProps<{
+  categories: Category[];
+  activeId: string;
+  theme: "light" | "dark";
+  /** 侧栏收起时品牌区跟着收窄，保持与侧栏对齐 */
+  compact?: boolean;
+}>();
 defineEmits<{ select: [id: string]; toggleTheme: []; openSearch: [] }>();
 
 // 分类多了以后横向滚动，两侧出现箭头
@@ -49,9 +55,9 @@ watch(
 
 <template>
   <header class="topbar">
-    <div class="brand">
+    <div class="brand" :class="{ compact }">
       <span class="mark" />
-      <span class="name">Open Tools</span>
+      <span v-if="!compact" class="name">Open Tools</span>
     </div>
 
     <div class="tabs-wrap" :class="{ 'fade-left': canLeft, 'fade-right': canRight }">
@@ -67,7 +73,7 @@ watch(
           :class="{ active: c.id === activeId }"
           @click="$emit('select', c.id)"
         >
-          {{ c.name }}
+          {{ c.name }}<sup>{{ c.tools.length }}</sup>
         </button>
       </nav>
       <button v-show="canRight" class="arrow right" aria-label="向右滚动" @click="scrollBy(1)">
@@ -95,17 +101,25 @@ watch(
   flex-shrink: 0;
   display: flex;
   align-items: stretch;
-  gap: 24px;
-  padding: 0 16px 0 20px;
+  padding: 0 16px 0 0;
   border-bottom: 1px solid var(--border);
   background: var(--bg-sunken);
 }
 
+/* 品牌区与左侧栏同宽（240px），分类标签正好对齐下方工具区 */
 .brand {
   display: flex;
   align-items: center;
   gap: 9px;
-  flex-shrink: 0;
+  flex: 0 0 240px;
+  padding-left: 20px;
+  border-right: 1px solid var(--border);
+  transition: flex-basis 0.2s ease;
+}
+.brand.compact {
+  flex-basis: 56px;
+  padding-left: 0;
+  justify-content: center;
 }
 .mark {
   width: 14px;
@@ -130,6 +144,7 @@ watch(
   flex: 1;
   display: flex;
   gap: 4px;
+  padding-left: 12px;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -162,6 +177,15 @@ watch(
 .tab.active {
   color: var(--text);
   font-weight: 600;
+}
+.tab sup {
+  margin-left: 3px;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-3);
+}
+.tab.active sup {
+  color: var(--accent);
 }
 .tab.active::after {
   content: "";

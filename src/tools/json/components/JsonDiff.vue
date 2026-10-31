@@ -46,8 +46,8 @@ const KIND_LABEL: Record<DiffKind, string> = { added: "新增", removed: "删除
       />
     </div>
 
-    <section class="result">
-      <header class="result-head">
+    <section class="card result">
+      <header class="card-title">
         <span class="title">对比结果</span>
         <template v-if="diffs">
           <span class="chip added">新增 {{ count("added") }}</span>
@@ -91,26 +91,13 @@ const KIND_LABEL: Record<DiffKind, string> = { added: "新增", removed: "删除
 .result {
   flex: 2;
   min-height: 160px;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-sunken);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-.result-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px 6px;
 }
 .title {
-  font-size: 12px;
-  color: var(--text-3);
   margin-right: 4px;
 }
 .chip {
   font-size: 12px;
+  font-weight: 400;
   padding: 1px 8px;
   border-radius: 6px;
 }
@@ -131,7 +118,7 @@ const KIND_LABEL: Record<DiffKind, string> = { added: "新增", removed: "删除
 }
 .message {
   margin: 0;
-  padding: 6px 16px 14px;
+  padding: 12px 16px 14px;
   font-size: 13px;
   color: var(--text-3);
   white-space: pre-wrap;
@@ -145,7 +132,7 @@ const KIND_LABEL: Record<DiffKind, string> = { added: "新增", removed: "删除
 .list {
   list-style: none;
   margin: 0;
-  padding: 0 8px 8px;
+  padding: 6px 8px 8px;
   overflow: auto;
 }
 .item {

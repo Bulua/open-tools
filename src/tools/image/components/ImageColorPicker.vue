@@ -114,8 +114,8 @@ const css = (c: Rgba | PaletteColor) => toRgb({ a: 1, ...c });
       </div>
     </section>
 
-    <aside class="panel">
-      <section class="group">
+    <aside class="panel card">
+      <section class="section">
         <h3>当前颜色</h3>
         <div class="current">
           <span class="big-swatch" :style="{ background: selected ? css(selected) : 'transparent' }" />
@@ -123,7 +123,7 @@ const css = (c: Rgba | PaletteColor) => toRgb({ a: 1, ...c });
         </div>
       </section>
 
-      <section class="group">
+      <section class="section">
         <h3>主色调</h3>
         <div class="swatches">
           <button
@@ -139,7 +139,7 @@ const css = (c: Rgba | PaletteColor) => toRgb({ a: 1, ...c });
         </div>
       </section>
 
-      <section class="group">
+      <section class="section">
         <h3>
           已取颜色
           <button v-if="picked.length" class="link" title="清空" @click="picked = []"><Trash2 :size="12" /></button>
@@ -177,8 +177,10 @@ const css = (c: Rgba | PaletteColor) => toRgb({ a: 1, ...c });
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 8px 6px 16px;
+  min-height: 44px;
+  padding: 4px 8px 4px 16px;
   border-bottom: 1px solid var(--border);
+  background: var(--bg-sunken);
 }
 .file {
   min-width: 0;
@@ -234,21 +236,19 @@ const css = (c: Rgba | PaletteColor) => toRgb({ a: 1, ...c });
   border: 1px solid var(--border);
 }
 
+/* 右侧一张卡片，各部分用细线分隔（与图片编辑一致） */
 .panel {
   flex: 0 0 300px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
   overflow-y: auto;
 }
-.group {
+.section {
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
+}
+.section + .section {
+  border-top: 1px solid var(--border);
 }
 h3 {
   display: flex;

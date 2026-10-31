@@ -82,31 +82,40 @@ const downloadPngs = () =>
   </FileDropZone>
 
   <div v-else class="ico">
+    <!-- 左：设置 -->
     <section class="card options">
-      <div class="option">
-        <span class="label">图片</span>
-        <span class="file" :title="fileName">{{ fileName }}（{{ img.naturalWidth }} × {{ img.naturalHeight }}）</span>
-        <label class="btn subtle">
-          <RefreshCw :size="14" />更换
+      <header class="card-title">
+        <span class="file" :title="fileName">{{ fileName }}</span>
+        <label class="icon-btn" title="更换图片">
+          <RefreshCw :size="14" />
           <input type="file" accept="image/*" hidden @change="onFiles([...(($event.target as HTMLInputElement).files ?? [])])" />
         </label>
-      </div>
-      <div class="option">
-        <span class="label">包含尺寸</span>
-        <label v-for="s in ALL_SIZES" :key="s" class="check">
-          <input type="checkbox" :checked="sizes.includes(s)" @change="toggleSize(s)" />{{ s }}
-        </label>
-      </div>
-      <div v-if="img.naturalWidth !== img.naturalHeight" class="option">
-        <span class="label">非正方形</span>
-        <div class="seg">
-          <button :class="{ on: fit === 'contain' }" @click="fit = 'contain'">完整显示</button>
-          <button :class="{ on: fit === 'cover' }" @click="fit = 'cover'">裁切铺满</button>
+      </header>
+      <div class="option-body">
+        <div class="option">
+          <span class="label">原图</span>
+          <span>{{ img.naturalWidth }} × {{ img.naturalHeight }}</span>
+        </div>
+        <div class="option column">
+          <span class="label">包含尺寸</span>
+          <div class="sizes">
+            <label v-for="s in ALL_SIZES" :key="s" class="check">
+              <input type="checkbox" :checked="sizes.includes(s)" @change="toggleSize(s)" />{{ s }}
+            </label>
+          </div>
+        </div>
+        <div v-if="img.naturalWidth !== img.naturalHeight" class="option column">
+          <span class="label">非正方形</span>
+          <div class="seg">
+            <button :class="{ on: fit === 'contain' }" @click="fit = 'contain'">完整显示</button>
+            <button :class="{ on: fit === 'cover' }" @click="fit = 'cover'">裁切铺满</button>
+          </div>
         </div>
       </div>
     </section>
 
-    <section class="card sunken previews">
+    <!-- 右：预览与下载 -->
+    <section class="card previews">
       <div class="card-title">预览</div>
       <div v-if="outputs.length" class="grid">
         <figure v-for="o in outputs" :key="o.size">
@@ -118,41 +127,54 @@ const downloadPngs = () =>
         </figure>
       </div>
       <p v-else class="empty">请至少选择一个尺寸</p>
-    </section>
 
-    <footer class="actions">
-      <span v-if="ico" class="size">ICO 文件大小 {{ formatBytes(ico.length) }}</span>
-      <button class="btn" :disabled="!outputs.length" @click="downloadPngs"><Download :size="14" />下载 PNG（{{ outputs.length > 1 ? "ZIP" : "单张" }}）</button>
-      <button class="btn primary" :disabled="!ico" @click="downloadIco"><Download :size="14" />下载 ICO</button>
-    </footer>
+      <footer class="actions">
+        <span v-if="ico" class="size">ICO 文件 {{ formatBytes(ico.length) }}</span>
+        <button class="btn" :disabled="!outputs.length" @click="downloadPngs"><Download :size="14" />下载 PNG{{ outputs.length > 1 ? "（ZIP）" : "" }}</button>
+        <button class="btn primary" :disabled="!ico" @click="downloadIco"><Download :size="14" />下载 ICO</button>
+      </footer>
+    </section>
   </div>
 </template>
 
 <style scoped>
+/* 左侧设置、右侧预览 */
 .ico {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+}
+.option-body {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  max-width: 980px;
-}
-.options {
-  gap: 12px;
   padding: 14px 16px;
 }
 .option {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 14px;
+  gap: 12px;
+  font-size: 13px;
+}
+.option.column {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
 }
 .label {
-  flex: 0 0 64px;
+  flex: 0 0 56px;
   font-size: 12px;
   color: var(--text-3);
 }
+.sizes {
+  display: grid;
+  grid-template-columns: repeat(4, auto);
+  gap: 8px 16px;
+}
 .file {
+  flex: 1;
   min-width: 0;
-  font-size: 13px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -161,8 +183,8 @@ const downloadPngs = () =>
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 16px;
-  padding: 10px 16px 16px;
+  gap: 20px;
+  padding: 20px;
 }
 figure {
   margin: 0;
@@ -205,6 +227,9 @@ figcaption {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+  padding: 10px 12px 10px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-sunken);
 }
 .size {
   margin-right: auto;

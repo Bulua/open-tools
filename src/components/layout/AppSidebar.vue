@@ -121,12 +121,12 @@ const filtered = computed(() => {
 }
 .item {
   width: 100%;
-  height: 34px;
+  height: 36px;
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 0 10px;
-  border: none;
+  border: 1px solid transparent;
   border-radius: 8px;
   background: none;
   color: var(--text-2);
@@ -141,8 +141,11 @@ const filtered = computed(() => {
   background: var(--hover);
   color: var(--text);
 }
+/* 当前工具像一张浮起的卡片，与分段按钮的选中样式一致 */
 .item.active {
-  background: var(--active);
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
   color: var(--text);
   font-weight: 500;
 }

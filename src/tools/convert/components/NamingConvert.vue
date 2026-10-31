@@ -19,7 +19,7 @@ const items = computed(() =>
 <template>
   <div class="naming">
     <TextPane v-model="input" class="input" label="原文" placeholder="输入变量名，例如 user_name 或 userName；多行会逐行转换" />
-    <section class="card sunken result">
+    <section class="card result">
       <div class="card-title">结果</div>
       <CopyList :items="items" />
     </section>

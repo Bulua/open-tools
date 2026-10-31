@@ -356,8 +356,10 @@ const download = async () => {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 8px 6px 16px;
+  min-height: 44px;
+  padding: 4px 8px 4px 16px;
   border-bottom: 1px solid var(--border);
+  background: var(--bg-sunken);
 }
 .file {
   min-width: 0;

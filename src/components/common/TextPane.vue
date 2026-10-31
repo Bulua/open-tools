@@ -98,6 +98,7 @@ defineExpose({ focusAt });
 </template>
 
 <style scoped>
+/* 扁平面板：细边框、无阴影，顶部一条标题栏放名称和操作 */
 .pane {
   flex: 1;
   display: flex;
@@ -107,28 +108,31 @@ defineExpose({ focusAt });
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-  transition: border-color 0.15s, box-shadow 0.15s;
+  overflow: hidden;
+  transition: border-color 0.15s;
 }
 .pane:focus-within {
   border-color: var(--border-strong);
-  box-shadow: var(--shadow);
-}
-.pane.readonly {
-  background: var(--bg-sunken);
-  box-shadow: none;
 }
 .pane-head {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 8px 0 16px;
-  font-size: 12px;
-  color: var(--text-3);
+  min-height: 38px;
+  padding: 0 6px 0 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-sunken);
 }
 .pane-label {
   flex-shrink: 0;
   white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+.pane:focus-within .pane-label {
+  color: var(--text);
 }
 .pane-actions {
   display: flex;
@@ -144,7 +148,7 @@ textarea {
   resize: none;
   border: none;
   outline: none;
-  padding: 6px 16px 14px;
+  padding: 10px 14px 14px;
   background: transparent;
   font-family: var(--font-mono);
   font-size: 13px;
@@ -162,7 +166,7 @@ textarea::placeholder {
 }
 .pane-error {
   margin: 0;
-  padding: 6px 16px 14px;
+  padding: 10px 14px 14px;
   color: var(--danger);
   font-size: 13px;
   white-space: pre-wrap;

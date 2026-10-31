@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { FilePlus2, FileText, X } from "lucide-vue-next";
+import { FileText, RefreshCw, X } from "lucide-vue-next";
 import TextPane from "@/components/common/TextPane.vue";
 import CopyList from "@/components/common/CopyList.vue";
+import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { TOOL_ACTIONS } from "@/components/tool/toolActions";
 import { formatBytes } from "@/utils/format";
@@ -14,8 +15,7 @@ const uppercase = useStoredRef("hash.uppercase", false);
 
 const text = ref("");
 const file = ref<File | null>(null);
-const dragging = ref(false);
-const fileInput = ref<HTMLInputElement>();
+const dropZone = ref<InstanceType<typeof FileDropZone>>();
 
 const results = ref<Record<HashAlgorithm, string> | null>(null);
 const computing = ref(false);
@@ -40,16 +40,6 @@ const compute = async () => {
 };
 watch([source, text, file], compute, { immediate: true });
 
-const onPick = (e: Event) => {
-  const input = e.target as HTMLInputElement;
-  if (input.files?.[0]) file.value = input.files[0];
-  input.value = "";
-};
-const onDrop = (e: DragEvent) => {
-  dragging.value = false;
-  if (e.dataTransfer?.files[0]) file.value = e.dataTransfer.files[0];
-};
-
 const items = computed(() =>
   HASH_ALGORITHMS.map((algo) => {
     const value = results.value?.[algo] ?? "";
@@ -70,33 +60,28 @@ const items = computed(() =>
 
     <TextPane v-if="source === 'text'" v-model="text" class="input" label="文本" placeholder="输入要计算哈希的文本（按 UTF-8 计算）" />
 
-    <section
-      v-else
-      class="card input"
-      :class="{ dragging }"
-      @dragover.prevent="dragging = true"
-      @dragleave="dragging = false"
-      @drop.prevent="onDrop"
-    >
-      <input ref="fileInput" type="file" hidden @change="onPick" />
-      <div v-if="file" class="file">
-        <FileText :size="36" :stroke-width="1.25" />
+    <template v-else>
+      <!-- 选好文件后显示为一行，把空间留给结果 -->
+      <section v-if="file" class="card file">
+        <FileText :size="20" :stroke-width="1.5" class="file-icon" />
         <strong :title="file.name">{{ file.name }}</strong>
-        <span>{{ formatBytes(file.size) }}</span>
-        <div class="file-actions">
-          <button class="btn" @click="fileInput?.click()">更换文件</button>
-          <button class="btn subtle" @click="file = null"><X :size="14" />清除</button>
-        </div>
-      </div>
-      <button v-else class="dropzone" @click="fileInput?.click()">
-        <FilePlus2 :size="28" :stroke-width="1.5" />
-        <strong>拖入文件，或点击选择</strong>
-        <span>常用于校验下载的文件是否完整</span>
-      </button>
-    </section>
+        <span class="file-size">{{ formatBytes(file.size) }}</span>
+        <button class="btn subtle" @click="dropZone?.open()"><RefreshCw :size="14" />更换</button>
+        <button class="btn subtle" @click="file = null"><X :size="14" />清除</button>
+      </section>
+      <FileDropZone
+        v-show="!file"
+        ref="dropZone"
+        class="input"
+        title="拖入文件，或点击选择"
+        hint="常用于校验下载的文件是否完整"
+        :paste="false"
+        @files="file = $event[0]"
+      />
+    </template>
 
     <section class="card results">
-      <header class="card-head">
+      <header class="card-title">
         <span>结果</span>
         <span v-if="computing" class="hint">计算中…</span>
       </header>
@@ -115,90 +100,36 @@ const items = computed(() =>
 }
 .input {
   flex: 1;
-  min-height: 160px;
+  min-height: 140px;
 }
-
-.card {
-  display: flex;
-  flex-direction: column;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-  transition: border-color 0.15s, background 0.15s;
-}
-.card.dragging {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-.card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 16px 2px;
-  font-size: 12px;
-  color: var(--text-3);
-}
-
-.dropzone {
-  flex: 1;
-  margin: 10px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border: 1.5px dashed var(--border-strong);
-  border-radius: 10px;
-  background: none;
-  color: var(--text-3);
-  font-size: 12px;
-}
-.dropzone:hover,
-.dragging .dropzone {
-  border-color: var(--accent);
-  color: var(--text-2);
-}
-.dropzone strong {
-  margin-top: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text);
-}
-
 .file {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 16px;
+  gap: 12px;
+  padding: 10px 8px 10px 16px;
+}
+.file-icon {
   color: var(--text-3);
-  font-size: 12px;
 }
 .file strong {
-  max-width: 100%;
-  margin-top: 4px;
-  font-size: 14px;
+  min-width: 0;
   font-weight: 500;
-  color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.file-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 10px;
+.file-size {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-3);
 }
-
 .results {
   flex-shrink: 0;
-  background: var(--bg-sunken);
-  box-shadow: none;
 }
 .hint {
+  margin-left: auto;
+  padding-right: 6px;
+  font-weight: 400;
   color: var(--text-3);
 }
 </style>

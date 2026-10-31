@@ -132,23 +132,27 @@
   color: var(--text-3);
 }
 
-/* 通用卡片 */
+/* 通用面板：扁平、细边框；.card-title 是顶部标题栏，与文本框的标题栏一致 */
 .card {
   display: flex;
   flex-direction: column;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-}
-.card.sunken {
-  background: var(--bg-sunken);
-  box-shadow: none;
+  overflow: hidden;
 }
 .card-title {
-  padding: 10px 16px 2px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 8px 0 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-sunken);
   font-size: 12px;
-  color: var(--text-3);
+  font-weight: 500;
+  color: var(--text-2);
 }
 
 /* 工具顶部的选项条 */

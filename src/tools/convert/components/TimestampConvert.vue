@@ -64,26 +64,16 @@ const useNow = () => (input.value = String(Math.floor(Date.now() / 1000)));
       </div>
     </Teleport>
 
-    <section class="card sunken now">
-      <header class="card-title now-head">
-        <span>当前时间</span>
-        <button class="icon-btn" :title="running ? '暂停' : '继续'" @click="running = !running">
-          <Pause v-if="running" :size="14" />
-          <Play v-else :size="14" />
-        </button>
-      </header>
-      <CopyList :items="nowItems" />
-    </section>
-
+    <!-- 左：转换（主要功能） -->
     <section class="card convert">
       <div class="card-title">转换</div>
       <div class="input-row">
         <input
           v-model="input"
-          class="field mono"
+          class="field mono big"
           :class="{ invalid: !parsed.ok && parsed.message }"
           spellcheck="false"
-          placeholder="输入时间戳（秒或毫秒）或日期，例如 2024-01-02 03:04:05"
+          placeholder="时间戳（秒 / 毫秒）或日期，例如 2024-01-02 03:04:05"
         />
         <button class="btn" @click="useNow">现在</button>
       </div>
@@ -91,30 +81,71 @@ const useNow = () => (input.value = String(Math.floor(Date.now() / 1000)));
       <p v-else-if="parsed.ok" class="message">{{ UNIT_LABEL[parsed.unit] }}</p>
       <CopyList :items="resultItems" />
     </section>
+
+    <!-- 右：当前时间，大字号显示 -->
+    <section class="card now">
+      <header class="card-title">
+        <span>当前时间</span>
+        <button class="icon-btn" :title="running ? '暂停' : '继续'" @click="running = !running">
+          <Pause v-if="running" :size="14" />
+          <Play v-else :size="14" />
+        </button>
+      </header>
+      <div class="clock">
+        <span class="clock-sec">{{ nowItems[0].value }}</span>
+        <span class="clock-date">{{ nowItems[2].value }}</span>
+      </div>
+      <CopyList :items="nowItems.slice(0, 2)" label-width="40px" />
+    </section>
   </div>
 </template>
 
 <style scoped>
 .timestamp {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr);
+  align-items: start;
   gap: 14px;
-  max-width: 820px;
 }
-.now-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-right: 8px;
+@media (max-width: 1000px) {
+  .timestamp {
+    grid-template-columns: 1fr;
+  }
+}
+.now .card-title span {
+  flex: 1;
 }
 .input-row {
   display: flex;
   gap: 8px;
-  padding: 8px 16px 0;
+  padding: 14px 16px 0;
+}
+.field.big {
+  height: 40px;
+  font-size: 15px;
+}
+.input-row .btn {
+  height: 40px;
 }
 .message {
   margin: 6px 16px 0;
   font-size: 12px;
+  color: var(--text-3);
+}
+.clock {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 16px 16px 6px;
+}
+.clock-sec {
+  font-family: var(--font-mono);
+  font-size: 30px;
+  letter-spacing: 0.5px;
+  font-variant-numeric: tabular-nums;
+}
+.clock-date {
+  font-size: 13px;
   color: var(--text-3);
 }
 .message.error {

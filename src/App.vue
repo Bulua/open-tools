@@ -50,6 +50,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
       :categories="categories"
       :active-id="activeCategory.id"
       :theme="theme"
+      :compact="sidebarCollapsed"
       @select="activeCategoryId = $event"
       @toggle-theme="toggleTheme"
       @open-search="searchOpen = true"
@@ -95,12 +96,12 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
   display: flex;
   min-height: 0;
 }
+/* 内边距由工具区自己控制，工具栏可以贴边铺满 */
 .main {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  padding: 24px 40px 28px;
-  overflow: auto;
+  overflow: hidden;
 }
 </style>

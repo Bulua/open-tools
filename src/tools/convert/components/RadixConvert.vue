@@ -66,41 +66,52 @@ const onCopy = async (base: number) => {
 <template>
   <div class="radix">
     <section class="card">
-      <div v-for="row in rows" :key="row.custom ? 'custom' : row.base" class="row">
-        <label class="label">
-          <template v-if="!row.custom">{{ row.label }}</template>
-          <select v-else v-model.number="customBase" class="base-select" title="选择进制">
-            <option v-for="b in 35" :key="b" :value="b + 1">{{ b + 1 }} 进制</option>
-          </select>
-        </label>
-        <div class="input-wrap">
-          <input
-            class="field mono"
-            :class="{ invalid: error?.base === row.base }"
-            :value="display(row.base)"
-            spellcheck="false"
-            @input="onInput(row.base, ($event.target as HTMLInputElement).value)"
-            @blur="onBlur"
-          />
-          <p v-if="error?.base === row.base" class="error">{{ error.message }}</p>
+      <header class="card-title">
+        数值
+        <span class="title-hint">修改任意一行，其他进制自动换算</span>
+      </header>
+      <div class="rows">
+        <div v-for="row in rows" :key="row.custom ? 'custom' : row.base" class="row">
+          <label class="label">
+            <template v-if="!row.custom">{{ row.label }}</template>
+            <select v-else v-model.number="customBase" class="base-select" title="选择进制">
+              <option v-for="b in 35" :key="b" :value="b + 1">{{ b + 1 }} 进制</option>
+            </select>
+          </label>
+          <div class="input-wrap">
+            <input
+              class="field mono"
+              :class="{ invalid: error?.base === row.base }"
+              :value="display(row.base)"
+              spellcheck="false"
+              @input="onInput(row.base, ($event.target as HTMLInputElement).value)"
+              @blur="onBlur"
+            />
+            <p v-if="error?.base === row.base" class="error">{{ error.message }}</p>
+          </div>
+          <button class="icon-btn" :class="{ ok: copiedBase === row.base }" title="复制" @click="onCopy(row.base)">
+            <Check v-if="copiedBase === row.base" :size="14" />
+            <Copy v-else :size="14" />
+          </button>
         </div>
-        <button class="icon-btn" :class="{ ok: copiedBase === row.base }" title="复制" @click="onCopy(row.base)">
-          <Check v-if="copiedBase === row.base" :size="14" />
-          <Copy v-else :size="14" />
-        </button>
+        <p v-if="bitLength" class="info">{{ bitLength }}</p>
       </div>
-      <p v-if="bitLength" class="info">{{ bitLength }}</p>
     </section>
   </div>
 </template>
 
 <style scoped>
-.radix {
-  max-width: 820px;
+.title-hint {
+  margin-left: auto;
+  padding-right: 6px;
+  font-weight: 400;
+  color: var(--text-3);
 }
-.card {
-  padding: 12px 8px 12px 16px;
+.rows {
+  display: flex;
+  flex-direction: column;
   gap: 10px;
+  padding: 14px 8px 14px 16px;
 }
 .row {
   display: flex;

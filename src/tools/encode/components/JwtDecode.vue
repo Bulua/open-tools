@@ -52,20 +52,25 @@ const summary = computed(() => {
       <p v-else-if="!decoded" class="message">在左侧粘贴 JWT 后，这里会显示解码内容和过期状态。</p>
 
       <template v-else-if="summary">
-        <section class="summary">
-          <div class="item">
-            <span class="label">状态</span>
-            <span class="chip" :class="summary.status.tone">{{ summary.status.label }}</span>
+        <section class="card">
+          <header class="card-title">
+            概要
+            <span class="note">仅解码内容，不校验签名</span>
+          </header>
+          <div class="summary">
+            <div class="item status">
+              <span class="label">状态</span>
+              <span class="chip" :class="summary.status.tone">{{ summary.status.label }}</span>
+            </div>
+            <div class="item">
+              <span class="label">算法</span>
+              <span>{{ summary.alg }}</span>
+            </div>
+            <div v-for="t in summary.times" :key="t.label" class="item">
+              <span class="label">{{ t.label }}</span>
+              <span>{{ t.value }}<em>（{{ t.relative }}）</em></span>
+            </div>
           </div>
-          <div class="item">
-            <span class="label">算法</span>
-            <span>{{ summary.alg }}</span>
-          </div>
-          <div v-for="t in summary.times" :key="t.label" class="item">
-            <span class="label">{{ t.label }}</span>
-            <span>{{ t.value }}<em>（{{ t.relative }}）</em></span>
-          </div>
-          <p class="note">仅解码内容，不校验签名是否正确。</p>
         </section>
 
         <TextPane :model-value="json(decoded.header)" class="header" label="Header" readonly language="json" />
@@ -103,12 +108,9 @@ const summary = computed(() => {
 
 .summary {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 8px 24px;
-  padding: 12px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-sunken);
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px 24px;
+  padding: 14px 16px;
   font-size: 13px;
 }
 .item {
@@ -126,15 +128,17 @@ em {
   color: var(--text-3);
 }
 .note {
-  grid-column: 1 / -1;
-  margin: 2px 0 0;
-  font-size: 12px;
+  margin-left: auto;
+  padding-right: 6px;
+  font-weight: 400;
   color: var(--text-3);
 }
+/* 状态是最重要的信息，标签更醒目 */
 .chip {
-  padding: 1px 8px;
+  padding: 2px 10px;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 500;
 }
 .chip.ok {
   color: var(--success);
