@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { ChevronLeft, ChevronRight, Moon, Search, Sun } from "lucide-vue-next";
+import { ArrowUpCircle, ChevronLeft, ChevronRight, Moon, Search, Sun } from "lucide-vue-next";
 import type { Category } from "@/tools";
+import { useUpdater } from "@/composables/useUpdater";
 
 const props = defineProps<{
   categories: Category[];
@@ -10,7 +11,9 @@ const props = defineProps<{
   /** 侧栏收起时品牌区跟着收窄，保持与侧栏对齐 */
   compact?: boolean;
 }>();
-defineEmits<{ select: [id: string]; toggleTheme: []; openSearch: [] }>();
+defineEmits<{ select: [id: string]; toggleTheme: []; openSearch: []; openUpdate: [] }>();
+
+const { status: updateStatus, newVersion } = useUpdater();
 
 // 分类多了以后横向滚动，两侧出现箭头
 const scroller = ref<HTMLElement>();
@@ -86,6 +89,13 @@ watch(
         <Search :size="14" />
         <span>搜索工具</span>
         <kbd>Ctrl K</kbd>
+      </button>
+      <!-- 有新版本时显示醒目的提示，否则是普通的「检查更新」按钮 -->
+      <button v-if="updateStatus === 'available'" class="update-pill" @click="$emit('openUpdate')">
+        <ArrowUpCircle :size="14" />新版本 v{{ newVersion }}
+      </button>
+      <button v-else class="theme-btn" title="检查更新" @click="$emit('openUpdate')">
+        <ArrowUpCircle :size="16" />
       </button>
       <button class="theme-btn" :title="theme === 'dark' ? '浅色模式' : '深色模式'" @click="$emit('toggleTheme')">
         <Sun v-if="theme === 'dark'" :size="16" />
@@ -249,6 +259,22 @@ watch(
 .search:hover {
   border-color: var(--border-strong);
   color: var(--text-2);
+}
+.update-pill {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 14px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+}
+.update-pill:hover {
+  background: var(--accent-hover);
 }
 .theme-btn {
   width: 32px;

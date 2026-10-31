@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Open Tools",
-  "version": "0.1.0",
+  "version": "../package.json",
   "identifier": "com.opentools.app",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -35,5 +35,14 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk0NEREMjlBQjhFQTU3MzcKUldRM1YrcTRtdEpObExuanRFaElJRTA1ckl0OU16UmtQamVOYXBPeGFCS1lWQnVUaGpZYUc1M28K",
+      "endpoints": ["https://github.com/Bulua/open-tools/releases/latest/download/latest.json"],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

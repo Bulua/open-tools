@@ -8,6 +8,8 @@ import AppSidebar from "@/components/layout/AppSidebar.vue";
 import ToolView from "@/components/tool/ToolView.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import CommandPalette from "@/components/common/CommandPalette.vue";
+import UpdateDialog from "@/components/layout/UpdateDialog.vue";
+import { useUpdater } from "@/composables/useUpdater";
 
 const { theme, toggleTheme } = useTheme();
 
@@ -42,6 +44,11 @@ const onKeydown = (e: KeyboardEvent) => {
 };
 onMounted(() => window.addEventListener("keydown", onKeydown));
 onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
+
+// ---------- 在线更新：启动几秒后在后台检查一次，不影响打开速度 ----------
+const updateOpen = ref(false);
+const { checkForUpdate } = useUpdater();
+onMounted(() => setTimeout(() => checkForUpdate(true), 3000));
 </script>
 
 <template>
@@ -54,6 +61,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
       @select="activeCategoryId = $event"
       @toggle-theme="toggleTheme"
       @open-search="searchOpen = true"
+      @open-update="updateOpen = true"
     />
     <div class="body">
       <AppSidebar
@@ -82,6 +90,8 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
       @pick="(c, t) => (selectTool(c, t), (searchOpen = false))"
       @close="searchOpen = false"
     />
+
+    <UpdateDialog v-if="updateOpen" @close="updateOpen = false" />
   </div>
 </template>
 

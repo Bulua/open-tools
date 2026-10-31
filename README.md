@@ -120,12 +120,33 @@ open-tools/
 
 ## 发布新版本
 
-1. 修改 `src-tauri/tauri.conf.json` 中的 `version`。
-2. 提交后打标签并推送：
+版本号只在 `package.json` 里维护，程序版本会自动读取它。
+
+1. 修改版本号并提交：
 
    ```bash
-   git tag v0.2.0
-   git push origin v0.2.0
+   npm version 0.2.0 --no-git-tag-version
+   git commit -am "chore: 发布 v0.2.0"
    ```
 
-GitHub Actions 会自动打包并发布到 Releases。
+2. 打带说明的标签并推送，`-m` 后面的文字就是用户在更新对话框里看到的「更新内容」：
+
+   ```bash
+   git tag -a v0.2.0 -m "新增图片工具；修复若干问题"
+   git push origin master v0.2.0
+   ```
+
+GitHub Actions 会自动打包、发布到 Releases，并生成在线更新文件 `latest.json`。
+已安装的程序启动后会自动发现新版本，也可以点右上角的「检查更新」。
+
+## 在线更新的签名密钥
+
+更新包需要签名，程序只会安装签名正确的更新，防止被伪造。
+
+- **公钥**：已写在 `src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`。
+- **私钥**：保存在本机 `C:\Users\<用户名>\.tauri\open-tools.key`，**不要提交到仓库**。
+  需要在 GitHub 仓库的 Settings → Secrets and variables → Actions 中添加：
+  - `TAURI_SIGNING_PRIVATE_KEY`：私钥文件的全部内容
+  - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`：私钥密码（当前没有设置密码，可以不添加）
+
+**请备份好私钥。** 私钥丢失后，已安装的程序将无法再收到更新，只能让用户手动重新安装。

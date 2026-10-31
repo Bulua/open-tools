@@ -1,6 +1,8 @@
 # 云端打包 Windows 程序
 # - 推送到 master 或手动触发：编译后在 Actions 页面的 Artifacts 中下载
-# - 推送 v 开头的标签（如 v0.1.0）：额外发布到 GitHub Releases
+# - 推送 v 开头的标签（如 v0.2.0）：发布到 GitHub Releases，并生成在线更新文件（latest.json）
+#   已安装的程序会通过 latest.json 发现新版本并自动更新
+#   需要在仓库 Settings → Secrets 中配置 TAURI_SIGNING_PRIVATE_KEY（更新包签名私钥）
 name: Build Windows
 
 on:
@@ -40,14 +42,31 @@ jobs:
           npm run typecheck
           npm test
 
+      # 版本说明来自标签附带的文字：git tag -a v0.2.0 -m "更新内容"
+      - name: 读取版本说明
+        id: notes
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          git fetch --tags --force
+          {
+            echo "body<<NOTES_EOF"
+            git tag -l --format='%(contents)' "$GITHUB_REF_NAME"
+            echo "NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 更新包签名私钥，只在发布版本时用到
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          # 仅在推送标签时创建 Release，其余情况只编译
+          # 仅在推送标签时创建 Release 并生成签名的更新文件，其余情况只编译
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          args: ${{ startsWith(github.ref, 'refs/tags/') && '--config src-tauri/tauri.release.conf.json' || '' }}
           releaseName: "Open Tools ${{ github.ref_name }}"
-          releaseBody: "下载 *-setup.exe 安装即可使用。"
+          releaseBody: ${{ steps.notes.outputs.body || '下载 *-setup.exe 安装即可使用。' }}
           releaseDraft: false
 
       - uses: actions/upload-artifact@v4
