@@ -1,0 +1,38 @@
+import type { Component } from "vue";
+
+/** 文本转换工具的一个操作按钮，例如「编码」「解码」 */
+export interface ToolAction {
+  label: string;
+  /** 主操作按钮（实心强调色） */
+  primary?: boolean;
+  run: (input: string) => string | Promise<string>;
+}
+
+/**
+ * 一个工具。界面三选一：
+ * - component：自定义界面（复杂工具，如 JSON 对比）
+ * - actions：通用文本转换界面（简单工具，如 Base64）
+ * - 都不提供：显示「即将上线」
+ */
+export interface Tool {
+  /** 唯一标识，用于记住上次打开的工具 */
+  id: string;
+  name: string;
+  /** 一句话说明，显示在标题下方和搜索结果中 */
+  desc: string;
+  /** lucide-vue-next 图标 */
+  icon: Component;
+  component?: Component;
+  actions?: ToolAction[];
+  inputPlaceholder?: string;
+}
+
+/** 顶部的一个分类 */
+export interface Category {
+  id: string;
+  name: string;
+  tools: Tool[];
+}
+
+/** 工具是否已经可以使用 */
+export const isAvailable = (tool: Tool) => Boolean(tool.component || tool.actions);

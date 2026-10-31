@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { CornerDownLeft, Search } from "lucide-vue-next";
-import type { Category, Tool } from "../tools";
+import type { Category, Tool } from "@/tools";
 
 const props = defineProps<{ categories: Category[] }>();
 const emit = defineEmits<{ pick: [categoryId: string, toolId: string]; close: [] }>();

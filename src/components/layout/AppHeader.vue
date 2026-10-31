@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { ChevronLeft, ChevronRight, Moon, Search, Sun } from "lucide-vue-next";
-import type { Category } from "../tools";
+import type { Category } from "@/tools";
 
 const props = defineProps<{ categories: Category[]; activeId: string; theme: "light" | "dark" }>();
 defineEmits<{ select: [id: string]; toggleTheme: []; openSearch: [] }>();
@@ -81,7 +81,7 @@ watch(
         <span>搜索工具</span>
         <kbd>Ctrl K</kbd>
       </button>
-      <button class="icon-btn" :title="theme === 'dark' ? '浅色模式' : '深色模式'" @click="$emit('toggleTheme')">
+      <button class="theme-btn" :title="theme === 'dark' ? '浅色模式' : '深色模式'" @click="$emit('toggleTheme')">
         <Sun v-if="theme === 'dark'" :size="16" />
         <Moon v-else :size="16" />
       </button>
@@ -226,7 +226,7 @@ watch(
   border-color: var(--border-strong);
   color: var(--text-2);
 }
-.icon-btn {
+.theme-btn {
   width: 32px;
   height: 32px;
   display: grid;
@@ -236,7 +236,7 @@ watch(
   background: none;
   color: var(--text-2);
 }
-.icon-btn:hover {
+.theme-btn:hover {
   background: var(--hover);
   color: var(--text);
 }

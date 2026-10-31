@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { PanelLeftClose, PanelLeftOpen, Search } from "lucide-vue-next";
-import type { Category } from "../tools";
+import { isAvailable, type Category } from "@/tools";
 
 const props = defineProps<{ category: Category; activeId?: string; collapsed: boolean }>();
 defineEmits<{ select: [id: string]; toggle: [] }>();
@@ -41,7 +41,7 @@ const filtered = computed(() => {
         >
           <component :is="t.icon" :size="16" :stroke-width="1.75" class="icon" />
           <span v-if="!collapsed" class="label">{{ t.name }}</span>
-          <span v-if="!collapsed && !t.actions" class="soon">即将上线</span>
+          <span v-if="!collapsed && !isAvailable(t)" class="soon">即将上线</span>
         </button>
       </li>
     </ul>

@@ -35,6 +35,11 @@ jobs:
 
       - run: npm ci
 
+      - name: 类型检查与单元测试
+        run: |
+          npm run typecheck
+          npm test
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
