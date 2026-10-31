@@ -1,17 +1,4 @@
-/** 编码 / 加密相关的纯函数，不依赖界面，便于测试 */
-
-export const base64Encode = (s: string) => {
-  const bytes = new TextEncoder().encode(s);
-  let bin = "";
-  bytes.forEach((b) => (bin += String.fromCharCode(b)));
-  return btoa(bin);
-};
-
-export const base64Decode = (s: string) => {
-  const bin = atob(s.trim());
-  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
-};
+/** 编码 / 加密相关的纯函数，不依赖界面，便于测试（Base64 见 base64.ts） */
 
 export const unicodeEscape = (s: string) =>
   [...s].map((c) => "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0")).join("");

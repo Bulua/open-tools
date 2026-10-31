@@ -21,11 +21,6 @@ const filtered = computed(() => {
 
 <template>
   <aside class="sidebar" :class="{ collapsed }">
-    <div v-if="!collapsed" class="head">
-      <h2>{{ category.name }}</h2>
-      <span class="count">{{ category.tools.length }}</span>
-    </div>
-
     <label v-if="!collapsed && category.tools.length > 6" class="filter">
       <Search :size="14" />
       <input v-model="keyword" placeholder="筛选" />
@@ -63,7 +58,7 @@ const filtered = computed(() => {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  padding: 20px 10px 10px;
+  padding: 14px 10px 10px;
   background: var(--bg-sunken);
   border-right: 1px solid var(--border);
   transition: width 0.2s ease;
@@ -71,25 +66,6 @@ const filtered = computed(() => {
 }
 .sidebar.collapsed {
   width: 56px;
-  padding-top: 14px;
-}
-
-.head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 0 10px 12px;
-}
-h2 {
-  margin: 0;
-  font-family: var(--font-serif);
-  font-size: 18px;
-  font-weight: 400;
-  white-space: nowrap;
-}
-.count {
-  font-size: 12px;
-  color: var(--text-3);
 }
 
 .filter {

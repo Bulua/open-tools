@@ -22,6 +22,8 @@
     "@codemirror/view": "^6.43.15",
     "@lezer/highlight": "^1.2.5",
     "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-dialog": "^2.8.4",
+    "@tauri-apps/plugin-fs": "^2.7.1",
     "js-yaml": "^5.5.0",
     "lucide-vue-next": "^0.460.0",
     "vue": "^3.5.0"

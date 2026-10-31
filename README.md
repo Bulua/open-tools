@@ -38,6 +38,8 @@ open-tools/
 │   │   ├── theme.css      # 颜色、字体等设计变量（改主题只改这里）
 │   │   ├── base.css       # 全局基础样式
 │   │   └── controls.css   # 共用控件：按钮 .btn、分段选择 .seg、复选框 .check
+│   ├── utils/
+│   │   └── saveFile.ts    # 保存文件：桌面版弹出「另存为」，浏览器中直接下载
 │   ├── composables/       # 可复用的逻辑
 │   │   ├── useStoredRef.ts  # 自动保存到 localStorage 的状态
 │   │   ├── useTheme.ts      # 浅色 / 深色主题

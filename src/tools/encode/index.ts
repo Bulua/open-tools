@@ -1,3 +1,4 @@
+import { defineAsyncComponent } from "vue";
 import { Binary, Code2, Fingerprint, KeyRound, Languages, Link2, ShieldCheck } from "lucide-vue-next";
 import type { Category } from "../types";
 import * as t from "./transforms";
@@ -9,12 +10,9 @@ const encode: Category = {
     {
       id: "base64",
       name: "Base64",
-      desc: "文本与 Base64 互相转换",
+      desc: "文本、图片、任意文件与 Base64 互相转换",
       icon: Binary,
-      actions: [
-        { label: "编码", primary: true, run: t.base64Encode },
-        { label: "解码", run: t.base64Decode },
-      ],
+      component: defineAsyncComponent(() => import("./components/Base64.vue")),
     },
     {
       id: "url",
