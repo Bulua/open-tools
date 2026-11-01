@@ -33,16 +33,17 @@ Open Tools 把这些常用工具放进一个桌面程序：
 
 ## 功能一览
 
-目前共 7 个分类、40 个工具。
+目前共 8 个分类、45 个工具。
 
 | 分类 | 包含 |
 | --- | --- |
-| JSON 工具 | 格式化与校验（代码 / 树形视图）、差异对比、字符串转义、转 YAML 和 TypeScript 类型 |
-| 文本 / 编码 | Base64、URL / Unicode / HTML 编码、哈希计算、JWT 解码、随机密码、正则表达式测试、命名风格转换 |
+| JSON | 格式化与校验（代码 / 树形视图）、差异对比、字符串转义、转 YAML 和 TypeScript 类型 |
+| 文本编码 | Base64、URL / Unicode / HTML 编码、哈希计算、JWT 解码、随机密码、正则表达式测试、命名风格转换 |
 | 时间 | 时间戳转换、时区转换与世界时间、Cron 表达式、倒计时提醒 |
-| 计算 / 换算 | 计算器、单位换算、进制转换、颜色转换 |
+| 计算换算 | 计算器、单位换算、进制转换、颜色转换 |
 | 图片 | 压缩、格式转换、裁剪、旋转、调色、拼接、马赛克、水印、去背景、取色、ICO 图标生成 |
-| 文档 / 文件 | Word 转 PDF、Word 水印、PDF 页面编辑、Markdown 编辑预览与转 Word、文件压缩与解压 |
+| 音频 | 格式转换（含视频提取声音）、剪辑、拼接、录音机、文字转语音 |
+| 文档文件 | Word 转 PDF、Word 水印、PDF 页面编辑、Markdown 编辑预览与转 Word、文件压缩与解压 |
 | 网络 | IP 地址与位置查询、Ping 测试、请求头转 JSON / cURL |
 
 ## 下载与安装
@@ -128,6 +129,7 @@ npm run dev
 | 界面 | Vue 3 · TypeScript · Vite |
 | 代码编辑器 | CodeMirror 6 |
 | 文档处理 | PDF.js · pdf-lib · docx · docx-preview · marked |
+| 音频 | Web Audio · wasm-media-encoders（MP3 编码）· Windows 语音 |
 | 图标 | Lucide |
 | 测试 | Vitest |
 | 打包与发布 | GitHub Actions · tauri-action |

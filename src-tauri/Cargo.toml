@@ -17,6 +17,8 @@ tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+# 用系统浏览器打开网址（GitHub 仓库、Markdown 中的链接）
+tauri-plugin-opener = "2"
 # 只允许运行一个实例：程序隐藏在托盘时再次打开，直接显示已有的窗口
 tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }

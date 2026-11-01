@@ -1,6 +1,8 @@
 mod document;
 mod network;
+mod script;
 mod tray;
+mod tts;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -13,12 +15,16 @@ pub fn run() {
         // 在线更新：检查、下载、安装新版本；安装后重启程序
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        // 用系统默认浏览器打开网址
+        .plugin(tauri_plugin_opener::init())
         // 前端可以调用的命令
         .invoke_handler(tauri::generate_handler![
             network::ping_once,
             network::local_ip,
             document::office_engines,
-            document::office_to_pdf
+            document::office_to_pdf,
+            tts::tts_voices,
+            tts::tts_synthesize
         ])
         // 关闭窗口时隐藏到托盘，从托盘菜单退出
         .setup(|app| {

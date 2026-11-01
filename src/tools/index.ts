@@ -14,9 +14,10 @@ import network from "./network";
 import document from "./document";
 import markdown from "./markdown";
 import utility from "./utility";
+import audio from "./audio";
 
 /** 所有模块中的工具 */
-export const allTools: Tool[] = [json, encode, convert, image, network, document, markdown, utility].flatMap((m) => m.tools);
+export const allTools: Tool[] = [json, encode, convert, image, audio, network, document, markdown, utility].flatMap((m) => m.tools);
 
 const pick = (...ids: string[]): Tool[] =>
   ids.map((id) => {
@@ -45,14 +46,15 @@ const sortTools = (c: Category): Category => ({ ...c, tools: [...c.tools].sort((
 
 /** 顶部分类，数组顺序就是显示顺序 */
 export const categories: Category[] = [
-  { id: "json", name: "JSON 工具", tools: json.tools },
-  { id: "text", name: "文本 / 编码", tools: pick("base64", "text-escape", "hash", "jwt", "password", "regex", "naming") },
+  { id: "json", name: "JSON", tools: json.tools },
+  { id: "text", name: "文本编码", tools: pick("base64", "text-escape", "hash", "jwt", "password", "regex", "naming") },
   { id: "time", name: "时间", tools: pick("timestamp", "timezone", "cron", "countdown") },
-  { id: "calc", name: "计算 / 换算", tools: pick("calculator", "units", "radix", "color") },
+  { id: "calc", name: "计算换算", tools: pick("calculator", "units", "radix", "color") },
   { id: "image", name: "图片", tools: image.tools },
+  { id: "audio", name: "音频", tools: audio.tools },
   {
     id: "document",
-    name: "文档 / 文件",
+    name: "文档文件",
     tools: pick("word-to-pdf", "word-watermark", "pdf-pages", "markdown-editor", "markdown-to-word", "archive", "extract"),
   },
   { id: "network", name: "网络", tools: network.tools },

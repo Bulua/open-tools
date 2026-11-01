@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { ArrowUpCircle, ChevronLeft, ChevronRight, Moon, Search, Sun } from "lucide-vue-next";
+import { ArrowUpCircle, ChevronLeft, ChevronRight, Github, Moon, Search, Sun } from "lucide-vue-next";
 import type { Category } from "@/tools";
 import { useUpdater } from "@/composables/useUpdater";
+import { REPO_URL, openExternal } from "@/utils/openExternal";
 import AppLogo from "./AppLogo.vue";
 
 const props = defineProps<{
@@ -101,6 +102,9 @@ watch(
       <button class="theme-btn" :title="theme === 'dark' ? '浅色模式' : '深色模式'" @click="$emit('toggleTheme')">
         <Sun v-if="theme === 'dark'" :size="16" />
         <Moon v-else :size="16" />
+      </button>
+      <button class="theme-btn" :title="`GitHub 仓库：${REPO_URL}`" @click="openExternal(REPO_URL)">
+        <Github :size="16" />
       </button>
     </div>
   </header>
