@@ -1,5 +1,5 @@
 import { defineAsyncComponent } from "vue";
-import { CaseSensitive, Clock, Hash, Palette, Thermometer } from "lucide-vue-next";
+import { CaseSensitive, Clock, Globe2, Hash, Palette, Ruler } from "lucide-vue-next";
 import type { Category } from "../types";
 
 const convert: Category = {
@@ -8,9 +8,9 @@ const convert: Category = {
   tools: [
     {
       id: "units",
-      name: "温度 / 单位换算",
-      desc: "温度、长度、重量、面积、体积、数据大小、速度、时间的单位换算",
-      icon: Thermometer,
+      name: "单位换算",
+      desc: "温度、长度、重量、面积、体积、数据、速度、时间、压力、能量、功率、角度、频率换算",
+      icon: Ruler,
       component: defineAsyncComponent(() => import("./components/UnitConvert.vue")),
     },
     {
@@ -19,6 +19,13 @@ const convert: Category = {
       desc: "Unix 时间戳（秒 / 毫秒）与日期互转，查看当前时间戳",
       icon: Clock,
       component: defineAsyncComponent(() => import("./components/TimestampConvert.vue")),
+    },
+    {
+      id: "timezone",
+      name: "时区转换 / 世界时间",
+      desc: "任意时区的时间互相换算，同时查看多个城市的当前时间和 24 小时对照",
+      icon: Globe2,
+      component: defineAsyncComponent(() => import("./components/TimezoneConvert.vue")),
     },
     {
       id: "radix",

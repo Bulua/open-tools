@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import AppSelect from "@/components/common/AppSelect.vue";
 import { Check, Copy } from "lucide-vue-next";
 import { useClipboard } from "@/composables/useClipboard";
 import { useStoredRef } from "@/composables/useStoredRef";
@@ -7,6 +8,7 @@ import { formatInteger, groupBinary, parseInteger } from "../radix";
 
 /** 二 / 八 / 十 / 十六进制及任意进制互转：改任意一行，其他行自动更新 */
 const customBase = useStoredRef("radix.customBase", 36);
+const BASE_OPTIONS = Array.from({ length: 35 }, (_, i) => ({ value: i + 2, label: `${i + 2} 进制` }));
 
 const value = ref<bigint | null>(255n);
 /** 正在编辑的那一行保留用户原样输入，其余行显示转换结果 */
@@ -74,9 +76,7 @@ const onCopy = async (base: number) => {
         <div v-for="row in rows" :key="row.custom ? 'custom' : row.base" class="row">
           <label class="label">
             <template v-if="!row.custom">{{ row.label }}</template>
-            <select v-else v-model.number="customBase" class="base-select" title="选择进制">
-              <option v-for="b in 35" :key="b" :value="b + 1">{{ b + 1 }} 进制</option>
-            </select>
+            <AppSelect v-else v-model="customBase" class="base-select" size="sm" :options="BASE_OPTIONS" :searchable="false" title="选择进制" />
           </label>
           <div class="input-wrap">
             <input
@@ -126,14 +126,8 @@ const onCopy = async (base: number) => {
   font-size: 13px;
   color: var(--text-2);
 }
-.base-select {
-  height: 30px;
-  padding: 0 6px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
-  font-size: 13px;
-  color: var(--text-2);
+.label :deep(.base-select) {
+  width: 96px;
 }
 .input-wrap {
   flex: 1;

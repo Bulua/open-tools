@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch } from "vue";
+import AppSelect from "@/components/common/AppSelect.vue";
 import { Download, FileText, Plus, X } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
@@ -198,9 +199,7 @@ const download = async () => {
             <button v-for="p in PRESETS" :key="p" :class="{ on: text === p }" @click="text = p">{{ p }}</button>
           </div>
           <div class="row">
-            <select v-model="font" class="field select" title="字体">
-              <option v-for="f in FONTS" :key="f" :value="f">{{ f }}</option>
-            </select>
+            <AppSelect v-model="font" class="select" :options="FONTS.map((f) => ({ value: f, label: f }))" title="字体" />
             <input v-model="color" class="color" type="color" title="颜色" />
             <label class="check"><input v-model="bold" type="checkbox" />粗体</label>
           </div>
@@ -377,9 +376,9 @@ h3 {
   height: 32px;
   font-size: 13px;
 }
-.select {
+.row :deep(.select) {
   flex: 1;
-  padding: 0 8px;
+  min-width: 0;
 }
 .chips {
   display: flex;

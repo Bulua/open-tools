@@ -44,11 +44,11 @@ open-tools/
 │   │       ├── FileDropZone.vue    # 文件拖放 / 选择 / 粘贴
 │   │       ├── EmptyState.vue
 │   │       └── CommandPalette.vue  # Ctrl+K 全局搜索
-│   └── tools/               # 所有工具，一个分类一个文件夹
-│       ├── index.ts         # 分类注册表（决定顶部分类及顺序）
+│   └── tools/               # 所有工具，按模块分文件夹
+│       ├── index.ts         # 分类注册表：顶部有哪些分类、每个分类包含哪些工具
 │       ├── types.ts         # Tool / Category 类型定义
 │       ├── json/
-│       │   ├── index.ts         # 分类定义：包含哪些工具
+│       │   ├── index.ts         # 本模块的工具定义
 │       │   ├── utils.ts         # 纯逻辑（解析、对比、生成类型…）
 │       │   ├── utils.test.ts    # 单元测试
 │       │   └── components/      # 需要自定义界面的工具
@@ -131,10 +131,13 @@ import ToolActions from "@/components/tool/ToolActions.vue";
 - 监听 `window` 事件请用 `useWindowEvent`，它只把事件交给当前会话。
 - 需要判断自己是否是当前会话时，用 `useToolActive()`。
 
-## 新增一个分类
+## 分类与排序
 
-1. 新建 `src/tools/<分类>/index.ts`，导出一个 `Category`（参考 `convert/index.ts`）。
-2. 在 `src/tools/index.ts` 的 `categories` 数组里加上它，数组顺序就是顶部分类的顺序。
+工具代码按模块放在 `src/tools/<模块>/` 下，顶部显示的分类则按用途在 `src/tools/index.ts` 的 `categories` 中用工具 id 挑选，两者可以不同（例如「时间」分类包含来自 `convert/` 和 `utility/` 的工具）。
+
+- 新增工具：在模块的 `index.ts` 里定义，再把 id 加到 `categories` 的某个分类中。测试会检查每个工具都恰好出现在一个分类里。
+- 新增分类：在 `categories` 数组里加一项，数组顺序就是顶部分类的顺序。
+- 分类内的工具自动按名称排序（中文按拼音、英文按字母，按首字母混排），定义时的顺序不影响显示。
 
 ## 代码约定
 

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import CopyList from "@/components/common/CopyList.vue";
-import ToolActions from "@/components/tool/ToolActions.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { QUANTITIES, convertUnit, formatNumber } from "../units";
 
@@ -34,11 +33,9 @@ const fromLabel = computed(() => quantity.value.units.find((u) => u.id === from.
 </script>
 
 <template>
-  <ToolActions>
-    <div class="seg">
-      <button v-for="q in QUANTITIES" :key="q.id" :class="{ on: quantityId === q.id }" @click="quantityId = q.id">{{ q.label }}</button>
-    </div>
-  </ToolActions>
+  <nav class="quantities">
+    <button v-for="q in QUANTITIES" :key="q.id" :class="{ on: quantityId === q.id }" @click="quantityId = q.id">{{ q.label }}</button>
+  </nav>
 
   <div class="units">
     <section class="card">
@@ -72,6 +69,30 @@ const fromLabel = computed(() => quantity.value.units.find((u) => u.id === from.
 </template>
 
 <style scoped>
+.quantities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.quantities button {
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: var(--surface);
+  font-size: 13px;
+  color: var(--text-2);
+}
+.quantities button:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.quantities button.on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
 .units {
   display: grid;
   grid-template-columns: minmax(280px, 2fr) minmax(0, 3fr);

@@ -10,6 +10,8 @@ import EmptyState from "@/components/common/EmptyState.vue";
 import CommandPalette from "@/components/common/CommandPalette.vue";
 import UpdateDialog from "@/components/layout/UpdateDialog.vue";
 import { useUpdater } from "@/composables/useUpdater";
+import CountdownAlerts from "@/components/layout/CountdownAlerts.vue";
+import { startCountdownTicker } from "@/tools/utility/countdownStore";
 
 const { theme, toggleTheme } = useTheme();
 
@@ -49,6 +51,9 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
 const updateOpen = ref(false);
 const { checkForUpdate } = useUpdater();
 onMounted(() => setTimeout(() => checkForUpdate(true), 3000));
+
+// ---------- 倒计时：在后台每秒检查，到期时在任何工具里都会提醒 ----------
+onMounted(startCountdownTicker);
 </script>
 
 <template>
@@ -92,6 +97,7 @@ onMounted(() => setTimeout(() => checkForUpdate(true), 3000));
     />
 
     <UpdateDialog v-if="updateOpen" @close="updateOpen = false" />
+    <CountdownAlerts @open="selectTool('time', 'countdown')" />
   </div>
 </template>
 

@@ -10,6 +10,9 @@
     "fs:allow-write-file",
     "fs:allow-mkdir",
     "updater:default",
-    "process:allow-restart"
+    "process:allow-restart",
+    "core:window:allow-show",
+    "core:window:allow-unminimize",
+    "core:window:allow-set-focus"
   ]
 }

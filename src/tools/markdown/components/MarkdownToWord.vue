@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch } from "vue";
+import AppSelect from "@/components/common/AppSelect.vue";
 import { Download, FileText, ImageOff, X } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import { saveFiles } from "@/utils/saveFile";
@@ -118,9 +119,7 @@ const previewStyle = computed(() => ({
         <h3>正文格式</h3>
         <label class="row">
           <span>字体</span>
-          <select v-model="font" class="field select">
-            <option v-for="f in FONTS" :key="f" :value="f">{{ f }}</option>
-          </select>
+          <AppSelect v-model="font" class="select" size="sm" :options="FONTS.map((f) => ({ value: f, label: f }))" />
         </label>
         <div class="row">
           <span>字号</span>
@@ -315,10 +314,8 @@ h3 {
 .row > span {
   flex: 0 0 28px;
 }
-.select {
-  height: 30px;
-  font-size: 13px;
-  padding: 0 8px;
+.row :deep(.select) {
+  flex: 1;
 }
 .tip {
   margin: 0;

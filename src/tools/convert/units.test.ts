@@ -38,3 +38,14 @@ describe("formatNumber", () => {
     expect(formatNumber(2e-9)).toBe("2e-9");
   });
 });
+
+describe("更多物理量", () => {
+  const q = (id: string) => QUANTITIES.find((x) => x.id === id)!;
+  it("压力、能量、功率、角度、频率", () => {
+    expect(formatNumber(convertUnit(q("pressure"), 1, "atm", "kpa"))).toBe("101.325");
+    expect(formatNumber(convertUnit(q("energy"), 1, "kwh", "kcal"))).toBe("860.4206501");
+    expect(formatNumber(convertUnit(q("power"), 1, "hp", "w"))).toBe("735.49875");
+    expect(formatNumber(convertUnit(q("angle"), 180, "deg", "rad"))).toBe("3.141592654");
+    expect(formatNumber(convertUnit(q("frequency"), 3000, "rpm", "hz"))).toBe("50");
+  });
+});
