@@ -1,3 +1,4 @@
+mod ai_models;
 mod document;
 mod network;
 mod script;
@@ -24,7 +25,12 @@ pub fn run() {
             document::office_engines,
             document::office_to_pdf,
             tts::tts_voices,
-            tts::tts_synthesize
+            tts::tts_synthesize,
+            ai_models::ai_models_downloaded,
+            ai_models::ai_model_download,
+            ai_models::ai_model_progress,
+            ai_models::ai_model_read,
+            ai_models::ai_model_delete
         ])
         // 关闭窗口时隐藏到托盘，从托盘菜单退出
         .setup(|app| {

@@ -41,7 +41,7 @@ Open Tools 把这些常用工具放进一个桌面程序：
 | 文本编码 | Base64、URL / Unicode / HTML 编码、哈希计算、JWT 解码、随机密码、正则表达式测试、命名风格转换 |
 | 时间 | 时间戳转换、时区转换与世界时间、Cron 表达式、倒计时提醒 |
 | 计算换算 | 计算器、单位换算、进制转换、颜色转换 |
-| 图片 | 压缩、格式转换、裁剪、旋转、调色、拼接、马赛克、水印、去背景、取色、ICO 图标生成 |
+| 图片 | 压缩、格式转换、裁剪、旋转、调色、拼接、马赛克、水印、去背景（AI 识别主体）、取色、ICO 图标生成 |
 | 音频 | 格式转换（含视频提取声音）、剪辑、拼接、录音机、文字转语音 |
 | 文档文件 | Word 转 PDF、Word 水印、PDF 页面编辑、Markdown 编辑预览与转 Word、文件压缩与解压 |
 | 网络 | IP 地址与位置查询、Ping 测试、请求头转 JSON / cURL |
@@ -81,10 +81,11 @@ Open Tools 把这些常用工具放进一个桌面程序：
 ## 隐私
 
 - 除下面两个网络工具外，所有工具都在本地运行，**不会上传任何内容**。
-- 会访问网络的地方只有三处：
+- 会访问网络的地方只有以下几处：
   - **检查更新**：访问本仓库在 GitHub 上的版本信息文件，不携带任何个人数据。
   - **IP 地址与位置查询**：打开这个工具或点击查询时，向免费的公共服务查询 IP 归属地（依次尝试 ip-api.com、ipwho.is、ipapi.co，会把要查询的 IP 发送给该服务；其中 ip-api.com 不支持加密传输）。
   - **Ping 网络测试**：只向你输入的地址发送 ping。
+  - **下载 AI 抠图模型**：只有在「图片去背景」中点击下载时，从 rembg 项目的 GitHub 发布页下载模型文件；图片本身始终在本机处理。
 
 ## 参与开发
 
@@ -130,6 +131,7 @@ npm run dev
 | 代码编辑器 | CodeMirror 6 |
 | 文档处理 | PDF.js · pdf-lib · docx · docx-preview · marked |
 | 音频 | Web Audio · wasm-media-encoders（MP3 编码）· Windows 语音 |
+| AI 抠图 | ONNX Runtime Web · rembg 开源模型（U²-Net、IS-Net） |
 | 图标 | Lucide |
 | 测试 | Vitest |
 | 打包与发布 | GitHub Actions · tauri-action |

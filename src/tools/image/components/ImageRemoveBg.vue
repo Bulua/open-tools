@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, shallowRef, watch } from "vue";
-import { Download, Pipette, RefreshCw, X } from "lucide-vue-next";
+import { computed, nextTick, onMounted, ref, shallowRef, watch } from "vue";
+import { CircleCheck, Download, LoaderCircle, Pipette, RefreshCw, Sparkles, Trash2, X } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { useFitFrame } from "@/composables/useFitFrame";
@@ -8,11 +8,18 @@ import { saveFile } from "@/utils/saveFile";
 import { toHex } from "@/utils/color";
 import { canvasToBytes, createCanvas, loadImage } from "../utils";
 import { detectBackgroundColors, removeBackground, type Rgb } from "../effects";
+import { AI_MODELS, canDownload, deleteModel, downloadModel, downloadedModels, modelById, type AiModel } from "../aiModels";
+import { applyMask, segment } from "../segment";
+import { formatBytes } from "@/utils/format";
 
 /**
- * 图片去背景（纯色背景）：自动识别背景色，按容差变为透明，可以换成其他底色。
- * 适合产品图、Logo、签名、证件照等背景单一的图片；复杂背景（如街景中的人物）效果有限。
+ * 图片去背景，两种方式：
+ * - AI 识别：用 AI 模型找出主体（人物、商品、动物等），适合照片；内置轻量模型，可下载效果更好的模型
+ * - 按颜色：去除纯色背景，按容差变为透明，适合 Logo、签名、截图等背景单一的图片
+ * 去除后可以换成其他底色。
  */
+const mode = useStoredRef<"ai" | "color">("removebg.mode", "ai");
+const modelId = useStoredRef("removebg.model", "u2netp");
 const tolerance = useStoredRef("removebg.tolerance", 12);
 const feather = useStoredRef("removebg.feather", 8);
 const contiguous = useStoredRef("removebg.contiguous", true);
@@ -43,6 +50,8 @@ const onFiles = async ([file]: File[]) => {
     const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
     fileName.value = file.name;
     source.value = { data, width: canvas.width, height: canvas.height };
+    sourceCanvas = canvas;
+    masks.clear();
     autoDetect();
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : String(e);
@@ -60,6 +69,7 @@ const result = shallowRef<HTMLCanvasElement | null>(null);
 let timer: ReturnType<typeof setTimeout> | undefined;
 const process = () => {
   clearTimeout(timer);
+  if (mode.value === "ai") return processAi();
   // 拖动滑块时稍等片刻再计算，大图也不会卡
   timer = setTimeout(async () => {
     const s = source.value;
@@ -75,7 +85,70 @@ const process = () => {
     result.value = canvas;
   }, 120);
 };
-watch([source, bgColors, tolerance, feather, contiguous], process, { deep: true });
+watch([source, bgColors, tolerance, feather, contiguous, mode, modelId], process, { deep: true });
+
+// ---------- AI 识别 ----------
+let sourceCanvas: HTMLCanvasElement | null = null;
+/** 当前图片在各个模型下的识别结果，切换模型时不用重新计算 */
+const masks = new Map<string, Uint8ClampedArray>();
+const downloaded = ref<string[]>([]);
+const recognizing = ref(false);
+const aiError = ref("");
+const progress = ref<Record<string, number>>({});
+onMounted(async () => (downloaded.value = await downloadedModels()));
+
+const isReady = (m: AiModel) => m.builtin || downloaded.value.includes(m.id);
+const currentModel = computed(() => (isReady(modelById(modelId.value)) ? modelById(modelId.value) : AI_MODELS[0]));
+
+let run = 0;
+async function processAi() {
+  const s = source.value;
+  if (!s || !sourceCanvas) return;
+  const model = currentModel.value;
+  const id = ++run;
+  aiError.value = "";
+  let mask = masks.get(model.id);
+  if (!mask) {
+    recognizing.value = true;
+    try {
+      mask = await segment(sourceCanvas, s.width, s.height, model);
+      masks.set(model.id, mask);
+    } catch (e) {
+      if (id === run) aiError.value = e instanceof Error ? e.message : String(e);
+      return;
+    } finally {
+      if (id === run) recognizing.value = false;
+    }
+  }
+  if (id !== run) return;
+  const { canvas, ctx } = createCanvas(s.width, s.height);
+  ctx.putImageData(new ImageData(applyMask(s.data.data, mask), s.width, s.height), 0, 0);
+  result.value = canvas;
+}
+
+const selectModel = (m: AiModel) => isReady(m) && (modelId.value = m.id);
+
+const download = async (m: AiModel) => {
+  aiError.value = "";
+  progress.value = { ...progress.value, [m.id]: 0 };
+  try {
+    await downloadModel(m, (ratio) => (progress.value = { ...progress.value, [m.id]: ratio }));
+    downloaded.value = await downloadedModels();
+    modelId.value = m.id;
+  } catch (e) {
+    aiError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    const { [m.id]: _, ...rest } = progress.value;
+    progress.value = rest;
+  }
+};
+
+const remove = async (m: AiModel) => {
+  await deleteModel(m);
+  downloaded.value = await downloadedModels();
+  masks.delete(m.id);
+  if (modelId.value === m.id) modelId.value = "u2netp";
+};
 
 /** 叠加新底色后的最终图片 */
 const compose = () => {
@@ -129,7 +202,7 @@ const hexOf = (c: Rgb) => toHex({ r: c[0], g: c[1], b: c[2], a: 1 });
 
 // ---------- 导出 ----------
 const saved = ref(false);
-const download = async () => {
+const save = async () => {
   if (!result.value) return;
   // 透明背景只能用 PNG；换了底色用 JPG 体积更小
   const transparent = fill.value === "transparent";
@@ -146,6 +219,42 @@ const download = async () => {
   <div class="removebg">
     <aside class="card panel">
       <section class="section">
+        <div class="seg modes">
+          <button :class="{ on: mode === 'ai' }" title="自动识别人物、商品、动物等主体，适合照片" @click="mode = 'ai'"><Sparkles :size="13" />AI 识别</button>
+          <button :class="{ on: mode === 'color' }" title="去除纯色背景，适合 Logo、签名、截图" @click="mode = 'color'"><Pipette :size="13" />按颜色</button>
+        </div>
+      </section>
+
+      <section v-if="mode === 'ai'" class="section">
+        <h3>模型</h3>
+        <div class="models">
+          <div
+            v-for="m in AI_MODELS"
+            :key="m.id"
+            class="model"
+            :class="{ on: currentModel.id === m.id, ready: isReady(m) }"
+            @click="selectModel(m)"
+          >
+            <div class="model-head">
+              <b>{{ m.name }}</b>
+              <span v-if="m.builtin" class="badge">内置</span>
+              <span v-else-if="isReady(m)" class="badge ok"><CircleCheck :size="11" />已下载</span>
+              <span class="size">{{ formatBytes(m.size) }}</span>
+            </div>
+            <p>{{ m.desc }}</p>
+            <div v-if="progress[m.id] !== undefined" class="progress"><i :style="{ width: `${progress[m.id] * 100}%` }" /></div>
+            <template v-else-if="!isReady(m)">
+              <button v-if="canDownload()" class="btn small" @click.stop="download(m)"><Download :size="12" />下载到本机</button>
+              <span v-else class="hint-text">桌面版可下载</span>
+            </template>
+            <button v-else-if="!m.builtin" class="icon-btn del" title="删除这个模型，释放空间" @click.stop="remove(m)"><Trash2 :size="12" /></button>
+          </div>
+        </div>
+        <p v-if="aiError" class="error">{{ aiError }}</p>
+        <p v-else class="tip">下载的模型保存在本机，之后无需联网</p>
+      </section>
+
+      <section v-if="mode === 'color'" class="section">
         <h3>
           要去除的背景色
           <button class="link" title="按图片边缘重新识别" @click="autoDetect">重新识别</button>
@@ -163,7 +272,7 @@ const download = async () => {
         <p class="tip">背景有渐变、阴影或多种颜色时，用吸管在残留的地方多点几下</p>
       </section>
 
-      <section class="section">
+      <section v-if="mode === 'color'" class="section">
         <label class="slider">
           <span>容差</span>
           <input v-model.number="tolerance" type="range" min="1" max="60" />
@@ -202,7 +311,7 @@ const download = async () => {
       </section>
 
       <section class="section">
-        <button class="btn primary full" :disabled="!result" @click="download">
+        <button class="btn primary full" :disabled="!result || recognizing" @click="save">
           <Download :size="14" />{{ saved ? "已保存" : fill === "transparent" ? "下载 PNG（透明背景）" : "下载 JPG" }}
         </button>
       </section>
@@ -211,7 +320,7 @@ const download = async () => {
     <section class="card stage">
       <header class="card-title">
         <span class="file" :title="fileName">{{ fileName || "未选择图片" }}</span>
-        <span class="hint">{{ picking ? "点击图片上要去除的背景，可以连续点多处" : "" }}</span>
+        <span class="hint">{{ recognizing ? "正在识别主体…" : picking && mode === "color" ? "点击图片上要去除的背景，可以连续点多处" : "" }}</span>
         <label v-if="source" class="btn small subtle">
           <RefreshCw :size="14" />更换
           <input type="file" accept="image/*" hidden @change="onFiles([...(($event.target as HTMLInputElement).files ?? [])])" />
@@ -222,21 +331,154 @@ const download = async () => {
         class="drop"
         accept="image/*"
         title="拖入图片，或点击选择"
-        hint="适合纯色背景的图片：产品图、Logo、签名、证件照等；也可以按 Ctrl + V 粘贴截图"
+        hint="人像、商品、动物等照片用 AI 识别；纯色背景的 Logo、签名用按颜色去除。也可以按 Ctrl + V 粘贴"
         @files="onFiles"
       >
         <span v-if="loadError" class="load-error">{{ loadError }}</span>
       </FileDropZone>
       <div v-else :ref="observeArea" class="area checker">
         <div class="frame" :style="frameStyle">
-          <canvas ref="view" :class="{ picking }" @click="onPick" />
+          <canvas ref="view" :class="{ picking: picking && mode === 'color' }" @click="mode === 'color' && onPick($event)" />
         </div>
+        <div v-if="recognizing" class="busy"><LoaderCircle :size="22" class="spin" />正在识别主体…</div>
       </div>
     </section>
   </div>
 </template>
 
 <style scoped>
+/* 两个按钮平分一整行（.fill 已用于底色色块，这里用 .modes） */
+.seg.modes {
+  display: flex;
+}
+.seg.modes button {
+  flex: 1;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+.models {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.model {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: default;
+}
+.model.ready {
+  cursor: pointer;
+}
+.model.ready:hover {
+  border-color: var(--border-strong);
+}
+.model.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.model-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.model-head b {
+  font-size: 13px;
+  font-weight: 600;
+}
+.model.on .model-head b {
+  color: var(--accent);
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--active);
+  font-size: 11px;
+  color: var(--text-2);
+}
+.badge.ok {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.model-head .size {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.model p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.model .btn.small {
+  align-self: flex-start;
+  height: 24px;
+  margin-top: 2px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+.model .del {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 22px;
+  height: 22px;
+  opacity: 0;
+}
+.model:hover .del {
+  opacity: 1;
+}
+.hint-text {
+  font-size: 11px;
+  color: var(--text-3);
+}
+.progress {
+  height: 4px;
+  margin-top: 4px;
+  border-radius: 2px;
+  background: var(--active);
+  overflow: hidden;
+}
+.progress i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.4s;
+}
+.error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--danger);
+}
+.busy {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font-size: 14px;
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .drop {
   flex: 1;
   margin: 12px;
