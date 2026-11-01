@@ -7,6 +7,8 @@
 | 推送到 `master` | 云端编译，在 [Actions](https://github.com/Bulua/open-tools/actions) 页面的 Artifacts 中下载 exe 与安装包，供测试使用 |
 | 推送 `v` 开头的标签 | 发布到 [Releases](https://github.com/Bulua/open-tools/releases)，并生成在线更新文件，已安装的程序会收到更新 |
 
+配置了 `GITEE_TOKEN` 后，每次推送都会把代码同步到 [Gitee](https://gitee.com/bulua/open-tools)，发布版本时安装包也会发到 Gitee Releases，日常只推送 GitHub 即可。
+
 ## 发布新版本
 
 版本号只在 `package.json` 中维护，程序版本会自动读取它。
@@ -40,11 +42,25 @@
 
 ## 在线更新的原理
 
-1. 程序启动几秒后，读取 `https://github.com/Bulua/open-tools/releases/latest/download/latest.json`。
+1. 程序启动几秒后，依次尝试读取下面两个地址，先读到哪个就用哪个：
+   - Gitee：`https://gitee.com/bulua/open-tools/raw/updater/latest.json`（安装包从 Gitee Releases 下载，国内更快）
+   - GitHub：`https://github.com/Bulua/open-tools/releases/latest/download/latest.json`
 2. 如果其中的版本号比当前版本新，右上角显示「新版本」提示。
 3. 用户确认后下载安装包，**校验签名**通过才会安装，安装完成后程序自动重启。
 
 相关配置在 `src-tauri/tauri.conf.json` 的 `plugins.updater` 中。
+
+Gitee 的更新文件由 `scripts/publish-gitee.mjs` 生成：把 GitHub Release 中的安装包上传到 Gitee Releases，再把 `latest.json` 中的下载地址换成 Gitee 的，写到 Gitee 的 `updater` 分支（与 `master` 分开，不影响代码历史）。签名只和安装包内容有关，换下载地址不影响校验。
+
+> 0.5.1 及更早的版本只认 GitHub 地址，需要先从 GitHub 更新一次，之后才会走 Gitee。
+
+## Gitee 同步
+
+1. 在 Gitee 打开 设置 → 私人令牌，生成一个令牌，勾选 `projects` 权限。
+2. 在 GitHub 仓库 Settings → Secrets and variables → Actions 中添加 `GITEE_TOKEN`，值为该令牌。
+3. Gitee 仓库需要保持**公开**，否则程序读不到更新文件。
+
+没有配置 `GITEE_TOKEN` 时会跳过同步，不影响 GitHub 的打包与发布。
 
 ## 签名密钥
 

@@ -9,6 +9,7 @@ open-tools/
 ├── .github/workflows/       # GitHub Actions：类型检查、测试、云端打包与发布
 ├── docs/                    # 开发与发布文档
 ├── public/                  # 原样复制的静态文件（网页图标）
+├── scripts/                 # 发布脚本：同步版本到 Gitee
 ├── src/                     # 前端代码，界面全部在这里
 │   ├── main.ts              # 入口
 │   ├── App.vue              # 整体布局：顶栏 + 侧栏 + 工具区；记住上次打开的工具

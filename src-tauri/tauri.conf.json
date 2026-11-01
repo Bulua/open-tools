@@ -39,7 +39,10 @@
   "plugins": {
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk0NEREMjlBQjhFQTU3MzcKUldRM1YrcTRtdEpObExuanRFaElJRTA1ckl0OU16UmtQamVOYXBPeGFCS1lWQnVUaGpZYUc1M28K",
-      "endpoints": ["https://github.com/Bulua/open-tools/releases/latest/download/latest.json"],
+      "endpoints": [
+        "https://gitee.com/bulua/open-tools/raw/updater/latest.json",
+        "https://github.com/Bulua/open-tools/releases/latest/download/latest.json"
+      ],
       "windows": {
         "installMode": "passive"
       }

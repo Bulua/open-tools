@@ -48,7 +48,7 @@ Open Tools 把这些常用工具放进一个桌面程序：
 
 ## 下载与安装
 
-1. 打开 [Releases](https://github.com/Bulua/open-tools/releases/latest) 页面。
+1. 打开 [Releases](https://github.com/Bulua/open-tools/releases/latest) 页面（国内可用 [Gitee 镜像](https://gitee.com/bulua/open-tools/releases)）。
 2. 下载 `Open Tools_x.x.x_x64-setup.exe`。
 3. 双击安装，完成后从开始菜单或桌面快捷方式打开。
 
@@ -82,7 +82,7 @@ Open Tools 把这些常用工具放进一个桌面程序：
 
 - 除下面两个网络工具外，所有工具都在本地运行，**不会上传任何内容**。
 - 会访问网络的地方只有以下几处：
-  - **检查更新**：访问本仓库在 GitHub 上的版本信息文件，不携带任何个人数据。
+  - **检查更新**：访问本仓库在 Gitee / GitHub 上的版本信息文件，不携带任何个人数据。
   - **IP 地址与位置查询**：打开这个工具或点击查询时，向免费的公共服务查询 IP 归属地（依次尝试 ip-api.com、ipwho.is、ipapi.co，会把要查询的 IP 发送给该服务；其中 ip-api.com 不支持加密传输）。
   - **Ping 网络测试**：只向你输入的地址发送 ping。
   - **下载 AI 抠图模型**：只有在「图片去背景」中点击下载时，从 rembg 项目的 GitHub 发布页下载模型文件；图片本身始终在本机处理。

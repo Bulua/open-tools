@@ -3,6 +3,8 @@
 # - 推送 v 开头的标签（如 v0.2.0）：发布到 GitHub Releases，并生成在线更新文件（latest.json）
 #   已安装的程序会通过 latest.json 发现新版本并自动更新
 #   需要在仓库 Settings → Secrets 中配置 TAURI_SIGNING_PRIVATE_KEY（更新包签名私钥）
+# - 配置了 GITEE_TOKEN 时：代码和标签同步到 Gitee，发布版本时安装包也发到 Gitee Releases，
+#   并把更新文件写到 Gitee 的 updater 分支，国内用户优先从 Gitee 更新
 name: Build Windows
 
 on:
@@ -23,6 +25,9 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # 同步到 Gitee 需要完整历史
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -55,6 +60,18 @@ jobs:
             echo "NOTES_EOF"
           } >> "$GITHUB_OUTPUT"
 
+      # 推送分支时同步 master，推送标签时同步该标签；Gitee 出问题不影响 GitHub 打包
+      - name: 同步代码到 Gitee
+        if: github.event_name == 'push'
+        continue-on-error: true
+        shell: bash
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          if [ -z "$GITEE_TOKEN" ]; then echo "未配置 GITEE_TOKEN，跳过"; exit 0; fi
+          git fetch --tags --force
+          git push "https://bulua:${GITEE_TOKEN}@gitee.com/bulua/open-tools.git" "$GITHUB_REF"
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -68,6 +85,24 @@ jobs:
           releaseName: "Open Tools ${{ github.ref_name }}"
           releaseBody: ${{ steps.notes.outputs.body || '下载 *-setup.exe 安装即可使用。' }}
           releaseDraft: false
+
+      # 把 GitHub Release 中的安装包传到 Gitee Releases，更新文件放在单独的 updater 分支，不影响 master 历史
+      - name: 发布到 Gitee
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -z "$GITEE_TOKEN" ]; then echo "未配置 GITEE_TOKEN，跳过"; exit 0; fi
+          gh release download "$GITHUB_REF_NAME" --dir "$RUNNER_TEMP/gitee-assets" --pattern latest.json --pattern '*-setup.exe'
+          node scripts/publish-gitee.mjs "$GITHUB_REF_NAME" "$RUNNER_TEMP/gitee-assets" "$RUNNER_TEMP/latest.json"
+          mkdir "$RUNNER_TEMP/updater" && cd "$RUNNER_TEMP/updater"
+          git init -q -b updater
+          cp "$RUNNER_TEMP/latest.json" latest.json
+          git add latest.json
+          git -c user.name="github-actions" -c user.email="github-actions@users.noreply.github.com" commit -q -m "chore: $GITHUB_REF_NAME 在线更新文件"
+          git push -f "https://bulua:${GITEE_TOKEN}@gitee.com/bulua/open-tools.git" updater
 
       - uses: actions/upload-artifact@v4
         with:
