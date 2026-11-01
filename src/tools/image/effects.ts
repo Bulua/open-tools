@@ -307,3 +307,13 @@ export function tilePositions(image: Size, mark: Size, spacing: number) {
   }
   return points;
 }
+
+/** 旋转任意角度后，能完整容纳图片的画布尺寸 */
+export function rotatedSize(width: number, height: number, degrees: number): Size {
+  const rad = (degrees * Math.PI) / 180;
+  const cos = Math.abs(Math.cos(rad));
+  const sin = Math.abs(Math.sin(rad));
+  // 误差范围内取整，避免 90° 时出现 1 像素的偏差
+  const round = (n: number) => Math.round(n - 1e-9);
+  return { width: round(width * cos + height * sin), height: round(width * sin + height * cos) };
+}

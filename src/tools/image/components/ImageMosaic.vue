@@ -190,52 +190,7 @@ const download = async () => {
 </script>
 
 <template>
-  <FileDropZone
-    v-if="!current"
-    accept="image/*"
-    title="拖入图片，或点击选择"
-    hint="框选或涂抹需要遮挡的区域（人脸、车牌、手机号等）；也可以按 Ctrl + V 粘贴截图"
-    @files="onFiles"
-  >
-    <span v-if="loadError" class="load-error">{{ loadError }}</span>
-  </FileDropZone>
-
-  <div v-else class="mosaic">
-    <section class="card stage">
-      <header class="card-title">
-        <span class="file" :title="fileName">{{ fileName }}</span>
-        <span class="hint">{{ tool === "rect" ? "在图片上拖动框选区域" : "按住鼠标在图片上涂抹" }}</span>
-        <button class="btn small subtle" :disabled="history.length < 2" @click="undo"><Undo2 :size="14" />撤销</button>
-        <button class="btn small subtle" :disabled="history.length < 2" @click="reset">重置</button>
-        <label class="btn small subtle">
-          <RefreshCw :size="14" />更换
-          <input type="file" accept="image/*" hidden @change="onFiles([...(($event.target as HTMLInputElement).files ?? [])])" />
-        </label>
-      </header>
-      <div :ref="observeArea" class="area">
-        <div class="frame" :style="frameStyle">
-          <canvas
-            ref="view"
-            :class="`tool-${tool}`"
-            @pointerdown="onPointerDown"
-            @pointermove="onHover"
-            @pointerleave="brushCursor = null"
-          />
-          <div v-if="selectionStyle" class="selection" :style="selectionStyle" />
-          <div
-            v-if="brushCursor"
-            class="brush-cursor"
-            :style="{
-              left: `${brushCursor.x}px`,
-              top: `${brushCursor.y}px`,
-              width: `${brushSize * scale}px`,
-              height: `${brushSize * scale}px`,
-            }"
-          />
-        </div>
-      </div>
-    </section>
-
+  <div class="mosaic">
     <aside class="card panel">
       <section class="section">
         <h3>效果</h3>
@@ -264,10 +219,57 @@ const download = async () => {
       </section>
 
       <section class="section">
-        <p class="tip">已处理 {{ history.length - 1 }} 处，导出为原格式（{{ formatInfo(fileType).label }}）</p>
-        <button class="btn primary full" @click="download"><Download :size="14" />{{ saved ? "已保存" : "下载图片" }}</button>
+        <p class="tip">{{ current ? `已处理 ${history.length - 1} 处，导出为原格式（${formatInfo(fileType).label}）` : "放入图片后，在图片上框选或涂抹" }}</p>
+        <button class="btn primary full" :disabled="!current" @click="download"><Download :size="14" />{{ saved ? "已保存" : "下载图片" }}</button>
       </section>
     </aside>
+
+    <section class="card stage">
+      <header class="card-title">
+        <span class="file" :title="fileName">{{ fileName || "未选择图片" }}</span>
+        <template v-if="current">
+          <span class="hint">{{ tool === "rect" ? "在图片上拖动框选区域" : "按住鼠标在图片上涂抹" }}</span>
+          <button class="btn small subtle" :disabled="history.length < 2" @click="undo"><Undo2 :size="14" />撤销</button>
+          <button class="btn small subtle" :disabled="history.length < 2" @click="reset">重置</button>
+          <label class="btn small subtle">
+            <RefreshCw :size="14" />更换
+            <input type="file" accept="image/*" hidden @change="onFiles([...(($event.target as HTMLInputElement).files ?? [])])" />
+          </label>
+        </template>
+      </header>
+      <FileDropZone
+        v-if="!current"
+        class="drop"
+        accept="image/*"
+        title="拖入图片，或点击选择"
+        hint="框选或涂抹需要遮挡的区域（人脸、车牌、手机号等）；也可以按 Ctrl + V 粘贴截图"
+        @files="onFiles"
+      >
+        <span v-if="loadError" class="load-error">{{ loadError }}</span>
+      </FileDropZone>
+      <div v-else :ref="observeArea" class="area">
+        <div class="frame" :style="frameStyle">
+          <canvas
+            ref="view"
+            :class="`tool-${tool}`"
+            @pointerdown="onPointerDown"
+            @pointermove="onHover"
+            @pointerleave="brushCursor = null"
+          />
+          <div v-if="selectionStyle" class="selection" :style="selectionStyle" />
+          <div
+            v-if="brushCursor"
+            class="brush-cursor"
+            :style="{
+              left: `${brushCursor.x}px`,
+              top: `${brushCursor.y}px`,
+              width: `${brushSize * scale}px`,
+              height: `${brushSize * scale}px`,
+            }"
+          />
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -345,6 +347,10 @@ canvas.tool-brush {
   pointer-events: none;
 }
 
+.drop {
+  flex: 1;
+  margin: 12px;
+}
 .panel {
   flex: 0 0 260px;
   align-self: flex-start;

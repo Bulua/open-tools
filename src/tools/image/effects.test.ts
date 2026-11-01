@@ -186,3 +186,13 @@ describe("水印位置", () => {
     expect(points.some((p) => p.x >= 1000 && p.y >= 500)).toBe(true);
   });
 });
+
+describe("任意角度旋转", () => {
+  it("画布尺寸", async () => {
+    const { rotatedSize } = await import("./effects");
+    expect(rotatedSize(200, 100, 0)).toEqual({ width: 200, height: 100 });
+    expect(rotatedSize(200, 100, 90)).toEqual({ width: 100, height: 200 });
+    expect(rotatedSize(200, 100, -180)).toEqual({ width: 200, height: 100 });
+    expect(rotatedSize(100, 100, 45)).toEqual({ width: 141, height: 141 });
+  });
+});

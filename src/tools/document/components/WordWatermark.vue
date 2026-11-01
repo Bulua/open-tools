@@ -171,23 +171,7 @@ const download = async () => {
 </script>
 
 <template>
-  <FileDropZone
-    v-if="!items.length"
-    accept=".docx,.doc"
-    multiple
-    title="拖入 Word 文档（.docx），或点击选择（可多选）"
-    hint="添加的是 Word 原生水印，每一页都有，之后可以在 Word 的「设计 → 水印」中修改或删除"
-    :paste="false"
-    @files="addFiles"
-  />
-  <p v-if="!items.length && error" class="error standalone">{{ error }}</p>
-
-  <div v-if="items.length" class="docx-wm">
-    <section class="card stage">
-      <div class="card-title">预览<span class="hint">{{ selected?.file.name }} · 预览排版与 Word 可能略有差异</span></div>
-      <DocxPreview :data="selected?.data ?? null" :decorate="decorate" />
-    </section>
-
+  <div class="docx-wm">
     <aside class="card panel">
       <section class="section">
         <h3>文档<span class="push">{{ items.length }} 个</span></h3>
@@ -262,15 +246,34 @@ const download = async () => {
 
       <section class="section">
         <p v-if="error" class="error">{{ error }}</p>
-        <button class="btn primary full" :disabled="saving" @click="download">
+        <button class="btn primary full" :disabled="saving || !items.length" @click="download">
           <Download :size="14" />{{ saving ? "处理中…" : items.length > 1 ? `下载全部 ${items.length} 个（ZIP）` : "下载加水印的文档" }}
         </button>
       </section>
     </aside>
+
+    <section class="card stage">
+      <div class="card-title">预览<span v-if="selected" class="hint">{{ selected.file.name }} · 预览排版与 Word 可能略有差异</span></div>
+      <FileDropZone
+        v-if="!items.length"
+        class="drop"
+        accept=".docx,.doc"
+        multiple
+        title="拖入 Word 文档（.docx），或点击选择（可多选）"
+        hint="添加的是 Word 原生水印，每一页都有，之后可以在 Word 的「设计 → 水印」中修改或删除"
+        :paste="false"
+        @files="addFiles"
+      />
+      <DocxPreview v-else :data="selected?.data ?? null" :decorate="decorate" />
+    </section>
   </div>
 </template>
 
 <style scoped>
+.drop {
+  flex: 1;
+  margin: 12px;
+}
 .docx-wm {
   flex: 1;
   min-height: 0;
@@ -454,9 +457,6 @@ h3 {
   margin: 0;
   font-size: 12px;
   color: var(--danger);
-}
-.error.standalone {
-  margin-top: 10px;
 }
 .btn {
   justify-content: center;

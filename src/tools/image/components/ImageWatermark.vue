@@ -177,37 +177,7 @@ const ANCHORS: { value: Anchor; label: string }[] = [
 </script>
 
 <template>
-  <FileDropZone
-    v-if="!items.length"
-    accept="image/*"
-    multiple
-    title="拖入图片，或点击选择（可多选）"
-    hint="多张图片会使用同一个水印，可以一起下载；也可以按 Ctrl + V 粘贴截图"
-    @files="addFiles"
-  />
-
-  <div v-else class="watermark">
-    <section class="card stage">
-      <div class="card-title">预览<span class="hint">{{ selected?.file.name }}</span></div>
-      <div :ref="observeArea" class="area">
-        <div class="frame" :style="frameStyle"><canvas ref="view" /></div>
-      </div>
-      <div class="strip">
-        <figure
-          v-for="item in items"
-          :key="item.id"
-          class="thumb"
-          :class="{ on: item.id === selected?.id }"
-          :title="item.file.name"
-          @click="selectedId = item.id"
-        >
-          <img :src="item.url" alt="" />
-          <button class="remove" title="移除" @click.stop="remove(item)"><X :size="11" /></button>
-        </figure>
-        <FileDropZone compact class="add" accept="image/*" multiple title="" aria-label="继续添加图片" @files="addFiles" />
-      </div>
-    </section>
-
+  <div class="watermark">
     <aside class="card panel">
       <section class="section">
         <div class="seg fill">
@@ -273,11 +243,41 @@ const ANCHORS: { value: Anchor; label: string }[] = [
       </section>
 
       <section class="section">
-        <button class="btn primary full" :disabled="saving" @click="download">
+        <button class="btn primary full" :disabled="saving || !items.length" @click="download">
           <Download :size="14" />{{ saving ? "处理中…" : items.length > 1 ? `下载全部 ${items.length} 张（ZIP）` : "下载图片" }}
         </button>
       </section>
     </aside>
+
+    <section class="card stage">
+      <div class="card-title">预览<span class="hint">{{ selected?.file.name }}</span></div>
+      <FileDropZone
+        v-if="!items.length"
+        class="drop"
+        accept="image/*"
+        multiple
+        title="拖入图片，或点击选择（可多选）"
+        hint="多张图片会使用同一个水印，可以一起下载；也可以按 Ctrl + V 粘贴截图"
+        @files="addFiles"
+      />
+      <div v-else :ref="observeArea" class="area">
+        <div class="frame" :style="frameStyle"><canvas ref="view" /></div>
+      </div>
+      <div v-if="items.length" class="strip">
+        <figure
+          v-for="item in items"
+          :key="item.id"
+          class="thumb"
+          :class="{ on: item.id === selected?.id }"
+          :title="item.file.name"
+          @click="selectedId = item.id"
+        >
+          <img :src="item.url" alt="" />
+          <button class="remove" title="移除" @click.stop="remove(item)"><X :size="11" /></button>
+        </figure>
+        <FileDropZone compact class="add" accept="image/*" multiple title="" aria-label="继续添加图片" @files="addFiles" />
+      </div>
+    </section>
   </div>
 </template>
 
@@ -300,6 +300,10 @@ const ANCHORS: { value: Anchor; label: string }[] = [
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.drop {
+  flex: 1;
+  margin: 12px;
 }
 .area {
   position: relative;

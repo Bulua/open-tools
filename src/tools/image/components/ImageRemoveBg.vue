@@ -143,33 +143,7 @@ const download = async () => {
 </script>
 
 <template>
-  <FileDropZone
-    v-if="!source"
-    accept="image/*"
-    title="拖入图片，或点击选择"
-    hint="适合纯色背景的图片：产品图、Logo、签名、证件照等；也可以按 Ctrl + V 粘贴截图"
-    @files="onFiles"
-  >
-    <span v-if="loadError" class="load-error">{{ loadError }}</span>
-  </FileDropZone>
-
-  <div v-else class="removebg">
-    <section class="card stage">
-      <header class="card-title">
-        <span class="file" :title="fileName">{{ fileName }}</span>
-        <span class="hint">{{ picking ? "点击图片上要去除的背景，可以连续点多处" : "" }}</span>
-        <label class="btn small subtle">
-          <RefreshCw :size="14" />更换
-          <input type="file" accept="image/*" hidden @change="onFiles([...(($event.target as HTMLInputElement).files ?? [])])" />
-        </label>
-      </header>
-      <div :ref="observeArea" class="area checker">
-        <div class="frame" :style="frameStyle">
-          <canvas ref="view" :class="{ picking }" @click="onPick" />
-        </div>
-      </div>
-    </section>
-
+  <div class="removebg">
     <aside class="card panel">
       <section class="section">
         <h3>
@@ -183,7 +157,7 @@ const download = async () => {
           </span>
           <span v-if="!bgColors.length" class="tip">还没有背景色</span>
         </div>
-        <button class="btn small" :class="{ primary: picking }" :disabled="bgColors.length >= MAX_COLORS && !picking" @click="picking = !picking">
+        <button class="btn small" :class="{ primary: picking }" :disabled="!source || (bgColors.length >= MAX_COLORS && !picking)" @click="picking = !picking">
           <Pipette :size="13" />{{ picking ? "完成取色" : "吸管添加颜色" }}
         </button>
         <p class="tip">背景有渐变、阴影或多种颜色时，用吸管在残留的地方多点几下</p>
@@ -233,10 +207,40 @@ const download = async () => {
         </button>
       </section>
     </aside>
+
+    <section class="card stage">
+      <header class="card-title">
+        <span class="file" :title="fileName">{{ fileName || "未选择图片" }}</span>
+        <span class="hint">{{ picking ? "点击图片上要去除的背景，可以连续点多处" : "" }}</span>
+        <label v-if="source" class="btn small subtle">
+          <RefreshCw :size="14" />更换
+          <input type="file" accept="image/*" hidden @change="onFiles([...(($event.target as HTMLInputElement).files ?? [])])" />
+        </label>
+      </header>
+      <FileDropZone
+        v-if="!source"
+        class="drop"
+        accept="image/*"
+        title="拖入图片，或点击选择"
+        hint="适合纯色背景的图片：产品图、Logo、签名、证件照等；也可以按 Ctrl + V 粘贴截图"
+        @files="onFiles"
+      >
+        <span v-if="loadError" class="load-error">{{ loadError }}</span>
+      </FileDropZone>
+      <div v-else :ref="observeArea" class="area checker">
+        <div class="frame" :style="frameStyle">
+          <canvas ref="view" :class="{ picking }" @click="onPick" />
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
 <style scoped>
+.drop {
+  flex: 1;
+  margin: 12px;
+}
 .removebg {
   flex: 1;
   min-height: 0;

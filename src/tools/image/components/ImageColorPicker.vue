@@ -83,37 +83,7 @@ const css = (c: Rgba | PaletteColor) => toRgb({ a: 1, ...c });
 </script>
 
 <template>
-  <FileDropZone
-    v-if="!loaded"
-    accept="image/*"
-    title="拖入图片，或点击选择"
-    hint="点击图片任意位置取色，并自动提取主色调；也可以按 Ctrl + V 粘贴截图"
-    @files="onFiles"
-  >
-    <span v-if="loadError" class="load-error">{{ loadError }}</span>
-  </FileDropZone>
-
-  <div v-else class="picker">
-    <section class="stage card">
-      <header class="stage-head">
-        <span class="file" :title="fileName">{{ fileName }}</span>
-        <span class="tip">点击图片取色</span>
-        <label class="btn subtle">
-          <RefreshCw :size="14" />更换
-          <input type="file" accept="image/*" hidden @change="onFiles([...(($event.target as HTMLInputElement).files ?? [])])" />
-        </label>
-      </header>
-      <div class="canvas-area">
-        <div class="canvas-wrap">
-          <canvas ref="view" @mousemove="onMove" @mouseleave="hover = null" @click="onClick" />
-          <div v-if="hover" class="loupe" :style="{ left: `${hover.x + 16}px`, top: `${hover.y + 16}px` }">
-            <span class="dot" :style="{ background: css(hover.color) }" />
-            {{ toHex(hover.color) }}
-          </div>
-        </div>
-      </div>
-    </section>
-
+  <div class="picker">
     <aside class="panel card">
       <section class="section">
         <h3>当前颜色</h3>
@@ -125,7 +95,8 @@ const css = (c: Rgba | PaletteColor) => toRgb({ a: 1, ...c });
 
       <section class="section">
         <h3>主色调</h3>
-        <div class="swatches">
+        <p v-if="!palette.length" class="empty">放入图片后自动提取</p>
+        <div v-else class="swatches">
           <button
             v-for="c in palette"
             :key="toHex({ ...c, a: 1 })"
@@ -158,10 +129,44 @@ const css = (c: Rgba | PaletteColor) => toRgb({ a: 1, ...c });
         <p v-else class="empty">点击图片取到的颜色会出现在这里</p>
       </section>
     </aside>
+
+    <section class="stage card">
+      <header class="stage-head">
+        <span class="file" :title="fileName">{{ fileName || "未选择图片" }}</span>
+        <span v-if="loaded" class="tip">点击图片取色</span>
+        <label v-if="loaded" class="btn subtle">
+          <RefreshCw :size="14" />更换
+          <input type="file" accept="image/*" hidden @change="onFiles([...(($event.target as HTMLInputElement).files ?? [])])" />
+        </label>
+      </header>
+      <FileDropZone
+        v-if="!loaded"
+        class="drop"
+        accept="image/*"
+        title="拖入图片，或点击选择"
+        hint="点击图片任意位置取色，并自动提取主色调；也可以按 Ctrl + V 粘贴截图"
+        @files="onFiles"
+      >
+        <span v-if="loadError" class="load-error">{{ loadError }}</span>
+      </FileDropZone>
+      <div v-else class="canvas-area">
+        <div class="canvas-wrap">
+          <canvas ref="view" @mousemove="onMove" @mouseleave="hover = null" @click="onClick" />
+          <div v-if="hover" class="loupe" :style="{ left: `${hover.x + 16}px`, top: `${hover.y + 16}px` }">
+            <span class="dot" :style="{ background: css(hover.color) }" />
+            {{ toHex(hover.color) }}
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
 <style scoped>
+.drop {
+  flex: 1;
+  margin: 12px;
+}
 .picker {
   flex: 1;
   display: flex;

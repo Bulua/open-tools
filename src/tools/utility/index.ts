@@ -1,6 +1,8 @@
 import { defineAsyncComponent } from "vue";
-import { Calculator, FileArchive, Regex } from "lucide-vue-next";
+import { Calculator, FileArchive, FolderArchive, Regex } from "lucide-vue-next";
 import type { Category } from "../types";
+
+const archive = defineAsyncComponent(() => import("./components/ArchiveTool.vue"));
 
 const utility: Category = {
   id: "utility",
@@ -23,10 +25,19 @@ const utility: Category = {
     },
     {
       id: "archive",
-      name: "文件压缩 / 解压",
-      desc: "把文件或文件夹打包成 ZIP；查看并解压 ZIP、TAR、TGZ、GZ",
+      name: "文件压缩",
+      desc: "把文件或文件夹打包成 ZIP，保留目录结构，可选压缩程度",
       icon: FileArchive,
-      component: defineAsyncComponent(() => import("./components/ArchiveTool.vue")),
+      component: archive,
+      props: { mode: "compress" },
+    },
+    {
+      id: "extract",
+      name: "文件解压",
+      desc: "查看并解压 ZIP、TAR、TGZ、GZ，正确显示中文文件名",
+      icon: FolderArchive,
+      component: archive,
+      props: { mode: "extract" },
     },
   ],
 };

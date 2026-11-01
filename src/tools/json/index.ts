@@ -9,7 +9,7 @@ const json: Category = {
   tools: [
     {
       id: "json-format",
-      name: "JSON 格式化校验",
+      name: "JSON 格式化",
       desc: "美化、压缩、树形查看 JSON，实时校验并定位错误",
       icon: Braces,
       component: defineAsyncComponent(() => import("./components/JsonFormat.vue")),

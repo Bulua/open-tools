@@ -105,24 +105,7 @@ const pending = computed(() => items.value.filter((i) => i.status !== "done").le
 </script>
 
 <template>
-  <FileDropZone
-    v-if="!items.length"
-    :accept="ACCEPT"
-    multiple
-    title="拖入 Word 文档，或点击选择（可多选）"
-    hint="支持 .docx、.doc、.rtf、.odt、.wps；调用本机安装的 Word 或 WPS 转换，排版与原文档一致"
-    :paste="false"
-    @files="addFiles"
-  />
-
-  <div v-else class="word2pdf">
-    <section class="card stage">
-      <div class="card-title">预览<span class="hint">{{ selected?.file.name }}</span></div>
-      <DocxPreview :data="previewData">
-        <p class="no-preview">{{ selected && selected.ext !== "docx" ? `.${selected.ext} 格式无法预览，可以直接转换` : "" }}</p>
-      </DocxPreview>
-    </section>
-
+  <div class="word2pdf">
     <aside class="card panel">
       <section class="section">
         <h3>文件<span class="push">{{ items.length }} 个</span></h3>
@@ -168,10 +151,31 @@ const pending = computed(() => items.value.filter((i) => i.status !== "done").le
         <p class="tip">打印方式由程序自行排版，复杂文档可能与 Word 略有差异，仅支持 .docx。</p>
       </section>
     </aside>
+
+    <section class="card stage">
+      <div class="card-title">预览<span class="hint">{{ selected?.file.name }}</span></div>
+      <FileDropZone
+        v-if="!items.length"
+        class="drop"
+        :accept="ACCEPT"
+        multiple
+        title="拖入 Word 文档，或点击选择（可多选）"
+        hint="支持 .docx、.doc、.rtf、.odt、.wps；调用本机安装的 Word 或 WPS 转换，排版与原文档一致"
+        :paste="false"
+        @files="addFiles"
+      />
+      <DocxPreview v-else :data="previewData">
+        <p class="no-preview">{{ selected && selected.ext !== "docx" ? `.${selected.ext} 格式无法预览，可以直接转换` : "" }}</p>
+      </DocxPreview>
+    </section>
   </div>
 </template>
 
 <style scoped>
+.drop {
+  flex: 1;
+  margin: 12px;
+}
 .word2pdf {
   flex: 1;
   min-height: 0;

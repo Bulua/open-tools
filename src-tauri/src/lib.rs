@@ -1,9 +1,12 @@
 mod document;
 mod network;
+mod tray;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // 必须最先注册：再次打开程序时显示已有窗口，而不是启动第二个
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| tray::show_main(app)))
         // 「另存为」/ 选择文件夹对话框与写文件，用于工具导出文件
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -17,6 +20,12 @@ pub fn run() {
             document::office_engines,
             document::office_to_pdf
         ])
+        // 关闭窗口时隐藏到托盘，从托盘菜单退出
+        .setup(|app| {
+            tray::setup(app)?;
+            Ok(())
+        })
+        .on_window_event(tray::on_window_event)
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

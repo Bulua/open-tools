@@ -23,6 +23,8 @@ export interface Tool {
   /** lucide-vue-next 图标 */
   icon: Component;
   component?: Component;
+  /** 传给 component 的属性：同一个界面组件可以按不同用途注册成多个工具 */
+  props?: Record<string, unknown>;
   actions?: ToolAction[];
   inputPlaceholder?: string;
   /** 支持多会话：同一个工具可以开多个标签，各自独立输入和处理 */

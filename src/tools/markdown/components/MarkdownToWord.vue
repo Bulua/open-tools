@@ -83,29 +83,7 @@ const previewStyle = computed(() => ({
 </script>
 
 <template>
-  <FileDropZone
-    v-if="!docs.length"
-    accept=".md,.markdown,.txt,image/*"
-    multiple
-    directories
-    title="拖入 Markdown 文件或文件夹，或点击选择（可多选）"
-    hint="文档里引用的本地图片，和 .md 一起拖入或拖入整个文件夹即可嵌入 Word；要转换粘贴的文本，请用「Markdown 编辑预览」的导出 Word"
-    :paste="false"
-    @entries="addEntries"
-  />
-
-  <div v-else class="md2word">
-    <section class="card stage">
-      <div class="card-title">
-        Word 效果预览<span class="hint">{{ selected?.name }}</span>
-      </div>
-      <div class="area">
-        <div class="paper" :style="previewStyle">
-          <MarkdownView :html="preview" />
-        </div>
-      </div>
-    </section>
-
+  <div class="md2word">
     <aside class="card panel">
       <section class="section files">
         <h3>文件<span class="push">{{ docs.length }} 个</span></h3>
@@ -161,15 +139,41 @@ const previewStyle = computed(() => ({
 
       <section class="section">
         <p v-if="error" class="error">{{ error }}</p>
-        <button class="btn primary full" :disabled="converting" @click="convert">
+        <button class="btn primary full" :disabled="converting || !docs.length" @click="convert">
           <Download :size="14" />{{ converting ? "转换中…" : docs.length > 1 ? `转换全部 ${docs.length} 个（ZIP）` : "转换并下载 Word" }}
         </button>
       </section>
     </aside>
+
+    <section class="card stage">
+      <div class="card-title">
+        Word 效果预览<span class="hint">{{ selected?.name }}</span>
+      </div>
+      <FileDropZone
+        v-if="!docs.length"
+        class="drop"
+        accept=".md,.markdown,.txt,image/*"
+        multiple
+        directories
+        title="拖入 Markdown 文件或文件夹，或点击选择（可多选）"
+        hint="文档里引用的本地图片，和 .md 一起拖入或拖入整个文件夹即可嵌入 Word；要转换粘贴的文本，请用「Markdown 编辑预览」的导出 Word"
+        :paste="false"
+        @entries="addEntries"
+      />
+      <div v-else class="area">
+        <div class="paper" :style="previewStyle">
+          <MarkdownView :html="preview" />
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
 <style scoped>
+.drop {
+  flex: 1;
+  margin: 12px;
+}
 .md2word {
   flex: 1;
   min-height: 0;

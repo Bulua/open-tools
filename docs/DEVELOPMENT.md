@@ -122,7 +122,7 @@ import ToolActions from "@/components/tool/ToolActions.vue";
 在工具定义里加上 `sessions: true`，工作区上方就会出现会话标签栏，同一个工具可以开多个标签，各自独立输入和处理：
 
 ```ts
-{ id: "json-format", name: "JSON 格式化校验", ..., sessions: true },
+{ id: "json-format", name: "JSON 格式化", ..., sessions: true },
 ```
 
 每个会话是工具组件的一个独立实例，工具组件本身不需要改动。注意两点：

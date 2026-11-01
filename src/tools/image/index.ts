@@ -1,6 +1,10 @@
 import { defineAsyncComponent } from "vue";
-import { AppWindow, Crop, Eraser, Grid3x3, LayoutGrid, Minimize2, Pipette, Stamp } from "lucide-vue-next";
+import { AppWindow, Crop, Eraser, Grid3x3, LayoutGrid, Minimize2, Pipette, Replace, RotateCw, SlidersHorizontal, Stamp } from "lucide-vue-next";
 import type { Category } from "../types";
+
+// 同一个界面组件按用途注册成多个工具
+const compress = defineAsyncComponent(() => import("./components/ImageCompress.vue"));
+const edit = defineAsyncComponent(() => import("./components/ImageEdit.vue"));
 
 const image: Category = {
   id: "image",
@@ -8,17 +12,43 @@ const image: Category = {
   tools: [
     {
       id: "image-compress",
-      name: "图片压缩 / 格式转换",
-      desc: "批量压缩图片，转换 JPG / PNG / WebP，限制最大尺寸",
+      name: "图片压缩",
+      desc: "批量压缩图片体积，可调质量、限制最大尺寸，显示压缩前后对比",
       icon: Minimize2,
-      component: defineAsyncComponent(() => import("./components/ImageCompress.vue")),
+      component: compress,
+      props: { mode: "compress" },
     },
     {
-      id: "image-edit",
-      name: "图片裁剪 / 旋转 / 调色",
-      desc: "裁剪、旋转、翻转、调整尺寸，调节亮度、对比度、饱和度",
+      id: "image-convert",
+      name: "图片格式转换",
+      desc: "JPG、PNG、WebP 互相转换，支持 GIF、BMP 等输入，可批量处理",
+      icon: Replace,
+      component: compress,
+      props: { mode: "convert" },
+    },
+    {
+      id: "image-crop",
+      name: "图片裁剪 / 改尺寸",
+      desc: "按比例或自由裁剪，按像素或百分比调整图片尺寸",
       icon: Crop,
-      component: defineAsyncComponent(() => import("./components/ImageEdit.vue")),
+      component: edit,
+      props: { mode: "crop" },
+    },
+    {
+      id: "image-rotate",
+      name: "图片旋转 / 翻转",
+      desc: "旋转 90°、任意角度旋转，水平或垂直翻转",
+      icon: RotateCw,
+      component: edit,
+      props: { mode: "rotate" },
+    },
+    {
+      id: "image-adjust",
+      name: "图片调色",
+      desc: "调节亮度、对比度、饱和度、色相，一键套用黑白、复古等滤镜",
+      icon: SlidersHorizontal,
+      component: edit,
+      props: { mode: "adjust" },
     },
     {
       id: "image-stitch",

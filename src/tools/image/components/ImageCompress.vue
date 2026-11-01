@@ -18,13 +18,22 @@ import {
 } from "../utils";
 
 /**
- * 批量压缩 / 转换格式 / 限制尺寸。选项一改，所有图片自动重新处理。
- * 如果处理后反而变大且格式、尺寸都没变，保留原图。
+ * 批量处理图片，按 mode 注册为两个工具：
+ * - compress：图片压缩，保持原格式，调整质量、限制最大尺寸；处理后反而变大时保留原图
+ * - convert：格式转换，JPG / PNG / WebP 互转
+ * 选项一改，所有图片自动重新处理。
  */
-const format = useStoredRef<"keep" | ImageFormat>("image-compress.format", "keep");
-const quality = useStoredRef("image-compress.quality", 80);
+const props = withDefaults(defineProps<{ mode?: "compress" | "convert" }>(), { mode: "compress" });
+const converting = props.mode === "convert";
+
+const targetFormatSetting = useStoredRef<ImageFormat>("image-convert.format", "image/webp");
+const format = computed<"keep" | ImageFormat>(() => (converting ? targetFormatSetting.value : "keep"));
+const quality = useStoredRef(converting ? "image-convert.quality" : "image-compress.quality", converting ? 90 : 80);
 const maxWidth = useStoredRef("image-compress.maxWidth", 0);
 const maxHeight = useStoredRef("image-compress.maxHeight", 0);
+// 格式转换不改变尺寸
+const limitW = computed(() => (converting ? 0 : maxWidth.value));
+const limitH = computed(() => (converting ? 0 : maxHeight.value));
 
 interface Item {
   id: number;
@@ -72,7 +81,7 @@ const targetFormat = (item: Item) => (format.value === "keep" ? outputFormatOf(i
 const processOne = async (item: Item) => {
   const target = targetFormat(item);
   const { naturalWidth: w0, naturalHeight: h0 } = item.img;
-  const { width, height } = fitSize(w0, h0, maxWidth.value, maxHeight.value);
+  const { width, height } = fitSize(w0, h0, limitW.value, limitH.value);
   const { canvas, ctx } = createCanvas(width, height);
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(item.img, 0, 0, width, height);
@@ -108,7 +117,7 @@ const scheduleProcess = () => {
     if (id === run) processing.value = false;
   }, 250);
 };
-watch([format, quality, maxWidth, maxHeight, () => items.value.length], scheduleProcess);
+watch([format, quality, limitW, limitH, () => items.value.length], scheduleProcess);
 
 // ---------- 统计与下载 ----------
 
@@ -128,10 +137,15 @@ const downloadOne = (item: Item) => item.result && saveFile(item.result.bytes, o
 const downloadAll = () =>
   saveFiles(
     done.value.map((i) => ({ name: outputName(i), data: i.result!.bytes })),
-    "压缩后的图片.zip",
+    converting ? `转换为 ${formatInfo(targetFormatSetting.value).label} 的图片.zip` : "压缩后的图片.zip",
   );
 
-const lossless = computed(() => format.value === "image/png");
+const lossless = computed(() => (converting ? targetFormatSetting.value === "image/png" : items.value.length > 0 && items.value.every((i) => outputFormatOf(i.file.type) === "image/png")));
+const FORMAT_NOTES: Record<ImageFormat, string> = {
+  "image/jpeg": "通用，体积小，不支持透明",
+  "image/png": "无损，支持透明",
+  "image/webp": "体积最小，支持透明",
+};
 const parseSize = (e: Event) => Math.max(0, Math.floor(Number((e.target as HTMLInputElement).value) || 0));
 </script>
 
@@ -139,14 +153,14 @@ const parseSize = (e: Event) => Math.max(0, Math.floor(Number((e.target as HTMLI
   <div class="compress">
     <!-- 左：设置 + 结果汇总 -->
     <aside class="card settings">
-      <div class="card-title">压缩设置</div>
+      <div class="card-title">{{ converting ? "转换设置" : "压缩设置" }}</div>
 
-      <section class="section">
-        <h3>输出格式</h3>
-        <div class="seg fill">
-          <button :class="{ on: format === 'keep' }" @click="format = 'keep'">原格式</button>
-          <button v-for="f in IMAGE_FORMATS" :key="f.value" :class="{ on: format === f.value }" @click="format = f.value">
-            {{ f.label }}
+      <section v-if="converting" class="section">
+        <h3>转换为</h3>
+        <div class="formats">
+          <button v-for="f in IMAGE_FORMATS" :key="f.value" :class="{ on: targetFormatSetting === f.value }" @click="targetFormatSetting = f.value">
+            <b>{{ f.label }}</b>
+            <span>{{ FORMAT_NOTES[f.value] }}</span>
           </button>
         </div>
       </section>
@@ -154,10 +168,18 @@ const parseSize = (e: Event) => Math.max(0, Math.floor(Number((e.target as HTMLI
       <section class="section">
         <h3>质量 <b class="value">{{ lossless ? "无损" : `${quality}%` }}</b></h3>
         <input v-model.number="quality" class="range" type="range" min="10" max="100" step="5" :disabled="lossless" />
-        <p class="tip">{{ lossless ? "PNG 为无损格式，只能通过缩小尺寸减小体积" : "数值越小文件越小，80% 左右肉眼几乎看不出差别" }}</p>
+        <p class="tip">
+          {{
+            lossless
+              ? converting
+                ? "PNG 为无损格式，不需要设置质量"
+                : "PNG 为无损格式，只能通过缩小尺寸减小体积"
+              : "数值越小文件越小，80% 左右肉眼几乎看不出差别"
+          }}
+        </p>
       </section>
 
-      <section class="section">
+      <section v-if="!converting" class="section">
         <h3>最大尺寸 <span class="tip inline">超过时等比缩小</span></h3>
         <div class="size-row">
           <input class="field size" type="number" min="0" :value="maxWidth || ''" placeholder="宽不限" @change="maxWidth = parseSize($event)" />
@@ -176,7 +198,7 @@ const parseSize = (e: Event) => Math.max(0, Math.floor(Number((e.target as HTMLI
           <template v-if="done.length">
             {{ done.length }} 张 · {{ formatBytes(totalBefore) }} → {{ formatBytes(totalAfter) }}
           </template>
-          <template v-else>添加图片后显示压缩效果</template>
+          <template v-else>添加图片后显示{{ converting ? "转换" : "压缩" }}效果</template>
         </p>
         <button class="btn primary full" :disabled="!done.length || processing" @click="downloadAll">
           <Download :size="14" />{{ done.length > 1 ? "全部下载（ZIP）" : "下载" }}
@@ -299,6 +321,40 @@ h3 em {
 .seg.fill button {
   flex: 1;
   padding: 0 4px;
+}
+.formats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.formats button {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  text-align: left;
+}
+.formats button b {
+  flex: 0 0 44px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.formats button span {
+  font-size: 12px;
+  color: var(--text-3);
+}
+.formats button:hover {
+  border-color: var(--border-strong);
+}
+.formats button.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.formats button.on b {
+  color: var(--accent);
 }
 .range {
   width: 100%;

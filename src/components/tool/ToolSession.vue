@@ -20,7 +20,7 @@ provide(TOOL_ACTIVE, toRef(props, "active"));
 </script>
 
 <template>
-  <component :is="tool.component" v-if="tool.component" />
+  <component :is="tool.component" v-if="tool.component" v-bind="tool.props" />
   <TextTransform v-else-if="tool.actions" :actions="tool.actions" :placeholder="tool.inputPlaceholder" />
   <EmptyState v-else title="即将上线" :description="`「${tool.name}」还在打磨中，很快就能在这里使用。`" />
 </template>

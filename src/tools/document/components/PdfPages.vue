@@ -276,34 +276,24 @@ const deleted = computed(() => sources.value.reduce((n, s) => n + s.pageCount, 0
 </script>
 
 <template>
-  <ToolActions v-if="sources.length">
+  <ToolActions>
     <div class="seg" title="缩略图大小">
       <button :class="{ on: thumbSize === 's' }" @click="thumbSize = 's'">小</button>
       <button :class="{ on: thumbSize === 'm' }" @click="thumbSize = 'm'">中</button>
       <button :class="{ on: thumbSize === 'l' }" @click="thumbSize = 'l'">大</button>
     </div>
     <button class="btn" title="加入其他 PDF，合并为一个文件" @click="fileInput?.click()"><FilePlus2 :size="14" />添加 PDF</button>
-    <button class="btn subtle" @click="reset">关闭</button>
+    <button v-if="sources.length" class="btn subtle" @click="reset">关闭</button>
     <button class="btn primary" :disabled="saving || !pages.length" @click="save"><Save :size="14" />{{ saving ? "保存中…" : "保存 PDF" }}</button>
   </ToolActions>
   <input ref="fileInput" type="file" accept=".pdf,application/pdf" multiple hidden @change="onPick" />
 
-  <FileDropZone
-    v-if="!sources.length"
-    accept=".pdf,application/pdf"
-    multiple
-    :title="loading ? '正在读取…' : '拖入 PDF 文件，或点击选择'"
-    hint="可以删除、旋转、拖动调整页面顺序；一次拖入多个 PDF 会合并成一个文件"
-    @files="addFiles"
-  />
-  <p v-if="!sources.length && error" class="error standalone">{{ error }}</p>
-
-  <section v-if="sources.length" class="card pdf">
+  <section class="card pdf">
     <div class="bar">
-      <label class="check"><input type="checkbox" :checked="allSelected" @change="selectAll" />全选</label>
+      <label class="check"><input type="checkbox" :checked="allSelected" :disabled="!pages.length" @change="selectAll" />全选</label>
       <form class="range" @submit.prevent="selectRange">
         <input v-model="range" class="field" :class="{ invalid: rangeError }" placeholder="按页码选择，如 1-3, 5" />
-        <button class="btn" type="submit">选择</button>
+        <button class="btn" type="submit" :disabled="!pages.length">选择</button>
       </form>
       <span class="divider" />
       <button class="btn" :disabled="!hasSelection" title="向左旋转 90°" @click="rotate(-90)"><RotateCcw :size="14" /></button>
@@ -318,7 +308,16 @@ const deleted = computed(() => sources.value.reduce((n, s) => n + s.pageCount, 0
     </div>
     <p v-if="rangeError || error" class="error">{{ rangeError || error }}</p>
 
-    <div class="grid" :style="{ '--thumb': `${thumbWidth}px` }" @dragover.prevent @drop="onDrop">
+    <FileDropZone
+      v-if="!sources.length"
+      class="drop"
+      accept=".pdf,application/pdf"
+      multiple
+      :title="loading ? '正在读取…' : '拖入 PDF 文件，或点击选择'"
+      hint="可以删除、旋转、拖动调整页面顺序；一次拖入多个 PDF 会合并成一个文件"
+      @files="addFiles"
+    />
+    <div v-else class="grid" :style="{ '--thumb': `${thumbWidth}px` }" @dragover.prevent @drop="onDrop">
       <figure
         v-for="(page, i) in pages"
         :key="page.key"
@@ -361,7 +360,7 @@ const deleted = computed(() => sources.value.reduce((n, s) => n + s.pageCount, 0
       </figure>
     </div>
 
-    <footer class="files">
+    <footer v-if="sources.length" class="files">
       <span v-for="s in sources" :key="s.name">{{ s.name }} · {{ s.pageCount }} 页 · {{ formatBytes(s.size) }}</span>
       <span class="hint">点击选择，Ctrl 多选、Shift 连选，拖动调整顺序</span>
     </footer>
@@ -424,9 +423,9 @@ const deleted = computed(() => sources.value.reduce((n, s) => n + s.pageCount, 0
   color: var(--danger);
   background: var(--danger-soft);
 }
-.error.standalone {
-  margin-top: 10px;
-  border-radius: 8px;
+.drop {
+  flex: 1;
+  margin: 14px;
 }
 
 .grid {

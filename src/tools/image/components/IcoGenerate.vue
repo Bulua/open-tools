@@ -71,28 +71,18 @@ const downloadPngs = () =>
 </script>
 
 <template>
-  <FileDropZone
-    v-if="!img"
-    accept="image/*"
-    title="拖入图片，或点击选择"
-    hint="建议使用 256 × 256 以上的正方形 PNG；也可以按 Ctrl + V 粘贴"
-    @files="onFiles"
-  >
-    <span v-if="loadError" class="load-error">{{ loadError }}</span>
-  </FileDropZone>
-
-  <div v-else class="ico">
+  <div class="ico">
     <!-- 左：设置 -->
     <section class="card options">
       <header class="card-title">
-        <span class="file" :title="fileName">{{ fileName }}</span>
-        <label class="icon-btn" title="更换图片">
+        <span class="file" :title="fileName">{{ fileName || "未选择图片" }}</span>
+        <label v-if="img" class="icon-btn" title="更换图片">
           <RefreshCw :size="14" />
           <input type="file" accept="image/*" hidden @change="onFiles([...(($event.target as HTMLInputElement).files ?? [])])" />
         </label>
       </header>
       <div class="option-body">
-        <div class="option">
+        <div v-if="img" class="option">
           <span class="label">原图</span>
           <span>{{ img.naturalWidth }} × {{ img.naturalHeight }}</span>
         </div>
@@ -104,7 +94,7 @@ const downloadPngs = () =>
             </label>
           </div>
         </div>
-        <div v-if="img.naturalWidth !== img.naturalHeight" class="option column">
+        <div v-if="img && img.naturalWidth !== img.naturalHeight" class="option column">
           <span class="label">非正方形</span>
           <div class="seg">
             <button :class="{ on: fit === 'contain' }" @click="fit = 'contain'">完整显示</button>
@@ -117,7 +107,17 @@ const downloadPngs = () =>
     <!-- 右：预览与下载 -->
     <section class="card previews">
       <div class="card-title">预览</div>
-      <div v-if="outputs.length" class="grid">
+      <FileDropZone
+        v-if="!img"
+        class="drop"
+        accept="image/*"
+        title="拖入图片，或点击选择"
+        hint="建议使用 256 × 256 以上的正方形 PNG；也可以按 Ctrl + V 粘贴"
+        @files="onFiles"
+      >
+        <span v-if="loadError" class="load-error">{{ loadError }}</span>
+      </FileDropZone>
+      <div v-else-if="outputs.length" class="grid">
         <figure v-for="o in outputs" :key="o.size">
           <div class="tile checker">
             <!-- 小尺寸按原始像素显示，看起来和实际效果一致 -->
@@ -144,6 +144,10 @@ const downloadPngs = () =>
   grid-template-columns: 280px minmax(0, 1fr);
   align-items: start;
   gap: 14px;
+}
+.drop {
+  margin: 12px;
+  min-height: 300px;
 }
 .option-body {
   display: flex;
