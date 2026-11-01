@@ -13,7 +13,7 @@ JSON、编码、转换、图片、文档处理等常用小工具，集中在一�
 [![平台](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-Windows%2010%20%2F%2011-c96442)](#下载与安装)
 [![许可证](https://img.shields.io/github/license/Bulua/open-tools?label=%E8%AE%B8%E5%8F%AF%E8%AF%81)](LICENSE)
 
-[下载](#下载与安装) · [功能](#功能一览) · [使用技巧](#使用技巧) · [参与开发](#参与开发)
+[下载](#下载与安装) · [功能](#功能一览) · [使用技巧](#使用技巧) · [Star 趋势](#star-趋势)
 
 </div>
 
@@ -87,41 +87,6 @@ Open Tools 把这些常用工具放进一个桌面程序：
   - **Ping 网络测试**：只向你输入的地址发送 ping。
   - **下载 AI 抠图模型**：只有在「图片去背景」中点击下载时，从 rembg 项目的 GitHub 发布页下载模型文件；图片本身始终在本机处理。
 
-## 参与开发
-
-基于 [Tauri 2](https://v2.tauri.app/) + [Vue 3](https://vuejs.org/) + TypeScript 构建。
-
-```bash
-git clone https://github.com/Bulua/open-tools.git
-```
-
-```bash
-cd open-tools && npm install
-```
-
-```bash
-npm run dev
-```
-
-浏览器打开 http://localhost:1420 即可开发界面；以桌面窗口运行需要先安装 [Rust](https://rustup.rs)，然后执行 `npm run tauri dev`。
-
-| 命令 | 作用 |
-| --- | --- |
-| `npm run dev` | 在浏览器中开发界面 |
-| `npm run tauri dev` | 以桌面窗口运行（需要 Rust） |
-| `npm run typecheck` | TypeScript 类型检查 |
-| `npm test` | 运行单元测试 |
-| `npm run tauri build` | 打包安装程序（需要 Rust） |
-
-不想在本地安装 Rust，也可以直接推送代码，由 GitHub Actions 在云端打包。
-
-更多说明：
-
-- [开发指南](docs/DEVELOPMENT.md)：项目结构、如何新增工具和分类、代码约定
-- [发布指南](docs/RELEASE.md)：发布新版本、在线更新与签名密钥
-
-欢迎通过 [Issues](https://github.com/Bulua/open-tools/issues) 反馈问题或建议新工具。
-
 ## 技术栈
 
 | 部分 | 选型 |
@@ -135,6 +100,17 @@ npm run dev
 | 图标 | Lucide |
 | 测试 | Vitest |
 | 打包与发布 | GitHub Actions · tauri-action |
+
+## Star 趋势
+
+如果这个工具对你有帮助，欢迎点个 Star ⭐，有问题或想要的新工具可以在 [Issues](https://github.com/Bulua/open-tools/issues) 中反馈。
+
+<a href="https://star-history.com/#Bulua/open-tools&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Bulua/open-tools&type=Date&theme=dark" />
+    <img alt="Star 历史趋势" src="https://api.star-history.com/svg?repos=Bulua/open-tools&type=Date" />
+  </picture>
+</a>
 
 ## 许可证
 
