@@ -21,6 +21,8 @@ const props = withDefaults(defineProps<{ sources?: TrackSource[]; title?: string
   title: "",
   emptyText: "添加文件后在这里显示音轨，可以试听",
 });
+// 开始播放时通知外面，用来停掉页面上其他正在播放的声音
+const emit = defineEmits<{ play: [] }>();
 
 // 当前播放的来源：默认最后一个（转换完成后自动切到转换结果）
 const activeKey = ref("");
@@ -90,6 +92,7 @@ const tick = () => {
 };
 const onPlay = () => {
   playing.value = true;
+  emit("play");
   tick();
 };
 const onPause = () => {
@@ -119,7 +122,8 @@ const play = async (key?: string) => {
   el.currentTime = 0;
   el.play().catch(() => {});
 };
-defineExpose({ play });
+const pause = () => audio.value?.pause();
+defineExpose({ play, pause, playing });
 </script>
 
 <template>

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
-import { CircleAlert, CircleCheck, Download, FileVideo, LoaderCircle, Play, X } from "lucide-vue-next";
+import { CircleAlert, CircleCheck, Download, FileVideo, LoaderCircle, X } from "lucide-vue-next";
 import AudioTrack, { type TrackSource } from "@/tools/audio/components/AudioTrack.vue";
+import PlayButton from "@/tools/audio/components/PlayButton.vue";
 import CheckAll from "@/components/common/CheckAll.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useFileChecks } from "@/composables/useFileChecks";
@@ -88,7 +89,10 @@ const trackSources = computed<TrackSource[]>(() => {
   if (item.resultBlob) list.push({ key: `${item.id}:result`, label: "转换结果", blob: item.resultBlob });
   return list;
 });
+/** 列表里的试听：在下方音轨中从头播放，正在播放的再点一下停止 */
+const isPlaying = (item: Item) => item.id === selectedId.value && !!track.value?.playing;
 const play = async (item: Item) => {
+  if (isPlaying(item)) return track.value?.pause();
   selectedId.value = item.id;
   await nextTick();
   track.value?.play();
@@ -186,7 +190,7 @@ const pending = computed(() => checkedItems.value.filter((i) => i.status !== "do
             @click="selectedId = item.id"
           >
             <input type="checkbox" class="file-check" title="勾选的视频才转换" :checked="isChecked(item)" :disabled="working" @click.stop @change="toggleFile(item)" />
-            <button v-if="item.info?.audio" class="play" title="试听" @click.stop="play(item)"><Play :size="12" /></button>
+            <PlayButton v-if="item.info?.audio" :playing="isPlaying(item)" @click.stop="play(item)" />
             <FileVideo v-else :size="16" class="icon" />
             <div class="meta">
               <span class="name" :title="item.file.name">{{ item.file.name }}</span>
@@ -355,21 +359,6 @@ h3 {
 }
 .rows .row.on {
   background: var(--accent-soft);
-}
-.play {
-  flex-shrink: 0;
-  width: 24px;
-  height: 24px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #fff;
-}
-.play:hover {
-  filter: brightness(1.1);
 }
 /* 音轨：固定在列表下方 */
 .player {

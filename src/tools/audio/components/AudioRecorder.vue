@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, shallowRef } from "vue";
 import { Download, Mic, Pause, Play, Square, Trash2 } from "lucide-vue-next";
+import PlayButton from "./PlayButton.vue";
 import { saveFile } from "@/utils/saveFile";
 import OutputFormat from "./OutputFormat.vue";
 import { audioContext, decodeFile, encodeAudio, usePlayer } from "../audio";
@@ -198,10 +199,7 @@ const save = async (r: Recording) => {
         <div class="card-title">录音<span v-if="recordings.length" class="count">{{ recordings.length }} 段</span></div>
         <ul v-if="recordings.length" class="rows">
           <li v-for="r in recordings" :key="r.id" class="row">
-            <button class="play" :title="player.playingKey.value === r.id ? '停止' : '试听'" @click="togglePlay(r)">
-              <Pause v-if="player.playingKey.value === r.id" :size="13" />
-              <Play v-else :size="13" />
-            </button>
+            <PlayButton :playing="player.playingKey.value === r.id" @click="togglePlay(r)" />
             <span class="name">{{ r.name }}</span>
             <span class="len">{{ formatTime(duration(r.pcm), false) }}</span>
             <button class="btn small" :disabled="saving === r.id" @click="save(r)"><Download :size="13" />{{ saving === r.id ? "保存中…" : "保存" }}</button>
@@ -327,21 +325,6 @@ h3 {
 }
 .row:hover {
   background: var(--hover);
-}
-.play {
-  flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  border: none;
-  border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-.play:hover {
-  background: var(--accent);
-  color: #fff;
 }
 .name {
   flex: 1;

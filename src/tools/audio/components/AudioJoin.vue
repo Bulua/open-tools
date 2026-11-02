@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch } from "vue";
-import { ArrowDown, ArrowUp, Download, GripVertical, Pause, Play, X } from "lucide-vue-next";
+import { ArrowDown, ArrowUp, Download, GripVertical, X } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { saveFile } from "@/utils/saveFile";
 import OutputFormat from "./OutputFormat.vue";
-import Waveform from "./Waveform.vue";
+import AudioTrack, { type TrackSource } from "./AudioTrack.vue";
+import PlayButton from "./PlayButton.vue";
 import { decodeFile, encodeAudio, resample, usePlayer } from "../audio";
-import { concat, duration, formatTime, type Pcm } from "../pcm";
+import { concat, duration, encodeWav, formatTime, type Pcm } from "../pcm";
 import { useOutputFormat } from "../useOutputFormat";
 
 /**
@@ -66,7 +67,12 @@ const onDrop = (index: number) => {
 const total = computed(() => items.value.reduce((s, i) => s + duration(i.pcm), 0) + gap.value * Math.max(0, items.value.length - 1));
 
 const player = usePlayer();
-const togglePlay = (item: Item) => (player.playingKey.value === item.id ? player.stop() : player.play(item.pcm, 0, undefined, item.id));
+const track = ref<InstanceType<typeof AudioTrack>>();
+const togglePlay = (item: Item) => {
+  if (player.playingKey.value === item.id) return player.stop();
+  track.value?.pause();
+  player.play(item.pcm, 0, undefined, item.id);
+};
 
 /** 按顺序拼接：统一到最高的采样率 */
 const joinAll = async (list: Item[]) => {
@@ -77,31 +83,21 @@ const joinAll = async (list: Item[]) => {
 
 // ---------- 拼接后的音轨：顺序、空白变化后重新生成 ----------
 const joined = shallowRef<Pcm | null>(null);
-const joinedPosition = ref(0);
 let joinToken = 0;
 watch(
   [items, gap],
   async () => {
     const current = ++joinToken;
-    if (player.playingKey.value === "all") player.stop();
-    joinedPosition.value = 0;
     if (!items.value.length) return (joined.value = null);
     const result = await joinAll(items.value);
     if (current === joinToken) joined.value = result;
   },
   { immediate: true },
 );
-watch(player.position, (t) => player.playingKey.value === "all" && (joinedPosition.value = t));
-const toggleJoined = () => {
-  if (!joined.value) return;
-  if (player.playingKey.value === "all") return player.stop();
-  const from = joinedPosition.value >= duration(joined.value) - 0.05 ? 0 : joinedPosition.value;
-  player.play(joined.value, from, undefined, "all");
-};
-const seekJoined = (t: number) => {
-  joinedPosition.value = t;
-  if (player.playingKey.value === "all" && joined.value) player.play(joined.value, t, undefined, "all");
-};
+// 交给音轨播放器：转成 WAV 播放，和其他工具的音轨一致
+const trackSources = computed<TrackSource[]>(() =>
+  joined.value ? [{ key: `joined:${joinToken}`, label: `共 ${items.value.length} 段`, blob: new Blob([encodeWav(joined.value) as Uint8Array<ArrayBuffer>], { type: "audio/wav" }) }] : [],
+);
 
 // ---------- 导出 ----------
 const { format, quality } = useOutputFormat();
@@ -170,10 +166,7 @@ const save = async () => {
           >
             <GripVertical :size="14" class="grip" />
             <span class="no">{{ i + 1 }}</span>
-            <button class="play" :title="player.playingKey.value === item.id ? '停止' : '试听'" @click="togglePlay(item)">
-              <Pause v-if="player.playingKey.value === item.id" :size="13" />
-              <Play v-else :size="13" />
-            </button>
+            <PlayButton :playing="player.playingKey.value === item.id" @click="togglePlay(item)" />
             <span class="name" :title="item.name">{{ item.name }}</span>
             <span class="len">{{ formatTime(duration(item.pcm), false) }}</span>
             <button class="icon-btn" title="上移" :disabled="i === 0" @click="move(i, -1)"><ArrowUp :size="13" /></button>
@@ -184,19 +177,7 @@ const save = async () => {
         <FileDropZone compact class="more" accept="audio/*,video/*,.m4a,.flac,.ogg,.aac" multiple :paste="false" :title="loading ? '正在读取…' : '继续添加音频'" @files="addFiles" />
       </template>
       <!-- 拼接后的音轨：没有音频时显示一条空的音轨 -->
-      <div class="joined">
-        <div class="joined-head">
-          <button class="joined-play" :disabled="!joined" :title="player.playingKey.value === 'all' ? '暂停' : '试听拼接效果'" @click="toggleJoined">
-            <Pause v-if="player.playingKey.value === 'all'" :size="16" />
-            <Play v-else :size="16" />
-          </button>
-          <span class="joined-title">拼接效果</span>
-          <span class="joined-time">{{ formatTime(joinedPosition, false) }} / {{ formatTime(joined ? duration(joined) : 0, false) }}</span>
-        </div>
-        <Waveform class="joined-wave" :pcm="joined" :position="joined ? joinedPosition : null" :selectable="false" @seek="seekJoined">
-          <span v-if="!joined" class="joined-empty">添加音频后在这里显示拼接后的音轨，可以试听</span>
-        </Waveform>
-      </div>
+      <AudioTrack ref="track" class="player" :sources="trackSources" title="拼接效果" empty-text="添加音频后在这里显示拼接后的音轨，可以试听" @play="player.stop()" />
     </section>
   </div>
 </template>
@@ -248,57 +229,11 @@ h3 {
   overflow: auto;
 }
 /* 拼接后的音轨：固定在列表下方 */
-.joined {
+/* 音轨：固定在列表下方 */
+.player {
   flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px 14px 12px;
   border-top: 1px solid var(--border);
   background: var(--bg-sunken);
-}
-.joined-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.joined-play {
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #fff;
-}
-.joined-play:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-.joined-title {
-  font-size: 13px;
-  font-weight: 500;
-}
-.joined-time {
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--text-3);
-  font-variant-numeric: tabular-nums;
-}
-.joined-wave {
-  height: 96px;
-}
-.joined-empty {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  color: var(--text-3);
-  pointer-events: none;
 }
 .row {
   display: flex;
@@ -327,21 +262,6 @@ h3 {
   font-size: 12px;
   color: var(--text-3);
   text-align: right;
-}
-.play {
-  flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  border: none;
-  border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-.play:hover {
-  background: var(--accent);
-  color: #fff;
 }
 .name {
   flex: 1;
