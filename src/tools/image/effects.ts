@@ -210,9 +210,37 @@ export interface RemoveBackgroundOptions {
   tolerance: number;
   /** 边缘柔化 0～100：在容差之外再留一段渐变，边缘更自然 */
   feather: number;
-  /** 只去除与图片边缘相连的背景（避免把主体里相同颜色的部分也挖掉） */
+  /** 只去除相连的背景：从图片边缘和点击的位置出发扩散（避免把主体里相同颜色的部分也挖掉） */
   contiguous: boolean;
+  /** 已有的透明度蒙版（如 AI 识别结果，0～255）；结果在它的基础上继续去除，扩散时也能穿过已透明的区域 */
+  mask?: Uint8ClampedArray;
+  /** 额外的扩散起点（像素序号 y × width + x），一般是用户点击的位置 */
+  seeds?: number[];
+  /** 预先算好的颜色距离（colorDistances 的结果），只调容差时不用重算 */
+  distances?: Float32Array;
 }
+
+/**
+ * 每个像素与最接近的那种背景色的距离的平方。
+ * 传入 prev（已有颜色的结果）时只计算新增的颜色，原地更新 prev。
+ */
+export function colorDistances(data: Uint8ClampedArray, colors: Rgb[], prev?: Float32Array): Float32Array {
+  const total = data.length >> 2;
+  const out = prev ?? new Float32Array(total).fill(Infinity);
+  for (const [cr, cg, cb] of colors) {
+    for (let p = 0, i = 0; p < total; p++, i += 4) {
+      const dr = data[i] - cr;
+      const dg = data[i + 1] - cg;
+      const db = data[i + 2] - cb;
+      const d = dr * dr + dg * dg + db * db;
+      if (d < out[p]) out[p] = d;
+    }
+  }
+  return out;
+}
+
+/** 蒙版中低于这个值的像素视为已经透明，扩散时可以穿过 */
+const CLEAR = 32;
 
 /** 返回去掉背景后的像素（新数组），背景变为透明 */
 export function removeBackground(
@@ -222,41 +250,37 @@ export function removeBackground(
   o: RemoveBackgroundOptions,
 ): Uint8ClampedArray<ArrayBuffer> {
   const out = new Uint8ClampedArray(data);
-  const t = (o.tolerance / 100) * MAX_DISTANCE;
-  const f = (o.feather / 100) * MAX_DISTANCE * 0.5;
+  const total = width * height;
+  const mask = o.mask;
+  if (mask) for (let p = 0; p < total; p++) out[p * 4 + 3] = (data[p * 4 + 3] * mask[p]) / 255;
   if (!o.colors.length) return out;
 
-  /** 与最接近的那种背景色的距离 */
-  const distance = (p: number) => {
-    const i = p * 4;
-    let min = Infinity;
-    for (const [cr, cg, cb] of o.colors) {
-      const d = Math.hypot(data[i] - cr, data[i + 1] - cg, data[i + 2] - cb);
-      if (d < min) min = d;
-    }
-    return min;
-  };
-  // 颜色越接近背景越透明；容差内全透明，柔化范围内渐变
-  const alphaFor = (d: number) => (d <= t ? 0 : f > 0 && d < t + f ? ((d - t) / f) * 255 : 255);
-  const apply = (p: number, d: number) => {
-    const a = alphaFor(d);
+  const dist = o.distances ?? colorDistances(data, o.colors);
+  const t = (o.tolerance / 100) * MAX_DISTANCE;
+  const f = (o.feather / 100) * MAX_DISTANCE * 0.5;
+  const t2 = t * t;
+  const limit2 = (t + f) * (t + f);
+  // 颜色越接近背景越透明；容差内全透明，柔化范围内渐变（只有这一段才需要开方）
+  const apply = (p: number) => {
+    const d2 = dist[p];
+    if (d2 >= limit2) return;
+    const a = d2 <= t2 ? 0 : ((Math.sqrt(d2) - t) / f) * 255;
     if (a < out[p * 4 + 3]) out[p * 4 + 3] = a;
   };
 
-  const total = width * height;
   if (!o.contiguous) {
-    for (let p = 0; p < total; p++) apply(p, distance(p));
+    for (let p = 0; p < total; p++) apply(p);
     return out;
   }
 
-  // 从四条边出发，只扩散到颜色接近背景的相连像素
+  // 从四条边和点击的位置出发，扩散到颜色接近背景、或已经透明的相连像素
   const visited = new Uint8Array(total);
-  const stack: number[] = [];
-  const limit = t + f;
+  const stack = new Int32Array(total);
+  let top = 0;
   const push = (p: number) => {
     if (visited[p]) return;
     visited[p] = 1;
-    if (distance(p) < limit) stack.push(p);
+    if (dist[p] < limit2 || (mask && mask[p] < CLEAR)) stack[top++] = p;
   };
   for (let x = 0; x < width; x++) {
     push(x);
@@ -266,9 +290,10 @@ export function removeBackground(
     push(y * width);
     push(y * width + width - 1);
   }
-  while (stack.length) {
-    const p = stack.pop()!;
-    apply(p, distance(p));
+  for (const p of o.seeds ?? []) if (p >= 0 && p < total) push(p);
+  while (top) {
+    const p = stack[--top];
+    apply(p);
     const x = p % width;
     if (x > 0) push(p - 1);
     if (x < width - 1) push(p + 1);

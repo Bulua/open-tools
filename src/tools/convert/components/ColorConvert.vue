@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import CopyList from "@/components/common/CopyList.vue";
+import ColorPicker from "@/components/common/ColorPicker.vue";
 import { parseColor, rgbToHsl, toHex, toHsl, toRgb } from "@/utils/color";
 
 /** HEX / RGB / HSL 互转：输入任意写法或用取色器选择，一次显示所有格式 */
@@ -22,7 +23,6 @@ const items = computed(() => {
 
 // 取色器只支持不透明的 #rrggbb
 const pickerValue = computed(() => (color.value ? toHex({ ...color.value, a: 1 }, false) : "#000000"));
-const onPick = (e: Event) => (input.value = (e.target as HTMLInputElement).value);
 </script>
 
 <template>
@@ -30,11 +30,10 @@ const onPick = (e: Event) => (input.value = (e.target as HTMLInputElement).value
     <!-- 左：大色块（点击打开取色器）+ 输入 -->
     <section class="card picker">
       <div class="card-title">颜色</div>
-      <label class="swatch" title="点击打开取色器">
+      <ColorPicker class="swatch" title="点击打开取色板" :model-value="pickerValue" @update:model-value="input = $event">
         <span class="swatch-color" :style="{ background: color ? toRgb(color) : 'transparent' }" />
         <span class="swatch-hint">点击选择颜色</span>
-        <input type="color" :value="pickerValue" @input="onPick" />
-      </label>
+      </ColorPicker>
       <div class="picker-body">
         <input
           v-model="input"
@@ -105,12 +104,6 @@ const onPick = (e: Event) => (input.value = (e.target as HTMLInputElement).value
 }
 .swatch:hover .swatch-hint {
   opacity: 1;
-}
-.swatch input {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
 }
 .picker-body {
   padding: 12px 16px 14px;

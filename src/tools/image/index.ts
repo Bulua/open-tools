@@ -74,7 +74,7 @@ const image: Category = {
     {
       id: "image-removebg",
       name: "图片去背景",
-      desc: "AI 自动识别人物、商品等主体去除背景，或去除纯色背景；可换成白、蓝、红等底色",
+      desc: "AI 自动识别人物、商品等主体去除背景，残留的背景点一下即可去掉；可换成白、蓝、红等底色",
       icon: Eraser,
       component: defineAsyncComponent(() => import("./components/ImageRemoveBg.vue")),
     },

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseTimeInput } from "./timestamp";
 import { formatInteger, groupBinary, parseInteger } from "./radix";
-import { parseColor, toHex, toHsl, toRgb } from "@/utils/color";
+import { hsvToRgb, parseColor, rgbToHsv, toHex, toHsl, toRgb } from "@/utils/color";
 
 describe("时间戳", () => {
   it("自动区分秒和毫秒", () => {
@@ -66,5 +66,17 @@ describe("颜色转换", () => {
     expect(toHsl({ r: 0, g: 128, b: 0, a: 1 })).toBe("hsl(120, 100%, 25%)");
     expect(toRgb({ ...c, a: 0.5 })).toBe("rgba(201, 100, 66, 0.5)");
     expect(toHex({ ...c, a: 0.5 })).toBe("#c9644280");
+  });
+});
+
+describe("取色板 HSV", () => {
+  it("与 RGB 互转", () => {
+    expect(rgbToHsv({ r: 255, g: 0, b: 0 })).toEqual({ h: 0, s: 1, v: 1 });
+    expect(hsvToRgb(120, 1, 0.5)).toEqual({ r: 0, g: 128, b: 0 });
+    expect(hsvToRgb(0, 0, 1)).toEqual({ r: 255, g: 255, b: 255 });
+    for (const c of [{ r: 201, g: 100, b: 66 }, { r: 12, g: 200, b: 240 }, { r: 90, g: 90, b: 90 }]) {
+      const { h, s, v } = rgbToHsv(c);
+      expect(hsvToRgb(h, s, v)).toEqual(c);
+    }
   });
 });

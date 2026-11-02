@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from "vue";
 import { Download, Plus, X } from "lucide-vue-next";
+import ColorPicker from "@/components/common/ColorPicker.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { useFitFrame } from "@/composables/useFitFrame";
@@ -188,7 +189,7 @@ const ANCHORS: { value: Anchor; label: string }[] = [
         <template v-if="kind === 'text'">
           <input v-model="text" class="field" placeholder="水印文字" maxlength="60" />
           <div class="row">
-            <input v-model="color" class="color" type="color" title="文字颜色" />
+            <ColorPicker v-model="color" title="文字颜色" />
             <label class="check"><input v-model="bold" type="checkbox" />粗体</label>
             <label class="check"><input v-model="shadow" type="checkbox" />阴影</label>
           </div>
@@ -412,15 +413,6 @@ h3 {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-.color {
-  width: 32px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  background: none;
-  cursor: pointer;
 }
 .slider {
   display: flex;

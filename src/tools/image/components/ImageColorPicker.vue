@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from "vue";
-import { RefreshCw, Trash2 } from "lucide-vue-next";
+import { RefreshCw, Trash2, ZoomIn, ZoomOut } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import CopyList from "@/components/common/CopyList.vue";
 import { toHex, toHsl, toRgb, type Rgba } from "@/utils/color";
 import { createCanvas, extractPalette, loadImage, type PaletteColor } from "../utils";
+import { useZoomPan } from "@/composables/useZoomPan";
 
 /** 图片取色：鼠标移到图片上预览颜色，点击取色；自动提取主色调 */
 const loaded = ref(false);
@@ -25,6 +26,7 @@ const onFiles = async ([file]: File[]) => {
     fileName.value = file.name;
     loaded.value = true;
     picked.value = [];
+    resetView();
     await nextTick();
     const canvas = view.value!;
     canvas.width = img.naturalWidth;
@@ -55,14 +57,27 @@ const colorAt = (e: MouseEvent): Rgba | null => {
   return { r, g, b, a: Math.round((a / 255) * 100) / 100 };
 };
 
+// ---------- 缩放与平移 ----------
+const { MIN_ZOOM, MAX_ZOOM, zoom, panning, style: viewStyle, reset: resetView, zoomAt, onWheel: wheel, onDown, onMove: drag, onUp: up } = useZoomPan();
+
+const onWheel = (e: WheelEvent) => {
+  wheel(e);
+  onMove(e);
+};
+const onUp = (e: PointerEvent) => up() && pick(e);
+
 // 提示框定位在图片外层容器里，用相对容器的坐标
-const onMove = (e: MouseEvent) => {
+const onMove = (e: PointerEvent | WheelEvent) => {
+  if (e instanceof PointerEvent && drag(e)) {
+    hover.value = null;
+    return;
+  }
   const color = colorAt(e);
   const wrap = view.value?.parentElement?.getBoundingClientRect();
   hover.value = color && wrap ? { color, x: e.clientX - wrap.left, y: e.clientY - wrap.top } : null;
 };
 
-const onClick = (e: MouseEvent) => {
+const pick = (e: MouseEvent) => {
   const color = colorAt(e);
   if (!color) return;
   selected.value = color;
@@ -133,7 +148,12 @@ const css = (c: Rgba | PaletteColor) => toRgb({ a: 1, ...c });
     <section class="stage card">
       <header class="stage-head">
         <span class="file" :title="fileName">{{ fileName || "未选择图片" }}</span>
-        <span v-if="loaded" class="tip">点击图片取色</span>
+        <span v-if="loaded" class="tip">点击图片取色，滚轮缩放，按住拖动</span>
+        <div v-if="loaded" class="zoom">
+          <button class="icon-btn" title="缩小" :disabled="zoom <= MIN_ZOOM" @click="zoomAt(zoom / 1.5)"><ZoomOut :size="14" /></button>
+          <button class="zoom-value" title="恢复为适应窗口" @click="resetView">{{ Math.round(zoom * 100) }}%</button>
+          <button class="icon-btn" title="放大" :disabled="zoom >= MAX_ZOOM" @click="zoomAt(zoom * 1.5)"><ZoomIn :size="14" /></button>
+        </div>
         <label v-if="loaded" class="btn subtle">
           <RefreshCw :size="14" />更换
           <input type="file" accept="image/*" hidden @change="onFiles([...(($event.target as HTMLInputElement).files ?? [])])" />
@@ -150,8 +170,17 @@ const css = (c: Rgba | PaletteColor) => toRgb({ a: 1, ...c });
         <span v-if="loadError" class="load-error">{{ loadError }}</span>
       </FileDropZone>
       <div v-else class="canvas-area">
-        <div class="canvas-wrap">
-          <canvas ref="view" @mousemove="onMove" @mouseleave="hover = null" @click="onClick" />
+        <div
+          class="canvas-wrap"
+          :class="{ panning }"
+          @wheel.prevent="onWheel"
+          @pointerdown="onDown"
+          @pointermove="onMove"
+          @pointerup="onUp"
+          @pointercancel="onUp"
+          @pointerleave="hover = null"
+        >
+          <canvas ref="view" :style="viewStyle" />
           <div v-if="hover" class="loupe" :style="{ left: `${hover.x + 16}px`, top: `${hover.y + 16}px` }">
             <span class="dot" :style="{ background: css(hover.color) }" />
             {{ toHex(hover.color) }}
@@ -196,6 +225,10 @@ const css = (c: Rgba | PaletteColor) => toRgb({ a: 1, ...c });
 }
 .tip {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 12px;
   color: var(--text-3);
 }
@@ -212,12 +245,46 @@ const css = (c: Rgba | PaletteColor) => toRgb({ a: 1, ...c });
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+.canvas-wrap.panning {
+  cursor: grabbing;
 }
 .canvas-wrap canvas {
   max-width: 100%;
   max-height: 100%;
-  cursor: crosshair;
   border-radius: 4px;
+  transform-origin: center;
+}
+.zoom {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.zoom .icon-btn {
+  width: 26px;
+  height: 26px;
+}
+.zoom .icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.zoom-value {
+  min-width: 48px;
+  height: 26px;
+  padding: 0 4px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.zoom-value:hover {
+  background: var(--hover);
 }
 .loupe {
   position: absolute;

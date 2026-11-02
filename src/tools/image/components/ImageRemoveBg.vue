@@ -1,24 +1,25 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, shallowRef, watch } from "vue";
-import { CircleCheck, Download, LoaderCircle, Pipette, RefreshCw, Sparkles, Trash2, X } from "lucide-vue-next";
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
+import { CircleCheck, Download, LoaderCircle, Pipette, RefreshCw, Sparkles, Trash2, X, ZoomIn, ZoomOut } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
+import ColorPicker from "@/components/common/ColorPicker.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { useFitFrame } from "@/composables/useFitFrame";
+import { useZoomPan } from "@/composables/useZoomPan";
 import { saveFile } from "@/utils/saveFile";
 import { toHex } from "@/utils/color";
 import { canvasToBytes, createCanvas, loadImage } from "../utils";
-import { detectBackgroundColors, removeBackground, type Rgb } from "../effects";
+import type { Rgb } from "../effects";
 import { AI_MODELS, canDownload, deleteModel, downloadModel, downloadedModels, modelById, type AiModel } from "../aiModels";
-import { applyMask, segment } from "../segment";
+import { segment } from "../segment";
 import { formatBytes } from "@/utils/format";
 
 /**
- * 图片去背景，两种方式：
- * - AI 识别：用 AI 模型找出主体（人物、商品、动物等），适合照片；内置轻量模型，可下载效果更好的模型
- * - 按颜色：去除纯色背景，按容差变为透明，适合 Logo、签名、截图等背景单一的图片
- * 去除后可以换成其他底色。
+ * 图片去背景：上传后先用 AI 模型找出主体（人物、商品、动物等）去掉背景，
+ * 有残留时在图片上点一下，就把这种颜色的背景也去掉（可以连续点多处）。
+ * Logo、签名等纯色背景也可以关掉 AI，只按颜色去除。去除后可以换成其他底色。
  */
-const mode = useStoredRef<"ai" | "color">("removebg.mode", "ai");
+const useAi = useStoredRef("removebg.ai", true);
 const modelId = useStoredRef("removebg.model", "u2netp");
 const tolerance = useStoredRef("removebg.tolerance", 12);
 const feather = useStoredRef("removebg.feather", 8);
@@ -36,10 +37,61 @@ const PRESETS = [
 const fileName = ref("");
 const loadError = ref("");
 const source = shallowRef<{ data: ImageData; width: number; height: number } | null>(null);
-/** 要去除的背景色，可以有多种（渐变、阴影、双色背景等） */
-const bgColors = ref<Rgb[]>([]);
+
+/** 用户点选的背景色，以及点击的位置（作为扩散起点，主体中间围住的背景也能去掉） */
+interface Pick {
+  color: Rgb;
+  seeds: number[];
+}
+const picks = shallowRef<Pick[]>([]);
 const MAX_COLORS = 8;
-const picking = ref(false);
+
+// ---------- 后台计算 ----------
+const worker = new Worker(new URL("../removebg.worker.ts", import.meta.url), { type: "module" });
+onBeforeUnmount(() => worker.terminate());
+
+/** 去掉背景后的结果（透明背景），换底色只在显示和导出时叠加 */
+let resultCanvas: HTMLCanvasElement | null = null;
+const hasResult = ref(false);
+
+let reqId = 0;
+/** 换图片时的请求序号，之前发出的计算结果作废 */
+let imageReq = 0;
+let busy = false;
+let queued = false;
+
+/** 按当前设置重新计算；上一次还没算完时只保留最新的一次，拖动滑块也跟得上 */
+const render = () => {
+  if (!source.value) return;
+  if (busy) {
+    queued = true;
+    return;
+  }
+  busy = true;
+  worker.postMessage({
+    type: "run",
+    id: ++reqId,
+    colors: picks.value.map((p) => [...p.color]),
+    seeds: picks.value.flatMap((p) => p.seeds),
+    tolerance: tolerance.value,
+    feather: feather.value,
+    contiguous: contiguous.value,
+  });
+};
+
+worker.onmessage = (e: MessageEvent<{ id: number; pixels: Uint8ClampedArray<ArrayBuffer> }>) => {
+  busy = false;
+  const s = source.value;
+  if (s && resultCanvas && e.data.id > imageReq) {
+    resultCanvas.getContext("2d")!.putImageData(new ImageData(e.data.pixels, s.width, s.height), 0, 0);
+    hasResult.value = true;
+    drawView();
+  }
+  if (queued) {
+    queued = false;
+    render();
+  }
+};
 
 const onFiles = async ([file]: File[]) => {
   loadError.value = "";
@@ -49,43 +101,47 @@ const onFiles = async ([file]: File[]) => {
     ctx.drawImage(img, 0, 0);
     const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
     fileName.value = file.name;
-    source.value = { data, width: canvas.width, height: canvas.height };
     sourceCanvas = canvas;
+    resultCanvas = createCanvas(canvas.width, canvas.height).canvas;
+    hasResult.value = false;
     masks.clear();
-    autoDetect();
+    picks.value = [];
+    resetView();
+    const copy = new Uint8ClampedArray(data.data);
+    worker.postMessage({ type: "image", data: copy, width: canvas.width, height: canvas.height }, [copy.buffer]);
+    imageReq = reqId;
+    source.value = { data, width: canvas.width, height: canvas.height };
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : String(e);
   }
 };
 
-// ---------- 处理与预览 ----------
+// ---------- 预览 ----------
 const view = ref<HTMLCanvasElement>();
 const size = computed(() => (source.value ? { width: source.value.width, height: source.value.height } : null));
 const { observeArea, frameStyle } = useFitFrame(size);
+// 滚轮缩放、按住拖动平移，放大后更容易点准残留的背景；不拖动直接松开才算点选
+const { MIN_ZOOM, MAX_ZOOM, zoom, panning, style: zoomStyle, reset: resetView, zoomAt, onWheel, onDown, onMove, onUp } = useZoomPan();
+const onPointerUp = (e: PointerEvent) => onUp() && onPick(e);
 
-/** 去掉背景后的结果（透明背景），换底色只在显示和导出时叠加 */
-const result = shallowRef<HTMLCanvasElement | null>(null);
-
-let timer: ReturnType<typeof setTimeout> | undefined;
-const process = () => {
-  clearTimeout(timer);
-  if (mode.value === "ai") return processAi();
-  // 拖动滑块时稍等片刻再计算，大图也不会卡
-  timer = setTimeout(async () => {
-    const s = source.value;
-    if (!s) return;
-    const pixels = removeBackground(s.data.data, s.width, s.height, {
-      colors: bgColors.value,
-      tolerance: tolerance.value,
-      feather: feather.value,
-      contiguous: contiguous.value,
-    });
-    const { canvas, ctx } = createCanvas(s.width, s.height);
-    ctx.putImageData(new ImageData(pixels, s.width, s.height), 0, 0);
-    result.value = canvas;
-  }, 120);
+/** 结果叠加新底色画到预览上 */
+const drawView = () => {
+  const v = view.value;
+  const r = resultCanvas;
+  if (!v || !r || !hasResult.value) return;
+  if (v.width !== r.width || v.height !== r.height) {
+    v.width = r.width;
+    v.height = r.height;
+  }
+  const ctx = v.getContext("2d")!;
+  ctx.clearRect(0, 0, v.width, v.height);
+  if (fill.value !== "transparent") {
+    ctx.fillStyle = fill.value;
+    ctx.fillRect(0, 0, v.width, v.height);
+  }
+  ctx.drawImage(r, 0, 0);
 };
-watch([source, bgColors, tolerance, feather, contiguous, mode, modelId], process, { deep: true });
+watch([fill, view], drawView);
 
 // ---------- AI 识别 ----------
 let sourceCanvas: HTMLCanvasElement | null = null;
@@ -101,30 +157,39 @@ const isReady = (m: AiModel) => m.builtin || downloaded.value.includes(m.id);
 const currentModel = computed(() => (isReady(modelById(modelId.value)) ? modelById(modelId.value) : AI_MODELS[0]));
 
 let run = 0;
-async function processAi() {
+/** 识别主体（同一模型只算一次），把蒙版交给后台线程后重新计算 */
+async function updateMask() {
   const s = source.value;
   if (!s || !sourceCanvas) return;
-  const model = currentModel.value;
   const id = ++run;
   aiError.value = "";
-  let mask = masks.get(model.id);
-  if (!mask) {
-    recognizing.value = true;
-    try {
-      mask = await segment(sourceCanvas, s.width, s.height, model);
-      masks.set(model.id, mask);
-    } catch (e) {
-      if (id === run) aiError.value = e instanceof Error ? e.message : String(e);
-      return;
-    } finally {
-      if (id === run) recognizing.value = false;
+  recognizing.value = false;
+  let mask: Uint8ClampedArray | null = null;
+  if (useAi.value) {
+    const model = currentModel.value;
+    mask = masks.get(model.id) ?? null;
+    if (!mask) {
+      // 识别期间先显示原图（以及已点选颜色的去除效果）
+      worker.postMessage({ type: "mask", mask: null });
+      render();
+      recognizing.value = true;
+      try {
+        mask = await segment(sourceCanvas, s.width, s.height, model);
+        masks.set(model.id, mask);
+      } catch (e) {
+        if (id === run) aiError.value = e instanceof Error ? e.message : String(e);
+        return;
+      } finally {
+        if (id === run) recognizing.value = false;
+      }
     }
   }
   if (id !== run) return;
-  const { canvas, ctx } = createCanvas(s.width, s.height);
-  ctx.putImageData(new ImageData(applyMask(s.data.data, mask), s.width, s.height), 0, 0);
-  result.value = canvas;
+  worker.postMessage({ type: "mask", mask });
+  render();
 }
+watch([source, useAi, currentModel], updateMask);
+watch([picks, tolerance, feather, contiguous], render);
 
 const selectModel = (m: AiModel) => isReady(m) && (modelId.value = m.id);
 
@@ -150,9 +215,40 @@ const remove = async (m: AiModel) => {
   if (modelId.value === m.id) modelId.value = "u2netp";
 };
 
+// ---------- 点选背景色 ----------
+
+/** 点击图片：取这个位置的颜色作为背景色去除 */
+const onPick = (e: MouseEvent) => {
+  const s = source.value;
+  if (recognizing.value || !s || !view.value) return;
+  const rect = view.value.getBoundingClientRect();
+  const fx = (e.clientX - rect.left) / rect.width;
+  const fy = (e.clientY - rect.top) / rect.height;
+  // 点在图片外面（放大、平移后的空白处）不取色
+  if (fx < 0 || fy < 0 || fx > 1 || fy > 1) return;
+  // 点在最边上时坐标可能因舍入超出图片，限制在范围内
+  const x = Math.max(0, Math.min(s.width - 1, Math.floor(fx * s.width)));
+  const y = Math.max(0, Math.min(s.height - 1, Math.floor(fy * s.height)));
+  const seed = y * s.width + x;
+  const i = seed * 4;
+  const color: Rgb = [s.data.data[i], s.data.data[i + 1], s.data.data[i + 2]];
+  // 和已有颜色非常接近的不重复添加，只记下点击位置
+  const near = picks.value.findIndex(({ color: c }) => Math.hypot(c[0] - color[0], c[1] - color[1], c[2] - color[2]) < 12);
+  if (near >= 0) picks.value = picks.value.map((p, j) => (j === near ? { ...p, seeds: [...p.seeds, seed] } : p));
+  else picks.value = [...picks.value, { color, seeds: [seed] }].slice(-MAX_COLORS);
+};
+
+const removePick = (index: number) => {
+  picks.value = picks.value.filter((_, i) => i !== index);
+};
+
+const hexOf = (c: Rgb) => toHex({ r: c[0], g: c[1], b: c[2], a: 1 });
+
+// ---------- 导出 ----------
+
 /** 叠加新底色后的最终图片 */
 const compose = () => {
-  const r = result.value!;
+  const r = resultCanvas!;
   const { canvas, ctx } = createCanvas(r.width, r.height);
   if (fill.value !== "transparent") {
     ctx.fillStyle = fill.value;
@@ -162,48 +258,9 @@ const compose = () => {
   return canvas;
 };
 
-watch([result, fill], async () => {
-  await nextTick();
-  const v = view.value;
-  if (!v || !result.value) return;
-  const out = compose();
-  v.width = out.width;
-  v.height = out.height;
-  v.getContext("2d")!.drawImage(out, 0, 0);
-});
-
-// ---------- 背景色列表 ----------
-
-/** 从图片边缘自动识别最主要的几种颜色 */
-const autoDetect = () => {
-  const s = source.value;
-  if (s) bgColors.value = detectBackgroundColors(s.data.data, s.width, s.height, 3);
-};
-
-/** 吸管：点击图片添加一种背景色（可以连续点击多处） */
-const onPick = (e: MouseEvent) => {
-  const s = source.value;
-  if (!picking.value || !s || !view.value) return;
-  const rect = view.value.getBoundingClientRect();
-  const x = Math.min(s.width - 1, Math.floor(((e.clientX - rect.left) / rect.width) * s.width));
-  const y = Math.min(s.height - 1, Math.floor(((e.clientY - rect.top) / rect.height) * s.height));
-  const i = (y * s.width + x) * 4;
-  const color: Rgb = [s.data.data[i], s.data.data[i + 1], s.data.data[i + 2]];
-  // 和已有颜色非常接近的不重复添加
-  const exists = bgColors.value.some((c) => Math.hypot(c[0] - color[0], c[1] - color[1], c[2] - color[2]) < 12);
-  if (!exists) bgColors.value = [...bgColors.value, color].slice(-MAX_COLORS);
-};
-
-const removeColor = (index: number) => {
-  bgColors.value = bgColors.value.filter((_, i) => i !== index);
-};
-
-const hexOf = (c: Rgb) => toHex({ r: c[0], g: c[1], b: c[2], a: 1 });
-
-// ---------- 导出 ----------
 const saved = ref(false);
 const save = async () => {
-  if (!result.value) return;
+  if (!hasResult.value) return;
   // 透明背景只能用 PNG；换了底色用 JPG 体积更小
   const transparent = fill.value === "transparent";
   const bytes = await canvasToBytes(compose(), transparent ? "image/png" : "image/jpeg", 0.95);
@@ -219,60 +276,52 @@ const save = async () => {
   <div class="removebg">
     <aside class="card panel">
       <section class="section">
-        <div class="seg modes">
-          <button :class="{ on: mode === 'ai' }" title="自动识别人物、商品、动物等主体，适合照片" @click="mode = 'ai'"><Sparkles :size="13" />AI 识别</button>
-          <button :class="{ on: mode === 'color' }" title="去除纯色背景，适合 Logo、签名、截图" @click="mode = 'color'"><Pipette :size="13" />按颜色</button>
-        </div>
-      </section>
-
-      <section v-if="mode === 'ai'" class="section">
-        <h3>模型</h3>
-        <div class="models">
-          <div
-            v-for="m in AI_MODELS"
-            :key="m.id"
-            class="model"
-            :class="{ on: currentModel.id === m.id, ready: isReady(m) }"
-            @click="selectModel(m)"
-          >
-            <div class="model-head">
-              <b>{{ m.name }}</b>
-              <span v-if="m.builtin" class="badge">内置</span>
-              <span v-else-if="isReady(m)" class="badge ok"><CircleCheck :size="11" />已下载</span>
-              <span class="size">{{ formatBytes(m.size) }}</span>
-            </div>
-            <p>{{ m.desc }}</p>
-            <div v-if="progress[m.id] !== undefined" class="progress"><i :style="{ width: `${progress[m.id] * 100}%` }" /></div>
-            <template v-else-if="!isReady(m)">
-              <button v-if="canDownload()" class="btn small" @click.stop="download(m)"><Download :size="12" />下载到本机</button>
-              <span v-else class="hint-text">桌面版可下载</span>
-            </template>
-            <button v-else-if="!m.builtin" class="icon-btn del" title="删除这个模型，释放空间" @click.stop="remove(m)"><Trash2 :size="12" /></button>
-          </div>
-        </div>
-        <p v-if="aiError" class="error">{{ aiError }}</p>
-        <p v-else class="tip">下载的模型保存在本机，之后无需联网</p>
-      </section>
-
-      <section v-if="mode === 'color'" class="section">
         <h3>
-          要去除的背景色
-          <button class="link" title="按图片边缘重新识别" @click="autoDetect">重新识别</button>
+          <Sparkles :size="13" />AI 识别主体
+          <label class="switch" title="Logo、签名等纯色背景可以关掉，只按点选的颜色去除"><input v-model="useAi" type="checkbox" />开启</label>
+        </h3>
+        <template v-if="useAi">
+          <div class="models">
+            <div
+              v-for="m in AI_MODELS"
+              :key="m.id"
+              class="model"
+              :class="{ on: currentModel.id === m.id, ready: isReady(m) }"
+              @click="selectModel(m)"
+            >
+              <div class="model-head">
+                <b>{{ m.name }}</b>
+                <span v-if="m.builtin" class="badge">内置</span>
+                <span v-else-if="isReady(m)" class="badge ok"><CircleCheck :size="11" />已下载</span>
+                <span class="size">{{ formatBytes(m.size) }}</span>
+              </div>
+              <p>{{ m.desc }}</p>
+              <div v-if="progress[m.id] !== undefined" class="progress"><i :style="{ width: `${progress[m.id] * 100}%` }" /></div>
+              <template v-else-if="!isReady(m)">
+                <button v-if="canDownload()" class="btn small" @click.stop="download(m)"><Download :size="12" />下载到本机</button>
+                <span v-else class="hint-text">桌面版可下载</span>
+              </template>
+              <button v-else-if="!m.builtin" class="icon-btn del" title="删除这个模型，释放空间" @click.stop="remove(m)"><Trash2 :size="12" /></button>
+            </div>
+          </div>
+          <p v-if="aiError" class="error">{{ aiError }}</p>
+          <p v-else class="tip">下载的模型保存在本机，之后无需联网</p>
+        </template>
+        <p v-else class="tip">已关闭，只按点选的颜色去除背景，适合 Logo、签名、截图</p>
+      </section>
+
+      <section class="section">
+        <h3>
+          <Pipette :size="13" />点选去除的背景色
+          <button v-if="picks.length" class="link" title="清空点选的颜色" @click="picks = []">清空</button>
         </h3>
         <div class="colors">
-          <span v-for="(c, i) in bgColors" :key="hexOf(c) + i" class="color-chip" :title="hexOf(c)">
-            <i :style="{ background: hexOf(c) }" />
-            <button title="移除这个颜色" @click="removeColor(i)"><X :size="11" /></button>
+          <span v-for="(p, i) in picks" :key="hexOf(p.color) + i" class="color-chip" :title="hexOf(p.color)">
+            <i :style="{ background: hexOf(p.color) }" />
+            <button title="移除这个颜色" @click="removePick(i)"><X :size="11" /></button>
           </span>
-          <span v-if="!bgColors.length" class="tip">还没有背景色</span>
+          <span v-if="!picks.length" class="tip">在图片上点击残留的背景，就会去掉这种颜色</span>
         </div>
-        <button class="btn small" :class="{ primary: picking }" :disabled="!source || (bgColors.length >= MAX_COLORS && !picking)" @click="picking = !picking">
-          <Pipette :size="13" />{{ picking ? "完成取色" : "吸管添加颜色" }}
-        </button>
-        <p class="tip">背景有渐变、阴影或多种颜色时，用吸管在残留的地方多点几下</p>
-      </section>
-
-      <section v-if="mode === 'color'" class="section">
         <label class="slider">
           <span>容差</span>
           <input v-model.number="tolerance" type="range" min="1" max="60" />
@@ -283,8 +332,8 @@ const save = async () => {
           <input v-model.number="feather" type="range" min="0" max="40" />
           <em>{{ feather }}</em>
         </label>
-        <label class="check"><input v-model="contiguous" type="checkbox" />只去除与边缘相连的背景</label>
-        <p class="tip">容差越大去除越多；主体里有和背景相近的颜色时，保持勾选「只去除与边缘相连」</p>
+        <label class="check"><input v-model="contiguous" type="checkbox" />只去除相连的区域</label>
+        <p class="tip">容差越大去除越多；主体里有和背景相近的颜色时，保持勾选「只去除相连的区域」</p>
       </section>
 
       <section class="section">
@@ -299,19 +348,21 @@ const save = async () => {
             :title="p.label"
             @click="fill = p.value"
           />
-          <label class="fill custom" :class="{ on: !PRESETS.some((p) => p.value === fill) }" title="自定义颜色">
-            <input
-              type="color"
-              :value="fill === 'transparent' ? '#ffffff' : fill"
-              @input="fill = ($event.target as HTMLInputElement).value"
-            />
-          </label>
+          <ColorPicker
+            class="fill custom"
+            :class="{ on: !PRESETS.some((p) => p.value === fill) }"
+            title="自定义颜色"
+            :model-value="fill === 'transparent' ? '#ffffff' : fill"
+            @update:model-value="fill = $event"
+          >
+            <span />
+          </ColorPicker>
         </div>
         <p class="tip">证件照可以直接换成白、蓝、红底</p>
       </section>
 
       <section class="section">
-        <button class="btn primary full" :disabled="!result || recognizing" @click="save">
+        <button class="btn primary full" :disabled="!hasResult || recognizing" @click="save">
           <Download :size="14" />{{ saved ? "已保存" : fill === "transparent" ? "下载 PNG（透明背景）" : "下载 JPG" }}
         </button>
       </section>
@@ -320,7 +371,12 @@ const save = async () => {
     <section class="card stage">
       <header class="card-title">
         <span class="file" :title="fileName">{{ fileName || "未选择图片" }}</span>
-        <span class="hint">{{ recognizing ? "正在识别主体…" : picking && mode === "color" ? "点击图片上要去除的背景，可以连续点多处" : "" }}</span>
+        <span class="hint">{{ recognizing ? "正在识别主体…" : source ? "点击残留的背景即可去除，滚轮缩放，按住拖动" : "" }}</span>
+        <div v-if="source" class="zoom">
+          <button class="icon-btn" title="缩小" :disabled="zoom <= MIN_ZOOM" @click="zoomAt(zoom / 1.5)"><ZoomOut :size="14" /></button>
+          <button class="zoom-value" title="恢复为适应窗口" @click="resetView">{{ Math.round(zoom * 100) }}%</button>
+          <button class="icon-btn" title="放大" :disabled="zoom >= MAX_ZOOM" @click="zoomAt(zoom * 1.5)"><ZoomIn :size="14" /></button>
+        </div>
         <label v-if="source" class="btn small subtle">
           <RefreshCw :size="14" />更换
           <input type="file" accept="image/*" hidden @change="onFiles([...(($event.target as HTMLInputElement).files ?? [])])" />
@@ -331,14 +387,24 @@ const save = async () => {
         class="drop"
         accept="image/*"
         title="拖入图片，或点击选择"
-        hint="人像、商品、动物等照片用 AI 识别；纯色背景的 Logo、签名用按颜色去除。也可以按 Ctrl + V 粘贴"
+        hint="自动用 AI 识别主体去除背景，残留的背景点一下即可去掉。也可以按 Ctrl + V 粘贴"
         @files="onFiles"
       >
         <span v-if="loadError" class="load-error">{{ loadError }}</span>
       </FileDropZone>
-      <div v-else :ref="observeArea" class="area checker">
-        <div class="frame" :style="frameStyle">
-          <canvas ref="view" :class="{ picking: picking && mode === 'color' }" @click="mode === 'color' && onPick($event)" />
+      <div
+        v-else
+        :ref="observeArea"
+        class="area checker"
+        :class="{ picking: !recognizing, panning }"
+        @wheel.prevent="onWheel"
+        @pointerdown="onDown"
+        @pointermove="onMove"
+        @pointerup="onPointerUp"
+        @pointercancel="onUp"
+      >
+        <div class="frame" :style="[frameStyle, zoomStyle]">
+          <canvas ref="view" />
         </div>
         <div v-if="recognizing" class="busy"><LoaderCircle :size="22" class="spin" />正在识别主体…</div>
       </div>
@@ -347,17 +413,21 @@ const save = async () => {
 </template>
 
 <style scoped>
-/* 两个按钮平分一整行（.fill 已用于底色色块，这里用 .modes） */
-.seg.modes {
-  display: flex;
+h3 svg {
+  margin-right: 5px;
 }
-.seg.modes button {
-  flex: 1;
-  height: 30px;
+/* 标题右侧的开关 */
+.switch {
+  margin-left: auto;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 5px;
+  gap: 4px;
+  font-weight: 400;
+  cursor: pointer;
+}
+.switch input {
+  margin: 0;
+  accent-color: var(--accent);
 }
 .models {
   display: flex;
@@ -502,6 +572,10 @@ const save = async () => {
 }
 .card-title .hint {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 400;
   color: var(--accent);
 }
@@ -516,6 +590,9 @@ const save = async () => {
   min-height: 200px;
   margin: 12px;
   border-radius: 8px;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
 }
 .frame {
   position: absolute;
@@ -527,8 +604,39 @@ const save = async () => {
   width: 100%;
   height: 100%;
 }
-canvas.picking {
+.area.picking {
   cursor: crosshair;
+}
+.area.panning {
+  cursor: grabbing;
+}
+.zoom {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.zoom .icon-btn {
+  width: 26px;
+  height: 26px;
+}
+.zoom .icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.zoom-value {
+  min-width: 48px;
+  height: 26px;
+  padding: 0 4px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.zoom-value:hover {
+  background: var(--hover);
 }
 /* 棋盘格表示透明 */
 .checker,
@@ -657,12 +765,6 @@ h3 {
 .fill.custom {
   overflow: hidden;
   background: conic-gradient(#f87171, #fbbf24, #34d399, #60a5fa, #a78bfa, #f87171);
-}
-.fill.custom input {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
 }
 .btn.full {
   width: 100%;

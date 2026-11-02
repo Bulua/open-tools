@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from "vue";
 import { ChevronLeft, ChevronRight, Download, X } from "lucide-vue-next";
+import ColorPicker from "@/components/common/ColorPicker.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { useFitFrame } from "@/composables/useFitFrame";
@@ -305,7 +306,7 @@ const toNumber = (e: Event, max: number) => Math.min(max, Math.max(0, Math.round
       <section class="section">
         <h3>背景</h3>
         <div class="row">
-          <input v-model="background" class="color" type="color" :disabled="transparent" />
+          <ColorPicker v-model="background" :disabled="transparent" />
           <span class="mono">{{ transparent ? "透明" : background }}</span>
           <label class="check push"><input v-model="transparent" type="checkbox" />透明</label>
         </div>
@@ -471,15 +472,6 @@ h3 {
 .free-box:hover .handle,
 .free-box.selected .handle {
   opacity: 1;
-}
-.color {
-  width: 32px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  background: none;
-  cursor: pointer;
 }
 .mono {
   font-family: var(--font-mono);

@@ -43,7 +43,8 @@ export function parseColor(input: string): Rgba | null {
   return { ...hslToRgb(h, sat, light), a: alpha };
 }
 
-function hslToRgb(h: number, s: number, l: number) {
+/** h 0～360，s、l 0～1 */
+export function hslToRgb(h: number, s: number, l: number) {
   const k = (n: number) => (n + h / 30) % 12;
   const a = s * Math.min(l, 1 - l);
   const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
@@ -76,4 +77,22 @@ export function toRgb(c: Rgba): string {
 export function toHsl(c: Rgba): string {
   const { h, s, l } = rgbToHsl(c);
   return c.a < 1 ? `hsla(${h}, ${s}%, ${l}%, ${c.a})` : `hsl(${h}, ${s}%, ${l}%)`;
+}
+
+/** HSV（取色板用）：h 0～360，s、v 0～1 */
+export function rgbToHsv({ r, g, b }: { r: number; g: number; b: number }) {
+  const [rr, gg, bb] = [r, g, b].map((v) => v / 255);
+  const max = Math.max(rr, gg, bb);
+  const d = max - Math.min(rr, gg, bb);
+  let h = 0;
+  if (d) h = (max === rr ? (gg - bb) / d + (gg < bb ? 6 : 0) : max === gg ? (bb - rr) / d + 2 : (rr - gg) / d + 4) * 60;
+  return { h, s: max ? d / max : 0, v: max };
+}
+
+export function hsvToRgb(h: number, s: number, v: number) {
+  const f = (n: number) => {
+    const k = (n + h / 60) % 6;
+    return Math.round((v - v * s * Math.max(0, Math.min(k, 4 - k, 1))) * 255);
+  };
+  return { r: f(5), g: f(3), b: f(1) };
 }

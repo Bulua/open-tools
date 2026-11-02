@@ -2,6 +2,7 @@
 import { computed, ref, shallowRef, watch } from "vue";
 import AppSelect from "@/components/common/AppSelect.vue";
 import { Download, FileText, Plus, X } from "lucide-vue-next";
+import ColorPicker from "@/components/common/ColorPicker.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { saveFiles } from "@/utils/saveFile";
@@ -200,7 +201,7 @@ const download = async () => {
           </div>
           <div class="row">
             <AppSelect v-model="font" class="select" :options="FONTS.map((f) => ({ value: f, label: f }))" title="字体" />
-            <input v-model="color" class="color" type="color" title="颜色" />
+            <ColorPicker v-model="color" title="颜色" />
             <label class="check"><input v-model="bold" type="checkbox" />粗体</label>
           </div>
           <div class="row">
@@ -415,16 +416,6 @@ h3 {
   flex: 0 0 auto;
   font-size: 12px;
   color: var(--text-2);
-}
-.color {
-  flex-shrink: 0;
-  width: 32px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  background: none;
-  cursor: pointer;
 }
 .slider {
   display: flex;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   anchorPosition,
+  colorDistances,
   contentBounds,
   detectBackgroundColor,
   detectBackgroundColors,
@@ -164,6 +165,49 @@ describe("去背景", () => {
     const a = alphaAt(out, 3, 1, 0);
     expect(a).toBeGreaterThan(0);
     expect(a).toBeLessThan(255);
+  });
+
+  it("点击的位置也作为起点，主体里围住的背景能去掉", () => {
+    const out = removeBackground(make(), 10, 10, { colors: [[255, 255, 255]], tolerance: 10, feather: 0, contiguous: true, seeds: [4 * 10 + 4] });
+    expect(alphaAt(out, 10, 4, 4)).toBe(0);
+    expect(alphaAt(out, 10, 5, 5)).toBe(0);
+    expect(alphaAt(out, 10, 3, 3)).toBe(255);
+  });
+
+  describe("在 AI 蒙版的基础上去除", () => {
+    // 白底中间一个红色方块，上方有一块浅灰残留（不碰边缘）；AI 只去掉了左半边
+    const data = () =>
+      image(10, 10, [255, 255, 255, 255], (x, y) => {
+        if (x >= 3 && x <= 6 && y >= 3 && y <= 6) return [220, 30, 30, 255];
+        return x >= 5 && x <= 6 && y === 1 ? [200, 200, 200, 255] : null;
+      });
+    const mask = new Uint8ClampedArray(100).map((_, p) => (p % 10 < 5 ? 0 : 255));
+
+    it("没有选颜色时直接应用蒙版", () => {
+      const out = removeBackground(data(), 10, 10, { colors: [], tolerance: 10, feather: 0, contiguous: true, mask });
+      expect(alphaAt(out, 10, 0, 0)).toBe(0);
+      expect(alphaAt(out, 10, 9, 9)).toBe(255);
+    });
+
+    it("扩散能穿过 AI 已去掉的区域，到达残留的背景", () => {
+      // 灰色残留不与边缘相连，但挨着 AI 已去掉的区域
+      const out = removeBackground(data(), 10, 10, { colors: [[200, 200, 200]], tolerance: 5, feather: 0, contiguous: true, mask });
+      expect(alphaAt(out, 10, 5, 1)).toBe(0);
+      expect(alphaAt(out, 10, 6, 1)).toBe(0);
+      expect(alphaAt(out, 10, 9, 9)).toBe(255); // 没选的白色保留
+      expect(alphaAt(out, 10, 4, 4)).toBe(0); // 蒙版已去掉的保持透明
+      expect(alphaAt(out, 10, 6, 6)).toBe(255);
+    });
+  });
+
+  it("追加颜色时增量计算距离，与一次算完结果相同", () => {
+    const colors: [number, number, number][] = [
+      [255, 255, 255],
+      [220, 30, 30],
+    ];
+    const once = colorDistances(make(), colors);
+    const step = colorDistances(make(), colors.slice(1), colorDistances(make(), colors.slice(0, 1)));
+    expect(step).toEqual(once);
   });
 });
 
