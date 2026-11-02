@@ -1,18 +1,36 @@
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed, onMounted, watch } from "vue";
 import { CircleAlert, CircleCheck, LoaderCircle, RefreshCw, X } from "lucide-vue-next";
 import { useUpdater } from "@/composables/useUpdater";
 
-/** 检查更新对话框：显示当前版本、新版本说明、下载进度 */
+/**
+ * 更新对话框：显示当前版本、新版本的更新内容、下载进度。
+ * 自动检查发现新版本时弹出，点右上角的更新按钮也打开它；已是最新版本时显示当前版本的更新内容。
+ */
 const emit = defineEmits<{ close: [] }>();
-const { supported, status, currentVersion, newVersion, notes, progress, error, lastChecked, checkForUpdate, installUpdate, loadCurrentVersion } =
-  useUpdater();
+const {
+  supported,
+  status,
+  currentVersion,
+  newVersion,
+  notes,
+  currentNotes,
+  progress,
+  error,
+  lastChecked,
+  checkForUpdate,
+  installUpdate,
+  skipVersion,
+  loadCurrentVersion,
+  loadCurrentNotes,
+} = useUpdater();
 
 onMounted(() => {
   loadCurrentVersion();
   // 打开对话框时，如果还没检查过或上次出错，就检查一次
   if (status.value === "idle" || status.value === "error" || status.value === "latest") checkForUpdate();
 });
+watch(status, (s) => s === "latest" && loadCurrentNotes(), { immediate: true });
 
 const busy = () => status.value === "downloading" || status.value === "installing";
 /** 可以手动重新检查：正在检查、下载、安装时不行 */
@@ -25,7 +43,7 @@ const close = () => !busy() && emit("close");
   <div class="overlay" @mousedown.self="close">
     <div class="dialog" role="dialog" aria-label="检查更新" @keydown.esc="close">
       <header class="head">
-        <h2>检查更新</h2>
+        <h2>{{ status === "available" ? "发现新版本" : "检查更新" }}</h2>
         <div class="head-actions">
           <button v-if="supported" class="icon-btn" :class="{ spinning: status === 'checking' }" title="重新检查" :disabled="!canRecheck" @click="checkForUpdate()">
             <RefreshCw :size="15" />
@@ -44,11 +62,18 @@ const close = () => !busy() && emit("close");
 
         <p v-else-if="status === 'checking'" class="state"><LoaderCircle :size="16" class="spin" />正在检查新版本…</p>
 
-        <p v-else-if="status === 'latest'" class="state ok"><CircleCheck :size="16" />已是最新版本</p>
+        <template v-else-if="status === 'latest'">
+          <p class="state ok"><CircleCheck :size="16" />已是最新版本</p>
+          <template v-if="currentNotes">
+            <h3>本版本更新内容</h3>
+            <div class="notes">{{ currentNotes }}</div>
+          </template>
+        </template>
 
         <template v-else-if="status === 'available'">
-          <p class="state accent">发现新版本 <b>v{{ newVersion }}</b></p>
-          <div v-if="notes" class="notes">{{ notes }}</div>
+          <p class="state accent">新版本 <b>v{{ newVersion }}</b> 已发布</p>
+          <h3>更新内容</h3>
+          <div class="notes">{{ notes || "这个版本没有填写更新说明" }}</div>
         </template>
 
         <template v-else-if="status === 'downloading' || status === 'installing'">
@@ -64,6 +89,7 @@ const close = () => !busy() && emit("close");
 
       <footer class="foot">
         <template v-if="status === 'available'">
+          <button class="btn subtle skip" title="自动检查到这个版本时不再提醒，之后仍可以在右上角手动更新" @click="skipVersion">跳过此版本</button>
           <button class="btn subtle" @click="close">稍后</button>
           <button class="btn primary" @click="installUpdate">立即更新</button>
         </template>
@@ -154,6 +180,16 @@ h2 {
 .state.accent b {
   color: var(--accent);
   font-weight: 600;
+}
+h3 {
+  margin: 0 0 -4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+.skip {
+  margin-right: auto;
+  color: var(--text-3);
 }
 .notes {
   max-height: 200px;

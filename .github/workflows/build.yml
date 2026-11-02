@@ -50,15 +50,22 @@ jobs:
           npm test
 
       # 版本说明来自标签附带的文字：git tag -a v0.2.0 -m "更新内容"
+      # 只写了版本号或没写时，用上一个版本以来的 feat / fix / perf 提交生成（显示在程序的更新对话框里）
       - name: 读取版本说明
         id: notes
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
         run: |
           git fetch --tags --force
+          notes=$(git tag -l --format='%(contents)' "$GITHUB_REF_NAME")
+          trimmed=$(printf '%s' "$notes" | tr -d '[:space:]')
+          if [ -z "$trimmed" ] || [ "$trimmed" = "$GITHUB_REF_NAME" ] || [ "$trimmed" = "${GITHUB_REF_NAME#v}" ]; then
+            prev=$(git tag -l 'v*' --sort=-v:refname | grep -x -A1 "$GITHUB_REF_NAME" | sed -n 2p)
+            notes=$(node scripts/release-notes.mjs "${prev:+$prev..}$GITHUB_REF_NAME")
+          fi
           {
             echo "body<<NOTES_EOF"
-            git tag -l --format='%(contents)' "$GITHUB_REF_NAME"
+            printf '%s\n' "$notes"
             echo "NOTES_EOF"
           } >> "$GITHUB_OUTPUT"
 
