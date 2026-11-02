@@ -18,6 +18,18 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
+}
+
+/*
+ * 页面上的文字（结果、说明、文件名等）可以选中复制；
+ * 按钮、复选框标签、可拖动的行等操作元素不参与选择，避免点击、拖动时误选中文字
+ */
+button,
+label,
+[role="tab"],
+[draggable="true"],
+.seg,
+svg {
   user-select: none;
 }
 
@@ -36,11 +48,6 @@ button {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-}
-
-textarea,
-input {
-  user-select: text;
 }
 
 kbd {

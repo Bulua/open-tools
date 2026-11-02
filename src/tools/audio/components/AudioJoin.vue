@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { computed, ref, shallowRef } from "vue";
+import { computed, ref, shallowRef, watch } from "vue";
 import { ArrowDown, ArrowUp, Download, GripVertical, Pause, Play, X } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { saveFile } from "@/utils/saveFile";
 import OutputFormat from "./OutputFormat.vue";
+import Waveform from "./Waveform.vue";
 import { decodeFile, encodeAudio, resample, usePlayer } from "../audio";
 import { concat, duration, formatTime, type Pcm } from "../pcm";
 import { useOutputFormat } from "../useOutputFormat";
 
 /**
  * 音频拼接：多个音频按顺序拼成一个，拖动或用箭头调整顺序，片段之间可以留一点空白。
+ * 下方的音轨显示拼接后的效果，可以直接试听。
  */
 interface Item {
   id: number;
@@ -66,6 +68,41 @@ const total = computed(() => items.value.reduce((s, i) => s + duration(i.pcm), 0
 const player = usePlayer();
 const togglePlay = (item: Item) => (player.playingKey.value === item.id ? player.stop() : player.play(item.pcm, 0, undefined, item.id));
 
+/** 按顺序拼接：统一到最高的采样率 */
+const joinAll = async (list: Item[]) => {
+  const rate = Math.max(...list.map((i) => i.pcm.sampleRate));
+  const parts = await Promise.all(list.map((i) => resample(i.pcm, rate)));
+  return concat(parts, gap.value);
+};
+
+// ---------- 拼接后的音轨：顺序、空白变化后重新生成 ----------
+const joined = shallowRef<Pcm | null>(null);
+const joinedPosition = ref(0);
+let joinToken = 0;
+watch(
+  [items, gap],
+  async () => {
+    const current = ++joinToken;
+    if (player.playingKey.value === "all") player.stop();
+    joinedPosition.value = 0;
+    if (!items.value.length) return (joined.value = null);
+    const result = await joinAll(items.value);
+    if (current === joinToken) joined.value = result;
+  },
+  { immediate: true },
+);
+watch(player.position, (t) => player.playingKey.value === "all" && (joinedPosition.value = t));
+const toggleJoined = () => {
+  if (!joined.value) return;
+  if (player.playingKey.value === "all") return player.stop();
+  const from = joinedPosition.value >= duration(joined.value) - 0.05 ? 0 : joinedPosition.value;
+  player.play(joined.value, from, undefined, "all");
+};
+const seekJoined = (t: number) => {
+  joinedPosition.value = t;
+  if (player.playingKey.value === "all" && joined.value) player.play(joined.value, t, undefined, "all");
+};
+
 // ---------- 导出 ----------
 const { format, quality } = useOutputFormat();
 const saving = ref(false);
@@ -73,10 +110,7 @@ const save = async () => {
   saving.value = true;
   error.value = "";
   try {
-    // 统一到最高的采样率再拼接
-    const rate = Math.max(...items.value.map((i) => i.pcm.sampleRate));
-    const parts = await Promise.all(items.value.map((i) => resample(i.pcm, rate)));
-    const data = await encodeAudio(concat(parts, gap.value), format.value, quality.value);
+    const data = await encodeAudio(joined.value ?? (await joinAll(items.value)), format.value, quality.value);
     await saveFile(data, `拼接音频.${format.value}`);
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
@@ -149,6 +183,20 @@ const save = async () => {
         </ol>
         <FileDropZone compact class="more" accept="audio/*,video/*,.m4a,.flac,.ogg,.aac" multiple :paste="false" :title="loading ? '正在读取…' : '继续添加音频'" @files="addFiles" />
       </template>
+      <!-- 拼接后的音轨：没有音频时显示一条空的音轨 -->
+      <div class="joined">
+        <div class="joined-head">
+          <button class="joined-play" :disabled="!joined" :title="player.playingKey.value === 'all' ? '暂停' : '试听拼接效果'" @click="toggleJoined">
+            <Pause v-if="player.playingKey.value === 'all'" :size="16" />
+            <Play v-else :size="16" />
+          </button>
+          <span class="joined-title">拼接效果</span>
+          <span class="joined-time">{{ formatTime(joinedPosition, false) }} / {{ formatTime(joined ? duration(joined) : 0, false) }}</span>
+        </div>
+        <Waveform class="joined-wave" :pcm="joined" :position="joined ? joinedPosition : null" :selectable="false" @seek="seekJoined">
+          <span v-if="!joined" class="joined-empty">添加音频后在这里显示拼接后的音轨，可以试听</span>
+        </Waveform>
+      </div>
     </section>
   </div>
 </template>
@@ -225,10 +273,65 @@ h3 {
   margin: 12px;
 }
 .rows {
+  flex: 1;
+  min-height: 0;
   margin: 0;
   padding: 6px;
   list-style: none;
   overflow: auto;
+}
+/* 拼接后的音轨：固定在列表下方 */
+.joined {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-sunken);
+}
+.joined-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.joined-play {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+}
+.joined-play:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.joined-title {
+  font-size: 13px;
+  font-weight: 500;
+}
+.joined-time {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.joined-wave {
+  height: 96px;
+}
+.joined-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--text-3);
+  pointer-events: none;
 }
 .row {
   display: flex;

@@ -15,9 +15,10 @@ import document from "./document";
 import markdown from "./markdown";
 import utility from "./utility";
 import audio from "./audio";
+import video from "./video";
 
 /** 所有模块中的工具 */
-export const allTools: Tool[] = [json, encode, convert, image, audio, network, document, markdown, utility].flatMap((m) => m.tools);
+export const allTools: Tool[] = [json, encode, convert, image, audio, video, network, document, markdown, utility].flatMap((m) => m.tools);
 
 const pick = (...ids: string[]): Tool[] =>
   ids.map((id) => {
@@ -52,6 +53,7 @@ export const categories: Category[] = [
   { id: "calc", name: "计算换算", tools: pick("calculator", "units", "radix", "color") },
   { id: "image", name: "图片", tools: image.tools },
   { id: "audio", name: "音频", tools: audio.tools },
+  { id: "video", name: "视频", tools: video.tools },
   {
     id: "document",
     name: "文档文件",

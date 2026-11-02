@@ -181,17 +181,16 @@ const download = async () => {
         <span v-if="error" class="error">{{ error }}</span>
       </FileDropZone>
 
-      <template v-else>
-        <Waveform v-model:selection="selection" class="wave" :pcm="pcm" :position="position" @seek="seek" />
-        <div class="transport">
-          <button class="play" :title="player.playing.value ? '暂停（空格）' : '播放（空格）'" @click="toggle">
-            <Pause v-if="player.playing.value" :size="18" />
-            <Play v-else :size="18" />
-          </button>
-          <span class="time">{{ formatTime(position) }} <em>/ {{ formatTime(duration(pcm)) }}</em></span>
-          <span class="hint">点击波形定位，拖动选择一段；{{ sel ? "播放时只播放选区" : "空格键播放 / 暂停" }}</span>
-        </div>
-      </template>
+      <!-- 音轨：没有文件时显示一条空的音轨 -->
+      <Waveform v-model:selection="selection" class="wave" :class="{ empty: !pcm }" :pcm="pcm" :position="pcm ? position : null" @seek="seek" />
+      <div class="transport">
+        <button class="play" :disabled="!pcm" :title="player.playing.value ? '暂停（空格）' : '播放（空格）'" @click="toggle">
+          <Pause v-if="player.playing.value" :size="18" />
+          <Play v-else :size="18" />
+        </button>
+        <span class="time">{{ formatTime(position) }} <em>/ {{ formatTime(pcm ? duration(pcm) : 0) }}</em></span>
+        <span class="hint">{{ !pcm ? "添加音频后在上方显示波形" : `点击波形定位，拖动选择一段；${sel ? "播放时只播放选区" : "空格键播放 / 暂停"}` }}</span>
+      </div>
     </section>
   </div>
 </template>
@@ -307,6 +306,15 @@ h3 {
 .wave {
   flex: 1;
   margin: 16px 16px 8px;
+}
+/* 没有文件时：上方是拖入区域，下方是一条较矮的空音轨 */
+.wave.empty {
+  flex: 0 0 120px;
+  margin-top: 4px;
+}
+.play:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 .transport {
   display: flex;
