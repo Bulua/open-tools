@@ -1,16 +1,19 @@
-// 把 GitHub 上已发布的版本同步到 Gitee Releases，并生成指向 Gitee 下载地址的 latest.json
-// 用法：node scripts/publish-gitee.mjs <标签> <素材目录> <输出的 latest.json>
+// 把 GitHub 上已发布的版本同步到 Gitee Releases，并把指向 Gitee 下载地址的 latest.json 写到 updater 分支
+// 用法：node scripts/publish-gitee.mjs <标签> <素材目录>
 // 素材目录中需要有从 GitHub Release 下载的 latest.json 和安装包；需要环境变量 GITEE_TOKEN
+// 全程只走 Gitee 的 HTTPS 接口：GitHub 的机器 git push 到 Gitee 经常连接超时
 import { request } from "node:https";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 
 const REPO = "bulua/open-tools";
 const API = `https://gitee.com/api/v5/repos/${REPO}`;
 
-const [tag, assetDir, output] = process.argv.slice(2);
+const BRANCH = "updater";
+
+const [tag, assetDir] = process.argv.slice(2);
 const token = process.env.GITEE_TOKEN;
-if (!tag || !assetDir || !output) throw new Error("用法：node scripts/publish-gitee.mjs <标签> <素材目录> <输出文件>");
+if (!tag || !assetDir) throw new Error("用法：node scripts/publish-gitee.mjs <标签> <素材目录>");
 if (!token) throw new Error("缺少环境变量 GITEE_TOKEN");
 
 async function api(path, init = {}) {
@@ -85,12 +88,13 @@ async function findAsset(releaseId, name) {
 // 每次重试前先查一下：Gitee 有时响应很慢甚至断开，但文件其实已经传上去了
 async function ensureAsset(releaseId, file) {
   const name = basename(file);
-  const data = await readFile(file);
+  let data;
   let lastError;
   for (let attempt = 1; attempt <= 4; attempt++) {
     const existing = await findAsset(releaseId, name);
     if (existing) return existing.browser_download_url;
     try {
+      data ??= await readFile(file);
       const uploaded = await upload(`/releases/${releaseId}/attach_files`, name, data);
       if (uploaded.ok && uploaded.data?.browser_download_url) return uploaded.data.browser_download_url;
       lastError = new Error(`上传 ${name} 失败（${uploaded.status}）：${JSON.stringify(uploaded.data)}`);
@@ -123,13 +127,39 @@ const newer = (a, b) => {
   for (let i = 0; i < Math.max(pa.length, pb.length); i++) if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) > (pb[i] ?? 0);
   return false;
 };
-const current = await fetch("https://gitee.com/bulua/open-tools/raw/updater/latest.json")
-  .then((r) => (r.ok ? r.json() : null))
-  .catch(() => null);
-if (current?.version && newer(String(current.version), String(manifest.version))) {
-  console.log(`Gitee 上的更新文件已经是 ${current.version}，比 ${manifest.version} 新，不覆盖`);
-  process.exit(0);
+// 通过接口写文件，失败时重试（文件不存在时新建，存在时带上 sha 更新）
+async function writeManifest(content) {
+  let lastError;
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try {
+      const current = await api(`/contents/latest.json?ref=${BRANCH}`);
+      const sha = current.ok && current.data?.sha;
+      if (sha) {
+        const remote = JSON.parse(Buffer.from(current.data.content, "base64").toString("utf8"));
+        if (remote?.version && newer(String(remote.version), String(manifest.version))) {
+          console.log(`Gitee 上的更新文件已经是 ${remote.version}，比 ${manifest.version} 新，不覆盖`);
+          return;
+        }
+      }
+      const form = new URLSearchParams({
+        content: Buffer.from(content).toString("base64"),
+        message: `chore: ${tag} 在线更新文件`,
+        branch: BRANCH,
+      });
+      if (sha) form.set("sha", sha);
+      const res = await api("/contents/latest.json", { method: sha ? "PUT" : "POST", body: form });
+      if (res.ok) {
+        console.log(`已更新 Gitee ${BRANCH} 分支的 latest.json → ${manifest.version}`);
+        return;
+      }
+      lastError = new Error(`写入 latest.json 失败（${res.status}）：${JSON.stringify(res.data)}`);
+    } catch (e) {
+      lastError = e;
+    }
+    console.log(`第 ${attempt} 次写入 latest.json 没有成功：${lastError.message}`);
+    if (attempt < 4) await sleep(attempt * 15_000);
+  }
+  throw lastError;
 }
 
-await writeFile(output, JSON.stringify(manifest, null, 2));
-console.log(`已生成 ${output}`);
+await writeManifest(JSON.stringify(manifest, null, 2));

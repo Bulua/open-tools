@@ -66,6 +66,8 @@ jobs:
       - name: 同步代码到 Gitee
         if: github.event_name == 'push'
         continue-on-error: true
+        # git 连 Gitee 偶尔会卡住，别让它拖住整个打包
+        timeout-minutes: 3
         shell: bash
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
@@ -99,7 +101,7 @@ jobs:
           echo "版本号最大的标签：$latest"
           gh release edit "$latest" --latest || echo "没有找到 $latest 的发布，跳过"
 
-      # 把 GitHub Release 中的安装包传到 Gitee Releases，更新文件放在单独的 updater 分支，不影响 master 历史
+      # 把 GitHub Release 中的安装包传到 Gitee Releases，更新文件通过接口写到单独的 updater 分支，不影响 master 历史
       - name: 发布到 Gitee
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
@@ -109,15 +111,7 @@ jobs:
         run: |
           if [ -z "$GITEE_TOKEN" ]; then echo "未配置 GITEE_TOKEN，跳过"; exit 0; fi
           gh release download "$GITHUB_REF_NAME" --dir "$RUNNER_TEMP/gitee-assets" --pattern latest.json --pattern '*-setup.exe'
-          node scripts/publish-gitee.mjs "$GITHUB_REF_NAME" "$RUNNER_TEMP/gitee-assets" "$RUNNER_TEMP/latest.json"
-          # Gitee 上已经是更新的版本时，脚本不生成更新文件，不覆盖
-          if [ ! -f "$RUNNER_TEMP/latest.json" ]; then exit 0; fi
-          mkdir "$RUNNER_TEMP/updater" && cd "$RUNNER_TEMP/updater"
-          git init -q -b updater
-          cp "$RUNNER_TEMP/latest.json" latest.json
-          git add latest.json
-          git -c user.name="github-actions" -c user.email="github-actions@users.noreply.github.com" commit -q -m "chore: $GITHUB_REF_NAME 在线更新文件"
-          git push -f "https://bulua:${GITEE_TOKEN}@gitee.com/bulua/open-tools.git" updater
+          node scripts/publish-gitee.mjs "$GITHUB_REF_NAME" "$RUNNER_TEMP/gitee-assets"
 
       - uses: actions/upload-artifact@v4
         with:
