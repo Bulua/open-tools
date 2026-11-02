@@ -43,6 +43,7 @@ import {
 export const VIDEO_ACCEPT = "video/*,.mp4,.mov,.m4v,.mkv,.webm,.ts,.mts,.m2ts";
 const UNSUPPORTED = "无法读取这个视频，支持 MP4、MOV、MKV、WebM、TS 格式";
 
+export const UNSUPPORTED_VIDEO = UNSUPPORTED;
 export const openInput = (file: Blob) => new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
 
 export interface VideoInfo {
@@ -285,7 +286,7 @@ async function copyClips(clips: Clip[], output: Output<Mp4OutputFormat, BufferTa
   await output.finalize();
 }
 
-const SAMPLE_RATE = 48000;
+export const SAMPLE_RATE = 48000;
 const CHANNELS = 2;
 
 /** 重新编码：画面统一缩放到输出大小，声音统一为 48 kHz 立体声；没有声音的视频补上静音，保持声画同步 */
@@ -352,7 +353,7 @@ async function reencodeClips(clips: Clip[], output: Output<Mp4OutputFormat, Buff
 }
 
 /** 一段声音的左右声道（单声道复制到两边，多声道取前两个） */
-function stereoPlanes(a: AudioSample): [Float32Array, Float32Array] {
+export function stereoPlanes(a: AudioSample): [Float32Array, Float32Array] {
   const read = (plane: number) => {
     const buf = new Float32Array(a.numberOfFrames);
     a.copyTo(buf, { planeIndex: plane, format: "f32-planar" });
@@ -397,7 +398,7 @@ export class StreamResampler {
 }
 
 /** 按帧写入 48 kHz 立体声：时间戳由已写入的帧数决定，前后严格衔接 */
-class AudioWriter {
+export class AudioWriter {
   written = 0;
   constructor(private source: AudioSampleSource) {}
 

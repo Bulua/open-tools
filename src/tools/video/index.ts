@@ -1,5 +1,5 @@
 import { defineAsyncComponent } from "vue";
-import { Clapperboard, FileMusic, MonitorPlay, Music2, Tv, Webcam } from "lucide-vue-next";
+import { Clapperboard, FileMusic, MonitorPlay, Music2, Music4, Tv, Webcam } from "lucide-vue-next";
 import type { Category } from "../types";
 
 const video: Category = {
@@ -33,6 +33,13 @@ const video: Category = {
       desc: "把多段视频按顺序拼成一个 MP4；格式相同时直接拼接，不重新编码，速度快、画质无损",
       icon: Clapperboard,
       component: defineAsyncComponent(() => import("./components/VideoConcat.vue")),
+    },
+    {
+      id: "video-music",
+      name: "视频配乐",
+      desc: "给视频加背景音乐，可调音乐和原声音量，选择循环播放或只播几次；画面不重新编码",
+      icon: Music4,
+      component: defineAsyncComponent(() => import("./components/VideoMusic.vue")),
     },
     {
       id: "screen-recorder",
