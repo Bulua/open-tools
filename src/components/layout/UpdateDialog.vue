@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
-import { CircleAlert, CircleCheck, LoaderCircle, X } from "lucide-vue-next";
+import { computed, onMounted } from "vue";
+import { CircleAlert, CircleCheck, LoaderCircle, RefreshCw, X } from "lucide-vue-next";
 import { useUpdater } from "@/composables/useUpdater";
 
 /** 检查更新对话框：显示当前版本、新版本说明、下载进度 */
 const emit = defineEmits<{ close: [] }>();
-const { supported, status, currentVersion, newVersion, notes, progress, error, checkForUpdate, installUpdate, loadCurrentVersion } =
+const { supported, status, currentVersion, newVersion, notes, progress, error, lastChecked, checkForUpdate, installUpdate, loadCurrentVersion } =
   useUpdater();
 
 onMounted(() => {
@@ -15,6 +15,9 @@ onMounted(() => {
 });
 
 const busy = () => status.value === "downloading" || status.value === "installing";
+/** 可以手动重新检查：正在检查、下载、安装时不行 */
+const canRecheck = computed(() => supported && !busy() && status.value !== "checking");
+const checkedAt = computed(() => (lastChecked.value ? new Date(lastChecked.value).toLocaleTimeString() : ""));
 const close = () => !busy() && emit("close");
 </script>
 
@@ -23,11 +26,19 @@ const close = () => !busy() && emit("close");
     <div class="dialog" role="dialog" aria-label="检查更新" @keydown.esc="close">
       <header class="head">
         <h2>检查更新</h2>
-        <button class="icon-btn" title="关闭" :disabled="busy()" @click="close"><X :size="16" /></button>
+        <div class="head-actions">
+          <button v-if="supported" class="icon-btn" :class="{ spinning: status === 'checking' }" title="重新检查" :disabled="!canRecheck" @click="checkForUpdate()">
+            <RefreshCw :size="15" />
+          </button>
+          <button class="icon-btn" title="关闭" :disabled="busy()" @click="close"><X :size="16" /></button>
+        </div>
       </header>
 
       <div class="body">
-        <p class="version">当前版本 <b>{{ supported ? `v${currentVersion || "…"}` : "开发预览" }}</b></p>
+        <p class="version">
+          当前版本 <b>{{ supported ? `v${currentVersion || "…"}` : "开发预览" }}</b>
+          <span v-if="checkedAt && status !== 'checking'" class="checked">· {{ checkedAt }} 检查</span>
+        </p>
 
         <p v-if="!supported" class="state">在线更新只在安装后的桌面版中可用。</p>
 
@@ -57,7 +68,10 @@ const close = () => !busy() && emit("close");
           <button class="btn primary" @click="installUpdate">立即更新</button>
         </template>
         <button v-else-if="status === 'error'" class="btn primary" @click="checkForUpdate()">重试</button>
-        <button v-else-if="!busy()" class="btn" @click="close">关闭</button>
+        <template v-else-if="!busy()">
+          <button v-if="supported" class="btn subtle" :disabled="!canRecheck" @click="checkForUpdate()"><RefreshCw :size="14" />重新检查</button>
+          <button class="btn" @click="close">关闭</button>
+        </template>
       </footer>
     </div>
   </div>
@@ -102,6 +116,22 @@ h2 {
   margin: 0;
   font-size: 13px;
   color: var(--text-3);
+}
+.checked {
+  margin-left: 4px;
+}
+.head-actions {
+  display: flex;
+  gap: 2px;
+}
+.icon-btn:disabled,
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.spinning :deep(svg),
+.spinning svg {
+  animation: spin 1s linear infinite;
 }
 .version b {
   font-weight: 500;

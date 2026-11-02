@@ -47,10 +47,10 @@ const onKeydown = (e: KeyboardEvent) => {
 onMounted(() => window.addEventListener("keydown", onKeydown));
 onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
 
-// ---------- 在线更新：启动几秒后在后台检查一次，不影响打开速度 ----------
+// ---------- 在线更新：启动几秒后在后台检查，之后定时检查（见 useUpdater 的 startAutoCheck） ----------
 const updateOpen = ref(false);
-const { checkForUpdate } = useUpdater();
-onMounted(() => setTimeout(() => checkForUpdate(true), 3000));
+const { startAutoCheck } = useUpdater();
+onMounted(startAutoCheck);
 
 // ---------- 倒计时：在后台每秒检查，到期时在任何工具里都会提醒 ----------
 onMounted(startCountdownTicker);
