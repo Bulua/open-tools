@@ -24,6 +24,7 @@ pub fn run() {
             network::local_ip,
             document::office_engines,
             document::office_to_pdf,
+            document::pdf_to_word,
             tts::tts_voices,
             tts::tts_synthesize,
             ai_models::ai_models_downloaded,

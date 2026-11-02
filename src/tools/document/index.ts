@@ -1,5 +1,5 @@
 import { defineAsyncComponent } from "vue";
-import { FileStack, FileType2, Stamp } from "lucide-vue-next";
+import { FileStack, FileText, FileType2, Stamp } from "lucide-vue-next";
 import type { Category } from "../types";
 
 const document: Category = {
@@ -12,6 +12,13 @@ const document: Category = {
       desc: "调用本机的 Word / WPS 转换，排版与原文档一致；可批量转换",
       icon: FileType2,
       component: defineAsyncComponent(() => import("./components/WordToPdf.vue")),
+    },
+    {
+      id: "pdf-to-word",
+      name: "PDF 转 Word",
+      desc: "把 PDF 转成可编辑的 Word 文档；装有 Microsoft Word 时调用 Word 转换，否则使用内置转换；可批量转换",
+      icon: FileText,
+      component: defineAsyncComponent(() => import("./components/PdfToWord.vue")),
     },
     {
       id: "word-watermark",
