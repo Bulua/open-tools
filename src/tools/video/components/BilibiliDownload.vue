@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-vue-next";
 import AppSelect from "@/components/common/AppSelect.vue";
+import ProgressBar from "@/components/common/ProgressBar.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { useWindowEvent } from "@/composables/useWindowEvent";
 import { pickFolder, saveFile, saveIntoFolder } from "@/utils/saveFile";
@@ -413,7 +414,7 @@ useWindowEvent("keydown", (ev) => {
               <span v-if="e.info.pages.length > 1" class="badge right">{{ e.info.pages.length }} P</span>
               <button class="close" title="移除" @click.stop="removeEntry(e)"><X :size="13" /></button>
               <!-- 下载进度盖在画面底部 -->
-              <span v-if="e.status === 'working'" class="progress"><i :style="{ width: `${Math.round(e.progress * 100)}%` }" /></span>
+              <ProgressBar v-if="e.status === 'working'" class="cover-progress" :value="e.progress" />
             </div>
 
             <div class="body">
@@ -724,19 +725,14 @@ h3 {
 .video:hover .close {
   opacity: 1;
 }
-.progress {
+/* 盖在封面底部 */
+.cover-progress {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  height: 4px;
+  border-radius: 0;
   background: rgba(0, 0, 0, 0.3);
-}
-.progress i {
-  display: block;
-  height: 100%;
-  background: var(--accent);
-  transition: width 0.2s;
 }
 .body {
   flex: 1;

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
-import { CircleCheck, Download, LoaderCircle, Pipette, RefreshCw, Sparkles, Trash2, X, ZoomIn, ZoomOut } from "lucide-vue-next";
+import { CircleCheck, Download, LoaderCircle, Pipette, RefreshCw, Sparkles, Trash2, X } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
+import ProgressBar from "@/components/common/ProgressBar.vue";
+import ZoomControls from "@/components/common/ZoomControls.vue";
 import ColorPicker from "@/components/common/ColorPicker.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { useFitFrame } from "@/composables/useFitFrame";
@@ -297,7 +299,7 @@ const save = async () => {
                 <span class="size">{{ formatBytes(m.size) }}</span>
               </div>
               <p>{{ m.desc }}</p>
-              <div v-if="progress[m.id] !== undefined" class="progress"><i :style="{ width: `${progress[m.id] * 100}%` }" /></div>
+              <ProgressBar v-if="progress[m.id] !== undefined" :value="progress[m.id]" />
               <template v-else-if="!isReady(m)">
                 <button v-if="canDownload()" class="btn small" @click.stop="download(m)"><Download :size="12" />下载到本机</button>
                 <span v-else class="hint-text">桌面版可下载</span>
@@ -373,11 +375,7 @@ const save = async () => {
       <header class="card-title">
         <span class="file" :title="fileName">{{ fileName || "未选择图片" }}</span>
         <span class="hint">{{ recognizing ? "正在识别主体…" : source ? "点击残留的背景即可去除，滚轮缩放，按住拖动" : "" }}</span>
-        <div v-if="source" class="zoom">
-          <button class="icon-btn" title="缩小" :disabled="zoom <= MIN_ZOOM" @click="zoomAt(zoom / 1.5)"><ZoomOut :size="14" /></button>
-          <button class="zoom-value" title="恢复为适应窗口" @click="resetView">{{ Math.round(zoom * 100) }}%</button>
-          <button class="icon-btn" title="放大" :disabled="zoom >= MAX_ZOOM" @click="zoomAt(zoom * 1.5)"><ZoomIn :size="14" /></button>
-        </div>
+        <ZoomControls v-if="source" :zoom="zoom" :min="MIN_ZOOM" :max="MAX_ZOOM" @zoom="zoomAt" @reset="resetView" />
         <button v-if="source" class="btn small subtle" title="更换图片" @click="dropZone?.open()"><RefreshCw :size="14" />更换</button>
       </header>
       <!-- 加载后隐藏但保留：「更换」按钮由它打开选择框 -->
@@ -514,17 +512,7 @@ h3 svg {
   color: var(--text-3);
 }
 .progress {
-  height: 4px;
   margin-top: 4px;
-  border-radius: 2px;
-  background: var(--active);
-  overflow: hidden;
-}
-.progress i {
-  display: block;
-  height: 100%;
-  background: var(--accent);
-  transition: width 0.4s;
 }
 .busy {
   position: absolute;
@@ -592,34 +580,6 @@ h3 svg {
 }
 .area.panning {
   cursor: grabbing;
-}
-.zoom {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-.zoom .icon-btn {
-  width: 26px;
-  height: 26px;
-}
-.zoom .icon-btn:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-.zoom-value {
-  min-width: 48px;
-  height: 26px;
-  padding: 0 4px;
-  border: none;
-  border-radius: 6px;
-  background: none;
-  color: var(--text-2);
-  font-size: 12px;
-  font-weight: 400;
-  font-variant-numeric: tabular-nums;
-}
-.zoom-value:hover {
-  background: var(--hover);
 }
 /* 棋盘格表示透明 */
 .checker,

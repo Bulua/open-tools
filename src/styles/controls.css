@@ -249,6 +249,20 @@
   color: var(--text-3);
 }
 
+/* 细进度条（ProgressBar 组件） */
+.progress {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--active);
+  overflow: hidden;
+}
+.progress i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s;
+}
+
 /* 加载中的转圈图标 */
 .spin {
   animation: spin 1s linear infinite;

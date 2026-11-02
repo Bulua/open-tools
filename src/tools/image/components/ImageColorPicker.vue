@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from "vue";
-import { RefreshCw, Trash2, ZoomIn, ZoomOut } from "lucide-vue-next";
+import { RefreshCw, Trash2 } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
+import ZoomControls from "@/components/common/ZoomControls.vue";
 import CopyList from "@/components/common/CopyList.vue";
 import { toHex, toHsl, toRgb, type Rgba } from "@/utils/color";
 import { createCanvas, extractPalette, loadImage, type PaletteColor } from "../utils";
@@ -150,11 +151,7 @@ const css = (c: Rgba | PaletteColor) => toRgb({ a: 1, ...c });
       <header class="card-title">
         <span class="file" :title="fileName">{{ fileName || "未选择图片" }}</span>
         <span v-if="loaded" class="hint">点击图片取色，滚轮缩放，按住拖动</span>
-        <div v-if="loaded" class="zoom">
-          <button class="icon-btn" title="缩小" :disabled="zoom <= MIN_ZOOM" @click="zoomAt(zoom / 1.5)"><ZoomOut :size="14" /></button>
-          <button class="zoom-value" title="恢复为适应窗口" @click="resetView">{{ Math.round(zoom * 100) }}%</button>
-          <button class="icon-btn" title="放大" :disabled="zoom >= MAX_ZOOM" @click="zoomAt(zoom * 1.5)"><ZoomIn :size="14" /></button>
-        </div>
+        <ZoomControls v-if="loaded" :zoom="zoom" :min="MIN_ZOOM" :max="MAX_ZOOM" @zoom="zoomAt" @reset="resetView" />
         <button v-if="loaded" class="btn small subtle" title="更换图片" @click="dropZone?.open()"><RefreshCw :size="14" />更换</button>
       </header>
       <!-- 加载后隐藏但保留：「更换」按钮由它打开选择框 -->
@@ -249,33 +246,6 @@ const css = (c: Rgba | PaletteColor) => toRgb({ a: 1, ...c });
   max-height: 100%;
   border-radius: 4px;
   transform-origin: center;
-}
-.zoom {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-.zoom .icon-btn {
-  width: 26px;
-  height: 26px;
-}
-.zoom .icon-btn:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-.zoom-value {
-  min-width: 48px;
-  height: 26px;
-  padding: 0 4px;
-  border: none;
-  border-radius: 6px;
-  background: none;
-  color: var(--text-2);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-.zoom-value:hover {
-  background: var(--hover);
 }
 .loupe {
   position: absolute;

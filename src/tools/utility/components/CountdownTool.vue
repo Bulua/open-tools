@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import DateTimePicker from "@/components/common/DateTimePicker.vue";
+import ProgressBar from "@/components/common/ProgressBar.vue";
 import { AlarmClock, Pause, Play, Plus, RotateCcw, Timer, Trash2 } from "lucide-vue-next";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { formatDateTime, relativeTime } from "@/utils/time";
@@ -167,7 +168,7 @@ const onDelete = (item: CountdownItem) => {
         <div v-if="item.done" class="remaining over">已到期</div>
         <div v-else class="remaining">{{ formatRemaining(remainingOf(item, now)) }}</div>
 
-        <div class="progress"><i :style="{ width: `${progressOf(item, now) * 100}%` }" /></div>
+        <ProgressBar :value="progressOf(item, now)" />
 
         <footer>
           <span class="when">
@@ -317,19 +318,11 @@ h3 {
 .paused .remaining {
   color: var(--text-3);
 }
-.progress {
-  height: 4px;
-  border-radius: 2px;
-  background: var(--active);
-  overflow: hidden;
-}
-.progress i {
-  display: block;
-  height: 100%;
-  background: var(--accent);
+/* 每秒更新一次，匀速过渡看起来是连续走动的 */
+.progress :deep(i) {
   transition: width 1s linear;
 }
-.done .progress i {
+.done .progress :deep(i) {
   background: var(--success);
 }
 .item footer {
