@@ -14,11 +14,16 @@ async function makeMp4(seconds: number, { width = 640, height = 360, audio = tru
   if (sound) output.addAudioTrack(sound);
   await output.start();
 
-  const description = new Uint8Array([1, 0x42, 0, 0x1f, 0xff, 0xe1, 0, 4, 0x67, 0x42, 0, 0x1f, 1, 0, 4, 0x68, 0xce, 0x3c, 0x80]);
+  // 真实的 H.264 参数（x264 编码 320×180 Baseline 得到），假参数会让 mediabunny 打印解析错误
+  const description = new Uint8Array([
+    1, 0x42, 0xc0, 0x1f, 0xff, 0xe1, 0, 25,
+    0x67, 0x42, 0xc0, 0x1f, 0xd9, 0x01, 0x41, 0x9f, 0x9f, 0x01, 0x10, 0x00, 0x00, 0x03, 0x00, 0x10, 0x00, 0x00, 0x03, 0x03, 0xc0, 0xf1, 0x83, 0x24, 0x80,
+    1, 0, 5, 0x68, 0xcb, 0x83, 0xcb, 0x20,
+  ]);
   const frames = Math.round(seconds * 30);
   for (let i = 0; i < frames; i++) {
     const packet = new EncodedPacket(new Uint8Array([0, 0, 0, 1, i & 255]), i % 30 === 0 ? "key" : "delta", i / 30, 1 / 30);
-    await video.add(packet, i === 0 ? { decoderConfig: { codec: "avc1.42001f", codedWidth: width, codedHeight: height, description } } : undefined);
+    await video.add(packet, i === 0 ? { decoderConfig: { codec: "avc1.42c01f", codedWidth: width, codedHeight: height, description } } : undefined);
   }
   if (sound) {
     const step = 1024 / 48000;

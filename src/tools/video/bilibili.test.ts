@@ -63,7 +63,12 @@ describe("B 站：文件名", () => {
 });
 
 describe("B 站：合并画面和声音", () => {
-  const AVCC = new Uint8Array([1, 0x42, 0, 0x1f, 0xff, 0xe1, 0, 4, 0x67, 0x42, 0, 0x1f, 1, 0, 4, 0x68, 0xce, 0x3c, 0x80]);
+  // 真实的 H.264 参数（x264 编码 320×180 Baseline 得到），假参数会让 mediabunny 打印解析错误
+  const AVCC = new Uint8Array([
+    1, 0x42, 0xc0, 0x1f, 0xff, 0xe1, 0, 25,
+    0x67, 0x42, 0xc0, 0x1f, 0xd9, 0x01, 0x41, 0x9f, 0x9f, 0x01, 0x10, 0x00, 0x00, 0x03, 0x00, 0x10, 0x00, 0x00, 0x03, 0x03, 0xc0, 0xf1, 0x83, 0x24, 0x80,
+    1, 0, 5, 0x68, 0xcb, 0x83, 0xcb, 0x20,
+  ]);
   /** 只有画面或只有声音的 MP4（数据包是假的，不解码） */
   async function track(kind: "video" | "audio", seconds: number) {
     const output = new Output({ format: new Mp4OutputFormat({ fastStart: "in-memory" }), target: new BufferTarget() });
@@ -74,7 +79,7 @@ describe("B 站：合并画面和声音", () => {
       for (let i = 0; i < seconds * 25; i++)
         await src.add(
           new EncodedPacket(new Uint8Array([0, 0, 0, 1, i & 255]), i % 25 ? "delta" : "key", i / 25, 1 / 25),
-          i ? undefined : { decoderConfig: { codec: "avc1.42001f", codedWidth: 320, codedHeight: 180, description: AVCC } },
+          i ? undefined : { decoderConfig: { codec: "avc1.42c01f", codedWidth: 320, codedHeight: 180, description: AVCC } },
         );
     } else {
       const src = new EncodedAudioPacketSource("aac");
