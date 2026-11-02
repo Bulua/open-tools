@@ -1,5 +1,5 @@
 import { defineAsyncComponent } from "vue";
-import { Clapperboard, FileMusic, Tv } from "lucide-vue-next";
+import { Clapperboard, FileMusic, Music2, Tv } from "lucide-vue-next";
 import type { Category } from "../types";
 
 const video: Category = {
@@ -12,6 +12,13 @@ const video: Category = {
       desc: "粘贴 B 站视频链接，下载视频（MP4）、音频、封面和弹幕；支持多 P、选择清晰度和编码，登录后可下载高清",
       icon: Tv,
       component: defineAsyncComponent(() => import("./components/BilibiliDownload.vue")),
+    },
+    {
+      id: "douyin-download",
+      name: "抖音下载",
+      desc: "粘贴抖音分享链接，下载无水印视频、图文原图、实况照片、背景音乐和封面（桌面版）",
+      icon: Music2,
+      component: defineAsyncComponent(() => import("./components/DouyinDownload.vue")),
     },
     {
       id: "video-to-audio",

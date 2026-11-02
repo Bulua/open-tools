@@ -1,5 +1,6 @@
 mod ai_models;
 mod document;
+mod douyin;
 mod network;
 mod script;
 mod tray;
@@ -27,6 +28,7 @@ pub fn run() {
             document::office_engines,
             document::office_to_pdf,
             document::pdf_to_word,
+            douyin::douyin_capture,
             tts::tts_voices,
             tts::tts_synthesize,
             ai_models::ai_models_downloaded,
