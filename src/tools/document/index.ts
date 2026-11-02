@@ -1,5 +1,5 @@
 import { defineAsyncComponent } from "vue";
-import { Eraser, FileStack, FileText, FileType2, Stamp } from "lucide-vue-next";
+import { Eraser, FileStack, FileText, FileType2, FileX2, Stamp } from "lucide-vue-next";
 import type { Category } from "../types";
 
 const document: Category = {
@@ -40,6 +40,13 @@ const document: Category = {
       desc: "删除、旋转、调整 PDF 页面顺序，或把多个 PDF 合并为一个",
       icon: FileStack,
       component: defineAsyncComponent(() => import("./components/PdfPages.vue")),
+    },
+    {
+      id: "pdf-unwatermark",
+      name: "PDF 去水印",
+      desc: "自动找出 Acrobat、WPS 等工具添加的水印，以及斜着、半透明、每页重复的文字和图片水印，勾选后一键去除，可批量处理",
+      icon: FileX2,
+      component: defineAsyncComponent(() => import("./components/PdfUnwatermark.vue")),
     },
   ],
 };

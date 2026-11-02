@@ -55,7 +55,7 @@ export const categories: Category[] = [
   {
     id: "document",
     name: "文档文件",
-    tools: pick("word-to-pdf", "pdf-to-word", "word-watermark", "word-unwatermark", "pdf-pages", "markdown-editor", "markdown-to-word", "archive", "extract"),
+    tools: pick("word-to-pdf", "pdf-to-word", "word-watermark", "word-unwatermark", "pdf-pages", "pdf-unwatermark", "markdown-editor", "markdown-to-word", "archive", "extract"),
   },
   { id: "network", name: "网络", tools: network.tools },
 ].map(sortTools);
