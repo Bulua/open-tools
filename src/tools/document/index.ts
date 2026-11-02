@@ -1,5 +1,5 @@
 import { defineAsyncComponent } from "vue";
-import { FileStack, FileText, FileType2, Stamp } from "lucide-vue-next";
+import { Eraser, FileStack, FileText, FileType2, Stamp } from "lucide-vue-next";
 import type { Category } from "../types";
 
 const document: Category = {
@@ -26,6 +26,13 @@ const document: Category = {
       desc: "给 .docx 添加文字或图片水印，与 Word 自带的水印相同，可批量处理",
       icon: Stamp,
       component: defineAsyncComponent(() => import("./components/WordWatermark.vue")),
+    },
+    {
+      id: "word-unwatermark",
+      name: "Word 去水印",
+      desc: "自动找出 Word、WPS 添加的水印，以及页眉里的艺术字、半透明图片等自制水印，勾选后一键去除，可批量处理",
+      icon: Eraser,
+      component: defineAsyncComponent(() => import("./components/WordUnwatermark.vue")),
     },
     {
       id: "pdf-pages",
