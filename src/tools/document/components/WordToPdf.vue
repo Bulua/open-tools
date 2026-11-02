@@ -2,7 +2,9 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { isTauri } from "@tauri-apps/api/core";
 import { CircleAlert, CircleCheck, Download, FileText, LoaderCircle, Printer, X } from "lucide-vue-next";
+import CheckAll from "@/components/common/CheckAll.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
+import { useFileChecks } from "@/composables/useFileChecks";
 import { saveFile, saveFiles } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
 import DocxPreview from "./DocxPreview.vue";
@@ -40,6 +42,7 @@ const remove = (item: Item) => {
 };
 
 const selected = computed(() => items.value.find((i) => i.id === selectedId.value) ?? null);
+const { isChecked, toggle: toggleFile, checkedItems, allChecked, partlyChecked, toggleAll } = useFileChecks(items);
 const previewData = ref<Uint8Array | null>(null);
 const loadPreview = async () => {
   const item = selected.value;
@@ -66,7 +69,7 @@ const convertAll = async () => {
   const { invoke } = await import("@tauri-apps/api/core");
   converting.value = true;
   try {
-    for (const item of items.value) {
+    for (const item of checkedItems.value) {
       if (item.status === "done") continue;
       item.status = "working";
       item.message = "";
@@ -80,7 +83,7 @@ const convertAll = async () => {
         item.message = e instanceof Error ? e.message : String(e);
       }
     }
-    const done = items.value.filter((i) => i.pdf);
+    const done = checkedItems.value.filter((i) => i.pdf);
     if (done.length) await saveFiles(done.map((i) => ({ name: pdfName(i), data: i.pdf! })), "Word 转 PDF.zip");
   } finally {
     converting.value = false;
@@ -101,16 +104,21 @@ const printSelected = async () => {
   }
 };
 
-const pending = computed(() => items.value.filter((i) => i.status !== "done").length);
+const pending = computed(() => checkedItems.value.filter((i) => i.status !== "done").length);
 </script>
 
 <template>
   <div class="word2pdf">
     <aside class="card panel">
       <section class="section">
-        <h3>文件<span class="push">{{ items.length }} 个</span></h3>
+        <h3>
+          <CheckAll v-if="items.length" :checked="allChecked" :partly="partlyChecked" :disabled="converting" @toggle="toggleAll">文件</CheckAll>
+          <template v-else>文件</template>
+          <span class="push">{{ items.length > 1 ? `已选 ${checkedItems.length} / ${items.length} 个` : `${items.length} 个` }}</span>
+        </h3>
         <ul class="files">
-          <li v-for="item in items" :key="item.id" :class="{ on: item.id === selected?.id }" @click="selectedId = item.id">
+          <li v-for="item in items" :key="item.id" :class="{ on: item.id === selected?.id, unchecked: !isChecked(item) }" @click="selectedId = item.id">
+            <input type="checkbox" class="file-check" title="勾选的文件才转换" :checked="isChecked(item)" :disabled="converting" @click.stop @change="toggleFile(item)" />
             <FileText :size="14" class="icon" />
             <span class="name" :title="item.file.name">{{ item.file.name }}</span>
             <LoaderCircle v-if="item.status === 'working'" :size="14" class="spin" />
@@ -137,7 +145,17 @@ const pending = computed(() => items.value.filter((i) => i.status !== "done").le
 
         <button v-if="canConvert" class="btn primary full" :disabled="converting || !pending" @click="convertAll">
           <Download :size="14" />
-          {{ converting ? "正在转换…" : !pending ? "已全部转换" : items.length > 1 ? `转换全部 ${pending} 个` : "转换为 PDF" }}
+          {{
+            converting
+              ? "正在转换…"
+              : !checkedItems.length
+                ? "请勾选要转换的文件"
+                : !pending
+                  ? "已全部转换"
+                  : items.length > 1
+                    ? `转换选中的 ${pending} 个`
+                    : "转换为 PDF"
+          }}
         </button>
         <button
           class="btn full"

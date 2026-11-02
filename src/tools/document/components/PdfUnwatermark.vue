@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, markRaw, onBeforeUnmount, ref, shallowRef, watch } from "vue";
 import { ChevronLeft, ChevronRight, Download, FileText, Image as ImageIcon, Layers, Shapes, Stamp, X } from "lucide-vue-next";
+import CheckAll from "@/components/common/CheckAll.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
+import { useFileChecks } from "@/composables/useFileChecks";
 import { saveFiles } from "@/utils/saveFile";
 import { openPdf, renderPage, type PdfDocument } from "../pdfjs";
 import { removePdfWatermarks, scanPdf, unwatermarkedPdfName, type FoundPdfWatermark, type PdfScan } from "../pdfUnwatermark";
@@ -22,6 +24,7 @@ const items = ref<Item[]>([]);
 const selectedId = ref<number | null>(null);
 let nextId = 1;
 const selected = computed(() => items.value.find((i) => i.id === selectedId.value) ?? null);
+const { isChecked, toggle: toggleFile, checkedItems, allChecked, partlyChecked, toggleAll } = useFileChecks(items);
 const scanning = ref(false);
 
 const addFiles = async (files: File[]) => {
@@ -125,7 +128,7 @@ onBeforeUnmount(() => {
 const goto = (i: number) => (pageIndex.value = Math.max(0, Math.min(pageCount.value - 1, i)));
 
 // ---------- 导出 ----------
-const ready = computed(() => items.value.filter((i) => i.scan));
+const ready = computed(() => checkedItems.value.filter((i) => i.scan));
 const exporting = ref(false);
 const exportError = ref("");
 const exportAll = async () => {
@@ -155,9 +158,14 @@ const pagesText = (f: FoundPdfWatermark) => (f.pages.length > 3 ? `第 ${f.pages
   <div class="unwatermark">
     <aside class="card panel">
       <section class="section">
-        <h3>文件<span class="push">{{ items.length }} 个</span></h3>
+        <h3>
+          <CheckAll v-if="items.length" :checked="allChecked" :partly="partlyChecked" :disabled="exporting" @toggle="toggleAll">文件</CheckAll>
+          <template v-else>文件</template>
+          <span class="push">{{ items.length > 1 ? `已选 ${checkedItems.length} / ${items.length} 个` : `${items.length} 个` }}</span>
+        </h3>
         <ul class="files">
-          <li v-for="item in items" :key="item.id" :class="{ on: item.id === selected?.id }" @click="selectedId = item.id">
+          <li v-for="item in items" :key="item.id" :class="{ on: item.id === selected?.id, unchecked: !isChecked(item) }" @click="selectedId = item.id">
+            <input type="checkbox" class="file-check" title="勾选的文件才处理" :checked="isChecked(item)" :disabled="exporting" @click.stop @change="toggleFile(item)" />
             <FileText :size="14" class="icon" />
             <span class="name" :title="item.file.name">{{ item.file.name }}</span>
             <span class="size" :class="{ bad: item.error }">{{ summary(item) }}</span>
@@ -194,7 +202,7 @@ const pagesText = (f: FoundPdfWatermark) => (f.pages.length > 3 ? `第 ${f.pages
 
       <section class="section">
         <button class="btn primary full" :disabled="!ready.length || exporting" @click="exportAll">
-          <Download :size="14" />{{ exporting ? "正在处理…" : ready.length > 1 ? `去除并下载全部 ${ready.length} 个` : "去除水印并下载" }}
+          <Download :size="14" />{{ exporting ? "正在处理…" : !checkedItems.length && items.length ? "请勾选要处理的文件" : ready.length > 1 ? `去除并下载选中的 ${ready.length} 个` : "去除水印并下载" }}
         </button>
         <p v-if="exportError" class="error">{{ exportError }}</p>
         <p class="tip">只删除勾选的水印，正文仍可选择、复制。请只处理自己的文件或有权修改的文件。</p>

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { CircleAlert, CircleCheck, Download, FileAudio, FileVideo, LoaderCircle, X } from "lucide-vue-next";
+import CheckAll from "@/components/common/CheckAll.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
+import { useFileChecks } from "@/composables/useFileChecks";
 import { saveFile, saveFiles } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
 import OutputFormat from "./OutputFormat.vue";
@@ -26,6 +28,7 @@ interface Item {
 }
 const items = ref<Item[]>([]);
 let nextId = 1;
+const { isChecked, toggle: toggleFile, checkedItems, allChecked, partlyChecked, toggleAll } = useFileChecks(items);
 
 /** 读取时长：只读文件头，不解码整个文件 */
 const probeDuration = (file: File) =>
@@ -62,7 +65,7 @@ const working = ref(false);
 const convertAll = async () => {
   working.value = true;
   try {
-    for (const item of items.value) {
+    for (const item of checkedItems.value) {
       if (item.status === "done") continue;
       item.status = "working";
       try {
@@ -74,7 +77,7 @@ const convertAll = async () => {
         item.message = e instanceof Error ? e.message : String(e);
       }
     }
-    const done = items.value.filter((i) => i.result);
+    const done = checkedItems.value.filter((i) => i.result);
     if (done.length) await saveFiles(done.map((i) => ({ name: outputName(i.file.name, format.value), data: i.result! })), "音频.zip");
   } finally {
     working.value = false;
@@ -82,7 +85,7 @@ const convertAll = async () => {
 };
 
 const downloadOne = (item: Item) => item.result && saveFile(item.result, outputName(item.file.name, format.value));
-const pending = computed(() => items.value.filter((i) => i.status !== "done").length);
+const pending = computed(() => checkedItems.value.filter((i) => i.status !== "done").length);
 </script>
 
 <template>
@@ -93,8 +96,16 @@ const pending = computed(() => items.value.filter((i) => i.status !== "done").le
         <OutputFormat />
       </section>
       <section class="section">
-        <button class="btn primary full" :disabled="!items.length || working" @click="convertAll">
-          <Download :size="14" />{{ working ? "转换中…" : items.length > 1 ? `转换全部 ${items.length} 个` : "转换并保存" }}
+        <button class="btn primary full" :disabled="!checkedItems.length || working" @click="convertAll">
+          <Download :size="14" />{{
+            working
+              ? "转换中…"
+              : items.length && !checkedItems.length
+                ? "请勾选要转换的文件"
+                : items.length > 1
+                  ? `转换选中的 ${checkedItems.length} 个`
+                  : "转换并保存"
+          }}
         </button>
         <p class="tip">也可以拖入视频文件（MP4、MOV、WebM），提取其中的声音</p>
       </section>
@@ -102,7 +113,9 @@ const pending = computed(() => items.value.filter((i) => i.status !== "done").le
 
     <section class="card list">
       <div class="card-title">
-        文件<span v-if="items.length" class="count">{{ items.length }} 个</span>
+        <CheckAll v-if="items.length" :checked="allChecked" :partly="partlyChecked" :disabled="working" @toggle="toggleAll">文件</CheckAll>
+        <template v-else>文件</template>
+        <span v-if="items.length" class="count">{{ items.length > 1 ? `已选 ${checkedItems.length} / ${items.length} 个` : `${items.length} 个` }}</span>
         <button v-if="items.length && !working" class="btn small subtle push" @click="items = []">清空</button>
       </div>
       <FileDropZone
@@ -117,7 +130,8 @@ const pending = computed(() => items.value.filter((i) => i.status !== "done").le
       />
       <template v-else>
         <ul class="rows">
-          <li v-for="item in items" :key="item.id" class="row">
+          <li v-for="item in items" :key="item.id" class="row" :class="{ unchecked: !isChecked(item) }">
+            <input type="checkbox" class="file-check" title="勾选的文件才转换" :checked="isChecked(item)" :disabled="working" @change="toggleFile(item)" />
             <component :is="item.video ? FileVideo : FileAudio" :size="16" class="icon" />
             <div class="meta">
               <span class="name" :title="item.file.name">{{ item.file.name }}</span>

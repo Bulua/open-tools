@@ -3,7 +3,9 @@ import { computed, ref, shallowRef, watch } from "vue";
 import AppSelect from "@/components/common/AppSelect.vue";
 import { Download, FileText, Plus, X } from "lucide-vue-next";
 import ColorPicker from "@/components/common/ColorPicker.vue";
+import CheckAll from "@/components/common/CheckAll.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
+import { useFileChecks } from "@/composables/useFileChecks";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { saveFiles } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
@@ -65,6 +67,7 @@ const items = shallowRef<Item[]>([]);
 const selectedId = ref<number | null>(null);
 let nextId = 1;
 const selected = computed(() => items.value.find((i) => i.id === selectedId.value) ?? items.value[0] ?? null);
+const { isChecked, toggle: toggleFile, checkedItems, allChecked, partlyChecked, toggleAll } = useFileChecks(items);
 
 const addFiles = async (files: File[]) => {
   const added: Item[] = [];
@@ -162,7 +165,7 @@ const download = async () => {
   saving.value = true;
   error.value = "";
   try {
-    const files = items.value.map((item) => ({ name: watermarkedName(item.file.name), data: addWatermark(item.data, options.value) }));
+    const files = checkedItems.value.map((item) => ({ name: watermarkedName(item.file.name), data: addWatermark(item.data, options.value) }));
     await saveFiles(files, "水印文档.zip");
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
@@ -176,9 +179,14 @@ const download = async () => {
   <div class="docx-wm">
     <aside class="card panel">
       <section class="section">
-        <h3>文档<span class="push">{{ items.length }} 个</span></h3>
+        <h3>
+          <CheckAll v-if="items.length" :checked="allChecked" :partly="partlyChecked" :disabled="saving" @toggle="toggleAll">文档</CheckAll>
+          <template v-else>文档</template>
+          <span class="push">{{ items.length > 1 ? `已选 ${checkedItems.length} / ${items.length} 个` : `${items.length} 个` }}</span>
+        </h3>
         <ul class="files">
-          <li v-for="item in items" :key="item.id" :class="{ on: item.id === selected?.id }" @click="selectedId = item.id">
+          <li v-for="item in items" :key="item.id" :class="{ on: item.id === selected?.id, unchecked: !isChecked(item) }" @click="selectedId = item.id">
+            <input type="checkbox" class="file-check" title="勾选的文档才处理" :checked="isChecked(item)" :disabled="saving" @click.stop @change="toggleFile(item)" />
             <FileText :size="14" class="icon" />
             <span class="name" :title="item.file.name">{{ item.file.name }}</span>
             <span class="size">{{ formatBytes(item.file.size) }}</span>
@@ -246,8 +254,16 @@ const download = async () => {
 
       <section class="section">
         <p v-if="error" class="error">{{ error }}</p>
-        <button class="btn primary full" :disabled="saving || !items.length" @click="download">
-          <Download :size="14" />{{ saving ? "处理中…" : items.length > 1 ? `下载全部 ${items.length} 个（ZIP）` : "下载加水印的文档" }}
+        <button class="btn primary full" :disabled="saving || !checkedItems.length" @click="download">
+          <Download :size="14" />{{
+            saving
+              ? "处理中…"
+              : !checkedItems.length
+                ? "请勾选要处理的文档"
+                : items.length > 1
+                  ? `下载选中的 ${checkedItems.length} 个（ZIP）`
+                  : "下载加水印的文档"
+          }}
         </button>
       </section>
     </aside>

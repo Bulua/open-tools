@@ -2,7 +2,9 @@
 import { computed, ref, shallowRef, watch } from "vue";
 import AppSelect from "@/components/common/AppSelect.vue";
 import { Download, FileText, ImageOff, X } from "lucide-vue-next";
+import CheckAll from "@/components/common/CheckAll.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
+import { useFileChecks } from "@/composables/useFileChecks";
 import { saveFiles } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
 import MarkdownView from "./MarkdownView.vue";
@@ -48,6 +50,7 @@ const remove = (doc: Doc) => {
 };
 
 const selected = computed(() => docs.value.find((d) => d.id === selectedId.value) ?? null);
+const { isChecked, toggle: toggleFile, checkedItems, allChecked, partlyChecked, toggleAll } = useFileChecks(docs);
 const loader = computed(() => createImageLoader(images.value));
 /** 每个文档中找不到的本地图片 */
 const missing = computed(() => new Map(docs.value.map((d) => [d.id, loader.value.missing(imageSources(d.text), d.path)])));
@@ -63,7 +66,7 @@ const convert = async () => {
   error.value = "";
   try {
     const files = [];
-    for (const doc of docs.value) {
+    for (const doc of checkedItems.value) {
       const data = await markdownToDocx(doc.text, { ...options.value, loadImage: (src) => loader.value.load(src, doc.path) });
       files.push({ name: docxNameOf(doc.name), data });
     }
@@ -87,9 +90,14 @@ const previewStyle = computed(() => ({
   <div class="md2word">
     <aside class="card panel">
       <section class="section files">
-        <h3>文件<span class="push">{{ docs.length }} 个</span></h3>
+        <h3>
+          <CheckAll v-if="docs.length" :checked="allChecked" :partly="partlyChecked" :disabled="converting" @toggle="toggleAll">文件</CheckAll>
+          <template v-else>文件</template>
+          <span class="push">{{ docs.length > 1 ? `已选 ${checkedItems.length} / ${docs.length} 个` : `${docs.length} 个` }}</span>
+        </h3>
         <ul>
-          <li v-for="doc in docs" :key="doc.id" :class="{ on: doc.id === selected?.id }" @click="selectedId = doc.id">
+          <li v-for="doc in docs" :key="doc.id" :class="{ on: doc.id === selected?.id, unchecked: !isChecked(doc) }" @click="selectedId = doc.id">
+            <input type="checkbox" class="file-check" title="勾选的文件才转换" :checked="isChecked(doc)" :disabled="converting" @click.stop @change="toggleFile(doc)" />
             <FileText :size="14" class="icon" />
             <span class="name" :title="doc.path">{{ doc.name }}</span>
             <span
@@ -138,8 +146,16 @@ const previewStyle = computed(() => ({
 
       <section class="section">
         <p v-if="error" class="error">{{ error }}</p>
-        <button class="btn primary full" :disabled="converting || !docs.length" @click="convert">
-          <Download :size="14" />{{ converting ? "转换中…" : docs.length > 1 ? `转换全部 ${docs.length} 个（ZIP）` : "转换并下载 Word" }}
+        <button class="btn primary full" :disabled="converting || !checkedItems.length" @click="convert">
+          <Download :size="14" />{{
+            converting
+              ? "转换中…"
+              : docs.length && !checkedItems.length
+                ? "请勾选要转换的文件"
+                : docs.length > 1
+                  ? `转换选中的 ${checkedItems.length} 个（ZIP）`
+                  : "转换并下载 Word"
+          }}
         </button>
       </section>
     </aside>

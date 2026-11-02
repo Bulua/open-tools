@@ -2,7 +2,9 @@
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from "vue";
 import { Download, Plus, X } from "lucide-vue-next";
 import ColorPicker from "@/components/common/ColorPicker.vue";
+import CheckAll from "@/components/common/CheckAll.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
+import { useFileChecks } from "@/composables/useFileChecks";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { useFitFrame } from "@/composables/useFitFrame";
 import { saveFiles } from "@/utils/saveFile";
@@ -39,6 +41,7 @@ const items = shallowRef<Item[]>([]);
 const selectedId = ref<number | null>(null);
 let nextId = 1;
 const selected = computed(() => items.value.find((i) => i.id === selectedId.value) ?? items.value[0] ?? null);
+const { isChecked, toggle: toggleFile, checkedItems, allChecked, partlyChecked, toggleAll } = useFileChecks(items);
 
 const addFiles = async (files: File[]) => {
   const loaded: Item[] = [];
@@ -151,7 +154,7 @@ const download = async () => {
   saving.value = true;
   try {
     const files = [];
-    for (const item of items.value) {
+    for (const item of checkedItems.value) {
       const format = outputFormatOf(item.file.type);
       files.push({
         name: replaceExtension(item.file.name.replace(/(\.[^.]+)?$/, "_水印$1"), formatInfo(format).ext),
@@ -244,14 +247,27 @@ const ANCHORS: { value: Anchor; label: string }[] = [
       </section>
 
       <section class="section">
-        <button class="btn primary full" :disabled="saving || !items.length" @click="download">
-          <Download :size="14" />{{ saving ? "处理中…" : items.length > 1 ? `下载全部 ${items.length} 张（ZIP）` : "下载图片" }}
+        <button class="btn primary full" :disabled="saving || !checkedItems.length" @click="download">
+          <Download :size="14" />{{
+            saving
+              ? "处理中…"
+              : items.length && !checkedItems.length
+                ? "请勾选要下载的图片"
+                : items.length > 1
+                  ? `下载选中的 ${checkedItems.length} 张（ZIP）`
+                  : "下载图片"
+          }}
         </button>
       </section>
     </aside>
 
     <section class="card stage">
-      <div class="card-title">预览<span class="hint">{{ selected?.file.name }}</span></div>
+      <div class="card-title">
+        预览<span class="hint">{{ selected?.file.name }}</span>
+        <CheckAll v-if="items.length > 1" class="all" :checked="allChecked" :partly="partlyChecked" :disabled="saving" @toggle="toggleAll">
+          已选 {{ checkedItems.length }} / {{ items.length }} 张
+        </CheckAll>
+      </div>
       <FileDropZone
         v-if="!items.length"
         class="drop"
@@ -269,11 +285,12 @@ const ANCHORS: { value: Anchor; label: string }[] = [
           v-for="item in items"
           :key="item.id"
           class="thumb"
-          :class="{ on: item.id === selected?.id }"
+          :class="{ on: item.id === selected?.id, unchecked: !isChecked(item) }"
           :title="item.file.name"
           @click="selectedId = item.id"
         >
           <img :src="item.url" alt="" />
+          <input type="checkbox" class="file-check pick" title="勾选的图片才下载" :checked="isChecked(item)" :disabled="saving" @click.stop @change="toggleFile(item)" />
           <button class="remove" title="移除" @click.stop="remove(item)"><X :size="11" /></button>
         </figure>
         <FileDropZone compact class="add" accept="image/*" multiple title="" aria-label="继续添加图片" @files="addFiles" />
@@ -344,6 +361,21 @@ const ANCHORS: { value: Anchor; label: string }[] = [
 }
 .thumb.on {
   border-color: var(--accent);
+}
+.thumb.unchecked img {
+  opacity: 0.4;
+}
+.pick {
+  position: absolute;
+  left: 4px;
+  top: 4px;
+}
+.card-title .all {
+  margin-left: auto;
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
 }
 .thumb img {
   width: 100%;

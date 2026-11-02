@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { Download, Plus, Trash2, X } from "lucide-vue-next";
+import CheckAll from "@/components/common/CheckAll.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
+import { useFileChecks } from "@/composables/useFileChecks";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { saveFile, saveFiles } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
@@ -121,7 +123,9 @@ watch([format, quality, limitW, limitH, () => items.value.length], scheduleProce
 
 // ---------- 统计与下载 ----------
 
-const done = computed(() => items.value.filter((i) => i.result));
+// 统计和下载只算勾选的图片
+const { isChecked, toggle: toggleFile, checkedItems, allChecked, partlyChecked, toggleAll } = useFileChecks(items);
+const done = computed(() => checkedItems.value.filter((i) => i.result));
 const totalBefore = computed(() => done.value.reduce((s, i) => s + i.file.size, 0));
 const totalAfter = computed(() => done.value.reduce((s, i) => s + i.result!.bytes.length, 0));
 
@@ -201,7 +205,7 @@ const parseSize = (e: Event) => Math.max(0, Math.floor(Number((e.target as HTMLI
           <template v-else>添加图片后显示{{ converting ? "转换" : "压缩" }}效果</template>
         </p>
         <button class="btn primary full" :disabled="!done.length || processing" @click="downloadAll">
-          <Download :size="14" />{{ done.length > 1 ? "全部下载（ZIP）" : "下载" }}
+          <Download :size="14" />{{ items.length && !checkedItems.length ? "请勾选要下载的图片" : done.length > 1 ? `下载选中的 ${done.length} 张（ZIP）` : "下载" }}
         </button>
       </section>
     </aside>
@@ -209,7 +213,11 @@ const parseSize = (e: Event) => Math.max(0, Math.floor(Number((e.target as HTMLI
     <!-- 右：图片列表 -->
     <section class="card list">
       <header class="card-title">
-        <span class="list-title">图片<em v-if="items.length">{{ items.length }}</em></span>
+        <span class="list-title">
+          <CheckAll v-if="items.length" :checked="allChecked" :partly="partlyChecked" @toggle="toggleAll">图片</CheckAll>
+          <template v-else>图片</template>
+          <em v-if="items.length">{{ items.length > 1 ? `${checkedItems.length} / ${items.length}` : items.length }}</em>
+        </span>
         <template v-if="items.length">
           <button class="btn small subtle" @click="dropZone?.open()"><Plus :size="14" />添加</button>
           <button class="btn small subtle" @click="clear"><Trash2 :size="14" />清空</button>
@@ -229,7 +237,8 @@ const parseSize = (e: Event) => Math.max(0, Math.floor(Number((e.target as HTMLI
 
       <template v-else>
         <ul class="rows">
-          <li v-for="item in items" :key="item.id" class="row">
+          <li v-for="item in items" :key="item.id" class="row" :class="{ unchecked: !isChecked(item) }">
+            <input type="checkbox" class="file-check" title="勾选的图片才下载" :checked="isChecked(item)" @change="toggleFile(item)" />
             <img v-if="item.thumb" class="thumb" :src="item.thumb" alt="" />
             <span v-else class="thumb" />
             <div class="meta">

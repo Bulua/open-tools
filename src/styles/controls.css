@@ -104,6 +104,17 @@
   margin: 0;
 }
 
+/* 批量处理的文件列表：每个文件前的复选框，没勾选的文件名变灰 */
+.file-check {
+  flex-shrink: 0;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.unchecked .name {
+  color: var(--text-3);
+}
+
 /* 单行输入框；.field.mono 使用等宽字体，.field.invalid 标红 */
 .field {
   height: 36px;

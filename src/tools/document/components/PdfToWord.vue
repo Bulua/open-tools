@@ -3,6 +3,8 @@ import { computed, onMounted, ref, watch } from "vue";
 import { isTauri } from "@tauri-apps/api/core";
 import { CircleAlert, CircleCheck, Download, FileText, LoaderCircle, X } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
+import CheckAll from "@/components/common/CheckAll.vue";
+import { useFileChecks } from "@/composables/useFileChecks";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { saveFile, saveFiles } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
@@ -35,6 +37,7 @@ const remove = (item: Item) => {
   if (selectedId.value === item.id) selectedId.value = items.value[0]?.id ?? null;
 };
 const selected = computed(() => items.value.find((i) => i.id === selectedId.value) ?? null);
+const { isChecked, toggle, checkedItems, allChecked, partlyChecked, toggleAll } = useFileChecks(items);
 
 // ---------- 转换方式 ----------
 const desktop = isTauri();
@@ -91,7 +94,7 @@ const convertAll = async () => {
   converting.value = true;
   try {
     for (const item of items.value) {
-      if (item.status === "done") continue;
+      if (!isChecked(item) || item.status === "done") continue;
       item.status = "working";
       item.message = "";
       try {
@@ -106,7 +109,7 @@ const convertAll = async () => {
         item.message = /password/i.test(message) ? "PDF 有密码保护，请先解除密码" : message;
       }
     }
-    const done = items.value.filter((i) => i.docx);
+    const done = checkedItems.value.filter((i) => i.docx);
     if (done.length) await saveFiles(done.map((i) => ({ name: docxName(i), data: i.docx! })), "PDF 转 Word.zip");
   } finally {
     converting.value = false;
@@ -115,7 +118,7 @@ const convertAll = async () => {
 
 const downloadOne = (item: Item) => item.docx && saveFile(item.docx, docxName(item));
 
-const pending = computed(() => items.value.filter((i) => i.status !== "done").length);
+const pending = computed(() => checkedItems.value.filter((i) => i.status !== "done").length);
 const notes = computed(() => items.value.filter((i) => (i.status === "error" || i.warn) && i.message));
 </script>
 
@@ -123,9 +126,14 @@ const notes = computed(() => items.value.filter((i) => (i.status === "error" || 
   <div class="pdf2word">
     <aside class="card panel">
       <section class="section">
-        <h3>文件<span class="push">{{ items.length }} 个</span></h3>
+        <h3>
+          <CheckAll v-if="items.length" :checked="allChecked" :partly="partlyChecked" :disabled="converting" @toggle="toggleAll">文件</CheckAll>
+          <template v-else>文件</template>
+          <span class="push">{{ items.length > 1 ? `已选 ${checkedItems.length} / ${items.length} 个` : `${items.length} 个` }}</span>
+        </h3>
         <ul class="files">
-          <li v-for="item in items" :key="item.id" :class="{ on: item.id === selected?.id }" @click="selectedId = item.id">
+          <li v-for="item in items" :key="item.id" :class="{ on: item.id === selected?.id, unchecked: !isChecked(item) }" @click="selectedId = item.id">
+            <input type="checkbox" class="file-check" title="勾选的文件才转换" :checked="isChecked(item)" :disabled="converting" @click.stop @change="toggle(item)" />
             <FileText :size="14" class="icon" />
             <span class="name" :title="item.file.name">{{ item.file.name }}</span>
             <template v-if="item.status === 'working'">
@@ -165,7 +173,17 @@ const notes = computed(() => items.value.filter((i) => (i.status === "error" || 
 
         <button class="btn primary full" :disabled="converting || !pending || hasWord === null" @click="convertAll">
           <Download :size="14" />
-          {{ converting ? "正在转换…" : !pending ? "已全部转换" : items.length > 1 ? `转换全部 ${pending} 个` : "转换为 Word" }}
+          {{
+            converting
+              ? "正在转换…"
+              : !checkedItems.length
+                ? "请勾选要转换的文件"
+                : !pending
+                  ? "已全部转换"
+                  : items.length > 1
+                    ? `转换选中的 ${pending} 个`
+                    : "转换为 Word"
+          }}
         </button>
         <p class="tip">扫描版 PDF（整页是图片）没有文字，只能得到图片。</p>
       </section>
