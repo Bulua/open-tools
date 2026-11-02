@@ -112,8 +112,9 @@ const close = () => !busy() && emit("close");
   place-items: center;
   background: rgba(20, 20, 19, 0.28);
 }
+/* 更新说明较长（分段、带表情），对话框宽一些，说明区域最多占屏幕高度的一半 */
 .dialog {
-  width: min(440px, calc(100% - 48px));
+  width: min(760px, calc(100% - 48px));
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -192,13 +193,13 @@ h3 {
   color: var(--text-3);
 }
 .notes {
-  max-height: 200px;
+  max-height: min(460px, 50vh);
   overflow: auto;
-  padding: 10px 12px;
+  padding: 14px 16px;
   border-radius: 8px;
   background: var(--bg-sunken);
-  font-size: 13px;
-  line-height: 1.7;
+  font-size: 14px;
+  line-height: 1.8;
   white-space: pre-wrap;
   user-select: text;
 }
