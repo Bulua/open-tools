@@ -7,6 +7,16 @@
   if (window.top !== window || window.__otHooked) return;
   window.__otHooked = true;
 
+  // The window is hidden, so the page would think it is in the background and may hold back content:
+  // report it as visible.
+  try {
+    Object.defineProperty(Document.prototype, "visibilityState", { configurable: true, get: () => "visible" });
+    Object.defineProperty(Document.prototype, "hidden", { configurable: true, get: () => false });
+    Document.prototype.hasFocus = () => true;
+  } catch (e) {
+    // ignore
+  }
+
   const send = (key, value) => {
     if (window.__otDone) return;
     window.__otDone = true;

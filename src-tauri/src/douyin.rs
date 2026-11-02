@@ -1,5 +1,5 @@
 //! 抖音作品信息：抖音的接口需要由页面脚本计算的签名，直接请求拿不到数据。
-//! 这里开一个用户看不到的窗口（放在屏幕外）正常打开作品页，让页面自己加载数据；
+//! 这里开一个隐藏的窗口正常打开作品页，让页面自己加载数据；
 //! 注入的脚本（douyin_capture.js）读到作品信息后跳转到 https://open-tools.capture/?d=…，
 //! 由 on_navigation 截获并取消这次跳转。外部页面不需要、也拿不到程序的 IPC 权限。
 
@@ -32,10 +32,10 @@ pub async fn douyin_capture(app: AppHandle, id: String, kind: String) -> Result<
         .title("douyin")
         .user_agent(UA)
         .initialization_script(SCRIPT)
-        // 放在屏幕外而不是隐藏：隐藏的页面会被浏览器降低执行频率，有的页面不加载内容
-        .position(-32000.0, -32000.0)
+        // 完全隐藏（放在屏幕外不可靠：Windows 可能把窗口移回屏幕内）。
+        // 隐藏的页面会被当作在后台，注入的脚本让页面认为自己可见，以免有的内容不加载
+        .visible(false)
         .inner_size(1280.0, 800.0)
-        .decorations(false)
         .skip_taskbar(true)
         .focused(false)
         .on_navigation(move |u: &Url| {
