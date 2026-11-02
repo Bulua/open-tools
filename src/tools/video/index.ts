@@ -1,5 +1,5 @@
 import { defineAsyncComponent } from "vue";
-import { Clapperboard, FileMusic, Music2, Tv } from "lucide-vue-next";
+import { Clapperboard, FileMusic, MonitorPlay, Music2, Tv, Webcam } from "lucide-vue-next";
 import type { Category } from "../types";
 
 const video: Category = {
@@ -33,6 +33,22 @@ const video: Category = {
       desc: "把多段视频按顺序拼成一个 MP4；格式相同时直接拼接，不重新编码，速度快、画质无损",
       icon: Clapperboard,
       component: defineAsyncComponent(() => import("./components/VideoConcat.vue")),
+    },
+    {
+      id: "screen-recorder",
+      name: "屏幕录制",
+      desc: "录制整个屏幕、某个窗口或浏览器标签页，可同时录系统声音和麦克风，录完预览并保存",
+      icon: MonitorPlay,
+      component: defineAsyncComponent(() => import("./components/VideoRecorder.vue")),
+      props: { source: "screen" },
+    },
+    {
+      id: "camera-recorder",
+      name: "摄像头录制",
+      desc: "用摄像头录一段视频，可同时录麦克风，录完预览并保存",
+      icon: Webcam,
+      component: defineAsyncComponent(() => import("./components/VideoRecorder.vue")),
+      props: { source: "camera" },
     },
   ],
 };
