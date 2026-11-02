@@ -116,5 +116,20 @@ for (const platform of Object.values(manifest.platforms)) {
   console.log(`已同步 ${name} → ${platform.url}`);
 }
 
+// Gitee 上的更新文件已经是更新的版本时（例如两个版本同时打包、这个后完成），不覆盖
+const newer = (a, b) => {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) > (pb[i] ?? 0);
+  return false;
+};
+const current = await fetch("https://gitee.com/bulua/open-tools/raw/updater/latest.json")
+  .then((r) => (r.ok ? r.json() : null))
+  .catch(() => null);
+if (current?.version && newer(String(current.version), String(manifest.version))) {
+  console.log(`Gitee 上的更新文件已经是 ${current.version}，比 ${manifest.version} 新，不覆盖`);
+  process.exit(0);
+}
+
 await writeFile(output, JSON.stringify(manifest, null, 2));
 console.log(`已生成 ${output}`);

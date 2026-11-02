@@ -16,9 +16,11 @@ on:
 permissions:
   contents: write
 
+# 发布版本（推送标签）排队依次进行，不取消：两个版本同时打包时，先开始的可能后完成，
+# 会把「最新版本」和在线更新文件改回旧版本；其他构建同一分支只保留最新一次
 concurrency:
-  group: build-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ startsWith(github.ref, 'refs/tags/') && 'release' || format('build-{0}', github.ref) }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
   build:
@@ -86,6 +88,17 @@ jobs:
           releaseBody: ${{ steps.notes.outputs.body || '下载 *-setup.exe 安装即可使用。' }}
           releaseDraft: false
 
+      # 「最新版本」始终是版本号最大的那个（GitHub 默认把最后发布的标为最新）
+      - name: 标记最新版本
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          latest=$(git tag -l 'v*' --sort=-v:refname | head -1)
+          echo "版本号最大的标签：$latest"
+          gh release edit "$latest" --latest || echo "没有找到 $latest 的发布，跳过"
+
       # 把 GitHub Release 中的安装包传到 Gitee Releases，更新文件放在单独的 updater 分支，不影响 master 历史
       - name: 发布到 Gitee
         if: startsWith(github.ref, 'refs/tags/')
@@ -97,6 +110,8 @@ jobs:
           if [ -z "$GITEE_TOKEN" ]; then echo "未配置 GITEE_TOKEN，跳过"; exit 0; fi
           gh release download "$GITHUB_REF_NAME" --dir "$RUNNER_TEMP/gitee-assets" --pattern latest.json --pattern '*-setup.exe'
           node scripts/publish-gitee.mjs "$GITHUB_REF_NAME" "$RUNNER_TEMP/gitee-assets" "$RUNNER_TEMP/latest.json"
+          # Gitee 上已经是更新的版本时，脚本不生成更新文件，不覆盖
+          if [ ! -f "$RUNNER_TEMP/latest.json" ]; then exit 0; fi
           mkdir "$RUNNER_TEMP/updater" && cd "$RUNNER_TEMP/updater"
           git init -q -b updater
           cp "$RUNNER_TEMP/latest.json" latest.json
