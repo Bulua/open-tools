@@ -1,6 +1,7 @@
 // 把 GitHub 上已发布的版本同步到 Gitee Releases，并生成指向 Gitee 下载地址的 latest.json
 // 用法：node scripts/publish-gitee.mjs <标签> <素材目录> <输出的 latest.json>
 // 素材目录中需要有从 GitHub Release 下载的 latest.json 和安装包；需要环境变量 GITEE_TOKEN
+import { request } from "node:https";
 import { readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 
@@ -35,18 +36,74 @@ async function ensureRelease(notes) {
   return created.data;
 }
 
-// 上传附件，已存在同名附件时直接使用，返回下载地址
+/**
+ * 上传文件（multipart）。不用 fetch：Gitee 收完大文件后可能过好几分钟才响应，
+ * fetch 等响应头最多 5 分钟就会报 HeadersTimeoutError；这里最多等 30 分钟
+ */
+function upload(path, name, data) {
+  const boundary = `----open-tools-${Date.now().toString(16)}`;
+  // multipart 规定用 CRLF 换行
+  const head = Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${name}"\r\nContent-Type: application/octet-stream\r\n\r\n`);
+  const tail = Buffer.from(`\r\n--${boundary}--\r\n`);
+  const body = Buffer.concat([head, data, tail]);
+  const url = new URL(`${API}${path}?access_token=${token}`);
+  return new Promise((resolve, reject) => {
+    const req = request(
+      url,
+      { method: "POST", headers: { "Content-Type": `multipart/form-data; boundary=${boundary}`, "Content-Length": body.length }, timeout: 30 * 60 * 1000 },
+      (res) => {
+        const chunks = [];
+        res.on("data", (c) => chunks.push(c));
+        res.on("end", () => {
+          const text = Buffer.concat(chunks).toString("utf8");
+          let json = null;
+          try {
+            json = text ? JSON.parse(text) : null;
+          } catch {
+            json = text;
+          }
+          resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode, data: json });
+        });
+        res.on("error", reject);
+      },
+    );
+    req.on("timeout", () => req.destroy(new Error("上传超时（30 分钟）")));
+    req.on("error", reject);
+    req.end(body);
+  });
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** 已上传的同名附件 */
+async function findAsset(releaseId, name) {
+  const list = await api(`/releases/${releaseId}/attach_files?per_page=100`).catch(() => null);
+  return list?.ok && Array.isArray(list.data) ? list.data.find((a) => a.name === name) : null;
+}
+
+// 上传附件，已存在同名附件时直接使用，返回下载地址。失败时重试；
+// 每次重试前先查一下：Gitee 有时响应很慢甚至断开，但文件其实已经传上去了
 async function ensureAsset(releaseId, file) {
   const name = basename(file);
-  const list = await api(`/releases/${releaseId}/attach_files?per_page=100`);
-  const existing = list.ok && Array.isArray(list.data) ? list.data.find((a) => a.name === name) : null;
+  const data = await readFile(file);
+  let lastError;
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    const existing = await findAsset(releaseId, name);
+    if (existing) return existing.browser_download_url;
+    try {
+      const uploaded = await upload(`/releases/${releaseId}/attach_files`, name, data);
+      if (uploaded.ok && uploaded.data?.browser_download_url) return uploaded.data.browser_download_url;
+      lastError = new Error(`上传 ${name} 失败（${uploaded.status}）：${JSON.stringify(uploaded.data)}`);
+    } catch (e) {
+      lastError = e;
+    }
+    console.log(`第 ${attempt} 次上传 ${name} 没有成功：${lastError.message}`);
+    if (attempt < 4) await sleep(attempt * 30_000);
+  }
+  // 最后再查一次
+  const existing = await findAsset(releaseId, name);
   if (existing) return existing.browser_download_url;
-
-  const form = new FormData();
-  form.append("file", new Blob([await readFile(file)]), name);
-  const uploaded = await api(`/releases/${releaseId}/attach_files`, { method: "POST", body: form });
-  if (!uploaded.ok) throw new Error(`上传 ${name} 失败（${uploaded.status}）：${JSON.stringify(uploaded.data)}`);
-  return uploaded.data.browser_download_url;
+  throw lastError;
 }
 
 const manifest = JSON.parse(await readFile(join(assetDir, "latest.json"), "utf8"));
