@@ -66,3 +66,17 @@ export async function saveFiles(files: { name: string; data: Uint8Array }[], zip
   // 图片本身已经压缩过，ZIP 只打包不再压缩，速度更快
   return saveFile(zipSync(entries, { level: 0 }), zipName);
 }
+
+/** 选择一个文件夹（只有桌面版可以），之后用 saveIntoFolder 逐个写入；用户取消时返回 null */
+export async function pickFolder(title: string): Promise<string | null> {
+  const { open } = await import("@tauri-apps/plugin-dialog");
+  const folder = await open({ directory: true, title });
+  return typeof folder === "string" ? folder : null;
+}
+
+/** 把文件写进选好的文件夹（文件名需要是安全的文件名，不含路径） */
+export async function saveIntoFolder(folder: string, fileName: string, data: Uint8Array): Promise<void> {
+  const { writeFile } = await import("@tauri-apps/plugin-fs");
+  const { join } = await import("@tauri-apps/api/path");
+  await writeFile(await join(folder, fileName), data);
+}

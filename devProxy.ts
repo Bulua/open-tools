@@ -1,3 +1,5 @@
+import { Readable } from "node:stream";
+import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import type { Plugin } from "vite";
 
 /**
@@ -6,7 +8,7 @@ import type { Plugin } from "vite";
  * 只在 npm run dev 时生效；桌面版由 Rust 发出请求，不经过这里。
  *
  * 请求：POST /__open_tools_proxy，请求体是要发送的内容；目标地址、方法、请求头等放在 x-ot-* 请求头里。
- * 响应：响应体原样返回；状态码、响应头等放在 x-ot-* 响应头里。
+ * 响应：响应体边下载边返回（大文件也能显示进度）；状态码、响应头等放在 x-ot-* 响应头里。
  */
 export const PROXY_PATH = "/__open_tools_proxy";
 
@@ -42,7 +44,6 @@ export function devProxy(): Plugin {
             redirect: header(req, "x-ot-redirect") === "manual" ? "manual" : "follow",
             signal: AbortSignal.timeout(timeout),
           });
-          const data = Buffer.from(await response.arrayBuffer());
           // 响应头原样带回（多个 Set-Cookie 分开）；Node 已经解压，内容就是解压后的
           const list: [string, string][] = [];
           response.headers.forEach((v, k) => k !== "set-cookie" && list.push([k, v]));
@@ -53,7 +54,11 @@ export function devProxy(): Plugin {
           res.setHeader("x-ot-headers", encodeURIComponent(JSON.stringify(list)));
           res.setHeader("x-ot-final-url", encodeURIComponent(response.url));
           res.setHeader("content-type", "application/octet-stream");
-          res.end(data);
+          // Node 已经解压，原来的 Content-Length 是压缩后的大小；没有压缩时可以用来显示进度
+          const length = response.headers.get("content-length");
+          if (length && !response.headers.get("content-encoding")) res.setHeader("x-ot-length", length);
+          if (!response.body) return res.end();
+          Readable.fromWeb(response.body as NodeReadableStream).on("error", () => res.destroy()).pipe(res);
         } catch (e) {
           const cause = e instanceof Error && e.cause instanceof Error ? `：${e.cause.message}` : "";
           const message = e instanceof Error ? (e.name === "TimeoutError" ? "请求超时" : `${e.message}${cause}`) : String(e);

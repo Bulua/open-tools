@@ -17,5 +17,10 @@ export function useFileChecks<T extends { id: number }>(items: Ref<T[]>) {
   const toggleAll = () => {
     unchecked.value = allChecked.value ? items.value.map((i) => i.id) : [];
   };
-  return { isChecked, toggle, checkedItems, allChecked, partlyChecked, toggleAll };
+  /** 只勾选这些 */
+  const checkOnly = (list: T[]) => {
+    const keep = new Set(list.map((i) => i.id));
+    unchecked.value = items.value.filter((i) => !keep.has(i.id)).map((i) => i.id);
+  };
+  return { isChecked, toggle, checkedItems, allChecked, partlyChecked, toggleAll, checkOnly };
 }

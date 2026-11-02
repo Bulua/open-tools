@@ -1,11 +1,18 @@
 import { defineAsyncComponent } from "vue";
-import { Clapperboard, FileMusic } from "lucide-vue-next";
+import { Clapperboard, FileMusic, Tv } from "lucide-vue-next";
 import type { Category } from "../types";
 
 const video: Category = {
   id: "video",
   name: "视频",
   tools: [
+    {
+      id: "bilibili-download",
+      name: "B 站视频下载",
+      desc: "粘贴 B 站视频链接，下载视频（MP4）、音频、封面和弹幕；支持多 P、选择清晰度和编码，登录后可下载高清",
+      icon: Tv,
+      component: defineAsyncComponent(() => import("./components/BilibiliDownload.vue")),
+    },
     {
       id: "video-to-audio",
       name: "视频转音频",
