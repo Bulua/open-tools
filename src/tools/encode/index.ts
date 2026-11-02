@@ -1,5 +1,5 @@
 import { defineAsyncComponent } from "vue";
-import { Binary, Fingerprint, KeyRound, KeySquare, Link2 } from "lucide-vue-next";
+import { Binary, BookLock, Fingerprint, KeyRound, KeySquare, Link2 } from "lucide-vue-next";
 import type { Category } from "../types";
 
 const encode: Category = {
@@ -40,6 +40,13 @@ const encode: Category = {
       desc: "自定义字符种类、长度和字符集，使用安全随机数，可批量生成",
       icon: KeySquare,
       component: defineAsyncComponent(() => import("./components/PasswordGenerator.vue")),
+    },
+    {
+      id: "password-vault",
+      name: "密码本",
+      desc: "保存自己的账号和密码，用主密码加密后存放在本机，忘记主密码无法找回",
+      icon: BookLock,
+      component: defineAsyncComponent(() => import("./components/PasswordVault.vue")),
     },
   ],
 };

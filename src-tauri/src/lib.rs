@@ -5,6 +5,7 @@ mod network;
 mod script;
 mod tray;
 mod tts;
+mod vault;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -35,7 +36,9 @@ pub fn run() {
             ai_models::ai_model_download,
             ai_models::ai_model_progress,
             ai_models::ai_model_read,
-            ai_models::ai_model_delete
+            ai_models::ai_model_delete,
+            vault::vault_read,
+            vault::vault_write
         ])
         // 关闭窗口时隐藏到托盘，从托盘菜单退出
         .setup(|app| {
