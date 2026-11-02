@@ -18,6 +18,8 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         // 用系统默认浏览器打开网址
         .plugin(tauri_plugin_opener::init())
+        // HTTP 请求工具：由 Rust 发出请求
+        .plugin(tauri_plugin_http::init())
         // 前端可以调用的命令
         .invoke_handler(tauri::generate_handler![
             network::ping_once,
