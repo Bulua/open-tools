@@ -23,9 +23,15 @@ class BundledCMapFactory {
   }
 }
 
-export async function openPdf(data: Uint8Array) {
+/** readOnly：只读取文字和图片、不渲染页面时传 true，不载入字体文件（中文字体很大，载入很慢） */
+export async function openPdf(data: Uint8Array, { readOnly = false } = {}) {
   // PDF.js 会转移（清空）传入的数据，传一份副本
-  return pdfjs.getDocument({ data: data.slice(), CMapReaderFactory: BundledCMapFactory as never, isEvalSupported: false }).promise;
+  return pdfjs.getDocument({
+    data: data.slice(),
+    CMapReaderFactory: BundledCMapFactory as never,
+    isEvalSupported: false,
+    disableFontFace: readOnly,
+  }).promise;
 }
 
 export type PdfDocument = Awaited<ReturnType<typeof openPdf>>;

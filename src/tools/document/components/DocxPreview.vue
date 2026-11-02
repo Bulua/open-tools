@@ -99,7 +99,9 @@ onBeforeUnmount(() => observer?.disconnect());
   align-items: center;
   gap: 20px;
 }
+/* 页面是白纸：不设置时页面透明，深色主题下黑字压在深色背景上看不清（文档自己设了背景色时以文档为准） */
 .docx-host :deep(section.docx) {
+  background: #fff;
   position: relative;
   flex-shrink: 0;
   margin: 0;

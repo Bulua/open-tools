@@ -25,7 +25,7 @@ interface FontInfo {
 function objectOf<T>(page: Page, id: string): Promise<T | null> {
   const objs = id.startsWith("g_") ? page.commonObjs : page.objs;
   return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(null), 5000);
+    const timer = setTimeout(() => resolve(null), 3000);
     objs.get(id, (v: T) => {
       clearTimeout(timer);
       resolve(v);
@@ -33,8 +33,11 @@ function objectOf<T>(page: Page, id: string): Promise<T | null> {
   });
 }
 
-/** PDF.js 的图片数据画到画布上（三种像素格式：1 位灰度、RGB、RGBA，或者已经解码好的位图） */
-function imageCanvas(img: ImageData) {
+/**
+ * PDF.js 的图片数据画到画布上（三种像素格式：1 位灰度、RGB、RGBA，或者已经解码好的位图）。
+ * 图片比显示大小清晰很多时（例如扫描件）缩小到 maxWidth，编码快、生成的文档也小
+ */
+function imageCanvas(img: ImageData, maxWidth: number) {
   const { width, height } = img;
   if (!width || !height) return null;
   const canvas = document.createElement("canvas");
@@ -43,7 +46,7 @@ function imageCanvas(img: ImageData) {
   const ctx = canvas.getContext("2d")!;
   if (img.bitmap) {
     ctx.drawImage(img.bitmap, 0, 0);
-    return canvas;
+    return shrink(canvas, maxWidth);
   }
   const src = img.data;
   if (!src) return null;
@@ -69,11 +72,25 @@ function imageCanvas(img: ImageData) {
       }
   } else return null;
   ctx.putImageData(out, 0, 0);
-  return canvas;
+  return shrink(canvas, maxWidth);
 }
 
-async function encodeImage(img: ImageData): Promise<Pick<PageImage, "data" | "type"> | null> {
-  const canvas = imageCanvas(img);
+function shrink(canvas: HTMLCanvasElement, maxWidth: number) {
+  if (canvas.width <= maxWidth * 1.2) return canvas;
+  const small = document.createElement("canvas");
+  small.width = Math.round(maxWidth);
+  small.height = Math.max(1, Math.round((canvas.height * maxWidth) / canvas.width));
+  const ctx = small.getContext("2d")!;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(canvas, 0, 0, small.width, small.height);
+  return small;
+}
+
+/** 图片按 200 DPI 保存就足够清晰 */
+const DPI = 200;
+
+async function encodeImage(img: ImageData, displayWidth: number): Promise<Pick<PageImage, "data" | "type"> | null> {
+  const canvas = imageCanvas(img, Math.max(64, (displayWidth / 72) * DPI));
   if (!canvas) return null;
   // 可能有透明部分的用 PNG，其他用 JPEG（照片、扫描件小得多）
   const png = !!img.bitmap || img.kind === pdfjs.ImageKind.RGBA_32BPP;
@@ -110,7 +127,7 @@ async function readImages(page: Page, viewport: Matrix, ops: { fnArray: number[]
       const box = { x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
       if (box.width < 8 || box.height < 8) continue;
       const img = fn === OPS.paintImageXObject ? await objectOf<ImageData>(page, args[0] as string) : (args[0] as ImageData);
-      const encoded = img && (await encodeImage(img).catch(() => null));
+      const encoded = img && (await encodeImage(img, box.width).catch(() => null));
       if (encoded) images.push({ ...encoded, ...box });
     }
   }
@@ -160,7 +177,7 @@ export interface PdfToDocxResult {
 
 /** PDF 转 .docx；onProgress 报告已处理的页数 */
 export async function pdfToDocx(data: Uint8Array, onProgress?: (done: number, total: number) => void): Promise<PdfToDocxResult> {
-  const doc = await openPdf(data);
+  const doc = await openPdf(data, { readOnly: true });
   try {
     const layouts: PageLayout[] = [];
     for (let i = 1; i <= doc.numPages; i++) {
