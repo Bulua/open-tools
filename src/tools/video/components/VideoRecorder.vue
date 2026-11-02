@@ -1,11 +1,27 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, shallowRef } from "vue";
-import { Circle, Download, Pause, Play, Square, Trash2, Video } from "lucide-vue-next";
+import { Circle, Download, MousePointerClick, Pause, Play, Square, Trash2, TriangleAlert, Video } from "lucide-vue-next";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { saveFile } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
 import { formatTime } from "@/tools/audio/pcm";
-import { openCapture, pickFormat, recordingFileName, recordingName, type Capture, type RecordSource } from "../recorder";
+import {
+  FRAME_RATES,
+  QUALITY_OPTIONS,
+  disableHdr,
+  hdrControllable,
+  hdrEnabled,
+  openCapture,
+  pickFormat,
+  recordingFileName,
+  recordingName,
+  restoreHdr,
+  videoBitrate,
+  type Capture,
+  type RecordFrameRate,
+  type RecordQuality,
+  type RecordSource,
+} from "../recorder";
 
 /**
  * 视频录制，注册为「屏幕录制」和「摄像头录制」两个工具：
@@ -16,6 +32,9 @@ const props = defineProps<{ source: RecordSource }>();
 const source = computed(() => props.source);
 const systemAudio = useStoredRef("screenRecorder.systemAudio", true);
 const microphone = useStoredRef(`${props.source}Recorder.microphone`, props.source === "camera");
+// 屏幕录制默认原画、60 帧；摄像头默认 1080P、30 帧（大多数摄像头不支持更高）
+const quality = useStoredRef<RecordQuality>(`${props.source}Recorder.quality`, props.source === "screen" ? "original" : "1080");
+const frameRate = useStoredRef<RecordFrameRate>(`${props.source}Recorder.frameRate`, props.source === "screen" ? 60 : 30);
 
 type State = "idle" | "starting" | "recording" | "paused";
 const state = ref<State>("idle");
@@ -48,16 +67,54 @@ let pausedAt = 0;
 // 录制中实时显示画面
 const live = ref<HTMLVideoElement>();
 
+// ---------- HDR：录制期间临时关闭 ----------
+type HdrChoice = "disable" | "keep";
+/** 记住的选择，空表示每次都问 */
+const hdrChoice = useStoredRef<HdrChoice | "">("screenRecorder.hdrChoice", "");
+const hdrDialog = ref<((choice: HdrChoice | null) => void) | null>(null);
+const rememberHdr = ref(false);
+const askHdr = () => new Promise<HdrChoice | null>((resolve) => (hdrDialog.value = resolve));
+const answerHdr = (choice: HdrChoice | null) => {
+  if (choice && rememberHdr.value) hdrChoice.value = choice;
+  hdrDialog.value?.(choice);
+  hdrDialog.value = null;
+};
+/** 这次录制关掉了 HDR，结束后要恢复 */
+let hdrOff = false;
+const restoreIfNeeded = () => {
+  if (hdrOff) restoreHdr();
+  hdrOff = false;
+};
+
 // ---------- 录制 ----------
 const start = async () => {
   error.value = warning.value = "";
+  elapsed.value = 0;
   format = pickFormat();
   if (!format) return (error.value = "当前环境不支持录制视频");
+  if (source.value === "screen" && hdrControllable && (await hdrEnabled())) {
+    const choice = hdrChoice.value || (await askHdr());
+    if (!choice) return;
+    if (choice === "disable") {
+      state.value = "starting";
+      hdrOff = (await disableHdr()) > 0;
+      // 切换 HDR 时屏幕会黑一下，等它恢复后再选择画面
+      if (hdrOff) await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
   state.value = "starting";
   try {
-    capture = await openCapture({ source: source.value, systemAudio: systemAudio.value, microphone: microphone.value, mirror: source.value === "camera" });
+    capture = await openCapture({
+      source: source.value,
+      systemAudio: systemAudio.value,
+      microphone: microphone.value,
+      quality: quality.value,
+      frameRate: frameRate.value,
+      mirror: source.value === "camera",
+    });
   } catch (e) {
     state.value = "idle";
+    restoreIfNeeded();
     error.value = e instanceof Error ? e.message : String(e);
     return;
   }
@@ -67,7 +124,7 @@ const start = async () => {
   capture.video.addEventListener("ended", stop);
 
   chunks = [];
-  recorder = new MediaRecorder(capture.stream, { mimeType: format.mimeType });
+  recorder = new MediaRecorder(capture.stream, { mimeType: format.mimeType, videoBitsPerSecond: videoBitrate(quality.value, frameRate.value), audioBitsPerSecond: 192_000 });
   recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
   recorder.onstop = finish;
   recorder.start(1000);
@@ -108,6 +165,7 @@ const cleanup = () => {
   capture?.release();
   capture = null;
   if (live.value) live.value.srcObject = null;
+  restoreIfNeeded();
   state.value = "idle";
 };
 
@@ -150,11 +208,18 @@ const save = async (r: Recording) => {
   }
 };
 
+// 网页版不能开关 HDR：屏幕开着 HDR 时提醒用户录制前自己关掉
+const hdrQuery = window.matchMedia("(dynamic-range: high)");
+const hdr = ref(hdrQuery.matches);
+const onHdrChange = (e: MediaQueryListEvent) => (hdr.value = e.matches);
+hdrQuery.addEventListener("change", onHdrChange);
+onBeforeUnmount(() => hdrQuery.removeEventListener("change", onHdrChange));
+
 const busy = computed(() => state.value !== "idle");
 const statusText = computed(() =>
   state.value === "starting"
     ? source.value === "screen"
-      ? "请在弹出的窗口中选择要录制的屏幕或窗口…"
+      ? "请在弹出的窗口中选择要录制的画面…"
       : "正在打开摄像头…"
     : state.value === "recording"
       ? "正在录制…"
@@ -167,6 +232,23 @@ const statusText = computed(() =>
 <template>
   <div class="video-recorder">
     <aside class="card panel">
+      <section v-if="source === 'screen' && hdr && !hdrControllable" class="section hdr">
+        <h3><TriangleAlert :size="14" />屏幕开着 HDR，录出来会发白</h3>
+        <p class="tip">
+          录制前请在 Windows <b>设置 → 系统 → 屏幕</b>中关闭<b>「使用 HDR」</b>（没有这一项就关闭「自动管理应用的颜色」），录完再打开。关闭后录出来的颜色和屏幕上一致。
+        </p>
+      </section>
+      <section class="section">
+        <h3>清晰度</h3>
+        <div class="seg fill">
+          <button v-for="q in QUALITY_OPTIONS" :key="q.value" :class="{ on: quality === q.value }" :disabled="busy" @click="quality = q.value">{{ q.label }}</button>
+        </div>
+        <h3>帧率</h3>
+        <div class="seg fill">
+          <button v-for="f in FRAME_RATES" :key="f" :class="{ on: frameRate === f }" :disabled="busy" @click="frameRate = f">{{ f }} 帧</button>
+        </div>
+        <p class="tip">清晰度、帧率越高，画面越清楚、越流畅，文件也越大。录教程、文档选 1080P / 30 帧就够了，录游戏、动画可以选 60 帧。</p>
+      </section>
       <section class="section">
         <h3>录制声音</h3>
         <label v-if="source === 'screen'" class="check"><input v-model="systemAudio" type="checkbox" :disabled="busy" />系统声音</label>
@@ -174,7 +256,7 @@ const statusText = computed(() =>
       </section>
       <section class="section">
         <p class="tip">
-          <template v-if="source === 'screen'">开始后会弹出选择窗口，可以录整个屏幕、某个窗口或浏览器标签页。要录系统声音，请选整个屏幕或标签页并勾选「分享系统音频」。</template>
+          <template v-if="source === 'screen'">点「开始录制」后会弹出系统的选择窗口，选好要录的画面再点「共享」。要录系统声音，请选「整个屏幕」。</template>
           <template v-else>开始后会请求使用摄像头和麦克风的权限，录制时在右侧显示画面。</template>
         </p>
         <p class="tip">录像只保存在本次打开的程序中，关闭后会丢失，需要的请及时保存。</p>
@@ -184,7 +266,18 @@ const statusText = computed(() =>
     <div class="main">
       <section class="card deck" :class="state">
         <div class="screen">
-          <video v-if="busy" ref="live" autoplay muted playsinline />
+          <!-- 等待选择画面时的引导：系统的选择窗口样式改不了，在这里说明怎么选 -->
+          <div v-if="state === 'starting' && source === 'screen'" class="guide">
+            <MousePointerClick :size="28" />
+            <h4>请在弹出的窗口里选择要录制的画面</h4>
+            <ol>
+              <li>点窗口上方的<b>「整个屏幕」</b>（要录系统声音必须选它），或者<b>「窗口」</b>只录某一个程序</li>
+              <li>点一下下面要录制的画面，选中后会有边框</li>
+              <li>点右下角的<b>「共享」</b>，就开始录制了</li>
+            </ol>
+            <p>不要选 Open Tools 自己的窗口，否则画面会一层套一层。</p>
+          </div>
+          <video v-else-if="busy" ref="live" autoplay muted playsinline />
           <video v-else-if="selected" :key="selected.url" :src="selected.url" controls />
           <div v-else class="placeholder">
             <Video :size="32" />
@@ -222,6 +315,21 @@ const statusText = computed(() =>
         </ul>
         <p v-else class="empty">录好的视频会出现在这里，点击可以预览</p>
       </section>
+    </div>
+
+    <!-- 屏幕开着 HDR：问用户是否在录制期间临时关闭 -->
+    <div v-if="hdrDialog" class="overlay" @mousedown.self="answerHdr(null)" @keydown.esc="answerHdr(null)">
+      <div class="dialog" role="dialog" aria-label="屏幕开着 HDR">
+        <h2><TriangleAlert :size="18" />屏幕开着 HDR</h2>
+        <p>直接录制的话，录出来的画面会<b>整体发白</b>。可以在录制期间临时关闭 HDR，录完自动恢复。</p>
+        <p class="tip">切换 HDR 时屏幕会黑一下，属于正常现象。</p>
+        <label class="check"><input v-model="rememberHdr" type="checkbox" />记住我的选择，下次不再询问</label>
+        <footer>
+          <button class="btn subtle" @click="answerHdr(null)">取消</button>
+          <button class="btn" @click="answerHdr('keep')">直接录制</button>
+          <button class="btn primary" @click="answerHdr('disable')">临时关闭 HDR 并录制</button>
+        </footer>
+      </div>
     </div>
   </div>
 </template>
@@ -273,6 +381,92 @@ const statusText = computed(() =>
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+.hdr {
+  background: var(--warning-soft);
+}
+.hdr h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--warning);
+}
+.hdr b {
+  font-weight: 500;
+  color: var(--text-2);
+}
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: rgba(20, 20, 19, 0.28);
+}
+.dialog {
+  width: min(440px, calc(100% - 48px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 20px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+}
+.dialog h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 2px;
+  font-family: var(--font-serif);
+  font-size: 19px;
+  font-weight: 400;
+}
+.dialog h2 svg {
+  color: var(--warning);
+}
+.dialog p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.dialog b {
+  font-weight: 500;
+}
+.dialog footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+.guide {
+  max-width: 460px;
+  padding: 24px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+  line-height: 1.7;
+  text-align: left;
+}
+.guide svg {
+  color: var(--accent);
+}
+.guide h4 {
+  margin: 8px 0 6px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #fff;
+}
+.guide ol {
+  margin: 0;
+  padding-left: 20px;
+}
+.guide b {
+  color: #fff;
+}
+.guide p {
+  margin: 10px 0 0;
+  color: rgba(255, 255, 255, 0.55);
 }
 .placeholder {
   display: flex;

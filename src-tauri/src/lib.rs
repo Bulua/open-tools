@@ -1,6 +1,7 @@
 mod ai_models;
 mod document;
 mod douyin;
+mod hdr;
 mod network;
 mod script;
 mod tray;
@@ -38,7 +39,10 @@ pub fn run() {
             ai_models::ai_model_read,
             ai_models::ai_model_delete,
             vault::vault_read,
-            vault::vault_write
+            vault::vault_write,
+            hdr::hdr_enabled,
+            hdr::hdr_disable,
+            hdr::hdr_restore
         ])
         // 关闭窗口时隐藏到托盘，从托盘菜单退出
         .setup(|app| {
@@ -46,6 +50,12 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(tray::on_window_event)
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|_, event| {
+            // 退出时恢复录屏前临时关闭的 HDR
+            if let tauri::RunEvent::Exit = event {
+                hdr::restore();
+            }
+        });
 }
