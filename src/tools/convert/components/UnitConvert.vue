@@ -146,9 +146,4 @@ const fromLabel = computed(() => quantity.value.units.find((u) => u.id === from.
   font-weight: 400;
   color: var(--text-3);
 }
-.error {
-  margin: 0;
-  font-size: 12px;
-  color: var(--danger);
-}
 </style>

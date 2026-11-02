@@ -557,15 +557,6 @@ useWindowEvent("keydown", (ev) => {
   max-height: 100%;
   overflow: auto;
 }
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-}
-.section + .section {
-  border-top: 1px solid var(--border);
-}
 h3 {
   display: flex;
   align-items: center;
@@ -581,10 +572,7 @@ h3 {
   gap: 8px;
 }
 .tip {
-  margin: 0;
-  font-size: 12px;
   line-height: 1.6;
-  color: var(--text-3);
 }
 .path {
   margin: 0;
@@ -606,17 +594,8 @@ h3 {
   font-weight: 400;
   color: var(--accent);
 }
-.btn.small {
-  height: 26px;
-  padding: 0 10px;
-  font-size: 12px;
-}
 .section > .btn.small {
   align-self: flex-start;
-}
-.btn:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 .list {
   flex: 1;
@@ -946,13 +925,5 @@ h3 {
   margin: 0;
   font-size: 11.5px;
   color: var(--text-3);
-}
-.spin {
-  animation: spin 1s linear infinite;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 </style>

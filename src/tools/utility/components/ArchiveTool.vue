@@ -273,11 +273,6 @@ const closeArchive = () => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.btn.small {
-  height: 28px;
-  padding: 0 10px;
-  font-size: 12px;
-}
 .drop {
   margin: 12px;
 }
@@ -352,33 +347,17 @@ const closeArchive = () => {
 .panel {
   align-self: start;
 }
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
-}
-.section + .section {
-  border-top: 1px solid var(--border);
-}
 h3 {
   margin: 0;
   font-size: 12px;
   font-weight: 500;
   color: var(--text-2);
 }
-.seg.fill {
-  display: flex;
-}
 .seg.fill button {
-  flex: 1;
   padding: 0 4px;
 }
 .tip {
-  margin: 0;
-  font-size: 12px;
   line-height: 1.6;
-  color: var(--text-3);
   word-break: break-all;
 }
 .tip.ok {
@@ -403,14 +382,6 @@ h3 {
 .ext {
   font-size: 13px;
   color: var(--text-3);
-}
-.btn.full {
-  width: 100%;
-  justify-content: center;
-}
-.btn:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 .info {
   display: grid;

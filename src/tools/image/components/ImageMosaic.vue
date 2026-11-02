@@ -298,15 +298,6 @@ const download = async () => {
   color: var(--text-3);
   white-space: nowrap;
 }
-.btn.small {
-  height: 28px;
-  padding: 0 10px;
-  font-size: 12px;
-}
-.btn:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
 .area {
   position: relative;
   flex: 1;
@@ -356,55 +347,17 @@ canvas.tool-brush {
   flex: 0 0 260px;
   align-self: flex-start;
 }
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
-}
-.section + .section {
-  border-top: 1px solid var(--border);
-}
 h3 {
   margin: 0;
   font-size: 12px;
   font-weight: 500;
   color: var(--text-2);
 }
-.seg.fill {
-  display: flex;
-}
 .seg.fill button {
-  flex: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 5px;
-}
-.slider {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--text-2);
-}
-.slider input {
-  flex: 1;
-  accent-color: var(--accent);
-}
-.slider em {
-  flex: 0 0 28px;
-  font-style: normal;
-  text-align: right;
-  color: var(--text-3);
-}
-.tip {
-  margin: 0;
-  font-size: 12px;
-  color: var(--text-3);
-}
-.btn.full {
-  justify-content: center;
 }
 .load-error {
   margin-top: 8px;

@@ -401,26 +401,11 @@ const toNumber = (e: Event, max: number) => Math.min(max, Math.max(0, Math.round
 .settings {
   overflow-y: auto;
 }
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
-}
-.section + .section {
-  border-top: 1px solid var(--border);
-}
 h3 {
   margin: 0;
   font-size: 12px;
   font-weight: 500;
   color: var(--text-2);
-}
-.seg.fill {
-  display: flex;
-}
-.seg.fill button {
-  flex: 1;
 }
 .row {
   display: flex;
@@ -437,11 +422,6 @@ h3 {
 }
 .field.small.wide {
   width: 72px;
-}
-.btn.small {
-  height: 28px;
-  padding: 0 10px;
-  font-size: 12px;
 }
 
 /* 自由模式下可拖动的图片框 */
@@ -479,33 +459,8 @@ h3 {
 .push {
   margin-left: auto;
 }
-.slider {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--text-2);
-}
-.slider input {
-  flex: 1;
-  accent-color: var(--accent);
-}
-.slider em {
-  font-style: normal;
-  color: var(--text-3);
-}
 .tip {
-  margin: 0;
-  font-size: 12px;
   line-height: 1.6;
-  color: var(--text-3);
-}
-.btn.full {
-  justify-content: center;
-}
-.btn:disabled {
-  opacity: 0.45;
-  cursor: default;
 }
 
 /* ---------- 右侧预览 ---------- */

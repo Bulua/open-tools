@@ -145,7 +145,6 @@ const { copied, copy } = useClipboard();
 .error {
   margin: 8px 0 0;
   font-size: 13px;
-  color: var(--danger);
 }
 .search {
   display: flex;
@@ -157,10 +156,6 @@ const { copied, copy } = useClipboard();
 }
 .btn {
   flex-shrink: 0;
-}
-.btn:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 .empty {
   margin: 0;

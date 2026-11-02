@@ -115,9 +115,6 @@ const pickerValue = computed(() => (color.value ? toHex({ ...color.value, a: 1 }
   font-size: 12px;
   color: var(--text-3);
 }
-.error {
-  color: var(--danger);
-}
 .empty {
   margin: 0 16px 14px;
 }

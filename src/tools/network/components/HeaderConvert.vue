@@ -159,9 +159,4 @@ Content-Length: 42`;
 .seg + .seg {
   margin-left: 6px;
 }
-.btn.small {
-  height: 26px;
-  padding: 0 10px;
-  font-size: 12px;
-}
 </style>

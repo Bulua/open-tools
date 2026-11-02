@@ -138,8 +138,6 @@ const onCopy = async (base: number) => {
 }
 .error {
   margin: 4px 0 0;
-  font-size: 12px;
-  color: var(--danger);
 }
 .info {
   margin: 2px 0 0 100px;

@@ -28,6 +28,15 @@
 .btn:active {
   transform: translateY(1px);
 }
+/* 占满整行，文字居中 */
+.btn.full {
+  width: 100%;
+  justify-content: center;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 .btn.primary {
   border-color: var(--accent);
   background: var(--accent);
@@ -93,6 +102,13 @@
   color: var(--text);
   font-weight: 500;
   box-shadow: var(--shadow-sm);
+}
+/* 占满整行，按钮平分宽度 */
+.seg.fill {
+  display: flex;
+}
+.seg.fill button {
+  flex: 1;
 }
 
 /* 复选框 */
@@ -181,4 +197,64 @@
 }
 .toolbar .spacer {
   flex: 1;
+}
+
+/* 左侧设置面板：分成若干区块，区块之间有分隔线，h3 是区块的小标题 */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+}
+.section + .section {
+  border-top: 1px solid var(--border);
+}
+.section h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+/* 滑块一行：名称、滑条、当前数值 */
+.slider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.slider input {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--accent);
+}
+.slider em {
+  flex: 0 0 38px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--text-3);
+}
+
+/* 错误信息和灰色提示 */
+.error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--danger);
+}
+.tip {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* 加载中的转圈图标 */
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }

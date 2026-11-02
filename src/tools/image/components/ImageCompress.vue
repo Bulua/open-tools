@@ -289,9 +289,6 @@ const parseSize = (e: Event) => Math.max(0, Math.floor(Number((e.target as HTMLI
   gap: 8px;
   padding: 12px 14px;
 }
-.section + .section {
-  border-top: 1px solid var(--border);
-}
 h3 {
   display: flex;
   align-items: baseline;
@@ -315,20 +312,13 @@ h3 em {
   font-variant-numeric: tabular-nums;
 }
 .tip {
-  margin: 0;
-  font-size: 12px;
   line-height: 1.5;
-  color: var(--text-3);
 }
 .tip.inline {
   margin-left: auto;
   font-weight: 400;
 }
-.seg.fill {
-  display: flex;
-}
 .seg.fill button {
-  flex: 1;
   padding: 0 4px;
 }
 .formats {
@@ -405,14 +395,6 @@ h3 em {
 }
 .total .btn {
   margin-top: 6px;
-}
-.btn.full {
-  justify-content: center;
-}
-.btn.small {
-  height: 28px;
-  padding: 0 10px;
-  font-size: 12px;
 }
 
 /* ---------- 右侧列表 ---------- */
@@ -525,10 +507,6 @@ h3 em {
 .badge.bad {
   color: var(--danger);
   background: var(--danger-soft);
-}
-.error {
-  font-size: 12px;
-  color: var(--danger);
 }
 .icon-btn:disabled,
 .btn:disabled {

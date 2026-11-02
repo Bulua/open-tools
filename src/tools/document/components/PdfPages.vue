@@ -382,10 +382,6 @@ const deleted = computed(() => sources.value.reduce((n, s) => n + s.pageCount, 0
   height: 30px;
   padding: 0 10px;
 }
-.btn:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
 .btn.danger:not(:disabled) {
   color: var(--danger);
 }
@@ -413,10 +409,8 @@ const deleted = computed(() => sources.value.reduce((n, s) => n + s.pageCount, 0
   color: var(--text);
 }
 .error {
-  margin: 0;
   padding: 8px 14px;
   font-size: 12.5px;
-  color: var(--danger);
   background: var(--danger-soft);
 }
 .drop {

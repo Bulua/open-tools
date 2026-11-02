@@ -623,9 +623,6 @@ const KIND_LABEL = { json: "JSON", html: "网页", xml: "XML", text: "文本", i
 }
 .btn.small {
   align-self: flex-start;
-  height: 26px;
-  padding: 0 10px;
-  font-size: 12px;
 }
 /* 响应 */
 .res-head {
@@ -790,14 +787,6 @@ const KIND_LABEL = { json: "JSON", html: "网页", xml: "XML", text: "文本", i
 }
 .copy-headers {
   margin: 4px 0 6px;
-}
-.spin {
-  animation: spin 1s linear infinite;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 </style>
 

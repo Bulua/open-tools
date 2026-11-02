@@ -198,26 +198,13 @@ const onDelete = (item: CountdownItem) => {
 .panel {
   flex: 0 0 300px;
 }
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-}
-.section + .section {
-  border-top: 1px solid var(--border);
-}
 h3 {
   margin: 0;
   font-size: 12px;
   font-weight: 500;
   color: var(--text-2);
 }
-.seg.fill {
-  display: flex;
-}
 .seg.fill button {
-  flex: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -263,19 +250,6 @@ h3 {
   text-align: center;
   font-size: 16px;
   font-variant-numeric: tabular-nums;
-}
-.btn.full {
-  justify-content: center;
-}
-.tip {
-  margin: 0;
-  font-size: 12px;
-  color: var(--text-3);
-}
-.error {
-  margin: 0;
-  font-size: 12px;
-  color: var(--danger);
 }
 
 .list {

@@ -246,7 +246,6 @@ const decodeInfo = computed(() => {
 }
 .error {
   margin-top: 6px;
-  color: var(--danger);
 }
 
 .preview {

@@ -249,15 +249,6 @@ const describe = (info: VideoInfo) =>
   max-height: 100%;
   overflow: auto;
 }
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-}
-.section + .section {
-  border-top: 1px solid var(--border);
-}
 h3 {
   display: flex;
   margin: 0;
@@ -282,40 +273,20 @@ h3 {
 .note.good {
   background: var(--success-soft);
 }
-.seg.fill {
-  display: flex;
-}
-.seg.fill button {
-  flex: 1;
-}
 .seg button:disabled {
   opacity: 0.5;
   cursor: default;
 }
 .tip {
-  margin: 0;
-  font-size: 12px;
   line-height: 1.6;
-  color: var(--text-3);
 }
 .error {
-  margin: 0;
-  font-size: 12px;
-  color: var(--danger);
   word-break: break-all;
-}
-.btn.full {
-  justify-content: center;
 }
 .btn:disabled,
 .icon-btn:disabled {
   opacity: 0.5;
   cursor: default;
-}
-.btn.small {
-  height: 26px;
-  padding: 0 10px;
-  font-size: 12px;
 }
 .bar {
   height: 4px;
@@ -413,14 +384,6 @@ h3 {
   font-size: 12px;
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
-}
-.spin {
-  animation: spin 1s linear infinite;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 .more {
   margin: 0 12px 12px;

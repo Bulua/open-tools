@@ -220,12 +220,4 @@ defineExpose({ play });
   color: var(--text-3);
   pointer-events: none;
 }
-.spin {
-  animation: spin 1s linear infinite;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
 </style>

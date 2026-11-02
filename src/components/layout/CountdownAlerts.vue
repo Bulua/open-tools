@@ -70,11 +70,6 @@ const emit = defineEmits<{ open: [] }>();
   font-size: 12px;
   color: var(--text-3);
 }
-.btn.small {
-  height: 28px;
-  padding: 0 10px;
-  font-size: 12px;
-}
 @keyframes ring {
   0%,
   100% {

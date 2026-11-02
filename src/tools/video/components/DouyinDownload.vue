@@ -327,15 +327,6 @@ useWindowEvent("keydown", (ev) => {
   max-height: 100%;
   overflow: auto;
 }
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-}
-.section + .section {
-  border-top: 1px solid var(--border);
-}
 h3 {
   margin: 0;
   font-size: 12px;
@@ -351,10 +342,7 @@ h3 {
   opacity: 0.5;
 }
 .tip {
-  margin: 0;
-  font-size: 12px;
   line-height: 1.6;
-  color: var(--text-3);
 }
 .path {
   margin: 0;
@@ -365,15 +353,6 @@ h3 {
 .row-btns {
   display: flex;
   gap: 6px;
-}
-.btn.small {
-  height: 26px;
-  padding: 0 10px;
-  font-size: 12px;
-}
-.btn:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 .list {
   flex: 1;
@@ -642,13 +621,5 @@ h3 {
 }
 .next {
   right: 12px;
-}
-.spin {
-  animation: spin 1s linear infinite;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 </style>

@@ -394,8 +394,4 @@ const fmtHour = (hour: number) => {
   height: 32px;
   font-size: 13px;
 }
-.error {
-  font-size: 12px;
-  color: var(--danger);
-}
 </style>

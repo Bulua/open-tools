@@ -225,15 +225,6 @@ const save = async (r: Recording) => {
   flex: 0 0 280px;
   align-self: flex-start;
 }
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-}
-.section + .section {
-  border-top: 1px solid var(--border);
-}
 h3 {
   margin: 0;
   font-size: 12px;
@@ -241,10 +232,7 @@ h3 {
   color: var(--text-2);
 }
 .tip {
-  margin: 0;
-  font-size: 12px;
   line-height: 1.6;
-  color: var(--text-3);
 }
 .main {
   flex: 1;
@@ -314,8 +302,6 @@ h3 {
 }
 .error {
   margin: 8px 0 0;
-  font-size: 12px;
-  color: var(--danger);
   text-align: center;
 }
 .list {
@@ -366,11 +352,6 @@ h3 {
   font-size: 12px;
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
-}
-.btn.small {
-  height: 26px;
-  padding: 0 10px;
-  font-size: 12px;
 }
 .empty {
   margin: 0;

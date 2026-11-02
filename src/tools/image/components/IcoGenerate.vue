@@ -241,10 +241,6 @@ figcaption {
   font-size: 12px;
   color: var(--text-3);
 }
-.btn:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
 .load-error {
   margin-top: 8px;
   color: var(--danger);

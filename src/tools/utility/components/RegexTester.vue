@@ -245,11 +245,6 @@ const show = (s: string | undefined) => (s === undefined ? "（未匹配）" : s
   color: var(--accent);
   font-weight: 600;
 }
-.btn.small {
-  height: 28px;
-  padding: 0 10px;
-  font-size: 12px;
-}
 .presets {
   display: flex;
   flex-wrap: wrap;
@@ -277,9 +272,6 @@ const show = (s: string | undefined) => (s === undefined ? "（未匹配）" : s
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 0;
-  font-size: 12px;
-  color: var(--danger);
 }
 
 /* ---------- 文本与结果 ---------- */

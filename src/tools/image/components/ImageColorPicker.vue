@@ -304,15 +304,6 @@ const css = (c: Rgba | PaletteColor) => toRgb({ a: 1, ...c });
   flex: 0 0 300px;
   overflow-y: auto;
 }
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-}
-.section + .section {
-  border-top: 1px solid var(--border);
-}
 h3 {
   display: flex;
   justify-content: space-between;

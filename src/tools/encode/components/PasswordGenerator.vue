@@ -151,15 +151,6 @@ const copyOne = (p: string, i: number) => {
 .panel {
   flex: 0 0 290px;
 }
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-}
-.section + .section {
-  border-top: 1px solid var(--border);
-}
 h3 {
   display: flex;
   align-items: baseline;
@@ -274,8 +265,6 @@ h3 {
   color: var(--accent);
 }
 .error {
-  margin: 0;
-  color: var(--danger);
   font-size: 14px;
 }
 .hero-actions {
@@ -329,14 +318,6 @@ h3 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.btn:disabled {
-  opacity: 0.5;
-}
-.btn.small {
-  height: 28px;
-  padding: 0 10px;
-  font-size: 12px;
 }
 .count {
   margin-left: 8px;

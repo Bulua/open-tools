@@ -248,15 +248,6 @@ const previewStyle = computed(() => ({
   max-height: 100%;
   overflow: auto;
 }
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-}
-.section + .section {
-  border-top: 1px solid var(--border);
-}
 h3 {
   display: flex;
   margin: 0;
@@ -333,24 +324,7 @@ h3 {
 .row :deep(.select) {
   flex: 1;
 }
-.tip {
-  margin: 0;
-  font-size: 12px;
-  color: var(--text-3);
-}
-.error {
-  margin: 0;
-  font-size: 12px;
-  color: var(--danger);
-}
 .btn {
   justify-content: center;
-}
-.btn.full {
-  width: 100%;
-}
-.btn:disabled {
-  opacity: 0.6;
-  cursor: default;
 }
 </style>

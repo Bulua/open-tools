@@ -30,12 +30,6 @@ const { format, quality } = useOutputFormat();
   flex-direction: column;
   gap: 8px;
 }
-.seg.fill {
-  display: flex;
-}
-.seg.fill button {
-  flex: 1;
-}
 .row {
   display: flex;
   align-items: center;
@@ -45,10 +39,5 @@ const { format, quality } = useOutputFormat();
 }
 .row .seg {
   flex: 1;
-}
-.tip {
-  margin: 0;
-  font-size: 12px;
-  color: var(--text-3);
 }
 </style>

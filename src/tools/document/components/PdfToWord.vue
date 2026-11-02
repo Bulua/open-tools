@@ -243,15 +243,6 @@ const notes = computed(() => items.value.filter((i) => (i.status === "error" || 
   max-height: 100%;
   overflow: auto;
 }
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-}
-.section + .section {
-  border-top: 1px solid var(--border);
-}
 h3 {
   display: flex;
   margin: 0;
@@ -263,12 +254,6 @@ h3 {
   margin-left: auto;
   font-weight: 400;
   color: var(--text-3);
-}
-.seg.fill {
-  display: flex;
-}
-.seg.fill button {
-  flex: 1;
 }
 .files {
   margin: 0;
@@ -315,12 +300,6 @@ h3 {
 .spin {
   flex-shrink: 0;
   color: var(--accent);
-  animation: spin 1s linear infinite;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 .remove {
   opacity: 0;
@@ -341,31 +320,16 @@ h3 {
   background: var(--warning-soft);
   color: var(--warning);
 }
-.tip {
-  margin: 0;
-  font-size: 12px;
-  color: var(--text-3);
-}
 .error,
 .warn-text {
   margin: 0;
   font-size: 12px;
   word-break: break-all;
 }
-.error {
-  color: var(--danger);
-}
 .warn-text {
   color: var(--warning);
 }
 .btn {
   justify-content: center;
-}
-.btn.full {
-  width: 100%;
-}
-.btn:disabled {
-  opacity: 0.55;
-  cursor: default;
 }
 </style>

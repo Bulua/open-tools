@@ -200,7 +200,6 @@ const SYNTAX = [
   gap: 6px;
   margin: 4px 0 0;
   font-size: 14px;
-  color: var(--danger);
 }
 .presets {
   display: flex;

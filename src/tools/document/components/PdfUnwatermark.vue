@@ -304,15 +304,6 @@ const pagesText = (f: FoundPdfWatermark) => (f.pages.length > 3 ? `第 ${f.pages
   max-height: 100%;
   overflow: auto;
 }
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-}
-.section + .section {
-  border-top: 1px solid var(--border);
-}
 h3 {
   display: flex;
   margin: 0;
@@ -459,25 +450,12 @@ h3 {
   color: var(--text-2);
 }
 .tip {
-  margin: 0;
-  font-size: 12px;
   line-height: 1.6;
-  color: var(--text-3);
 }
 .error {
-  margin: 0;
-  font-size: 12px;
-  color: var(--danger);
   word-break: break-all;
 }
 .btn {
   justify-content: center;
-}
-.btn.full {
-  width: 100%;
-}
-.btn:disabled {
-  opacity: 0.55;
-  cursor: default;
 }
 </style>

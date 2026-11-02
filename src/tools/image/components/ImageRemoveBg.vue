@@ -526,11 +526,6 @@ h3 svg {
   background: var(--accent);
   transition: width 0.4s;
 }
-.error {
-  margin: 0;
-  font-size: 12px;
-  color: var(--danger);
-}
 .busy {
   position: absolute;
   inset: 0;
@@ -541,14 +536,6 @@ h3 svg {
   background: rgba(0, 0, 0, 0.35);
   color: #fff;
   font-size: 14px;
-}
-.spin {
-  animation: spin 1s linear infinite;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 .drop {
   flex: 1;
@@ -579,11 +566,6 @@ h3 svg {
   white-space: nowrap;
   font-weight: 400;
   color: var(--accent);
-}
-.btn.small {
-  height: 28px;
-  padding: 0 10px;
-  font-size: 12px;
 }
 .area {
   position: relative;
@@ -660,15 +642,6 @@ h3 svg {
   flex: 0 0 272px;
   align-self: flex-start;
 }
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
-}
-.section + .section {
-  border-top: 1px solid var(--border);
-}
 h3 {
   display: flex;
   align-items: center;
@@ -720,32 +693,11 @@ h3 {
 .color-chip:hover button {
   opacity: 1;
 }
-.slider {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--text-2);
-}
 .slider span {
   flex: 0 0 32px;
 }
-.slider input {
-  flex: 1;
-  min-width: 0;
-  accent-color: var(--accent);
-}
-.slider em {
-  flex: 0 0 24px;
-  font-style: normal;
-  text-align: right;
-  color: var(--text-3);
-}
 .tip {
-  margin: 0;
-  font-size: 12px;
   line-height: 1.5;
-  color: var(--text-3);
 }
 .fills {
   display: flex;
@@ -766,14 +718,6 @@ h3 {
 .fill.custom {
   overflow: hidden;
   background: conic-gradient(#f87171, #fbbf24, #34d399, #60a5fa, #a78bfa, #f87171);
-}
-.btn.full {
-  width: 100%;
-  justify-content: center;
-}
-.btn:disabled {
-  opacity: 0.45;
-  cursor: default;
 }
 .load-error {
   margin-top: 8px;

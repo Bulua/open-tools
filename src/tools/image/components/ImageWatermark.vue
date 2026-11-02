@@ -410,15 +410,6 @@ const ANCHORS: { value: Anchor; label: string }[] = [
   flex: 0 0 272px;
   align-self: flex-start;
 }
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-}
-.section + .section {
-  border-top: 1px solid var(--border);
-}
 h3 {
   display: flex;
   align-items: center;
@@ -431,12 +422,6 @@ h3 {
   margin-left: auto;
   font-weight: 400;
 }
-.seg.fill {
-  display: flex;
-}
-.seg.fill button {
-  flex: 1;
-}
 .field {
   height: 32px;
   font-size: 13px;
@@ -446,41 +431,14 @@ h3 {
   align-items: center;
   gap: 12px;
 }
-.slider {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--text-2);
-}
 .slider span {
   flex: 0 0 40px;
 }
-.slider input {
-  flex: 1;
-  min-width: 0;
-  accent-color: var(--accent);
-}
-.slider em {
-  flex: 0 0 34px;
-  font-style: normal;
-  text-align: right;
-  color: var(--text-3);
-}
 .tip {
   margin: -4px 0 0;
-  font-size: 12px;
-  color: var(--text-3);
 }
 .btn {
   justify-content: center;
-}
-.btn.full {
-  width: 100%;
-}
-.btn:disabled {
-  opacity: 0.6;
-  cursor: default;
 }
 
 /* 九宫格位置选择 */

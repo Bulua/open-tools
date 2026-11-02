@@ -314,15 +314,6 @@ const download = async () => {
   max-height: 100%;
   overflow: auto;
 }
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-}
-.section + .section {
-  border-top: 1px solid var(--border);
-}
 h3 {
   display: flex;
   margin: 0;
@@ -379,12 +370,6 @@ h3 {
 .files li:hover .remove {
   opacity: 1;
 }
-.seg.fill {
-  display: flex;
-}
-.seg.fill button {
-  flex: 1;
-}
 .seg button:disabled {
   opacity: 0.4;
   cursor: default;
@@ -433,45 +418,15 @@ h3 {
   font-size: 12px;
   color: var(--text-2);
 }
-.slider {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--text-2);
-}
 .slider span {
   flex: 0 0 40px;
-}
-.slider input {
-  flex: 1;
-  min-width: 0;
-  accent-color: var(--accent);
-}
-.slider em {
-  flex: 0 0 34px;
-  font-style: normal;
-  text-align: right;
-  color: var(--text-3);
 }
 .logo {
   width: 20px;
   height: 20px;
   object-fit: contain;
 }
-.error {
-  margin: 0;
-  font-size: 12px;
-  color: var(--danger);
-}
 .btn {
   justify-content: center;
-}
-.btn.full {
-  width: 100%;
-}
-.btn:disabled {
-  opacity: 0.6;
-  cursor: default;
 }
 </style>

@@ -201,15 +201,6 @@ const download = async () => {
   flex: 0 0 280px;
   align-self: flex-start;
 }
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-}
-.section + .section {
-  border-top: 1px solid var(--border);
-}
 h3 {
   display: flex;
   align-items: center;
@@ -245,40 +236,6 @@ h3 {
 }
 .actions .btn {
   justify-content: center;
-}
-.slider {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--text-2);
-}
-.slider input {
-  flex: 1;
-  accent-color: var(--accent);
-}
-.slider em {
-  flex: 0 0 38px;
-  font-style: normal;
-  text-align: right;
-  color: var(--text-3);
-}
-.btn.full {
-  justify-content: center;
-}
-.btn:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-.btn.small {
-  height: 26px;
-  padding: 0 10px;
-  font-size: 12px;
-}
-.error {
-  margin: 0;
-  font-size: 12px;
-  color: var(--danger);
 }
 .stage {
   flex: 1;

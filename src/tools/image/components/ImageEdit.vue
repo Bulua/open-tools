@@ -538,15 +538,6 @@ const HINTS = {
   flex: 0 0 280px;
   align-self: flex-start;
 }
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
-}
-.section + .section {
-  border-top: 1px solid var(--border);
-}
 .section-head {
   display: flex;
   align-items: center;
@@ -568,11 +559,6 @@ h3 {
   font-size: 12px;
   color: var(--accent);
 }
-.tip {
-  margin: 0;
-  font-size: 12px;
-  color: var(--text-3);
-}
 .row {
   display: flex;
   align-items: center;
@@ -586,14 +572,6 @@ h3 {
   color: var(--text-2);
 }
 
-.btn.small {
-  height: 28px;
-  padding: 0 10px;
-  font-size: 12px;
-}
-.btn.full {
-  justify-content: center;
-}
 .btn:disabled,
 .seg button:disabled,
 .chips button:disabled,
@@ -615,7 +593,6 @@ h3 {
   display: flex;
 }
 .seg.fill button {
-  flex: 1;
   padding: 0 4px;
 }
 .chips {
@@ -686,28 +663,12 @@ h3 {
   background: var(--hover);
 }
 
-.slider {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-}
 .slider span {
   flex: 0 0 40px;
   color: var(--text-2);
 }
 .slider input {
-  flex: 1;
-  min-width: 0;
   height: 18px;
-  accent-color: var(--accent);
-}
-.slider em {
-  flex: 0 0 38px;
-  font-style: normal;
-  color: var(--text-3);
-  text-align: right;
-  font-variant-numeric: tabular-nums;
 }
 .load-error {
   margin-top: 8px;

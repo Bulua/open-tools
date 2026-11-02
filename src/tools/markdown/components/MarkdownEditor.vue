@@ -223,8 +223,4 @@ const jump = (id: string) => view.value?.root?.querySelector(`[id="${CSS.escape(
 .empty p {
   margin: 0;
 }
-.btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
 </style>

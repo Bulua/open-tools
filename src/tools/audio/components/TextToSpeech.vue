@@ -174,15 +174,6 @@ const save = async () => {
   flex: 0 0 280px;
   align-self: flex-start;
 }
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-}
-.section + .section {
-  border-top: 1px solid var(--border);
-}
 h3 {
   display: flex;
   margin: 0;
@@ -194,38 +185,6 @@ h3 {
   margin-left: auto;
   font-weight: 400;
   color: var(--text-3);
-}
-.slider {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-3);
-}
-.slider input {
-  flex: 1;
-  accent-color: var(--accent);
-}
-.btn.full {
-  justify-content: center;
-}
-.btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-.btn.small {
-  height: 26px;
-  padding: 0 10px;
-  font-size: 12px;
-}
-.tip {
-  margin: 0;
-  font-size: 12px;
-  color: var(--text-3);
-}
-.error {
-  margin: 0;
-  font-size: 12px;
-  color: var(--danger);
 }
 .editor {
   flex: 1;

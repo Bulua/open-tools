@@ -224,15 +224,6 @@ const pending = computed(() => checkedItems.value.filter((i) => i.status !== "do
   max-height: 100%;
   overflow: auto;
 }
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-}
-.section + .section {
-  border-top: 1px solid var(--border);
-}
 h3 {
   display: flex;
   margin: 0;
@@ -288,12 +279,6 @@ h3 {
 }
 .spin {
   color: var(--accent);
-  animation: spin 1s linear infinite;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 .remove {
   opacity: 0;
@@ -314,25 +299,10 @@ h3 {
   background: var(--warning-soft);
   color: var(--warning);
 }
-.tip {
-  margin: 0;
-  font-size: 12px;
-  color: var(--text-3);
-}
 .error {
-  margin: 0;
-  font-size: 12px;
-  color: var(--danger);
   word-break: break-all;
 }
 .btn {
   justify-content: center;
-}
-.btn.full {
-  width: 100%;
-}
-.btn:disabled {
-  opacity: 0.55;
-  cursor: default;
 }
 </style>

@@ -236,26 +236,13 @@ const pending = computed(() => checkedItems.value.filter((i) => i.status !== "do
   flex: 0 0 300px;
   align-self: flex-start;
 }
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-}
-.section + .section {
-  border-top: 1px solid var(--border);
-}
 h3 {
   margin: 0;
   font-size: 12px;
   font-weight: 500;
   color: var(--text-2);
 }
-.seg.fill {
-  display: flex;
-}
 .seg.fill button {
-  flex: 1;
   padding: 0 6px;
 }
 .seg button:disabled {
@@ -272,24 +259,13 @@ h3 {
 .panel .row .seg {
   flex: 1;
 }
-.btn.full {
-  justify-content: center;
-}
 .btn:disabled,
 .icon-btn:disabled {
   opacity: 0.5;
   cursor: default;
 }
-.btn.small {
-  height: 26px;
-  padding: 0 10px;
-  font-size: 12px;
-}
 .tip {
-  margin: 0;
-  font-size: 12px;
   line-height: 1.6;
-  color: var(--text-3);
 }
 .list {
   flex: 1;
@@ -365,21 +341,11 @@ h3 {
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
 }
-.error {
-  font-size: 12px;
-  color: var(--danger);
-}
 .bad {
   color: var(--danger);
 }
 .spin {
   color: var(--accent);
-  animation: spin 1s linear infinite;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 .more {
   margin: 0 12px 12px;
