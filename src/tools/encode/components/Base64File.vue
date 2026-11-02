@@ -134,7 +134,7 @@ const decodeInfo = computed(() => {
       <section v-if="file" class="card source">
         <header class="card-title">
           <span class="file-name" :title="file.name">{{ file.name }}</span>
-          <button class="icon-btn" title="更换文件" @click="dropZone?.open()"><RefreshCw :size="14" /></button>
+          <button class="btn small subtle" title="更换文件" @click="dropZone?.open()"><RefreshCw :size="14" />更换</button>
           <button class="icon-btn" title="清除" @click="file = null"><X :size="14" /></button>
         </header>
         <div v-if="isImage" class="preview checker"><img :src="file.dataUri" alt="预览" /></div>

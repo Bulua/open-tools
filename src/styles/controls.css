@@ -16,6 +16,12 @@
   white-space: nowrap;
   transition: background 0.15s, border-color 0.15s;
 }
+/* 小按钮：用在标题栏等紧凑的地方 */
+.btn.small {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+}
 .btn:hover {
   background: var(--hover);
 }

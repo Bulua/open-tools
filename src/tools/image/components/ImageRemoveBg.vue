@@ -36,6 +36,7 @@ const PRESETS = [
 
 const fileName = ref("");
 const loadError = ref("");
+const dropZone = ref<InstanceType<typeof FileDropZone>>();
 const source = shallowRef<{ data: ImageData; width: number; height: number } | null>(null);
 
 /** 用户点选的背景色，以及点击的位置（作为扩散起点，主体中间围住的背景也能去掉） */
@@ -377,13 +378,13 @@ const save = async () => {
           <button class="zoom-value" title="恢复为适应窗口" @click="resetView">{{ Math.round(zoom * 100) }}%</button>
           <button class="icon-btn" title="放大" :disabled="zoom >= MAX_ZOOM" @click="zoomAt(zoom * 1.5)"><ZoomIn :size="14" /></button>
         </div>
-        <label v-if="source" class="btn small subtle">
-          <RefreshCw :size="14" />更换
-          <input type="file" accept="image/*" hidden @change="onFiles([...(($event.target as HTMLInputElement).files ?? [])])" />
-        </label>
+        <button v-if="source" class="btn small subtle" title="更换图片" @click="dropZone?.open()"><RefreshCw :size="14" />更换</button>
       </header>
+      <!-- 加载后隐藏但保留：「更换」按钮由它打开选择框 -->
       <FileDropZone
-        v-if="!source"
+        v-show="!source"
+        ref="dropZone"
+        :paste="!source"
         class="drop"
         accept="image/*"
         title="拖入图片，或点击选择"
@@ -393,7 +394,7 @@ const save = async () => {
         <span v-if="loadError" class="load-error">{{ loadError }}</span>
       </FileDropZone>
       <div
-        v-else
+        v-if="source"
         :ref="observeArea"
         class="area checker"
         :class="{ picking: !recognizing, panning }"

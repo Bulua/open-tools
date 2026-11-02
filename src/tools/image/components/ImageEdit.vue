@@ -21,6 +21,7 @@ const props = withDefaults(defineProps<{ mode?: "crop" | "rotate" | "adjust" }>(
 // ---------- 图片与历史 ----------
 const fileName = ref("");
 const history = shallowRef<HTMLCanvasElement[]>([]);
+const dropZone = ref<InstanceType<typeof FileDropZone>>();
 const current = computed(() => history.value[history.value.length - 1] ?? null);
 const loadError = ref("");
 
@@ -40,11 +41,6 @@ const onFiles = async ([file]: File[]) => {
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : String(e);
   }
-};
-const onPick = (e: Event) => {
-  const input = e.target as HTMLInputElement;
-  onFiles([...(input.files ?? [])]);
-  input.value = "";
 };
 
 const push = (canvas: HTMLCanvasElement) => (history.value = [...history.value, canvas]);
@@ -396,24 +392,22 @@ const HINTS = {
     </aside>
 
     <section class="stage card">
-      <header class="stage-head">
+      <header class="card-title">
         <span class="file" :title="fileName">{{ fileName || "未选择图片" }}</span>
         <span v-if="displayed" class="dims">{{ displayed.width }} × {{ displayed.height }}</span>
         <span class="spacer" />
         <template v-if="current">
-          <button class="btn subtle" :disabled="history.length < 2" title="撤销" @click="undo"><Undo2 :size="14" />撤销</button>
-          <button class="btn subtle" title="恢复到原图" @click="reset">重置</button>
-          <label class="btn subtle" title="更换图片">
-            <RefreshCw :size="14" />更换
-            <input type="file" accept="image/*" hidden @change="onPick" />
-          </label>
+          <button class="btn small subtle" :disabled="history.length < 2" title="撤销" @click="undo"><Undo2 :size="14" />撤销</button>
+          <button class="btn small subtle" title="恢复到原图" @click="reset">重置</button>
+          <button class="btn small subtle" title="更换图片" @click="dropZone?.open()"><RefreshCw :size="14" />更换</button>
         </template>
       </header>
 
-      <FileDropZone v-if="!current" class="drop" accept="image/*" title="拖入图片，或点击选择" :hint="`${HINTS[mode]}；也可以按 Ctrl + V 粘贴截图`" @files="onFiles">
+      <!-- 加载后隐藏但保留：「更换」按钮由它打开选择框 -->
+      <FileDropZone v-show="!current" ref="dropZone" :paste="!current" class="drop" accept="image/*" title="拖入图片，或点击选择" :hint="`${HINTS[mode]}；也可以按 Ctrl + V 粘贴截图`" @files="onFiles">
         <span v-if="loadError" class="load-error">{{ loadError }}</span>
       </FileDropZone>
-      <div v-else :ref="observeArea" class="canvas-area checker">
+      <div v-if="current" :ref="observeArea" class="canvas-area checker">
         <div class="frame" :style="frameStyle">
           <canvas ref="view" :style="{ filter }" />
           <div v-if="cropping" class="crop" :style="cropStyle" @pointerdown="onCropPointerDown($event, 'move')">
@@ -441,25 +435,15 @@ const HINTS = {
   min-height: 420px;
   overflow: hidden;
 }
-.stage-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 4px 8px 4px 16px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-sunken);
-}
-.file {
+.card-title .file {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
 }
 .dims {
   flex-shrink: 0;
-  font-size: 12px;
+  font-weight: 400;
   color: var(--text-3);
 }
 .spacer {

@@ -64,12 +64,7 @@ const addFiles = async (files: File[]) => {
   }
 };
 
-const fileInput = ref<HTMLInputElement>();
-const onPick = (e: Event) => {
-  const input = e.target as HTMLInputElement;
-  if (input.files?.length) addFiles([...input.files]);
-  input.value = "";
-};
+const dropZone = ref<InstanceType<typeof FileDropZone>>();
 
 const reset = () => {
   for (const url of thumbs.value.values()) URL.revokeObjectURL(url);
@@ -282,11 +277,10 @@ const deleted = computed(() => sources.value.reduce((n, s) => n + s.pageCount, 0
       <button :class="{ on: thumbSize === 'm' }" @click="thumbSize = 'm'">中</button>
       <button :class="{ on: thumbSize === 'l' }" @click="thumbSize = 'l'">大</button>
     </div>
-    <button class="btn" title="加入其他 PDF，合并为一个文件" @click="fileInput?.click()"><FilePlus2 :size="14" />添加 PDF</button>
+    <button class="btn" title="加入其他 PDF，合并为一个文件" @click="dropZone?.open()"><FilePlus2 :size="14" />添加 PDF</button>
     <button v-if="sources.length" class="btn subtle" @click="reset">关闭</button>
     <button class="btn primary" :disabled="saving || !pages.length" @click="save"><Save :size="14" />{{ saving ? "保存中…" : "保存 PDF" }}</button>
   </ToolActions>
-  <input ref="fileInput" type="file" accept=".pdf,application/pdf" multiple hidden @change="onPick" />
 
   <section class="card pdf">
     <div class="bar">
@@ -308,8 +302,10 @@ const deleted = computed(() => sources.value.reduce((n, s) => n + s.pageCount, 0
     </div>
     <p v-if="rangeError || error" class="error">{{ rangeError || error }}</p>
 
+    <!-- 加载后隐藏但保留：「添加 PDF」和 Ctrl+V 粘贴仍由它处理 -->
     <FileDropZone
-      v-if="!sources.length"
+      v-show="!sources.length"
+      ref="dropZone"
       class="drop"
       accept=".pdf,application/pdf"
       multiple
@@ -317,7 +313,7 @@ const deleted = computed(() => sources.value.reduce((n, s) => n + s.pageCount, 0
       hint="可以删除、旋转、拖动调整页面顺序；一次拖入多个 PDF 会合并成一个文件"
       @files="addFiles"
     />
-    <div v-else class="grid" :style="{ '--thumb': `${thumbWidth}px` }" @dragover.prevent @drop="onDrop">
+    <div v-if="sources.length" class="grid" :style="{ '--thumb': `${thumbWidth}px` }" @dragover.prevent @drop="onDrop">
       <figure
         v-for="(page, i) in pages"
         :key="page.key"

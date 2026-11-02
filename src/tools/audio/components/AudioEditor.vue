@@ -16,6 +16,7 @@ import { useOutputFormat } from "../useOutputFormat";
  */
 const fileName = ref("");
 const history = shallowRef<Pcm[]>([]);
+const dropZone = ref<InstanceType<typeof FileDropZone>>();
 const pcm = computed(() => history.value[history.value.length - 1] ?? null);
 const selection = ref<[number, number] | null>(null);
 const position = ref(0);
@@ -39,11 +40,6 @@ const onFiles = async ([file]: File[]) => {
   } finally {
     loading.value = false;
   }
-};
-const onPick = (e: Event) => {
-  const input = e.target as HTMLInputElement;
-  onFiles([...(input.files ?? [])]);
-  input.value = "";
 };
 
 /** 修改后记入历史（最多保留 10 步，音频数据较大） */
@@ -161,16 +157,15 @@ const download = async () => {
       <div class="card-title">
         <span class="file" :title="fileName">{{ fileName || "未选择音频" }}</span>
         <template v-if="pcm">
-          <button class="btn small subtle push" :disabled="history.length < 2" @click="undo"><Undo2 :size="13" />撤销</button>
-          <label class="btn small subtle">
-            <RefreshCw :size="13" />更换
-            <input type="file" accept="audio/*,video/*" hidden @change="onPick" />
-          </label>
+          <button class="btn small subtle push" :disabled="history.length < 2" @click="undo"><Undo2 :size="14" />撤销</button>
+          <button class="btn small subtle" title="更换音频" @click="dropZone?.open()"><RefreshCw :size="14" />更换</button>
         </template>
       </div>
 
+      <!-- 加载后隐藏但保留：「更换」按钮由它打开选择框 -->
       <FileDropZone
-        v-if="!pcm"
+        v-show="!pcm"
+        ref="dropZone"
         class="drop"
         accept="audio/*,video/*,.m4a,.flac,.ogg,.aac"
         :paste="false"

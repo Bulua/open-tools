@@ -15,6 +15,7 @@ const ALL_SIZES = [16, 24, 32, 48, 64, 128, 256];
 const sizes = useStoredRef<number[]>("ico.sizes", [16, 32, 48, 256]);
 const fit = useStoredRef<"contain" | "cover">("ico.fit", "contain");
 
+const dropZone = ref<InstanceType<typeof FileDropZone>>();
 const img = shallowRef<HTMLImageElement | null>(null);
 const fileName = ref("");
 const loadError = ref("");
@@ -76,10 +77,7 @@ const downloadPngs = () =>
     <section class="card options">
       <header class="card-title">
         <span class="file" :title="fileName">{{ fileName || "未选择图片" }}</span>
-        <label v-if="img" class="icon-btn" title="更换图片">
-          <RefreshCw :size="14" />
-          <input type="file" accept="image/*" hidden @change="onFiles([...(($event.target as HTMLInputElement).files ?? [])])" />
-        </label>
+        <button v-if="img" class="btn small subtle" title="更换图片" @click="dropZone?.open()"><RefreshCw :size="14" />更换</button>
       </header>
       <div class="option-body">
         <div v-if="img" class="option">
@@ -107,8 +105,11 @@ const downloadPngs = () =>
     <!-- 右：预览与下载 -->
     <section class="card previews">
       <div class="card-title">预览</div>
+      <!-- 加载后隐藏但保留：「更换」按钮由它打开选择框 -->
       <FileDropZone
-        v-if="!img"
+        v-show="!img"
+        ref="dropZone"
+        :paste="!img"
         class="drop"
         accept="image/*"
         title="拖入图片，或点击选择"
@@ -117,7 +118,7 @@ const downloadPngs = () =>
       >
         <span v-if="loadError" class="load-error">{{ loadError }}</span>
       </FileDropZone>
-      <div v-else-if="outputs.length" class="grid">
+      <div v-if="img && outputs.length" class="grid">
         <figure v-for="o in outputs" :key="o.size">
           <div class="tile checker">
             <!-- 小尺寸按原始像素显示，看起来和实际效果一致 -->
@@ -126,7 +127,7 @@ const downloadPngs = () =>
           <figcaption>{{ o.size }} × {{ o.size }}</figcaption>
         </figure>
       </div>
-      <p v-else class="empty">请至少选择一个尺寸</p>
+      <p v-else-if="img" class="empty">请至少选择一个尺寸</p>
 
       <footer class="actions">
         <span v-if="ico" class="size">ICO 文件 {{ formatBytes(ico.length) }}</span>

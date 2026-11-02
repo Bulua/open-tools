@@ -9,6 +9,7 @@ import { useZoomPan } from "@/composables/useZoomPan";
 
 /** 图片取色：鼠标移到图片上预览颜色，点击取色；自动提取主色调 */
 const loaded = ref(false);
+const dropZone = ref<InstanceType<typeof FileDropZone>>();
 const fileName = ref("");
 const loadError = ref("");
 const view = ref<HTMLCanvasElement>();
@@ -146,21 +147,21 @@ const css = (c: Rgba | PaletteColor) => toRgb({ a: 1, ...c });
     </aside>
 
     <section class="stage card">
-      <header class="stage-head">
+      <header class="card-title">
         <span class="file" :title="fileName">{{ fileName || "未选择图片" }}</span>
-        <span v-if="loaded" class="tip">点击图片取色，滚轮缩放，按住拖动</span>
+        <span v-if="loaded" class="hint">点击图片取色，滚轮缩放，按住拖动</span>
         <div v-if="loaded" class="zoom">
           <button class="icon-btn" title="缩小" :disabled="zoom <= MIN_ZOOM" @click="zoomAt(zoom / 1.5)"><ZoomOut :size="14" /></button>
           <button class="zoom-value" title="恢复为适应窗口" @click="resetView">{{ Math.round(zoom * 100) }}%</button>
           <button class="icon-btn" title="放大" :disabled="zoom >= MAX_ZOOM" @click="zoomAt(zoom * 1.5)"><ZoomIn :size="14" /></button>
         </div>
-        <label v-if="loaded" class="btn subtle">
-          <RefreshCw :size="14" />更换
-          <input type="file" accept="image/*" hidden @change="onFiles([...(($event.target as HTMLInputElement).files ?? [])])" />
-        </label>
+        <button v-if="loaded" class="btn small subtle" title="更换图片" @click="dropZone?.open()"><RefreshCw :size="14" />更换</button>
       </header>
+      <!-- 加载后隐藏但保留：「更换」按钮由它打开选择框 -->
       <FileDropZone
-        v-if="!loaded"
+        v-show="!loaded"
+        ref="dropZone"
+        :paste="!loaded"
         class="drop"
         accept="image/*"
         title="拖入图片，或点击选择"
@@ -169,7 +170,7 @@ const css = (c: Rgba | PaletteColor) => toRgb({ a: 1, ...c });
       >
         <span v-if="loadError" class="load-error">{{ loadError }}</span>
       </FileDropZone>
-      <div v-else class="canvas-area">
+      <div v-if="loaded" class="canvas-area">
         <div
           class="canvas-wrap"
           :class="{ panning }"
@@ -207,29 +208,19 @@ const css = (c: Rgba | PaletteColor) => toRgb({ a: 1, ...c });
   min-width: 0;
   overflow: hidden;
 }
-.stage-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 4px 8px 4px 16px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-sunken);
-}
-.file {
+.card-title .file {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
 }
-.tip {
+.card-title .hint {
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-weight: 400;
   color: var(--text-3);
 }
 .canvas-area {

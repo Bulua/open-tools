@@ -21,6 +21,7 @@ const fileName = ref("");
 const fileType = ref<ImageFormat>("image/png");
 const loadError = ref("");
 const history = shallowRef<HTMLCanvasElement[]>([]);
+const dropZone = ref<InstanceType<typeof FileDropZone>>();
 const current = computed(() => history.value[history.value.length - 1] ?? null);
 
 const onFiles = async ([file]: File[]) => {
@@ -231,14 +232,14 @@ const download = async () => {
           <span class="hint">{{ tool === "rect" ? "在图片上拖动框选区域" : "按住鼠标在图片上涂抹" }}</span>
           <button class="btn small subtle" :disabled="history.length < 2" @click="undo"><Undo2 :size="14" />撤销</button>
           <button class="btn small subtle" :disabled="history.length < 2" @click="reset">重置</button>
-          <label class="btn small subtle">
-            <RefreshCw :size="14" />更换
-            <input type="file" accept="image/*" hidden @change="onFiles([...(($event.target as HTMLInputElement).files ?? [])])" />
-          </label>
+          <button class="btn small subtle" title="更换图片" @click="dropZone?.open()"><RefreshCw :size="14" />更换</button>
         </template>
       </header>
+      <!-- 加载后隐藏但保留：「更换」按钮由它打开选择框 -->
       <FileDropZone
-        v-if="!current"
+        v-show="!current"
+        ref="dropZone"
+        :paste="!current"
         class="drop"
         accept="image/*"
         title="拖入图片，或点击选择"
@@ -247,7 +248,7 @@ const download = async () => {
       >
         <span v-if="loadError" class="load-error">{{ loadError }}</span>
       </FileDropZone>
-      <div v-else :ref="observeArea" class="area">
+      <div v-if="current" :ref="observeArea" class="area">
         <div class="frame" :style="frameStyle">
           <canvas
             ref="view"
