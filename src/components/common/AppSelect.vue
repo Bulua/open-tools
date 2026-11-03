@@ -268,13 +268,4 @@ const showGroup = (i: number) => {
   font-size: 12px;
   color: var(--text-3);
 }
-.pop-enter-active,
-.pop-leave-active {
-  transition: opacity 0.12s, transform 0.12s;
-}
-.pop-enter-from,
-.pop-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
-}
 </style>

@@ -14,7 +14,7 @@
   font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
 }
 /* 小按钮：用在标题栏等紧凑的地方 */
 .btn.small {
@@ -67,6 +67,7 @@
   border-radius: 6px;
   background: none;
   color: var(--text-3);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 .icon-btn:hover {
   background: var(--hover);
@@ -78,6 +79,7 @@
 
 /* 分段选择，例如「2 空格 / 4 空格 / Tab」 */
 .seg {
+  position: relative;
   display: inline-flex;
   padding: 2px;
   gap: 2px;
@@ -93,6 +95,10 @@
   color: var(--text-2);
   font-size: 12px;
   white-space: nowrap;
+  /* 在滑动的选中底色（.glide-pill）上面 */
+  position: relative;
+  z-index: 1;
+  transition: color var(--dur) var(--ease-out);
 }
 .seg button:hover {
   color: var(--text);
@@ -102,6 +108,11 @@
   color: var(--text);
   font-weight: 500;
   box-shadow: var(--shadow-sm);
+}
+/* 选中底色滑动期间，由滑块代替选中按钮自己的底色 */
+.seg.gliding > button.on {
+  background: none;
+  box-shadow: none;
 }
 /* 占满整行，按钮平分宽度 */
 .seg.fill {
@@ -148,7 +159,7 @@
   background: var(--surface);
   outline: none;
   font-size: 14px;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur) var(--ease-out);
 }
 .field:focus {
   border-color: var(--accent);
@@ -260,7 +271,7 @@
   display: block;
   height: 100%;
   background: var(--accent);
-  transition: width 0.3s;
+  transition: width var(--dur-slow) var(--ease-out);
 }
 
 /* 加载中的转圈图标 */

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { onActivated, ref } from "vue";
 import type { Tool } from "@/tools/types";
 import ToolSession from "./ToolSession.vue";
 import SessionTabs, { type Session } from "./SessionTabs.vue";
@@ -43,6 +43,16 @@ const closeSession = (id: number) => {
   if (activeId.value === id) activeId.value = sessions.value[Math.min(index, sessions.value.length - 1)].id;
 };
 
+// 切换到这个工具时，工作区从下方轻轻滑上来；标题栏和选项不动，避免选项跟着晃
+const workspace = ref<HTMLElement>();
+onActivated(() => {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  workspace.value?.animate([{ transform: "translateY(10px)" }, { transform: "none" }], {
+    duration: 300,
+    easing: "cubic-bezier(0.32, 0.72, 0, 1)",
+  });
+});
+
 const renameSession = (id: number, name: string) => {
   const s = sessions.value.find((x) => x.id === id);
   if (s) s.name = name;
@@ -72,7 +82,7 @@ const renameSession = (id: number, name: string) => {
       />
     </div>
 
-    <div class="workspace">
+    <div ref="workspace" class="workspace">
       <template v-if="tool.sessions">
         <div v-for="s in sessions" v-show="s.id === activeId" :key="s.id" class="session">
           <ToolSession :tool="tool" :active="s.id === activeId" />

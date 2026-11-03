@@ -4,6 +4,7 @@ import { ArrowUpCircle, ChevronLeft, ChevronRight, Github, Moon, Search, Sun } f
 import type { Category } from "@/tools";
 import { useUpdater } from "@/composables/useUpdater";
 import { REPO_URL, openExternal } from "@/utils/openExternal";
+import { boxOf, glide } from "@/utils/motion";
 import AppLogo from "./AppLogo.vue";
 
 const props = defineProps<{
@@ -46,6 +47,24 @@ onMounted(() => {
   update();
 });
 onBeforeUnmount(() => observer?.disconnect());
+
+// 切换分类时，下面的强调色横线从旧标签滑到新标签（横线左右各缩进 12px，与 .tab.active::after 一致）
+const lineOf = (tab: HTMLElement) => {
+  const b = boxOf(tab);
+  return { left: b.left + 12, top: b.top + b.height - 1, width: b.width - 24, height: 2 };
+};
+watch(
+  () => props.activeId,
+  async () => {
+    const old = scroller.value?.querySelector<HTMLElement>(".tab.active");
+    if (!old) return;
+    const from = lineOf(old);
+    await nextTick();
+    const now = scroller.value?.querySelector<HTMLElement>(".tab.active");
+    if (scroller.value && now && now !== old) glide(scroller.value, from, lineOf(now), "line");
+  },
+  { flush: "pre" },
+);
 
 watch(
   () => props.activeId,
@@ -129,7 +148,7 @@ watch(
   flex: 0 0 240px;
   padding-left: 20px;
   border-right: 1px solid var(--border);
-  transition: flex-basis 0.2s ease;
+  transition: flex-basis var(--dur-slow) var(--ease-out);
 }
 .brand.compact {
   flex-basis: 56px;
@@ -149,6 +168,7 @@ watch(
   display: flex;
 }
 .tabs {
+  position: relative;
   flex: 1;
   display: flex;
   gap: 4px;
@@ -194,6 +214,10 @@ watch(
 }
 .tab.active sup {
   color: var(--accent);
+}
+/* 横线滑动期间隐藏标签自己的横线 */
+.gliding .tab.active::after {
+  visibility: hidden;
 }
 .tab.active::after {
   content: "";
@@ -248,7 +272,10 @@ watch(
   background: var(--bg);
   color: var(--text-3);
   font-size: 13px;
-  transition: border-color 0.15s, color 0.15s;
+  transition: border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.search svg {
+  transition: transform var(--dur) var(--ease-out);
 }
 .search span {
   width: 120px;
@@ -257,6 +284,11 @@ watch(
 .search:hover {
   border-color: var(--border-strong);
   color: var(--text-2);
+  background: var(--surface);
+}
+/* 悬停时放大镜微微放大，提示可以点 */
+.search:hover svg {
+  transform: scale(1.12);
 }
 .update-pill {
   height: 28px;

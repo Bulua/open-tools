@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { PanelLeftClose, PanelLeftOpen, Search, X } from "lucide-vue-next";
 import { isAvailable, type Category } from "@/tools";
+import { boxOf, glide } from "@/utils/motion";
 
 const props = defineProps<{ category: Category; activeId?: string; collapsed: boolean }>();
 defineEmits<{ select: [id: string]; toggle: [] }>();
@@ -10,6 +11,21 @@ const keyword = ref("");
 watch(
   () => props.category.id,
   () => (keyword.value = ""),
+);
+
+// 切换工具时，当前工具的卡片从旧位置滑到新位置（同一分类内才滑）
+const list = ref<HTMLElement>();
+watch(
+  () => props.activeId,
+  async () => {
+    const old = list.value?.querySelector<HTMLElement>(".item.active");
+    if (!old) return;
+    const from = boxOf(old);
+    await nextTick();
+    const now = list.value?.querySelector<HTMLElement>(".item.active");
+    if (list.value && now && now !== old && old.isConnected) glide(list.value, from, boxOf(now), "card");
+  },
+  { flush: "pre" },
 );
 
 const filtered = computed(() => {
@@ -27,7 +43,7 @@ const filtered = computed(() => {
       <button v-if="keyword" class="clear" title="清空" @click="keyword = ''"><X :size="12" /></button>
     </label>
 
-    <ul class="list">
+    <ul ref="list" class="list">
       <li v-for="t in filtered" :key="t.id">
         <button
           class="item"
@@ -62,7 +78,7 @@ const filtered = computed(() => {
   padding: 14px 10px 10px;
   background: var(--bg-sunken);
   border-right: 1px solid var(--border);
-  transition: width 0.2s ease;
+  transition: width var(--dur-slow) var(--ease-out);
   overflow: hidden;
 }
 .sidebar.collapsed {
@@ -80,9 +96,13 @@ const filtered = computed(() => {
   border-radius: 8px;
   background: var(--bg);
   color: var(--text-3);
+  transition: border-color var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out), color var(--dur) var(--ease-out);
 }
+/* 聚焦时边框和放大镜变成强调色，外面一圈柔和的光晕，与输入框 .field 一致 */
 .filter:focus-within {
-  border-color: var(--border-strong);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  color: var(--accent);
 }
 .filter input {
   flex: 1;
@@ -104,12 +124,20 @@ const filtered = computed(() => {
   border-radius: 50%;
   background: var(--active);
   color: var(--text-2);
+  animation: clear-in var(--dur) var(--ease-out);
+}
+/* 输入内容后出现的清空按钮从小放大 */
+@keyframes clear-in {
+  from {
+    transform: scale(0.4);
+  }
 }
 .clear:hover {
   color: var(--text);
 }
 
 .list {
+  position: relative;
   min-height: 0;
   list-style: none;
   margin: 0;
@@ -132,6 +160,11 @@ const filtered = computed(() => {
   color: var(--text-2);
   text-align: left;
   white-space: nowrap;
+  /* 在滑动的卡片（.glide-card）上面 */
+  position: relative;
+  z-index: 1;
+  /* 底色不做过渡：当前工具的卡片由滑块接管，过渡会让新旧卡片在滑动前后各闪一下 */
+  transition: color var(--dur-fast) var(--ease-out);
 }
 .collapsed .item {
   justify-content: center;
@@ -148,6 +181,12 @@ const filtered = computed(() => {
   box-shadow: var(--shadow-sm);
   color: var(--text);
   font-weight: 500;
+}
+/* 卡片滑动期间由滑块代替当前工具自己的卡片样式 */
+.gliding .item.active {
+  background: none;
+  border-color: transparent;
+  box-shadow: none;
 }
 .item.active .icon {
   color: var(--accent);

@@ -1,0 +1,97 @@
+/*
+ * 全局动效：弹出层、对话框、选中滑块。切换工具时工作区的上滑见 ToolView.vue。
+ * 风格：平滑减速、不回弹；内容本身不做淡入淡出，用裁剪「展开」，遮罩可以渐变。
+ * 时长和曲线见 theme.css 的 --ease-out / --dur-*。
+ */
+
+/* 下拉、日期、颜色等弹出层（<Transition name="pop">）：从顶部向下展开 */
+.pop-enter-active {
+  transition: clip-path var(--dur) var(--ease-out), transform var(--dur) var(--ease-out);
+}
+.pop-leave-active {
+  transition: clip-path var(--dur-fast) ease-in, transform var(--dur-fast) ease-in;
+}
+.pop-enter-from,
+.pop-leave-to {
+  clip-path: inset(0 0 100% 0 round 8px);
+  transform: translateY(-4px);
+}
+/* 展开后的裁剪框比面板大一圈，阴影不会被裁掉 */
+.pop-enter-to,
+.pop-leave-from {
+  clip-path: inset(-32px round 40px);
+}
+
+/* 对话框（<Transition name="modal">，遮罩是根元素，对话框是它的第一个子元素）：遮罩渐暗，对话框从中间展开 */
+.modal-enter-active,
+.modal-enter-active > * {
+  transition: opacity var(--dur-slow) var(--ease-out), clip-path var(--dur-slow) var(--ease-out), transform var(--dur-slow) var(--ease-out);
+}
+.modal-leave-active,
+.modal-leave-active > * {
+  transition: opacity var(--dur) ease-in, clip-path var(--dur) ease-in, transform var(--dur) ease-in;
+}
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+.modal-enter-from > *,
+.modal-leave-to > * {
+  clip-path: inset(30% 20% round 14px);
+  transform: translateY(12px);
+}
+.modal-enter-to > *,
+.modal-leave-from > * {
+  clip-path: inset(-48px round 62px);
+}
+
+/* 选中状态的滑块（见 utils/motion.ts） */
+.glide {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+}
+/* 分段选择的选中底色 */
+.glide-pill {
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+/* 侧栏当前工具的卡片 */
+.glide-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+/* 列表里键盘 / 鼠标所在项的浅色底（搜索结果） */
+.glide-hover {
+  border-radius: 8px;
+  background: var(--active);
+}
+/* 分类标签下面的强调色横线 */
+.glide-line {
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+/* 复制成功的对勾：从小放大出现 */
+.icon-btn.ok svg {
+  animation: tick-in var(--dur) var(--ease-out);
+}
+@keyframes tick-in {
+  from {
+    transform: scale(0.5);
+  }
+}
+
+/* 系统设置了「减少动态效果」时关掉所有动画 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from "vue";
 import { CornerDownLeft, Search } from "lucide-vue-next";
 import type { Category, Tool } from "@/tools";
+import { boxOf, glide } from "@/utils/motion";
 
 const props = defineProps<{ categories: Category[] }>();
 const emit = defineEmits<{ pick: [categoryId: string, toolId: string]; close: [] }>();
@@ -32,6 +33,19 @@ const flat = computed<Hit[]>(() =>
 );
 
 watch(keyword, () => (cursor.value = 0));
+// 上下键或鼠标移动时，高亮底色滑到新的结果上；改了搜索词、结果变了就不滑
+watch(
+  cursor,
+  async () => {
+    const old = listEl.value?.querySelector<HTMLElement>(".hit.active");
+    if (!old) return;
+    const from = boxOf(old);
+    await nextTick();
+    const now = listEl.value?.querySelector<HTMLElement>(".hit.active");
+    if (listEl.value && now && now !== old && old.isConnected) glide(listEl.value, from, boxOf(now), "hover");
+  },
+  { flush: "pre" },
+);
 watch(cursor, async (i) => {
   await nextTick();
   listEl.value?.querySelector<HTMLElement>(`[data-index="${i}"]`)?.scrollIntoView({ block: "nearest" });
@@ -102,7 +116,6 @@ const indexOf = (tool: Tool) => flat.value.findIndex((h) => h.tool === tool);
   align-items: flex-start;
   padding-top: 12vh;
   background: rgba(20, 20, 19, 0.28);
-  animation: fade 0.12s ease-out;
 }
 .palette {
   width: min(600px, calc(100% - 48px));
@@ -114,7 +127,6 @@ const indexOf = (tool: Tool) => flat.value.findIndex((h) => h.tool === tool);
   border-radius: 14px;
   box-shadow: var(--shadow-lg);
   overflow: hidden;
-  animation: pop 0.14s ease-out;
 }
 .input {
   display: flex;
@@ -122,8 +134,15 @@ const indexOf = (tool: Tool) => flat.value.findIndex((h) => h.tool === tool);
   gap: 10px;
   padding: 0 16px;
   height: 52px;
+  /* 结果很多时只压缩结果列表，输入框保持原高度 */
+  flex-shrink: 0;
   border-bottom: 1px solid var(--border);
   color: var(--text-3);
+  transition: color var(--dur) var(--ease-out);
+}
+/* 输入了内容后放大镜变成强调色 */
+.input:has(input:not(:placeholder-shown)) {
+  color: var(--accent);
 }
 .input input {
   flex: 1;
@@ -137,6 +156,7 @@ const indexOf = (tool: Tool) => flat.value.findIndex((h) => h.tool === tool);
   color: var(--text-3);
 }
 .results {
+  position: relative;
   overflow-y: auto;
   padding: 6px;
 }
@@ -157,10 +177,16 @@ const indexOf = (tool: Tool) => flat.value.findIndex((h) => h.tool === tool);
   background: none;
   text-align: left;
   color: var(--text-2);
+  /* 在滑动的高亮底色（.glide-hover）上面 */
+  position: relative;
+  z-index: 1;
 }
 .hit.active {
   background: var(--active);
   color: var(--text);
+}
+.gliding .hit.active {
+  background: none;
 }
 .hit.active .icon {
   color: var(--accent);
@@ -188,17 +214,5 @@ const indexOf = (tool: Tool) => flat.value.findIndex((h) => h.tool === tool);
   padding: 24px;
   text-align: center;
   color: var(--text-3);
-}
-
-@keyframes fade {
-  from {
-    opacity: 0;
-  }
-}
-@keyframes pop {
-  from {
-    opacity: 0;
-    transform: translateY(-6px) scale(0.99);
-  }
 }
 </style>

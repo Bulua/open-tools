@@ -260,26 +260,28 @@ useWindowEvent("keydown", (ev) => {
     </div>
 
     <!-- 预览 -->
-    <div v-if="viewer" class="mask" @click.self="viewer = null">
-      <div class="viewer">
-        <div class="viewer-head">
-          <strong :title="viewer.entry.item.desc">{{ shortDesc(viewer.entry.item.desc) }}</strong>
-          <span v-if="viewer.entry.item.type === 'images'" class="counter">{{ viewer.index + 1 }} / {{ viewer.entry.item.images.length }}</span>
-          <button class="icon-btn" title="关闭（Esc）" @click="viewer = null"><X :size="16" /></button>
-        </div>
-        <div class="screen">
-          <template v-if="viewer.entry.item.type === 'video'">
-            <video v-if="!viewer.failed" :src="viewer.entry.item.videoUrls[0]" controls autoplay @error="viewer.failed = true" />
-            <span v-else class="screen-state">无法在线播放（抖音拒绝了播放请求），下载后可以正常观看</span>
-          </template>
-          <template v-else>
-            <img :key="viewer.index" :src="viewer.entry.item.images[viewer.index].urls[0]" alt="" referrerpolicy="no-referrer" />
-            <button class="nav prev" title="上一张（←）" @click="go(-1)"><ChevronLeft :size="22" /></button>
-            <button class="nav next" title="下一张（→）" @click="go(1)"><ChevronRight :size="22" /></button>
-          </template>
+    <Transition name="modal">
+      <div v-if="viewer" class="mask" @click.self="viewer = null">
+        <div class="viewer">
+          <div class="viewer-head">
+            <strong :title="viewer.entry.item.desc">{{ shortDesc(viewer.entry.item.desc) }}</strong>
+            <span v-if="viewer.entry.item.type === 'images'" class="counter">{{ viewer.index + 1 }} / {{ viewer.entry.item.images.length }}</span>
+            <button class="icon-btn" title="关闭（Esc）" @click="viewer = null"><X :size="16" /></button>
+          </div>
+          <div class="screen">
+            <template v-if="viewer.entry.item.type === 'video'">
+              <video v-if="!viewer.failed" :src="viewer.entry.item.videoUrls[0]" controls autoplay @error="viewer.failed = true" />
+              <span v-else class="screen-state">无法在线播放（抖音拒绝了播放请求），下载后可以正常观看</span>
+            </template>
+            <template v-else>
+              <img :key="viewer.index" :src="viewer.entry.item.images[viewer.index].urls[0]" alt="" referrerpolicy="no-referrer" />
+              <button class="nav prev" title="上一张（←）" @click="go(-1)"><ChevronLeft :size="22" /></button>
+              <button class="nav next" title="下一张（→）" @click="go(1)"><ChevronRight :size="22" /></button>
+            </template>
+          </div>
         </div>
       </div>
-    </div>
+    </Transition>
   </div>
 </template>
 

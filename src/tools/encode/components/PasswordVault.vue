@@ -525,9 +525,12 @@ const formatDate = (t: number) => new Date(t).toLocaleString("zh-CN", { hour12: 
   border-radius: 8px;
   background: var(--surface);
   color: var(--text-3);
+  transition: border-color var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out), color var(--dur) var(--ease-out);
 }
 .search:focus-within {
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  color: var(--accent);
 }
 .search input {
   flex: 1;

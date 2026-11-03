@@ -32,6 +32,12 @@
   --shadow-lg: 0 16px 48px rgba(31, 30, 29, 0.16);
   --radius: 10px;
 
+  /* 动效：平滑减速、不回弹（见 motion.css） */
+  --ease-out: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --dur-slow: 300ms;
+
   --font-sans: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
   --font-serif: Georgia, "Times New Roman", "Microsoft YaHei UI", serif;
   --font-mono: "Cascadia Mono", Consolas, "Microsoft YaHei UI", monospace;

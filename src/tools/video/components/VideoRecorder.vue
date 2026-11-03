@@ -318,19 +318,21 @@ const statusText = computed(() =>
     </div>
 
     <!-- 屏幕开着 HDR：问用户是否在录制期间临时关闭 -->
-    <div v-if="hdrDialog" class="overlay" @mousedown.self="answerHdr(null)" @keydown.esc="answerHdr(null)">
-      <div class="dialog" role="dialog" aria-label="屏幕开着 HDR">
-        <h2><TriangleAlert :size="18" />屏幕开着 HDR</h2>
-        <p>直接录制的话，录出来的画面会<b>整体发白</b>。可以在录制期间临时关闭 HDR，录完自动恢复。</p>
-        <p class="tip">切换 HDR 时屏幕会黑一下，属于正常现象。</p>
-        <label class="check"><input v-model="rememberHdr" type="checkbox" />记住我的选择，下次不再询问</label>
-        <footer>
-          <button class="btn subtle" @click="answerHdr(null)">取消</button>
-          <button class="btn" @click="answerHdr('keep')">直接录制</button>
-          <button class="btn primary" @click="answerHdr('disable')">临时关闭 HDR 并录制</button>
-        </footer>
+    <Transition name="modal">
+      <div v-if="hdrDialog" class="overlay" @mousedown.self="answerHdr(null)" @keydown.esc="answerHdr(null)">
+        <div class="dialog" role="dialog" aria-label="屏幕开着 HDR">
+          <h2><TriangleAlert :size="18" />屏幕开着 HDR</h2>
+          <p>直接录制的话，录出来的画面会<b>整体发白</b>。可以在录制期间临时关闭 HDR，录完自动恢复。</p>
+          <p class="tip">切换 HDR 时屏幕会黑一下，属于正常现象。</p>
+          <label class="check"><input v-model="rememberHdr" type="checkbox" />记住我的选择，下次不再询问</label>
+          <footer>
+            <button class="btn subtle" @click="answerHdr(null)">取消</button>
+            <button class="btn" @click="answerHdr('keep')">直接录制</button>
+            <button class="btn primary" @click="answerHdr('disable')">临时关闭 HDR 并录制</button>
+          </footer>
+        </div>
       </div>
-    </div>
+    </Transition>
   </div>
 </template>
 

@@ -88,14 +88,18 @@ onMounted(startCountdownTicker);
       </main>
     </div>
 
-    <CommandPalette
-      v-if="searchOpen"
-      :categories="categories"
-      @pick="(c, t) => (selectTool(c, t), (searchOpen = false))"
-      @close="searchOpen = false"
-    />
+    <Transition name="modal">
+      <CommandPalette
+        v-if="searchOpen"
+        :categories="categories"
+        @pick="(c, t) => (selectTool(c, t), (searchOpen = false))"
+        @close="searchOpen = false"
+      />
+    </Transition>
 
-    <UpdateDialog v-if="updateOpen" @close="updateOpen = false" />
+    <Transition name="modal">
+      <UpdateDialog v-if="updateOpen" @close="updateOpen = false" />
+    </Transition>
     <CountdownAlerts @open="selectTool('time', 'countdown')" />
   </div>
 </template>
