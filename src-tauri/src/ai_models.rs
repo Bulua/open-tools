@@ -37,26 +37,27 @@ impl RemoteFile {
 
 /// 下载源：id 与仓库地址（后面接 RemoteFile.path）。默认按这个顺序尝试
 const SOURCES: &[(&str, &str)] = &[
-    ("modelscope", "https://modelscope.cn/models/Bulua/open-tools-models/resolve/master/"),
-    ("huggingface", "https://huggingface.co/Bulua/open-tools-models/resolve/main/"),
+    ("modelscope", "https://www.modelscope.cn/models/sebponk/open-tools-models/resolve/master/"),
+    ("huggingface", "https://huggingface.co/penghui002/open-tools-models/resolve/main/"),
 ];
 
 /// 可下载的模型（来自开源项目 rembg）
 const MODELS: &[(&str, RemoteFile)] = &[
-    ("u2netp", RemoteFile { path: "models/u2netp.onnx", size: 4_574_861, sha256: "" }),
-    ("silueta", RemoteFile { path: "models/silueta.onnx", size: 44_173_029, sha256: "" }),
-    ("isnet-general-use", RemoteFile { path: "models/isnet-general-use.onnx", size: 178_648_008, sha256: "" }),
-    ("u2net_human_seg", RemoteFile { path: "models/u2net_human_seg.onnx", size: 175_997_641, sha256: "" }),
+    ("u2netp", RemoteFile { path: "models/u2netp.onnx", size: 4_574_861, sha256: "309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8" }),
+    ("silueta", RemoteFile { path: "models/silueta.onnx", size: 44_173_029, sha256: "75da6c8d2f8096ec743d071951be73b4a8bc7b3e51d9a6625d63644f90ffeedb" }),
+    ("isnet-general-use", RemoteFile { path: "models/isnet-general-use.onnx", size: 178_648_008, sha256: "60920e99c45464f2ba57bee2ad08c919a52bbf852739e96947fbb4358c0d964a" }),
+    ("u2net_human_seg", RemoteFile { path: "models/u2net_human_seg.onnx", size: 175_997_641, sha256: "01eb6a29a5c4d8edb30b56adad9bb3a2a0535338e480724a213e0acfd2d1c73c" }),
 ];
 
-/// 运行环境的版本：换版本时改这里，新版本下载到新的文件夹，旧模型不受影响
-const RUNTIME_VERSION: &str = "1.31.0";
+/// 运行环境的版本：换版本时改这里，新版本下载到新的文件夹，旧模型不受影响。
+/// 带 DirectML 的 ONNX Runtime 最后一个版本是 1.24.4；Cargo.toml 里 ort 的 api-24 要与它对应
+const RUNTIME_VERSION: &str = "1.24.4";
 
 /// 运行环境的文件：ONNX Runtime（带 DirectML 显卡加速）及其依赖的 DirectML
 #[cfg(windows)]
 const RUNTIME_FILES: &[RemoteFile] = &[
-    RemoteFile { path: "runtime/1.31.0/win-x64/onnxruntime.dll", size: 0, sha256: "" },
-    RemoteFile { path: "runtime/1.31.0/win-x64/DirectML.dll", size: 0, sha256: "" },
+    RemoteFile { path: "runtime/1.24.4/win-x64/onnxruntime.dll", size: 17_328_152, sha256: "e7eedec6a6f26dc39dc948276a75ef6d2bee3fff944d874ceed0bbd3b97bff40" },
+    RemoteFile { path: "runtime/1.24.4/win-x64/DirectML.dll", size: 18_527_776, sha256: "9c9e6d822561c6c41b90e6994b3e8857cf1d66dbfb1e0c4c799c7c89b4e92da1" },
 ];
 /// 其他平台以后再加
 #[cfg(not(windows))]

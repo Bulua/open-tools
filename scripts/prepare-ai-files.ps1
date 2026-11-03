@@ -4,13 +4,17 @@
 #
 # Usage (from the repo root, Windows PowerShell):
 #   powershell -ExecutionPolicy Bypass -File scripts/prepare-ai-files.ps1 -Out D:\ai-files
-# Then upload everything under -Out to both repos, keeping the paths.
+# Then upload everything under -Out to both repos, keeping the paths:
+#   https://www.modelscope.cn/models/sebponk/open-tools-models
+#   https://huggingface.co/penghui002/open-tools-models
+# The repos' README.md and LICENSE.md come from scripts/ai-files.
 # Keep this file ASCII only: Windows PowerShell 5.1 reads scripts without a BOM in the ANSI code page.
 
 param(
   [Parameter(Mandatory = $true)][string]$Out,
-  # Must match RUNTIME_VERSION in ai_models.rs and be supported by the ort crate version in Cargo.toml
-  [string]$OrtVersion = '1.31.0',
+  # Must match RUNTIME_VERSION in ai_models.rs and the api-NN feature of ort in Cargo.toml.
+  # 1.24.4 is the last ONNX Runtime release published with DirectML; its package depends on DirectML 1.15.4
+  [string]$OrtVersion = '1.24.4',
   [string]$DirectMLVersion = '1.15.4'
 )
 
@@ -39,14 +43,10 @@ function Get-FromNuGet($package, $version, $inner, $path) {
   Remove-Item -Recurse -Force $tmp
 }
 
-# Models from the rembg project; u2netp used to be bundled with the app and is taken from git history
+# Models from the rembg project's GitHub releases
 $models = Join-Path $Out 'models'
-foreach ($id in 'silueta', 'isnet-general-use', 'u2net_human_seg') {
+foreach ($id in 'u2netp', 'silueta', 'isnet-general-use', 'u2net_human_seg') {
   Get-File "https://github.com/danielgatis/rembg/releases/download/v0.0.0/$id.onnx" (Join-Path $models "$id.onnx")
-}
-$u2netp = Join-Path $models 'u2netp.onnx'
-if (-not (Test-Path $u2netp)) {
-  Get-File 'https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx' $u2netp
 }
 
 # ONNX Runtime with DirectML, and the DirectML library it loads
@@ -54,10 +54,13 @@ $runtime = Join-Path $Out "runtime\$OrtVersion\win-x64"
 Get-FromNuGet 'Microsoft.ML.OnnxRuntime.DirectML' $OrtVersion 'runtimes\win-x64\native\onnxruntime.dll' (Join-Path $runtime 'onnxruntime.dll')
 Get-FromNuGet 'Microsoft.AI.DirectML' $DirectMLVersion 'bin\x64-win\DirectML.dll' (Join-Path $runtime 'DirectML.dll')
 
+# README.md and LICENSE.md for the hosting repos
+Copy-Item (Join-Path $PSScriptRoot 'ai-files\*.md') $Out
+
 Write-Host ''
 Write-Host 'Catalog entries for src-tauri/src/ai_models.rs:'
 $root = (Resolve-Path $Out).Path.TrimEnd('\') + '\'
-Get-ChildItem -Recurse -File $Out | Where-Object { $_.Extension -ne '.part' } | Sort-Object FullName | ForEach-Object {
+Get-ChildItem -Recurse -File $Out | Where-Object { $_.Extension -notin '.part', '.md' } | Sort-Object FullName | ForEach-Object {
   $rel = $_.FullName.Substring($root.Length).Replace('\', '/')
   $hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower()
   Write-Host ('RemoteFile {{ path: "{0}", size: {1}, sha256: "{2}" }}' -f $rel, $_.Length, $hash)
