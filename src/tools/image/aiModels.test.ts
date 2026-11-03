@@ -16,8 +16,9 @@ describe("AI 抠图模型", () => {
     expect([...toMask(Float32Array.from([0.5, 0.5]))]).toEqual([0, 0]);
   });
 
-  it("只有一个内置模型；找不到的 id 退回内置模型", () => {
-    expect(AI_MODELS.filter((m) => m.builtin).map((m) => m.id)).toEqual(["u2netp"]);
-    expect(modelById("nope").id).toBe("u2netp");
+  it("模型 id 不重复；找不到的 id 返回空", () => {
+    expect(new Set(AI_MODELS.map((m) => m.id)).size).toBe(AI_MODELS.length);
+    expect(modelById("silueta")?.input).toBe(320);
+    expect(modelById("nope")).toBeUndefined();
   });
 });

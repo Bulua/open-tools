@@ -1,37 +1,10 @@
 import { t } from "@/locales";
 import { createCanvas } from "./utils";
-import { loadModelBytes, toInputTensor, toMask, type AiModel } from "./aiModels";
+import { runModel, toInputTensor, toMask, type AiModel } from "./aiModels";
 
 /**
- * AI 抠图：调用后台线程中的模型，得到与原图同样大小的透明度蒙版。
+ * AI 抠图：调用桌面版 Rust 里的模型，计算图片的前景蒙版（0～255，与原图同样大小，长度 width × height）
  */
-let worker: Worker | null = null;
-/** 后台线程中已经加载的模型 */
-const loaded = new Set<string>();
-
-function getWorker() {
-  if (!worker) {
-    worker = new Worker(new URL("./segment.worker.ts", import.meta.url), { type: "module" });
-    loaded.clear();
-  }
-  return worker;
-}
-
-function run(model: AiModel, input: Float32Array, modelBytes?: ArrayBuffer): Promise<Float32Array> {
-  const w = getWorker();
-  return new Promise((resolve, reject) => {
-    w.onmessage = (e: MessageEvent<{ ok: boolean; mask?: Float32Array; error?: string }>) =>
-      e.data.ok ? resolve(e.data.mask!) : reject(new Error(t("image.segmentFailed", { error: e.data.error })));
-    w.onerror = () => {
-      worker?.terminate();
-      worker = null;
-      reject(new Error(t("image.segmentCrashed")));
-    };
-    w.postMessage({ modelId: model.id, modelBytes, input, size: model.input }, modelBytes ? [modelBytes] : []);
-  });
-}
-
-/** 计算图片的前景蒙版（0～255，长度 width × height） */
 export async function segment(image: CanvasImageSource, width: number, height: number, model: AiModel): Promise<Uint8ClampedArray> {
   const size = model.input;
   // 缩放到模型输入尺寸（与 rembg 一样直接拉伸，不保持比例）
@@ -40,12 +13,15 @@ export async function segment(image: CanvasImageSource, width: number, height: n
   small.drawImage(image, 0, 0, size, size);
   const input = toInputTensor(small.getImageData(0, 0, size, size).data, size, model.mean, model.std);
 
-  const bytes = loaded.has(model.id) ? undefined : await loadModelBytes(model);
-  const output = await run(model, input, bytes);
-  loaded.add(model.id);
+  let output: Float32Array;
+  try {
+    output = await runModel(model, input, [1, 3, size, size]);
+  } catch (e) {
+    throw new Error(t("image.segmentFailed", { error: e instanceof Error ? e.message : String(e) }));
+  }
 
-  // 蒙版放大回原图尺寸（平滑插值，边缘更自然）
-  const mask = toMask(output);
+  // 只取第一张蒙版（size × size），放大回原图尺寸（平滑插值，边缘更自然）
+  const mask = toMask(output.subarray(0, size * size));
   const { canvas: maskCanvas, ctx: maskCtx } = createCanvas(size, size);
   const img = maskCtx.createImageData(size, size);
   for (let i = 0; i < mask.length; i++) {

@@ -87,7 +87,7 @@ JSON の整形、Base64 のデコード、タイムスタンプの変換、画�
 - **アップデートの確認**：Gitee または GitHub からリリース情報を読み取ります。ファイルは送信しません。
 - **IP の検索**：公開サービス（ip-api.com、ipwho.is、ipapi.co の順）に問い合わせます。検索する IP はサービス提供元に送信され、ip-api.com は暗号化されていない HTTP を使います。
 - **Ping**：入力したホストに ping を送ります。
-- **AI 背景除去モデルのダウンロード**：要求したときだけ rembg の GitHub リリースからモデルをダウンロードします。画像はローカルで処理します。
+- **AI 背景除去モデルのダウンロード**：要求したときだけモデルと AI 実行環境（ONNX Runtime）をダウンロードします。まず ModelScope から、失敗したときは Hugging Face から取得します。画像はローカルで処理します。
 - **Markdown 内のリモート画像**：HTTP(S) の画像を参照する Markdown を Word に書き出すとき、その URL から画像を取得します。
 
 ## 技術スタック
@@ -100,7 +100,7 @@ JSON の整形、Base64 のデコード、タイムスタンプの変換、画�
 | 文書 | PDF.js、pdf-lib、docx、docx-preview、marked |
 | 音声 | Web Audio、wasm-media-encoders（MP3）、Windows の音声合成 |
 | 動画 | Mediabunny（WebCodecs） |
-| AI 背景除去 | ONNX Runtime Web、rembg モデル（U²-Net、IS-Net） |
+| AI 背景除去 | ONNX Runtime（DirectML による GPU 高速化）、rembg モデル（U²-Net、IS-Net） |
 | アイコン | Lucide |
 | テスト | Vitest |
 | ビルドとリリース | GitHub Actions、tauri-action |

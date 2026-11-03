@@ -263,6 +263,13 @@ const { t } = useI18n();
 - **图标**：在 [lucide.dev/icons](https://lucide.dev/icons) 查找。
 - **提交前**：运行 `npm run typecheck` 和 `npm test`，云端打包时也会执行这两步。
 
+## 数据存放与 AI 模型
+
+- **数据文件夹**：程序自己保存的数据（密码本、AI 模型与运行环境、远程图标）统一通过 `src-tauri/src/paths.rs` 的 `data_dir()` / `sub_dir()` 取位置，不要再直接用 `app_local_data_dir()` 或安装目录。Windows 上是安装目录下的 `data`，安装目录不能写时退回 `%LOCALAPPDATA%\com.opentools.app`；以后支持手机时只改这一个函数。旧版本的数据在启动时由 `paths::migrate()` 搬过来。界面设置仍由 WebView2 存在 localStorage 里，不在这个文件夹。
+- **AI 推理在 Rust 里**：`inference.rs` 用 `ort` 动态加载 ONNX Runtime，Windows 上优先用 DirectML 走显卡。前端只做预处理、后处理，通过 `ai_run` 命令传入 float32 张量（请求体）和形状（请求头 `x-shape`），见 `src/tools/image/aiModels.ts` 的 `runModel()`。网页版不支持 AI 功能。
+- **模型和运行环境都不打包**：用户选择下载，第一次下载模型时自动带上运行环境。可下载的文件、大小、SHA-256 写在 `ai_models.rs`，每个文件在魔搭（ModelScope）和 Hugging Face 的 `Bulua/open-tools-models` 仓库各放一份，路径相同。
+- **新增模型或升级运行环境**：用 `scripts/prepare-ai-files.ps1` 下载、整理文件并输出大小和校验值，把文件上传到两个仓库，再把输出填进 `ai_models.rs`。升级 ONNX Runtime 时同时改 `RUNTIME_VERSION`，并确认 `Cargo.toml` 里的 `ort` 版本支持它。
+
 ## 修改应用图标
 
 有两种方式：

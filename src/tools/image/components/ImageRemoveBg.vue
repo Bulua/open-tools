@@ -13,7 +13,7 @@ import { saveFile } from "@/utils/saveFile";
 import { toHex } from "@/utils/color";
 import { canvasToBytes, createCanvas, loadImage } from "../utils";
 import type { Rgb } from "../effects";
-import { AI_MODELS, canDownload, deleteModel, downloadModel, downloadedModels, modelById, type AiModel } from "../aiModels";
+import { AI_MODELS, AI_SOURCES, aiStatus, canDownload, deleteModel, downloadModel, modelById, type AiModel, type AiSource, type AiStatus } from "../aiModels";
 import { segment } from "../segment";
 import { formatBytes } from "@/utils/format";
 
@@ -25,6 +25,8 @@ import { formatBytes } from "@/utils/format";
 const { t } = useI18n();
 const useAi = useStoredRef("removebg.ai", true);
 const modelId = useStoredRef("removebg.model", "u2netp");
+/** 下载源，各个 AI 工具共用 */
+const downloadSource = useStoredRef<AiSource>("ai.source", "auto");
 const tolerance = useStoredRef("removebg.tolerance", 12);
 const feather = useStoredRef("removebg.feather", 8);
 const contiguous = useStoredRef("removebg.contiguous", true);
@@ -156,14 +158,21 @@ watch([fill, view], drawView);
 let sourceCanvas: HTMLCanvasElement | null = null;
 /** 当前图片在各个模型下的识别结果，切换模型时不用重新计算 */
 const masks = new Map<string, Uint8ClampedArray>();
-const downloaded = ref<string[]>([]);
+const status = ref<AiStatus>({ models: [], runtimeReady: false, runtimeSize: 0, dir: "" });
 const recognizing = ref(false);
 const aiError = ref("");
 const progress = ref<Record<string, number>>({});
-onMounted(async () => (downloaded.value = await downloadedModels()));
+const refreshStatus = async () => (status.value = await aiStatus());
+onMounted(refreshStatus);
 
-const isReady = (m: AiModel) => m.builtin || downloaded.value.includes(m.id);
-const currentModel = computed(() => (isReady(modelById(modelId.value)) ? modelById(modelId.value) : AI_MODELS[0]));
+const isReady = (m: AiModel) => status.value.runtimeReady && status.value.models.includes(m.id);
+/** 正在使用的模型：选中的模型还没下载时用第一个已下载的；一个都没有时为空 */
+const currentModel = computed(() => {
+  const chosen = modelById(modelId.value);
+  return chosen && isReady(chosen) ? chosen : (AI_MODELS.find(isReady) ?? null);
+});
+const sourceText = (s: AiSource) => t(`image.source${s[0].toUpperCase()}${s.slice(1)}`);
+const sourceTitle = (s: AiSource) => t(`image.source${s[0].toUpperCase()}${s.slice(1)}Title`);
 
 let run = 0;
 /** 识别主体（同一模型只算一次），把蒙版交给后台线程后重新计算 */
@@ -174,8 +183,8 @@ async function updateMask() {
   aiError.value = "";
   recognizing.value = false;
   let mask: Uint8ClampedArray | null = null;
-  if (useAi.value) {
-    const model = currentModel.value;
+  const model = currentModel.value;
+  if (useAi.value && model) {
     mask = masks.get(model.id) ?? null;
     if (!mask) {
       // 识别期间先显示原图（以及已点选颜色的去除效果）
@@ -206,8 +215,8 @@ const download = async (m: AiModel) => {
   aiError.value = "";
   progress.value = { ...progress.value, [m.id]: 0 };
   try {
-    await downloadModel(m, (ratio) => (progress.value = { ...progress.value, [m.id]: ratio }));
-    downloaded.value = await downloadedModels();
+    await downloadModel(m, downloadSource.value, (ratio) => (progress.value = { ...progress.value, [m.id]: ratio }));
+    await refreshStatus();
     modelId.value = m.id;
   } catch (e) {
     aiError.value = e instanceof Error ? e.message : String(e);
@@ -219,9 +228,8 @@ const download = async (m: AiModel) => {
 
 const remove = async (m: AiModel) => {
   await deleteModel(m);
-  downloaded.value = await downloadedModels();
+  await refreshStatus();
   masks.delete(m.id);
-  if (modelId.value === m.id) modelId.value = "u2netp";
 };
 
 // ---------- 点选背景色 ----------
@@ -295,13 +303,12 @@ const save = async () => {
               v-for="m in AI_MODELS"
               :key="m.id"
               class="model"
-              :class="{ on: currentModel.id === m.id, ready: isReady(m) }"
+              :class="{ on: currentModel?.id === m.id, ready: isReady(m) }"
               @click="selectModel(m)"
             >
               <div class="model-head">
                 <b>{{ modelName(m) }}</b>
-                <span v-if="m.builtin" class="badge">{{ t("image.builtin") }}</span>
-                <span v-else-if="isReady(m)" class="badge ok"><CircleCheck :size="11" />{{ t("image.downloaded") }}</span>
+                <span v-if="isReady(m)" class="badge ok"><CircleCheck :size="11" />{{ t("image.downloaded") }}</span>
                 <span class="size">{{ formatBytes(m.size) }}</span>
               </div>
               <p>{{ modelDesc(m) }}</p>
@@ -310,11 +317,25 @@ const save = async () => {
                 <button v-if="canDownload()" class="btn small" @click.stop="download(m)"><Download :size="12" />{{ t("image.downloadModel") }}</button>
                 <span v-else class="hint-text">{{ t("image.desktopOnly") }}</span>
               </template>
-              <button v-else-if="!m.builtin" class="icon-btn del" :title="t('image.deleteModel')" @click.stop="remove(m)"><Trash2 :size="12" /></button>
+              <button v-else class="icon-btn del" :title="t('image.deleteModel')" @click.stop="remove(m)"><Trash2 :size="12" /></button>
+            </div>
+          </div>
+          <div v-if="canDownload()" class="source">
+            <span>{{ t("image.downloadSource") }}</span>
+            <div class="seg">
+              <button v-for="s in AI_SOURCES" :key="s" :class="{ on: downloadSource === s }" :title="sourceTitle(s)" @click="downloadSource = s">
+                {{ sourceText(s) }}
+              </button>
             </div>
           </div>
           <p v-if="aiError" class="error">{{ aiError }}</p>
-          <p v-else class="tip">{{ t("image.modelTip") }}</p>
+          <template v-else-if="canDownload()">
+            <p v-if="!status.runtimeReady" class="tip">
+              {{ status.runtimeSize ? t("image.runtimeTip", { size: formatBytes(status.runtimeSize) }) : t("image.runtimeTipNoSize") }}
+            </p>
+            <p v-else-if="!currentModel" class="tip">{{ t("image.noModel") }}</p>
+            <p class="tip">{{ t("image.modelTip", { dir: status.dir }) }}</p>
+          </template>
         </template>
         <p v-else class="tip">{{ t("image.aiOff") }}</p>
       </section>
@@ -433,6 +454,14 @@ h3 svg {
 .switch input {
   margin: 0;
   accent-color: var(--accent);
+}
+.source {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-2);
 }
 .models {
   display: flex;

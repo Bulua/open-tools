@@ -3,6 +3,7 @@ mod branding;
 mod document;
 mod douyin;
 mod hdr;
+mod inference;
 mod network;
 mod paths;
 mod script;
@@ -35,11 +36,11 @@ pub fn run() {
             douyin::douyin_capture,
             tts::tts_voices,
             tts::tts_synthesize,
-            ai_models::ai_models_downloaded,
+            ai_models::ai_status,
             ai_models::ai_model_download,
             ai_models::ai_model_progress,
-            ai_models::ai_model_read,
             ai_models::ai_model_delete,
+            inference::ai_run,
             vault::vault_read,
             vault::vault_write,
             hdr::hdr_enabled,

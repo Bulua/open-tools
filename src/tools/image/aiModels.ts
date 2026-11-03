@@ -1,9 +1,8 @@
-import { isTauri } from "@tauri-apps/api/core";
-import u2netpUrl from "@/assets/models/u2netp.onnx?url";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 
 /**
  * AI 抠图模型（来自开源项目 rembg，均可免费商用）。
- * u2netp 随程序内置；其他模型较大，由用户选择下载到本机，之后离线使用。
+ * 都不随程序打包，由用户选择下载到本机，之后离线使用；模型在桌面版的 Rust 里运行。
  * 预处理与 rembg 一致：缩放到模型输入尺寸，按最大值归一化后减均值、除以标准差。
  */
 export interface AiModel {
@@ -16,19 +15,18 @@ export interface AiModel {
   input: number;
   mean: [number, number, number];
   std: [number, number, number];
-  builtin?: boolean;
 }
 
 const IMAGENET = { mean: [0.485, 0.456, 0.406] as [number, number, number], std: [0.229, 0.224, 0.225] as [number, number, number] };
 
 export const AI_MODELS: AiModel[] = [
-  { id: "u2netp", name: "轻量", desc: "内置，速度快，边缘稍粗", size: 4574861, input: 320, ...IMAGENET, builtin: true },
+  { id: "u2netp", name: "轻量", desc: "体积最小，速度快，边缘稍粗", size: 4574861, input: 320, ...IMAGENET },
   { id: "silueta", name: "标准", desc: "效果较好，速度较快", size: 44173029, input: 320, ...IMAGENET },
   { id: "isnet-general-use", name: "精细", desc: "效果最好，头发等细节更清楚，识别较慢", size: 178648008, input: 1024, mean: [0.5, 0.5, 0.5], std: [1, 1, 1] },
   { id: "u2net_human_seg", name: "人像", desc: "专门识别人物，适合证件照、人像照片", size: 175997641, input: 320, ...IMAGENET },
 ];
 
-export const modelById = (id: string) => AI_MODELS.find((m) => m.id === id) ?? AI_MODELS[0];
+export const modelById = (id: string) => AI_MODELS.find((m) => m.id === id);
 
 // ---------- 预处理 / 后处理（纯计算） ----------
 
@@ -58,28 +56,39 @@ export function toMask(output: Float32Array): Uint8ClampedArray {
   return mask;
 }
 
-// ---------- 模型文件：内置的直接读取，其他的由桌面版下载到本机 ----------
+// ---------- 模型文件与运行：都在桌面版的 Rust 里（见 src-tauri/src/ai_models.rs、inference.rs） ----------
+
+/** 下载源：auto 先试国内的魔搭，失败时换 Hugging Face；选了其中一个时优先用它 */
+export type AiSource = "auto" | "modelscope" | "huggingface";
+export const AI_SOURCES: AiSource[] = ["auto", "modelscope", "huggingface"];
+
+export interface AiStatus {
+  /** 已下载的模型 id */
+  models: string[];
+  /** 运行环境是否已下载；第一次下载模型时会一起下载 */
+  runtimeReady: boolean;
+  /** 运行环境还要下载的大小（字节） */
+  runtimeSize: number;
+  /** 数据保存的位置 */
+  dir: string;
+}
 
 export const canDownload = () => isTauri();
 
-async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<T>(cmd, args);
+/** 模型和运行环境的下载情况 */
+export async function aiStatus(): Promise<AiStatus> {
+  const empty: AiStatus = { models: [], runtimeReady: false, runtimeSize: 0, dir: "" };
+  return isTauri() ? invoke<AiStatus>("ai_status").catch(() => empty) : empty;
 }
 
-/** 已下载到本机的模型 id */
-export async function downloadedModels(): Promise<string[]> {
-  return isTauri() ? invoke<string[]>("ai_models_downloaded").catch(() => []) : [];
-}
-
-/** 下载模型；onProgress 收到 0～1 的进度 */
-export async function downloadModel(model: AiModel, onProgress: (ratio: number) => void): Promise<void> {
+/** 下载模型（运行环境缺少的文件一起下载）；onProgress 收到 0～1 的进度 */
+export async function downloadModel(model: AiModel, source: AiSource, onProgress: (ratio: number) => void): Promise<void> {
   const timer = window.setInterval(async () => {
-    const bytes = await invoke<number>("ai_model_progress", { id: model.id }).catch(() => 0);
-    onProgress(Math.min(0.99, bytes / model.size));
+    const p = await invoke<{ done: number; total: number }>("ai_model_progress", { id: model.id }).catch(() => null);
+    if (p?.total) onProgress(Math.min(0.99, p.done / p.total));
   }, 500);
   try {
-    await invoke("ai_model_download", { id: model.id });
+    await invoke("ai_model_download", { id: model.id, source: source === "auto" ? null : source });
     onProgress(1);
   } finally {
     clearInterval(timer);
@@ -88,8 +97,9 @@ export async function downloadModel(model: AiModel, onProgress: (ratio: number) 
 
 export const deleteModel = (model: AiModel) => invoke("ai_model_delete", { id: model.id });
 
-/** 读取模型文件内容 */
-export async function loadModelBytes(model: AiModel): Promise<ArrayBuffer> {
-  if (model.builtin) return (await fetch(u2netpUrl)).arrayBuffer();
-  return invoke<ArrayBuffer>("ai_model_read", { id: model.id });
+/** 运行模型：输入 float32 张量及形状，返回第一个输出 */
+export async function runModel(model: AiModel, input: Float32Array, shape: number[]): Promise<Float32Array> {
+  const body = new Uint8Array(input.buffer, input.byteOffset, input.byteLength);
+  const out = await invoke<ArrayBuffer>("ai_run", body, { headers: { "x-model": model.id, "x-shape": shape.join(",") } });
+  return new Float32Array(out);
 }

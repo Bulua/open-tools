@@ -40,7 +40,6 @@
     "lucide-vue-next": "^0.460.0",
     "marked": "^18.1.2",
     "mediabunny": "1.61.6",
-    "onnxruntime-web": "^1.31.1",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.10.38",
     "spark-md5": "^3.0.2",

@@ -90,7 +90,7 @@ Open Tools 把这些常用工具放进一个桌面程序：
   - **检查更新**：访问本仓库在 Gitee / GitHub 上的版本信息文件，不携带任何个人数据。
   - **IP 地址与位置查询**：打开这个工具或点击查询时，向免费的公共服务查询 IP 归属地（依次尝试 ip-api.com、ipwho.is、ipapi.co，会把要查询的 IP 发送给该服务；其中 ip-api.com 不支持加密传输）。
   - **Ping 网络测试**：只向你输入的地址发送 ping。
-  - **下载 AI 抠图模型**：只有在「图片去背景」中点击下载时，从 rembg 项目的 GitHub 发布页下载模型文件；图片本身始终在本机处理。
+  - **下载 AI 抠图模型**：只有在「图片去背景」中点击下载时，下载模型文件和 AI 运行环境（ONNX Runtime），优先从国内的魔搭社区（ModelScope）下载，失败时换到 Hugging Face；图片本身始终在本机处理。
 
 ## 技术栈
 
@@ -102,7 +102,7 @@ Open Tools 把这些常用工具放进一个桌面程序：
 | 文档处理 | PDF.js · pdf-lib · docx · docx-preview · marked |
 | 音频 | Web Audio · wasm-media-encoders（MP3 编码）· Windows 语音 |
 | 视频 | Mediabunny（WebCodecs 硬件编解码） |
-| AI 抠图 | ONNX Runtime Web · rembg 开源模型（U²-Net、IS-Net） |
+| AI 抠图 | ONNX Runtime（DirectML 显卡加速）· rembg 开源模型（U²-Net、IS-Net） |
 | 图标 | Lucide |
 | 测试 | Vitest |
 | 打包与发布 | GitHub Actions · tauri-action |
