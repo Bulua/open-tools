@@ -33,7 +33,7 @@ const utility: Category = {
     {
       id: "cron",
       name: "Cron 表达式",
-      desc: "解析 Cron 表达式，显示中文含义和接下来的执行时间，支持 Linux / Spring / Quartz",
+      desc: "解析或按字段生成 Cron 表达式，显示含义和接下来的执行时间，支持 Linux / Spring / Quartz",
       icon: CalendarClock,
       component: defineAsyncComponent(() => import("./components/CronTool.vue")),
     },

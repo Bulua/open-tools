@@ -5,9 +5,9 @@
  * - Linux / Unix：5 位「分 时 日 月 周」，周 0～7（0 和 7 都是周日）
  * - Spring：6 位「秒 分 时 日 月 周」，周的写法同 Linux
  * - Quartz：6～7 位「秒 分 时 日 月 周 [年]」，周 1～7（1 是周日），日和周其中一个写 ?
- * 支持 * ? , - /、月份和星期的英文缩写、L（最后一天 / 最后一个周几）、#（第几个周几）和 @daily 等简写。
+ * 支持 * ? , - /、月份和星期的英文缩写、L（最后一天 / 最后一个周几）、W（最近的工作日）、#（第几个周几）和 @daily 等简写。
  */
-import { locale, t, translationOf, type Locale, type Translations } from "@/locales";
+import { locale, t, type Locale, type Translations } from "@/locales";
 
 export type CronDialect = "unix" | "spring" | "quartz";
 
@@ -34,15 +34,16 @@ export interface ParsedCron {
   second: CronField;
   minute: CronField;
   hour: CronField;
-  day: CronField & { last: boolean; lastOffset: number };
+  /** nearest：写了 W 的日（离这天最近的工作日）；lastWeekday：LW（最后一个工作日） */
+  day: CronField & { last: boolean; lastOffset: number; nearest: number[]; lastWeekday: boolean };
   month: CronField;
   /** 星期统一为 0～6，0 是周日 */
   week: CronField & { nth: [number, number][]; lastOf: number[] };
   year: CronField | null;
 }
 
-const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-const WEEKDAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+export const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+export const WEEKDAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 const WEEK_LABELS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 
 const MACROS: Record<string, string> = {
@@ -109,11 +110,23 @@ export function parseCron(input: string, dialect: CronDialect = detectDialect(in
   }
   const [secText, minText, hourText, dayText, monthText, weekText, yearText] = dialect === "unix" ? ["0", ...parts] : parts;
 
-  // 日：L、L-3（倒数第几天）；W（最近工作日）不支持
+  // 日：L、L-3（倒数第几天）、15W（离 15 日最近的工作日）、LW（最后一个工作日）
   let dayLast = false;
   let lastOffset = 0;
-  if (/W/i.test(dayText)) throw new Error(t("utility.noW"));
+  let lastWeekday = false;
+  const nearest: number[] = [];
   const dayParts = dayText.split(",").filter((p) => {
+    if (/^LW$/i.test(p)) {
+      lastWeekday = true;
+      return false;
+    }
+    const w = p.match(/^(\d+)W$/i);
+    if (w) {
+      const n = Number(w[1]);
+      if (n < 1 || n > 31) throw new Error(t("utility.partRange", { label: F("Day"), part: p, min: 1, max: 31 }));
+      nearest.push(n);
+      return false;
+    }
     const m = p.match(/^L(?:-(\d+))?$/i);
     if (!m) return true;
     dayLast = true;
@@ -165,7 +178,7 @@ export function parseCron(input: string, dialect: CronDialect = detectDialect(in
     second: parseField(secText, 0, 59, F("Second"), numberOr(null, 0, F("Second"))),
     minute: parseField(minText, 0, 59, F("Minute"), numberOr(null, 0, F("Minute"))),
     hour: parseField(hourText, 0, 23, F("Hour"), numberOr(null, 0, F("Hour"))),
-    day: { ...dayField, text: dayText, any: dayText === "*" || dayText === "?", last: dayLast, lastOffset },
+    day: { ...dayField, text: dayText, any: dayText === "*" || dayText === "?", last: dayLast, lastOffset, nearest, lastWeekday },
     month: parseField(monthText, 1, 12, F("Month"), numberOr(MONTHS, 1, F("Month"))),
     week: { ...weekField, nth, lastOf },
     year: yearText ? parseField(yearText, 1970, 2099, F("Year"), numberOr(null, 0, F("Year"))) : null,
@@ -176,12 +189,33 @@ export function parseCron(input: string, dialect: CronDialect = detectDialect(in
 
 const daysInMonth = (year: number, month: number) => new Date(year, month, 0).getDate();
 
+/** 离 day 日最近的工作日（不跨月）；这个月没有 day 日时返回 0 */
+export function nearestWeekday(year: number, month: number, day: number): number {
+  const last = daysInMonth(year, month);
+  if (day > last) return 0;
+  const weekday = new Date(year, month - 1, day).getDay();
+  if (weekday === 6) return day === 1 ? 3 : day - 1;
+  if (weekday === 0) return day === last ? day - 2 : day + 1;
+  return day;
+}
+
+/** 这个月最后一个工作日 */
+function lastWeekdayOf(year: number, month: number): number {
+  const last = daysInMonth(year, month);
+  const weekday = new Date(year, month - 1, last).getDay();
+  return weekday === 6 ? last - 1 : weekday === 0 ? last - 2 : last;
+}
+
 function dayMatches(c: ParsedCron, year: number, month: number, day: number): boolean {
   const last = daysInMonth(year, month);
   const weekday = new Date(year, month - 1, day).getDay();
   const domRestricted = !c.day.any;
   const dowRestricted = !c.week.any;
-  const dom = c.day.values.includes(day) || (c.day.last && day === last - c.day.lastOffset);
+  const dom =
+    c.day.values.includes(day) ||
+    (c.day.last && day === last - c.day.lastOffset) ||
+    c.day.nearest.some((n) => nearestWeekday(year, month, n) === day) ||
+    (c.day.lastWeekday && day === lastWeekdayOf(year, month));
   const dow =
     c.week.values.includes(weekday) ||
     c.week.nth.some(([w, n]) => w === weekday && Math.ceil(day / 7) === n) ||
@@ -289,9 +323,11 @@ function describeCronZh(c: ParsedCron): string {
   if (!c.month.any) dateParts.push(`${c.year ? "" : "每年 "}${describeParts(c.month.text, " 月", monthName, "个月")}`);
   const dayDesc: string[] = [];
   if (!c.day.any) {
-    const normal = c.day.text.split(",").filter((p) => !/^L/i.test(p)).join(",");
+    const normal = c.day.text.split(",").filter((p) => !/^L|W$/i.test(p)).join(",");
     if (normal) dayDesc.push(describeParts(normal, " 日", String, "天"));
     if (c.day.last) dayDesc.push(c.day.lastOffset ? `倒数第 ${c.day.lastOffset + 1} 天` : "最后一天");
+    for (const n of c.day.nearest) dayDesc.push(`离 ${n} 日最近的工作日`);
+    if (c.day.lastWeekday) dayDesc.push("最后一个工作日");
   }
   const weekDesc: string[] = [];
   if (!c.week.any) {
@@ -368,9 +404,11 @@ function describeCronEn(c: ParsedCron): string {
   const dateParts: string[] = [];
   const dayDesc: string[] = [];
   if (!c.day.any) {
-    const normal = c.day.text.split(",").filter((p) => !/^L/i.test(p)).join(",");
+    const normal = c.day.text.split(",").filter((p) => !/^L|W$/i.test(p)).join(",");
     if (normal) dayDesc.push(describePartsEn(normal, "day ", String, "day"));
     if (c.day.last) dayDesc.push(c.day.lastOffset ? `${c.day.lastOffset} days before the last day` : "the last day");
+    for (const n of c.day.nearest) dayDesc.push(`the weekday nearest day ${n}`);
+    if (c.day.lastWeekday) dayDesc.push("the last weekday");
   }
   const weekDesc: string[] = [];
   if (!c.week.any) {
@@ -404,39 +442,3 @@ export const PRESETS: { label: string; i18n: Translations<string>; expr: string 
   { label: "每月最后一天", i18n: { en: "Last day of month", ja: "毎月の最終日" }, expr: "0 18 L * *" },
   { label: "工作时间每 15 分钟", i18n: { en: "Every 15 min in work hours", ja: "勤務時間中 15 分ごと" }, expr: "*/15 9-18 * * 1-5" },
 ];
-
-/** 各字段的名称，用于逐项说明 */
-export function fieldRows(c: ParsedCron): { name: string; text: string; values: string }[] {
-  const zh = locale.value === "zh-CN";
-  const list = (items: string[]) => items.join(t("utility.listSep"));
-  // 星期名：中文用「周一」，其他语言取系统的星期名（2023-01-01 是周日）
-  const weekLabel = (w: number) => (zh ? WEEK_LABELS[w] : new Date(2023, 0, 1 + w).toLocaleDateString(locale.value, { weekday: "long" }));
-  const show = (f: CronField, fmt: (v: number) => string = String) =>
-    f.any ? t("utility.any") : f.values.length > 12 ? t("utility.nValues", { n: f.values.length }) : list(f.values.map(fmt));
-  const rows = [
-    ...(c.dialect !== "unix" ? [{ name: F("Second"), text: c.second.text, values: show(c.second) }] : []),
-    { name: F("Minute"), text: c.minute.text, values: show(c.minute) },
-    { name: F("Hour"), text: c.hour.text, values: show(c.hour) },
-    {
-      name: F("Day"),
-      text: c.day.text,
-      values: c.day.any
-        ? t("utility.any")
-        : list([...(c.day.values.length ? [show(c.day)] : []), ...(c.day.last ? [c.day.lastOffset ? t("utility.nthLastDay", { n: zh ? c.day.lastOffset + 1 : c.day.lastOffset }) : t("utility.lastDay")] : [])]),
-    },
-    { name: F("Month"), text: c.month.text, values: show(c.month) },
-    {
-      name: F("Week"),
-      text: c.week.text,
-      values: c.week.any
-        ? t("utility.any")
-        : list([
-            ...(c.week.values.length ? [show(c.week, weekLabel)] : []),
-            ...c.week.nth.map(([w, n]) => t("utility.nthWeekday", { n, w: weekLabel(w) })),
-            ...c.week.lastOf.map((w) => t("utility.lastWeekday", { w: weekLabel(w) })),
-          ]),
-    },
-  ];
-  if (c.year) rows.push({ name: F("Year"), text: c.year.text, values: show(c.year) });
-  return rows;
-}
