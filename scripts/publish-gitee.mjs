@@ -84,17 +84,25 @@ async function findAsset(releaseId, name) {
   return list?.ok && Array.isArray(list.data) ? list.data.find((a) => a.name === name) : null;
 }
 
-// 上传附件，已存在同名附件时直接使用，返回下载地址。失败时重试；
+// 上传附件，已存在同名、同样大小的附件时直接使用，返回下载地址。失败时重试；
 // 每次重试前先查一下：Gitee 有时响应很慢甚至断开，但文件其实已经传上去了
 async function ensureAsset(releaseId, file) {
   const name = basename(file);
-  let data;
+  const data = await readFile(file);
+  const same = (asset) => asset && asset.size === data.length;
+  // 同名但大小不同的附件是同一版本另一次打包留下的（例如标签推送了两次）：
+  // 每次打包出的安装包都不完全一样，留着旧文件会和更新文件里的签名对不上，用户更新时校验失败
+  const stale = await findAsset(releaseId, name);
+  if (stale && !same(stale)) {
+    const removed = await api(`/releases/${releaseId}/attach_files/${stale.id}`, { method: "DELETE" });
+    if (!removed.ok) throw new Error(`删除旧的 ${name} 失败（${removed.status}）：${JSON.stringify(removed.data)}`);
+    console.log(`已删除另一次打包留下的 ${name}（${stale.size} 字节，这次是 ${data.length} 字节）`);
+  }
   let lastError;
   for (let attempt = 1; attempt <= 4; attempt++) {
     const existing = await findAsset(releaseId, name);
-    if (existing) return existing.browser_download_url;
+    if (same(existing)) return existing.browser_download_url;
     try {
-      data ??= await readFile(file);
       const uploaded = await upload(`/releases/${releaseId}/attach_files`, name, data);
       if (uploaded.ok && uploaded.data?.browser_download_url) return uploaded.data.browser_download_url;
       lastError = new Error(`上传 ${name} 失败（${uploaded.status}）：${JSON.stringify(uploaded.data)}`);
@@ -106,7 +114,7 @@ async function ensureAsset(releaseId, file) {
   }
   // 最后再查一次
   const existing = await findAsset(releaseId, name);
-  if (existing) return existing.browser_download_url;
+  if (same(existing)) return existing.browser_download_url;
   throw lastError;
 }
 
