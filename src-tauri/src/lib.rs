@@ -46,7 +46,8 @@ pub fn run() {
             hdr::hdr_restore,
             branding::branding_current,
             branding::branding_logo,
-            branding::branding_activate
+            branding::branding_activate,
+            tray::set_tray_text
         ])
         // 关闭窗口时隐藏到托盘，从托盘菜单退出
         .setup(|app| {

@@ -24,7 +24,7 @@ pub(crate) fn decode_output(bytes: &[u8]) -> String {
 
 fn run_ping(host: &str, timeout_ms: u32) -> Result<String, String> {
     if !is_valid_host(host) {
-        return Err("地址格式不正确".into());
+        return Err("Invalid address".into());
     }
     let mut cmd = Command::new("ping");
 
@@ -41,7 +41,7 @@ fn run_ping(host: &str, timeout_ms: u32) -> Result<String, String> {
         cmd.args(["-c", "1", "-W", &seconds.to_string(), host]);
     }
 
-    let output = cmd.output().map_err(|e| format!("无法执行 ping：{e}"))?;
+    let output = cmd.output().map_err(|e| format!("Can't run ping: {e}"))?;
     let mut bytes = output.stdout;
     bytes.extend_from_slice(&output.stderr);
     Ok(decode_output(&bytes))

@@ -68,7 +68,7 @@ fn run_conversion(
     let dir = TempDir::new()?;
     let input = dir.join(&format!("document.{in_ext}"));
     let output = dir.join(&format!("document-output.{out_ext}"));
-    std::fs::write(&input, data).map_err(|e| format!("无法写入临时文件：{e}"))?;
+    std::fs::write(&input, data).map_err(|e| format!("Can't write a temporary file: {e}"))?;
 
     let soffice = soffice_path().unwrap_or_default();
     let result = run_powershell(
@@ -81,16 +81,16 @@ fn run_conversion(
     let stdout = result.stdout;
 
     if output.exists() {
-        return std::fs::read(&output).map_err(|e| format!("无法读取转换结果：{e}"));
+        return std::fs::read(&output).map_err(|e| format!("Can't read the conversion result: {e}"));
     }
     if stdout.lines().any(|l| l.trim() == "NONE") {
         return Err(none_message.into());
     }
     let details: Vec<&str> = stdout.lines().filter_map(|l| l.trim().strip_prefix("ERR:")).collect();
     Err(if details.is_empty() {
-        format!("转换失败：{}", result.stderr.trim())
+        format!("Conversion failed: {}", result.stderr.trim())
     } else {
-        format!("转换失败：{}", details.join("；"))
+        format!("Conversion failed: {}", details.join("; "))
     })
 }
 
@@ -100,8 +100,8 @@ fn convert(data: Vec<u8>, ext: &str) -> Result<Vec<u8>, String> {
         ext,
         "pdf",
         SCRIPT,
-        "转换超时：文档可能需要密码，或者 Word 弹出了需要处理的对话框",
-        "没有找到 Microsoft Word、WPS 或 LibreOffice，请安装其中之一后再转换",
+        "Conversion timed out: the document may need a password, or Word is showing a dialog",
+        "Microsoft Word, WPS or LibreOffice was not found. Install one of them and try again",
     )
 }
 
@@ -109,7 +109,7 @@ fn convert(data: Vec<u8>, ext: &str) -> Result<Vec<u8>, String> {
 #[tauri::command]
 pub async fn office_to_pdf(request: Request<'_>) -> Result<Response, String> {
     let InvokeBody::Raw(data) = request.body() else {
-        return Err("请求格式不正确".into());
+        return Err("Invalid request".into());
     };
     let ext = request
         .headers()
@@ -118,7 +118,7 @@ pub async fn office_to_pdf(request: Request<'_>) -> Result<Response, String> {
         .unwrap_or("docx")
         .to_ascii_lowercase();
     if !EXTENSIONS.contains(&ext.as_str()) {
-        return Err(format!("不支持 .{ext} 格式"));
+        return Err(format!("Unsupported format: .{ext}"));
     }
     let data = data.clone();
     let pdf = tauri::async_runtime::spawn_blocking(move || convert(data, &ext))
@@ -131,7 +131,7 @@ pub async fn office_to_pdf(request: Request<'_>) -> Result<Response, String> {
 #[tauri::command]
 pub async fn pdf_to_word(request: Request<'_>) -> Result<Response, String> {
     let InvokeBody::Raw(data) = request.body() else {
-        return Err("请求格式不正确".into());
+        return Err("Invalid request".into());
     };
     let data = data.clone();
     let docx = tauri::async_runtime::spawn_blocking(move || {
@@ -140,8 +140,8 @@ pub async fn pdf_to_word(request: Request<'_>) -> Result<Response, String> {
             "pdf",
             "docx",
             PDF_TO_WORD_SCRIPT,
-            "转换超时：PDF 可能需要密码、页数太多，或者 Word 弹出了需要处理的对话框",
-            "没有找到 Microsoft Word（2013 或更新版本）",
+            "Conversion timed out: the PDF may need a password or have too many pages, or Word is showing a dialog",
+            "Microsoft Word (2013 or later) was not found",
         )
     })
     .await

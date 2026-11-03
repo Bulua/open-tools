@@ -22,7 +22,7 @@ pub struct Voice {
 fn list_voices() -> Result<Vec<Voice>, String> {
     let dir = TempDir::new()?;
     let mode = std::ffi::OsString::from("list");
-    let out = run_powershell(&dir, SCRIPT, &[("OT_MODE", mode.as_os_str())], Duration::from_secs(30), "读取语音列表超时")?;
+    let out = run_powershell(&dir, SCRIPT, &[("OT_MODE", mode.as_os_str())], Duration::from_secs(30), "Timed out reading the voice list")?;
     Ok(out
         .stdout
         .lines()
@@ -44,7 +44,7 @@ fn synthesize(text: String, voice: String, rate: i32) -> Result<Vec<u8>, String>
     let dir = TempDir::new()?;
     let text_path = dir.join("text.txt");
     let wav_path = dir.join("speech.wav");
-    std::fs::write(&text_path, text).map_err(|e| format!("无法写入临时文件：{e}"))?;
+    std::fs::write(&text_path, text).map_err(|e| format!("Can't write a temporary file: {e}"))?;
     let voice = std::ffi::OsString::from(voice);
     let rate = std::ffi::OsString::from(rate.clamp(-10, 10).to_string());
     let out = run_powershell(
@@ -57,23 +57,23 @@ fn synthesize(text: String, voice: String, rate: i32) -> Result<Vec<u8>, String>
             ("OT_RATE", rate.as_os_str()),
         ],
         Duration::from_secs(300),
-        "生成语音超时",
+        "Timed out generating speech",
     )?;
     if wav_path.exists() {
-        return std::fs::read(&wav_path).map_err(|e| format!("无法读取生成的音频：{e}"));
+        return std::fs::read(&wav_path).map_err(|e| format!("Can't read the generated audio: {e}"));
     }
     let detail = out.stdout.lines().find_map(|l| l.trim().strip_prefix("ERR:")).map(str::to_string);
-    Err(format!("生成语音失败：{}", detail.unwrap_or_else(|| out.stderr.trim().to_string())))
+    Err(format!("Speech generation failed: {}", detail.unwrap_or_else(|| out.stderr.trim().to_string())))
 }
 
 /// 把文字转成 WAV 音频
 #[tauri::command]
 pub async fn tts_synthesize(text: String, voice: String, rate: i32) -> Result<Response, String> {
     if text.trim().is_empty() {
-        return Err("请输入要朗读的文字".into());
+        return Err("Enter the text to read aloud".into());
     }
     if text.chars().count() > MAX_CHARS {
-        return Err(format!("文字太长，一次最多 {MAX_CHARS} 字"));
+        return Err(format!("The text is too long (at most {MAX_CHARS} characters at a time)"));
     }
     let wav = tauri::async_runtime::spawn_blocking(move || synthesize(text, voice, rate))
         .await

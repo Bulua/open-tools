@@ -13,7 +13,7 @@ const MAX_SIZE: usize = 2 * 1024 * 1024;
 
 fn branding_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
     let dir = app.path().app_local_data_dir().map_err(|e| e.to_string())?.join("branding");
-    std::fs::create_dir_all(&dir).map_err(|e| format!("无法创建图标文件夹：{e}"))?;
+    std::fs::create_dir_all(&dir).map_err(|e| format!("Can't create the icon folder: {e}"))?;
     Ok(dir)
 }
 
@@ -72,20 +72,20 @@ pub fn branding_activate(app: AppHandle, id: Option<String>, png: Vec<u8>, ico: 
     let ico_path = match &id {
         Some(id) => {
             if !valid_id(id) {
-                return Err(format!("图标 id 不合法：{id}"));
+                return Err(format!("Invalid icon id: {id}"));
             }
             if png.len() > MAX_SIZE || ico.len() > MAX_SIZE {
-                return Err("图标文件太大".into());
+                return Err("The icon file is too large".into());
             }
             // ICO 文件以 00 00 01 00 开头
             if !ico.starts_with(&[0, 0, 1, 0]) {
-                return Err("图标不是有效的 ICO 文件".into());
+                return Err("The icon is not a valid ICO file".into());
             }
-            let icon = Image::from_bytes(&png).map_err(|e| format!("图标不是有效的 PNG 文件：{e}"))?;
+            let icon = Image::from_bytes(&png).map_err(|e| format!("The icon is not a valid PNG file: {e}"))?;
             let ico_path = dir.join(format!("{id}.ico"));
-            std::fs::write(dir.join(format!("{id}.png")), &png).map_err(|e| format!("无法保存图标：{e}"))?;
-            std::fs::write(&ico_path, &ico).map_err(|e| format!("无法保存图标：{e}"))?;
-            std::fs::write(dir.join("current.txt"), id).map_err(|e| format!("无法保存图标：{e}"))?;
+            std::fs::write(dir.join(format!("{id}.png")), &png).map_err(|e| format!("Can't save the icon: {e}"))?;
+            std::fs::write(&ico_path, &ico).map_err(|e| format!("Can't save the icon: {e}"))?;
+            std::fs::write(dir.join("current.txt"), id).map_err(|e| format!("Can't save the icon: {e}"))?;
             set_icon(&app, icon);
             Some(ico_path)
         }
@@ -132,7 +132,7 @@ fn update_shortcuts(ico: Option<PathBuf>) {
         SCRIPT,
         &[("OT_EXE", exe.as_os_str()), ("OT_ICON", icon.as_os_str())],
         std::time::Duration::from_secs(60),
-        "改写快捷方式超时",
+        "Timed out updating shortcuts",
     );
 }
 

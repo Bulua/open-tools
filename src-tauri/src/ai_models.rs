@@ -15,12 +15,12 @@ const BASE_URL: &str = "https://github.com/danielgatis/rembg/releases/download/v
 const MODELS: &[(&str, u64)] = &[("silueta", 44_173_029), ("isnet-general-use", 178_648_008), ("u2net_human_seg", 175_997_641)];
 
 fn expected_size(id: &str) -> Result<u64, String> {
-    MODELS.iter().find(|(m, _)| *m == id).map(|(_, size)| *size).ok_or_else(|| format!("未知的模型：{id}"))
+    MODELS.iter().find(|(m, _)| *m == id).map(|(_, size)| *size).ok_or_else(|| format!("Unknown model: {id}"))
 }
 
 fn models_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app.path().app_local_data_dir().map_err(|e| e.to_string())?.join("models");
-    std::fs::create_dir_all(&dir).map_err(|e| format!("无法创建模型文件夹：{e}"))?;
+    std::fs::create_dir_all(&dir).map_err(|e| format!("Can't create the model folder: {e}"))?;
     Ok(dir)
 }
 
@@ -58,7 +58,7 @@ pub async fn ai_model_download(app: AppHandle, id: String) -> Result<(), String>
             SCRIPT,
             &[("OT_URL", url.as_os_str()), ("OT_OUT", part.as_os_str())],
             Duration::from_secs(3 * 3600),
-            "下载超时，请检查网络后重试",
+            "Download timed out. Check your network and try again",
         );
         let downloaded = std::fs::metadata(&part).map(|m| m.len()).unwrap_or(0);
         if downloaded != size {
@@ -66,10 +66,10 @@ pub async fn ai_model_download(app: AppHandle, id: String) -> Result<(), String>
             let detail = out
                 .ok()
                 .and_then(|o| o.stdout.lines().find_map(|l| l.trim().strip_prefix("ERR:")).map(str::to_string))
-                .unwrap_or_else(|| "文件不完整".into());
-            return Err(format!("下载失败：{detail}"));
+                .unwrap_or_else(|| "The file is incomplete".into());
+            return Err(format!("Download failed: {detail}"));
         }
-        std::fs::rename(&part, &target).map_err(|e| format!("无法保存模型：{e}"))
+        std::fs::rename(&part, &target).map_err(|e| format!("Can't save the model: {e}"))
     })
     .await
     .map_err(|e| e.to_string())?
@@ -85,7 +85,7 @@ pub fn ai_model_progress(app: AppHandle, id: String) -> u64 {
 #[tauri::command]
 pub async fn ai_model_read(app: AppHandle, id: String) -> Result<Response, String> {
     let path = model_path(&app, &id)?;
-    let data = tauri::async_runtime::spawn_blocking(move || std::fs::read(path).map_err(|e| format!("无法读取模型：{e}")))
+    let data = tauri::async_runtime::spawn_blocking(move || std::fs::read(path).map_err(|e| format!("Can't read the model: {e}")))
         .await
         .map_err(|e| e.to_string())??;
     Ok(Response::new(data))
@@ -96,7 +96,7 @@ pub async fn ai_model_read(app: AppHandle, id: String) -> Result<Response, Strin
 pub fn ai_model_delete(app: AppHandle, id: String) -> Result<(), String> {
     let path = model_path(&app, &id)?;
     if path.exists() {
-        std::fs::remove_file(path).map_err(|e| format!("无法删除模型：{e}"))?;
+        std::fs::remove_file(path).map_err(|e| format!("Can't delete the model: {e}"))?;
     }
     Ok(())
 }

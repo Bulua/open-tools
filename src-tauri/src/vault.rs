@@ -6,8 +6,8 @@ use std::path::PathBuf;
 use serde::Serialize;
 
 fn vault_path() -> Result<PathBuf, String> {
-    let exe = std::env::current_exe().map_err(|e| format!("找不到程序所在的文件夹：{e}"))?;
-    let dir = exe.parent().ok_or("找不到程序所在的文件夹")?;
+    let exe = std::env::current_exe().map_err(|e| format!("Can't find the app folder: {e}"))?;
+    let dir = exe.parent().ok_or("Can't find the app folder")?;
     Ok(dir.join("vault.dat"))
 }
 
@@ -25,7 +25,7 @@ pub fn vault_read() -> Result<VaultFile, String> {
     let data = match std::fs::read_to_string(&path) {
         Ok(s) => Some(s),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
-        Err(e) => return Err(format!("读取密码本失败：{e}")),
+        Err(e) => return Err(format!("Failed to read the vault: {e}")),
     };
     Ok(VaultFile { path: path.to_string_lossy().into_owned(), data })
 }
@@ -35,9 +35,9 @@ pub fn vault_read() -> Result<VaultFile, String> {
 pub fn vault_write(data: String) -> Result<(), String> {
     let path = vault_path()?;
     let tmp = path.with_extension("dat.tmp");
-    std::fs::write(&tmp, data).map_err(|e| format!("保存密码本失败：{e}"))?;
+    std::fs::write(&tmp, data).map_err(|e| format!("Failed to save the vault: {e}"))?;
     if path.exists() {
-        std::fs::copy(&path, path.with_extension("dat.bak")).map_err(|e| format!("备份密码本失败：{e}"))?;
+        std::fs::copy(&path, path.with_extension("dat.bak")).map_err(|e| format!("Failed to back up the vault: {e}"))?;
     }
-    std::fs::rename(&tmp, &path).map_err(|e| format!("保存密码本失败：{e}"))
+    std::fs::rename(&tmp, &path).map_err(|e| format!("Failed to save the vault: {e}"))
 }

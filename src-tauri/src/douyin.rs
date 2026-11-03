@@ -21,7 +21,7 @@ static COUNTER: AtomicU64 = AtomicU64::new(0);
 #[tauri::command]
 pub async fn douyin_capture(app: AppHandle, id: String, kind: String) -> Result<String, String> {
     if id.is_empty() || id.len() > 24 || !id.chars().all(|c| c.is_ascii_digit()) {
-        return Err("作品编号不正确".into());
+        return Err("Invalid post id".into());
     }
     let path = if kind == "note" { "note" } else { "video" };
     let url: Url = format!("https://www.douyin.com/{path}/{id}").parse().map_err(|e| format!("{e}"))?;
@@ -45,14 +45,14 @@ pub async fn douyin_capture(app: AppHandle, id: String, kind: String) -> Result<
             let pair = u.query_pairs().next();
             let result = match pair {
                 Some((k, v)) if k == "d" => Ok(v.into_owned()),
-                Some((k, v)) if k == "e" && v == "captcha" => Err("抖音要求进行安全验证，请稍后再试".to_string()),
-                _ => Err("没有读到作品信息：作品可能已删除、设为私密，或者抖音页面有变化".to_string()),
+                Some((k, v)) if k == "e" && v == "captcha" => Err("Douyin requires a security check. Try again later".to_string()),
+                _ => Err("Couldn't read the post: it may be deleted or private, or the Douyin page has changed".to_string()),
             };
             let _ = tx.send(result);
             false
         })
         .build()
-        .map_err(|e| format!("无法打开抖音页面：{e}"))?;
+        .map_err(|e| format!("Can't open the Douyin page: {e}"))?;
 
     let result = tauri::async_runtime::spawn_blocking(move || rx.recv_timeout(TIMEOUT))
         .await
@@ -60,6 +60,6 @@ pub async fn douyin_capture(app: AppHandle, id: String, kind: String) -> Result<
     let _ = window.destroy();
     match result {
         Ok(r) => r,
-        Err(_) => Err("读取作品信息超时，请检查网络后再试".into()),
+        Err(_) => Err("Timed out reading the post. Check your network and try again".into()),
     }
 }
