@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { ArrowUpCircle, Check, ChevronLeft, ChevronRight, Github, Languages, Moon, Search, Sun } from "lucide-vue-next";
+import { Check, ChevronLeft, ChevronRight, Github, Languages, Moon, Search, Sun } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
 import type { Category } from "@/tools";
-import { useUpdater } from "@/composables/useUpdater";
 import { usePopover } from "@/composables/usePopover";
 import { LOCALES, useLocale, type LocalePref } from "@/locales";
 import { REPO_URL, openExternal } from "@/utils/openExternal";
@@ -17,9 +16,8 @@ const props = defineProps<{
   /** 侧栏收起时品牌区跟着收窄，保持与侧栏对齐 */
   compact?: boolean;
 }>();
-defineEmits<{ select: [id: string]; toggleTheme: []; openSearch: []; openUpdate: [] }>();
+defineEmits<{ select: [id: string]; toggleTheme: []; openSearch: [] }>();
 
-const { status: updateStatus, newVersion } = useUpdater();
 const { t } = useI18n();
 
 // 语言切换菜单：跟随系统，或固定某种语言
@@ -126,13 +124,6 @@ watch(
         <span>{{ t("header.search") }}</span>
         <kbd>Ctrl K</kbd>
       </button>
-      <!-- 有新版本时显示醒目的提示，否则是普通的「检查更新」按钮 -->
-      <button v-if="updateStatus === 'available'" class="update-pill" @click="$emit('openUpdate')">
-        <ArrowUpCircle :size="14" />{{ t("header.newVersion", { version: newVersion }) }}
-      </button>
-      <button v-else class="theme-btn" :title="t('header.checkUpdate')" @click="$emit('openUpdate')">
-        <ArrowUpCircle :size="16" />
-      </button>
       <button ref="langBtn" class="theme-btn" :class="{ active: langOpen }" :title="t('locale.title')" @click="toggleLang">
         <Languages :size="16" />
       </button>
@@ -178,19 +169,18 @@ watch(
 }
 
 /* 品牌区与左侧栏同宽（240px），分类标签正好对齐下方工具区 */
+/* 图标和名称在侧栏宽度内居中 */
 .brand {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 9px;
   flex: 0 0 240px;
-  padding-left: 20px;
   border-right: 1px solid var(--border);
   transition: flex-basis var(--dur-slow) var(--ease-out);
 }
 .brand.compact {
   flex-basis: 56px;
-  padding-left: 0;
-  justify-content: center;
 }
 .name {
   font-family: var(--font-serif);
@@ -326,22 +316,6 @@ watch(
 /* 悬停时放大镜微微放大，提示可以点 */
 .search:hover svg {
   transform: scale(1.12);
-}
-.update-pill {
-  height: 28px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 0 10px;
-  border: none;
-  border-radius: 14px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 500;
-}
-.update-pill:hover {
-  background: var(--accent-hover);
 }
 .theme-btn {
   width: 32px;

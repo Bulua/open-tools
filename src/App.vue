@@ -71,7 +71,6 @@ onMounted(startBrandingSync);
       @select="activeCategoryId = $event"
       @toggle-theme="toggleTheme"
       @open-search="searchOpen = true"
-      @open-update="updateOpen = true"
     />
     <div class="body">
       <AppSidebar
@@ -80,6 +79,7 @@ onMounted(startBrandingSync);
         :collapsed="sidebarCollapsed"
         @select="selectTool(activeCategory.id, $event)"
         @toggle="sidebarCollapsed = !sidebarCollapsed"
+        @open-update="updateOpen = true"
       />
       <main class="main">
         <!-- 切换工具时保留之前工具的输入和结果，最多缓存 12 个 -->

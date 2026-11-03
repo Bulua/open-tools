@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
-import { PanelLeftClose, PanelLeftOpen, Search, X } from "lucide-vue-next";
+import { ArrowUpCircle, PanelLeftClose, PanelLeftOpen, Search, X } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
 import { isAvailable, type Category } from "@/tools";
 import { searchTextOf } from "@/locales/tools";
+import { useUpdater } from "@/composables/useUpdater";
 import { boxOf, glide } from "@/utils/motion";
 
 const props = defineProps<{ category: Category; activeId?: string; collapsed: boolean }>();
-defineEmits<{ select: [id: string]; toggle: [] }>();
+defineEmits<{ select: [id: string]; toggle: []; openUpdate: [] }>();
 const { t } = useI18n();
+const { status: updateStatus, newVersion } = useUpdater();
 
 const keyword = ref("");
 watch(
@@ -65,10 +67,22 @@ const filtered = computed(() => {
       {{ category.tools.length ? t("sidebar.noMatch") : t("sidebar.empty") }}
     </p>
 
-    <button class="toggle" :title="collapsed ? t('sidebar.expand') : t('sidebar.collapse')" @click="$emit('toggle')">
-      <PanelLeftOpen v-if="collapsed" :size="16" />
-      <PanelLeftClose v-else :size="16" />
-    </button>
+    <!-- 底部：左边是更新（有新版本时醒目提示），右边是收起侧栏；收起时上下排列 -->
+    <div class="footer">
+      <button
+        class="update"
+        :class="{ available: updateStatus === 'available' }"
+        :title="updateStatus === 'available' ? t('header.newVersion', { version: newVersion }) : t('header.checkUpdate')"
+        @click="$emit('openUpdate')"
+      >
+        <ArrowUpCircle :size="16" />
+        <span v-if="!collapsed">{{ updateStatus === "available" ? t("header.newVersion", { version: newVersion }) : t("header.checkUpdate") }}</span>
+      </button>
+      <button class="toggle" :title="collapsed ? t('sidebar.expand') : t('sidebar.collapse')" @click="$emit('toggle')">
+        <PanelLeftOpen v-if="collapsed" :size="16" />
+        <PanelLeftClose v-else :size="16" />
+      </button>
+    </div>
   </aside>
 </template>
 
@@ -215,24 +229,60 @@ const filtered = computed(() => {
   color: var(--text-3);
 }
 
-.toggle {
-  align-self: flex-start;
-  width: 32px;
-  height: 32px;
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   margin: auto 2px 0;
-  display: grid;
-  place-items: center;
+  padding-top: 8px;
+}
+.collapsed .footer {
+  flex-direction: column;
+  margin: auto 0 0;
+}
+.update,
+.toggle {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   border-radius: 8px;
   background: none;
   color: var(--text-3);
+  white-space: nowrap;
+}
+.toggle {
+  flex-shrink: 0;
+  width: 32px;
+  margin-left: auto;
 }
 .collapsed .toggle {
-  align-self: center;
-  margin: auto 0 0;
+  margin-left: 0;
 }
+.update {
+  min-width: 32px;
+  gap: 6px;
+  padding: 0 8px;
+  font-size: 12px;
+  overflow: hidden;
+}
+.collapsed .update {
+  padding: 0;
+}
+.update:hover,
 .toggle:hover {
   background: var(--hover);
   color: var(--text);
+}
+/* 有新版本：强调色的按钮 */
+.update.available {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 500;
+}
+.update.available:hover {
+  background: var(--accent-hover);
+  color: #fff;
 }
 </style>
