@@ -41,12 +41,14 @@ const SOURCES: &[(&str, &str)] = &[
     ("huggingface", "https://huggingface.co/penghui002/open-tools-models/resolve/main/"),
 ];
 
-/// 可下载的模型（来自开源项目 rembg）
+/// 可下载的模型：去背景的来自开源项目 rembg；去水印（图片修补）的是 LaMa 和 MI-GAN
 const MODELS: &[(&str, RemoteFile)] = &[
     ("u2netp", RemoteFile { path: "models/u2netp.onnx", size: 4_574_861, sha256: "309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8" }),
     ("silueta", RemoteFile { path: "models/silueta.onnx", size: 44_173_029, sha256: "75da6c8d2f8096ec743d071951be73b4a8bc7b3e51d9a6625d63644f90ffeedb" }),
     ("isnet-general-use", RemoteFile { path: "models/isnet-general-use.onnx", size: 178_648_008, sha256: "60920e99c45464f2ba57bee2ad08c919a52bbf852739e96947fbb4358c0d964a" }),
     ("u2net_human_seg", RemoteFile { path: "models/u2net_human_seg.onnx", size: 175_997_641, sha256: "01eb6a29a5c4d8edb30b56adad9bb3a2a0535338e480724a213e0acfd2d1c73c" }),
+    ("lama", RemoteFile { path: "models/lama.onnx", size: 208_044_816, sha256: "1faef5301d78db7dda502fe59966957ec4b79dd64e16f03ed96913c7a4eb68d6" }),
+    ("migan", RemoteFile { path: "models/migan.onnx", size: 29_546_882, sha256: "593eba0b7e04730f1b61c0a3cbca68d97d8d6a7ff5c6a44a7b9d7fcd880fc5ae" }),
 ];
 
 /// 运行环境的版本：换版本时改这里，新版本下载到新的文件夹，旧模型不受影响。
