@@ -1,18 +1,24 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { ChevronLeft, ChevronRight, Download, X } from "lucide-vue-next";
+import { ChevronLeft, ChevronRight, Download, Focus, X } from "lucide-vue-next";
 import ColorPicker from "@/components/common/ColorPicker.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
+import ZoomControls from "@/components/common/ZoomControls.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { useFitFrame } from "@/composables/useFitFrame";
+import { useZoomPan } from "@/composables/useZoomPan";
+import { useWindowEvent } from "@/composables/useWindowEvent";
 import { saveFile } from "@/utils/saveFile";
 import { IMAGE_FORMATS, canvasToBytes, formatInfo, loadImage, type ImageFormat } from "../utils";
 import { contentBounds, stitchLayout, type Box, type StitchDirection } from "../effects";
+import { snapBox, type Guides } from "../snap";
 
 /**
  * 图片拼接：多张图片横向、纵向、按宫格拼成一张，或自由摆放。
- * 自由模式下可以在预览上拖动图片调整位置，拖动右下角缩放（保持比例）。
+ * 在预览上拖动图片调整位置（自动排列时拖动会切换到自由摆放），拖动右下角缩放（保持比例）。
+ * 拖动时对齐其他图片和画布的边缘、中线，显示参考线（按住 Alt 不吸附）；选中后方向键微调。
+ * 滚轮放大预览、拖动空白处平移，方便精细调整。
  */
 type Mode = StitchDirection | "free";
 const { t } = useI18n();
@@ -52,6 +58,7 @@ const remove = (item: Item) => {
   URL.revokeObjectURL(item.url);
   items.value = items.value.filter((i) => i !== item);
   delete freeBoxes.value[item.id];
+  selected.value = selected.value.filter((id) => id !== item.id);
 };
 const move = (index: number, step: -1 | 1) => {
   const list = [...items.value];
@@ -87,91 +94,197 @@ const autoLayout = computed(() => {
 
 // ---------- 自由摆放 ----------
 
-/** 每张图片在画布上的位置和大小（输出像素），z 越大越靠上 */
+/**
+ * 每张图片的位置和大小（输出像素，可以是负数），z 越大越靠上。
+ * 画布不固定大小：导出范围就是所有图片合起来的外框加上外边距，图片拖到哪里都不会被裁掉。
+ */
 const freeBoxes = ref<Record<number, Box & { z: number }>>({});
-const freeSize = ref({ width: 1200, height: 800 });
-const selectedId = ref<number | null>(null);
+/** 选中的图片：单击选中一张，在空白处拖出方框选中多张 */
+const selected = ref<number[]>([]);
+const isSelected = (id: number) => selected.value.includes(id);
 const topZ = () => Math.max(0, ...Object.values(freeBoxes.value).map((b) => b.z));
+const placedBoxes = () => items.value.map((i) => freeBoxes.value[i.id]).filter(Boolean);
 
-/** 从当前的自动排列开始，方便在此基础上微调 */
+/** 自由摆放时的导出范围：所有图片的外框，四周加外边距 */
+const freeRegion = (): Box => {
+  const b = contentBounds(placedBoxes());
+  const p = padding.value;
+  return { x: b.x - p, y: b.y - p, w: b.w + p * 2, h: b.h + p * 2 };
+};
+
+/**
+ * 自由摆放时预览显示的范围（画布坐标）。拖动期间保持不变，导出范围变大变小时预览不会跟着跳；
+ * 切换到自由摆放、添加图片、点击缩放比例时才重新对准导出范围。
+ */
+const view = ref<Box>({ x: 0, y: 0, w: 1200, h: 800 });
+const fitView = () => {
+  const r = freeRegion();
+  // 四周留一点空白，贴边的图片和虚线框也看得清
+  const m = Math.max(r.w, r.h) * 0.04;
+  if (r.w > 0 && r.h > 0) view.value = { x: r.x - m, y: r.y - m, w: r.w + m * 2, h: r.h + m * 2 };
+  resetView();
+};
+/** 「全部显示」：所有图片放到预览中间，缩放到刚好都能看见 */
+const showAll = () => (direction.value === "free" ? fitView() : resetView());
+
+/** 从当前的自动排列开始，方便在此基础上微调；预览范围和自动排列时一样，画面不动 */
 const initFree = () => {
   const l = autoLayout.value;
-  freeSize.value = { width: l.outWidth || 1200, height: l.outHeight || 800 };
   freeBoxes.value = Object.fromEntries(
     items.value.map((item, i) => {
       const b = l.boxes[i];
       return [item.id, { x: b.x * l.scale, y: b.y * l.scale, w: b.w * l.scale, h: b.h * l.scale, z: i }];
     }),
   );
+  view.value = { x: 0, y: 0, w: l.outWidth || 1200, h: l.outHeight || 800 };
 };
 
-/** 新加入的图片放在左上角附近，缩小到画布的一半以内 */
+/** 新加入的图片依次放在已有图片的右边，太大的缩小到和已有内容差不多大 */
 const placeMissing = () => {
-  let offset = 0;
+  const placed = placedBoxes();
+  const b = placed.length ? contentBounds(placed) : { x: 0, y: 0, w: 0, h: 0 };
+  const limit = Math.max(b.w, b.h, 1200);
+  let x = placed.length ? b.x + b.w + 20 : 0;
+  let added = false;
   for (const item of items.value) {
     if (freeBoxes.value[item.id]) continue;
     const { naturalWidth: w, naturalHeight: h } = item.img;
-    const s = Math.min(1, (freeSize.value.width * 0.5) / w, (freeSize.value.height * 0.5) / h);
-    freeBoxes.value[item.id] = { x: 20 + offset, y: 20 + offset, w: w * s, h: h * s, z: topZ() + 1 };
-    offset += 30;
+    const s = Math.min(1, limit / w, limit / h);
+    freeBoxes.value[item.id] = { x, y: b.y, w: w * s, h: h * s, z: topZ() + 1 };
+    x += w * s + 20;
+    added = true;
   }
+  if (added) fitView();
 };
 
-watch(direction, (mode, previous) => {
-  if (mode !== "free") {
-    lastAuto.value = mode;
-    return;
-  }
-  if (previous && previous !== "free") lastAuto.value = previous;
-  if (!Object.keys(freeBoxes.value).length) initFree();
-  else placeMissing();
-});
+watch(direction, (mode) => mode !== "free" && (lastAuto.value = mode), { immediate: true });
 
-/** 画布缩小到刚好包住所有图片（四周留外边距） */
-const fitContent = () => {
-  const boxes = Object.values(freeBoxes.value);
-  if (!boxes.length) return;
-  const b = contentBounds(boxes);
-  const p = padding.value;
-  for (const box of boxes) {
-    box.x += p - b.x;
-    box.y += p - b.y;
-  }
-  freeSize.value = { width: Math.round(b.w + p * 2), height: Math.round(b.h + p * 2) };
+/** 点击排列方式；切换到自由摆放时沿用之前摆好的位置，第一次时从自动排列开始 */
+const setMode = (mode: Mode) => {
+  if (mode === direction.value) return;
+  direction.value = mode;
+  if (mode === "free") {
+    if (!placedBoxes().length) initFree();
+    else placeMissing();
+    fitView();
+  } else resetView();
 };
 
-const setFreeSize = (key: "width" | "height", e: Event) => {
-  freeSize.value = { ...freeSize.value, [key]: Math.min(MAX_SIDE, Math.max(10, toNumber(e, MAX_SIDE))) };
+/** 恢复为之前自动排列的位置 */
+const rearrange = () => {
+  initFree();
+  fitView();
 };
 
-/** 拖动移动，或拖动右下角缩放（保持比例） */
+/** 拖动时显示的参考线（画布像素） */
+const guides = ref<Guides>({ x: [], y: [] });
+const noGuides = () => (guides.value = { x: [], y: [] });
+/** 吸附距离（屏幕像素），放大预览后同样好对准 */
+const SNAP_PX = 6;
+
+/** 自动排列时开始拖动：以当前排列为起点切换到自由摆放 */
+const toFree = () => {
+  if (direction.value === "free") return;
+  lastAuto.value = direction.value;
+  direction.value = "free";
+  initFree();
+};
+
+/** 图片当前显示的位置（画布坐标）：自由摆放时取摆放位置，自动排列时取排列结果 */
+const shownBox = (id: number, index: number): Box | undefined => (direction.value === "free" ? freeBoxes.value[id] : autoLayout.value.boxes[index]);
+
+/** 预览框对应的范围（画布坐标）：自由摆放时是 view，自动排列时就是整张拼图 */
+const viewBox = computed<Box>(() => (direction.value === "free" ? view.value : { x: 0, y: 0, w: autoLayout.value.width, h: autoLayout.value.height }));
+
+const frameEl = ref<HTMLElement>();
+/** 屏幕坐标换算成画布坐标 */
+const toCanvas = (clientX: number, clientY: number) => {
+  const r = frameEl.value!.getBoundingClientRect();
+  const v = viewBox.value;
+  return { x: v.x + ((clientX - r.left) / r.width) * v.w, y: v.y + ((clientY - r.top) / r.height) * v.h };
+};
+
+/** 画布坐标的方框在预览框里的位置（百分比，可以超出预览框） */
+const place = (b: Box) => {
+  const v = viewBox.value;
+  return {
+    left: `${((b.x - v.x) / v.w) * 100}%`,
+    top: `${((b.y - v.y) / v.h) * 100}%`,
+    width: `${(b.w / v.w) * 100}%`,
+    height: `${(b.h / v.h) * 100}%`,
+  };
+};
+
+/** 输入框里打字时不响应快捷键 */
+const inField = (target: EventTarget | null) => !!(target as HTMLElement | null)?.closest?.("input, textarea, select, [contenteditable]");
+
+/**
+ * 拖动移动选中的图片（多张一起移动），或拖动右下角缩放（保持比例）。
+ * 移动超过几个像素才算拖动：单击只改变选中，自动排列时也不会切换到自由摆放。
+ */
 const startDrag = (e: PointerEvent, item: Item, mode: "move" | "resize") => {
-  const box = freeBoxes.value[item.id];
-  const frameEl = (e.currentTarget as HTMLElement).closest(".frame") as HTMLElement | null;
-  if (!box || !frameEl) return;
+  // 按住空格时交给预览区域平移
+  if (e.button !== 0 || spaceDown.value || !frameEl.value) return;
+  e.stopPropagation();
   e.preventDefault();
-  selectedId.value = item.id;
-  box.z = topZ() + 1;
+  // 按在没选中的图片上只选它；按在已选中的图片上，所有选中的一起拖动
+  const inGroup = isSelected(item.id) && selected.value.length > 1;
+  if (!isSelected(item.id) || mode === "resize") selected.value = [item.id];
 
-  const scale = freeSize.value.width / frameEl.getBoundingClientRect().width;
-  const start = { ...box };
   const [sx, sy] = [e.clientX, e.clientY];
-  const ratio = start.h / start.w;
+  let started = false;
+  let moving: { box: Box & { z: number }; start: Box }[] = [];
+  let scale = 1;
+  const begin = () => {
+    started = true;
+    toFree();
+    moving = items.value
+      .filter((i) => isSelected(i.id))
+      .map((i) => freeBoxes.value[i.id])
+      .filter(Boolean)
+      .map((box) => ({ box, start: { x: box.x, y: box.y, w: box.w, h: box.h } }));
+    // 拖动的图片放到最上层，它们之间的上下顺序不变
+    const z = topZ();
+    [...moving].sort((m1, m2) => m1.box.z - m2.box.z).forEach((m, k) => (m.box.z = z + 1 + k));
+    // 预览放大后 1 个屏幕像素对应的画布像素更少
+    scale = viewBox.value.w / frameEl.value!.getBoundingClientRect().width;
+  };
 
   const onMove = (ev: PointerEvent) => {
+    if (!started) {
+      if (Math.hypot(ev.clientX - sx, ev.clientY - sy) <= 3) return;
+      begin();
+    }
+    if (!moving.length) return;
     const dx = (ev.clientX - sx) * scale;
     const dy = (ev.clientY - sy) * scale;
-    if (mode === "move") {
-      // 至少留 20 像素在画布内，防止图片被拖丢
-      box.x = Math.min(freeSize.value.width - 20, Math.max(20 - start.w, start.x + dx));
-      box.y = Math.min(freeSize.value.height - 20, Math.max(20 - start.h, start.y + dy));
-    } else {
-      const w = Math.max(20, start.w + Math.max(dx, dy / ratio));
-      box.w = w;
-      box.h = w * ratio;
+    if (mode === "resize") {
+      const { box, start } = moving[0];
+      const ratio = start.h / start.w;
+      box.w = Math.max(20, start.w + Math.max(dx, dy / ratio));
+      box.h = box.w * ratio;
+      return;
+    }
+    // 多张一起移动时，按它们合起来的外框对齐
+    const g = contentBounds(moving.map((m) => m.start));
+    let x = g.x + dx;
+    let y = g.y + dy;
+    if (ev.altKey) noGuides();
+    else {
+      const others = items.value.filter((i) => !isSelected(i.id)).map((i) => freeBoxes.value[i.id]).filter(Boolean);
+      const s = snapBox({ x, y, w: g.w, h: g.h }, others, SNAP_PX * scale);
+      ({ x, y } = s);
+      guides.value = s.guides;
+    }
+    for (const m of moving) {
+      m.box.x = m.start.x + x - g.x;
+      m.box.y = m.start.y + y - g.y;
     }
   };
   const onUp = () => {
+    noGuides();
+    // 单击已选中的多张中的一张（没有拖动）：只选它
+    if (!started && inGroup) selected.value = [item.id];
     window.removeEventListener("pointermove", onMove);
     window.removeEventListener("pointerup", onUp);
   };
@@ -179,37 +292,120 @@ const startDrag = (e: PointerEvent, item: Item, mode: "move" | "resize") => {
   window.addEventListener("pointerup", onUp);
 };
 
-/** 自由模式下图片框在预览上的位置（百分比，跟随预览缩放） */
-const boxStyle = (id: number) => {
-  const b = freeBoxes.value[id];
-  if (!b) return {};
-  const { width, height } = freeSize.value;
-  return {
-    left: `${(b.x / width) * 100}%`,
-    top: `${(b.y / height) * 100}%`,
-    width: `${(b.w / width) * 100}%`,
-    height: `${(b.h / height) * 100}%`,
-    zIndex: b.z + 1,
-  };
+/** 方向键微调选中的图片，按住 Shift 一次移动 10 像素 */
+const ARROWS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+useWindowEvent("keydown", (e) => {
+  const step = ARROWS[e.key];
+  if (!step || !selected.value.length || inField(e.target)) return;
+  e.preventDefault();
+  toFree();
+  const n = e.shiftKey ? 10 : 1;
+  for (const id of selected.value) {
+    const b = freeBoxes.value[id];
+    if (!b) continue;
+    b.x += step[0] * n;
+    b.y += step[1] * n;
+  }
+});
+
+/** 按住空格拖动预览平移（和常见的设计软件一样），空白处直接拖动是框选 */
+const spaceDown = ref(false);
+useWindowEvent("keydown", (e) => {
+  if (e.code !== "Space" || !items.value.length || inField(e.target)) return;
+  e.preventDefault();
+  spaceDown.value = true;
+});
+useWindowEvent("keyup", (e) => e.code === "Space" && (spaceDown.value = false));
+useWindowEvent("blur", () => (spaceDown.value = false));
+
+/** 在空白处拖出的选框（画布坐标） */
+const marquee = ref<Box | null>(null);
+let marqueeDrag: { x: number; y: number; sx: number; sy: number; moved: boolean } | null = null;
+
+const onAreaDown = (e: PointerEvent) => {
+  if (e.button !== 0 || !frameEl.value) return;
+  if (spaceDown.value) return onDown(e);
+  const p = toCanvas(e.clientX, e.clientY);
+  marqueeDrag = { ...p, sx: e.clientX, sy: e.clientY, moved: false };
+  (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 };
+
+const onAreaMove = (e: PointerEvent) => {
+  if (onPanMove(e)) return;
+  const d = marqueeDrag;
+  if (!d || (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) <= 3)) return;
+  d.moved = true;
+  const p = toCanvas(e.clientX, e.clientY);
+  const m = { x: Math.min(d.x, p.x), y: Math.min(d.y, p.y), w: Math.abs(p.x - d.x), h: Math.abs(p.y - d.y) };
+  marquee.value = m;
+  // 和选框有重叠的图片都选中
+  const hit = items.value
+    .filter((item, i) => {
+      const b = shownBox(item.id, i);
+      return b && b.x < m.x + m.w && b.x + b.w > m.x && b.y < m.y + m.h && b.y + b.h > m.y;
+    })
+    .map((i) => i.id);
+  selected.value = hit;
+};
+
+const onAreaUp = () => {
+  onPanUp();
+  const d = marqueeDrag;
+  marqueeDrag = null;
+  marquee.value = null;
+  // 单击空白处：取消选中
+  if (d && !d.moved) selected.value = [];
+};
+
+/** 图片框在预览上的位置（百分比，跟随预览缩放） */
+const boxStyle = (id: number, index: number) => {
+  const b = shownBox(id, index);
+  if (!b) return {};
+  return { ...place(b), zIndex: direction.value === "free" ? freeBoxes.value[id].z + 1 : 1 };
+};
+
+/** 1 个物理像素的线宽：不随预览放大变粗，高分屏上也是最细的线 */
+const hairline = () => `${1 / (zoom.value * (window.devicePixelRatio || 1))}px`;
+
+/** 参考线的位置（百分比），长度贯穿整个预览区域 */
+const guideStyle = (axis: "x" | "y", value: number) => {
+  const v = viewBox.value;
+  return axis === "x" ? { left: `${((value - v.x) / v.w) * 100}%`, width: hairline() } : { top: `${((value - v.y) / v.h) * 100}%`, height: hairline() };
+};
+
+const marqueeStyle = (m: Box) => ({ ...place(m), borderWidth: `${1 / zoom.value}px` });
 
 // ---------- 最终布局 ----------
 const layout = computed(() => {
-  if (direction.value !== "free") return autoLayout.value;
-  const { width, height } = freeSize.value;
+  if (direction.value !== "free") return { ...autoLayout.value, origin: { x: 0, y: 0 } };
+  // 导出范围跟随内容；太大时和自动排列一样整体等比缩小
+  const r = freeRegion();
+  const scale = r.w > 0 && r.h > 0 ? Math.min(1, MAX_SIDE / r.w, MAX_SIDE / r.h, Math.sqrt(MAX_AREA / (r.w * r.h))) : 1;
   return {
-    width,
-    height,
-    boxes: items.value.map((i) => freeBoxes.value[i.id] ?? { x: 0, y: 0, w: 0, h: 0 }),
-    scale: 1,
-    outWidth: width,
-    outHeight: height,
+    width: r.w,
+    height: r.h,
+    origin: { x: r.x, y: r.y },
+    boxes: items.value.map((i) => {
+      const b = freeBoxes.value[i.id] ?? { x: 0, y: 0, w: 0, h: 0 };
+      return { x: b.x - r.x, y: b.y - r.y, w: b.w, h: b.h };
+    }),
+    scale,
+    outWidth: Math.max(1, Math.round(r.w * scale)),
+    outHeight: Math.max(1, Math.round(r.h * scale)),
   };
 });
 
 const canvas = ref<HTMLCanvasElement>();
-const outSize = computed(() => (items.value.length ? { width: layout.value.outWidth, height: layout.value.outHeight } : null));
+/** 拼好的图在预览框里的位置：自由摆放时就是导出范围，自动排列时填满预览框 */
+const canvasStyle = computed(() => {
+  if (direction.value !== "free") return {};
+  const l = layout.value;
+  return { position: "absolute" as const, ...place({ x: l.origin.x, y: l.origin.y, w: l.width, h: l.height }) };
+});
+const outSize = computed(() => (items.value.length ? { width: viewBox.value.w, height: viewBox.value.h } : null));
 const { observeArea, frameStyle } = useFitFrame(outSize);
+// 滚轮缩放预览（可以缩到比区域小，方便把图片拖到画布边上），按住空格拖动平移
+const { MIN_ZOOM, MAX_ZOOM, zoom, panning, style: zoomStyle, reset: resetView, zoomAt, onWheel, onDown, onMove: onPanMove, onUp: onPanUp } = useZoomPan({ min: 0.1 });
 
 const draw = async () => {
   await nextTick();
@@ -266,7 +462,7 @@ const toNumber = (e: Event, max: number) => Math.min(max, Math.max(0, Math.round
       <section class="section">
         <h3>{{ t("image.layout") }}</h3>
         <div class="seg fill">
-          <button v-for="d in DIRECTIONS" :key="d.value" :class="{ on: direction === d.value }" @click="direction = d.value">
+          <button v-for="d in DIRECTIONS" :key="d.value" :class="{ on: direction === d.value }" @click="setMode(d.value)">
             {{ d.label }}
           </button>
         </div>
@@ -280,14 +476,7 @@ const toNumber = (e: Event, max: number) => Math.min(max, Math.max(0, Math.round
         </label>
         <template v-else>
           <div class="row">
-            <span>{{ t("image.canvas") }}</span>
-            <input class="field small wide" type="number" min="10" :value="freeSize.width" @change="setFreeSize('width', $event)" />
-            <span>×</span>
-            <input class="field small wide" type="number" min="10" :value="freeSize.height" @change="setFreeSize('height', $event)" />
-          </div>
-          <div class="row">
-            <button class="btn small" :title="t('image.fitContentTitle')" @click="fitContent">{{ t("image.fitContent") }}</button>
-            <button class="btn small subtle" :title="t('image.rearrangeTitle')" @click="initFree">{{ t("image.rearrange") }}</button>
+            <button class="btn small subtle" :title="t('image.rearrangeTitle')" @click="rearrange">{{ t("image.rearrange") }}</button>
           </div>
           <p class="tip">{{ t("image.freeTip") }}</p>
         </template>
@@ -351,24 +540,40 @@ const toNumber = (e: Event, max: number) => Math.min(max, Math.max(0, Math.round
       />
 
       <template v-else>
-        <div class="card-title">{{ t("image.preview") }}</div>
-        <div :ref="observeArea" class="area checker" @pointerdown.self="selectedId = null">
-          <div class="frame" :style="frameStyle">
-            <canvas ref="canvas" />
-            <!-- 自由模式：每张图片上覆盖一个可拖动的框 -->
-            <template v-if="direction === 'free'">
-              <div
-                v-for="item in items"
-                :key="item.id"
-                class="free-box"
-                :class="{ selected: selectedId === item.id }"
-                :style="boxStyle(item.id)"
-                :title="item.name"
-                @pointerdown="startDrag($event, item, 'move')"
-              >
-                <span class="handle" :title="t('image.dragResize')" @pointerdown.stop="startDrag($event, item, 'resize')" />
-              </div>
-            </template>
+        <div class="card-title">
+          {{ t("image.preview") }}
+          <span class="hint">{{ direction === "free" ? t("image.freeHint") : t("image.dragToFree") }}</span>
+          <button class="btn small subtle" :title="t('image.showAllTitle')" @click="showAll"><Focus :size="14" />{{ t("image.showAll") }}</button>
+          <ZoomControls :zoom="zoom" :min="MIN_ZOOM" :max="MAX_ZOOM" @zoom="zoomAt" @reset="showAll" />
+        </div>
+        <div
+          :ref="observeArea"
+          class="area checker"
+          :class="{ panning, grab: spaceDown }"
+          @wheel.prevent="onWheel"
+          @pointerdown="onAreaDown"
+          @pointermove="onAreaMove"
+          @pointerup="onAreaUp"
+          @pointercancel="onAreaUp"
+        >
+          <div ref="frameEl" class="frame" :style="[frameStyle, zoomStyle]">
+            <canvas ref="canvas" :class="{ region: direction === 'free' }" :style="canvasStyle" />
+            <!-- 每张图片上覆盖一个可拖动的框；自动排列时拖动会切换到自由摆放 -->
+            <div
+              v-for="(item, i) in items"
+              :key="item.id"
+              class="free-box"
+              :class="{ selected: isSelected(item.id) }"
+              :style="boxStyle(item.id, i)"
+              :title="item.name"
+              @pointerdown="startDrag($event, item, 'move')"
+            >
+              <span v-if="direction === 'free' && selected.length === 1 && isSelected(item.id)" class="handle" :title="t('image.dragResize')" @pointerdown.stop="startDrag($event, item, 'resize')" />
+            </div>
+            <!-- 对齐参考线 -->
+            <i v-for="x in guides.x" :key="'x' + x" class="guide v" :style="guideStyle('x', x)" />
+            <i v-for="y in guides.y" :key="'y' + y" class="guide h" :style="guideStyle('y', y)" />
+            <div v-if="marquee" class="marquee" :style="marqueeStyle(marquee)" />
           </div>
         </div>
 
@@ -478,6 +683,52 @@ h3 {
   min-height: 200px;
   margin: 12px 12px 0;
   border-radius: 8px;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+.area.grab,
+.area.grab .free-box {
+  cursor: grab;
+}
+.area.panning {
+  cursor: grabbing;
+}
+/* 框选时拖出的方框 */
+.marquee {
+  position: absolute;
+  z-index: 100000;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  pointer-events: none;
+}
+.card-title .hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 400;
+  color: var(--text-3);
+}
+/* 对齐参考线：图片可以拖到预览框外，线也延伸到外面，贯穿整个预览区域 */
+.guide {
+  position: absolute;
+  z-index: 100000;
+  background: var(--guide);
+  pointer-events: none;
+}
+.guide.v {
+  top: -1000%;
+  bottom: -1000%;
+}
+.guide.h {
+  left: -1000%;
+  right: -1000%;
+}
+/* 自由摆放时标出导出范围（透明背景时也看得出边界） */
+.frame canvas.region {
+  outline: 1px dashed var(--border-strong);
 }
 .frame {
   position: absolute;

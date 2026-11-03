@@ -20,6 +20,8 @@
   --success-soft: rgba(76, 122, 79, 0.1);
   --warning: #9a6b1f;
   --warning-soft: rgba(154, 107, 31, 0.1);
+  /* 拖动对齐时的参考线，和选中框的主色区分开 */
+  --guide: #e0358a;
 
   /* 代码/数据高亮 */
   --syntax-key: #3b5a7a;
@@ -64,6 +66,7 @@
   --success-soft: rgba(143, 185, 143, 0.12);
   --warning: #d9a85b;
   --warning-soft: rgba(217, 168, 91, 0.12);
+  --guide: #ff5ca8;
 
   --syntax-key: #a3bcd8;
   --syntax-string: #a5c99a;
