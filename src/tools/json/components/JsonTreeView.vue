@@ -2,12 +2,14 @@
 import { provide, ref } from "vue";
 import { Check, Copy } from "lucide-vue-next";
 import { useClipboard } from "@/composables/useClipboard";
+import { useI18n } from "vue-i18n";
 import type { JsonValue } from "../utils";
 import JsonTreeNode from "./JsonTreeNode.vue";
 import { TREE_CONTEXT } from "./treeContext";
 
 /** JSON 树形视图：可折叠，点击节点在底部显示并复制它的路径 */
 defineProps<{ value: JsonValue }>();
+const { t } = useI18n();
 
 const selected = ref("");
 const signal = ref({ expand: true });
@@ -28,10 +30,10 @@ defineExpose({
     </div>
 
     <footer class="path">
-      <span class="path-label">路径</span>
+      <span class="path-label">{{ t("json.path") }}</span>
       <code v-if="selected">{{ selected }}</code>
-      <span v-else class="path-hint">点击节点查看路径</span>
-      <button v-if="selected" class="icon-btn" :class="{ ok: copied }" title="复制路径" @click="copy(selected)">
+      <span v-else class="path-hint">{{ t("json.pathHint") }}</span>
+      <button v-if="selected" class="icon-btn" :class="{ ok: copied }" :title="t('json.copyPath')" @click="copy(selected)">
         <Check v-if="copied" :size="14" />
         <Copy v-else :size="14" />
       </button>

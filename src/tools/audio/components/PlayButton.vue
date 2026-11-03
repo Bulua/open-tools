@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { Pause, Play } from "lucide-vue-next";
+import { useI18n } from "vue-i18n";
 
 /** 列表里的试听按钮：圆形，播放中显示暂停图标并高亮 */
 defineProps<{ playing?: boolean }>();
+const { t } = useI18n();
 </script>
 
 <template>
-  <button class="play" :class="{ on: playing }" :title="playing ? '停止' : '试听'">
+  <button class="play" :class="{ on: playing }" :title="playing ? t('audio.stop') : t('audio.listen')">
     <Pause v-if="playing" :size="13" />
     <Play v-else :size="13" />
   </button>

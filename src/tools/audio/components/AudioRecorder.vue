@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, shallowRef } from "vue";
+import { useI18n } from "vue-i18n";
 import { Download, Mic, Pause, Play, Square, Trash2 } from "lucide-vue-next";
 import PlayButton from "./PlayButton.vue";
 import { saveFile } from "@/utils/saveFile";
@@ -7,6 +8,8 @@ import OutputFormat from "./OutputFormat.vue";
 import { audioContext, decodeFile, encodeAudio, usePlayer } from "../audio";
 import { duration, formatTime, type Pcm } from "../pcm";
 import { useOutputFormat } from "../useOutputFormat";
+
+const { t } = useI18n();
 
 /**
  * 录音机：点按钮开始录音，可以暂停、继续，结束后试听、保存。
@@ -70,7 +73,7 @@ const start = async () => {
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch {
-    error.value = "无法使用麦克风：请检查是否连接了麦克风，以及系统设置中是否允许应用访问麦克风";
+    error.value = t("audio.micFailed");
     return;
   }
   chunks = [];
@@ -127,7 +130,7 @@ async function finish() {
   try {
     const pcm = await decodeFile(blob);
     const now = new Date();
-    const name = `录音 ${nextId} · ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    const name = t("audio.recordingName", { n: nextId, time: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}` });
     recordings.value = [{ id: nextId++, name, pcm }, ...recordings.value];
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
@@ -167,11 +170,11 @@ const save = async (r: Recording) => {
   <div class="recorder">
     <aside class="card panel">
       <section class="section">
-        <h3>保存格式</h3>
+        <h3>{{ t("audio.saveFormat") }}</h3>
         <OutputFormat />
       </section>
       <section class="section">
-        <p class="tip">录音只保存在本次打开的程序中，关闭后会丢失，需要的请及时保存。</p>
+        <p class="tip">{{ t("audio.recordTip") }}</p>
       </section>
     </aside>
 
@@ -179,34 +182,34 @@ const save = async (r: Recording) => {
       <section class="card deck" :class="state">
         <canvas ref="canvas" class="levels" />
         <div class="clock">{{ formatTime(elapsed) }}</div>
-        <p class="status">{{ state === "recording" ? "正在录音…" : state === "paused" ? "已暂停" : "点击下方按钮开始录音" }}</p>
+        <p class="status">{{ state === "recording" ? t("audio.recordingNow") : state === "paused" ? t("audio.paused") : t("audio.recordHint") }}</p>
         <div class="controls">
           <template v-if="state === 'idle'">
-            <button class="rec" title="开始录音" @click="start"><Mic :size="26" /></button>
+            <button class="rec" :title="t('audio.startRecord')" @click="start"><Mic :size="26" /></button>
           </template>
           <template v-else>
-            <button class="round" :title="state === 'recording' ? '暂停' : '继续'" @click="pauseOrResume">
+            <button class="round" :title="state === 'recording' ? t('audio.pause') : t('audio.resume')" @click="pauseOrResume">
               <Pause v-if="state === 'recording'" :size="20" />
               <Play v-else :size="20" />
             </button>
-            <button class="rec stop" title="结束录音" @click="stop"><Square :size="22" /></button>
+            <button class="rec stop" :title="t('audio.stopRecord')" @click="stop"><Square :size="22" /></button>
           </template>
         </div>
         <p v-if="error" class="error">{{ error }}</p>
       </section>
 
       <section class="card list">
-        <div class="card-title">录音<span v-if="recordings.length" class="count">{{ recordings.length }} 段</span></div>
+        <div class="card-title">{{ t("audio.recordings") }}<span v-if="recordings.length" class="count">{{ t("audio.recordCount", { n: recordings.length }) }}</span></div>
         <ul v-if="recordings.length" class="rows">
           <li v-for="r in recordings" :key="r.id" class="row">
             <PlayButton :playing="player.playingKey.value === r.id" @click="togglePlay(r)" />
             <span class="name">{{ r.name }}</span>
             <span class="len">{{ formatTime(duration(r.pcm), false) }}</span>
-            <button class="btn small" :disabled="saving === r.id" @click="save(r)"><Download :size="13" />{{ saving === r.id ? "保存中…" : "保存" }}</button>
-            <button class="icon-btn" title="删除" @click="remove(r)"><Trash2 :size="13" /></button>
+            <button class="btn small" :disabled="saving === r.id" @click="save(r)"><Download :size="13" />{{ saving === r.id ? t("audio.saving") : t("audio.save") }}</button>
+            <button class="icon-btn" :title="t('audio.delete')" @click="remove(r)"><Trash2 :size="13" /></button>
           </li>
         </ul>
-        <p v-else class="empty">录好的音频会出现在这里</p>
+        <p v-else class="empty">{{ t("audio.recordEmpty") }}</p>
       </section>
     </div>
   </div>

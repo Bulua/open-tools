@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { ArrowDown, ArrowUp, Download, GripVertical, X } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
@@ -10,6 +11,8 @@ import PlayButton from "./PlayButton.vue";
 import { decodeFile, encodeAudio, resample, usePlayer } from "../audio";
 import { concat, duration, encodeWav, formatTime, type Pcm } from "../pcm";
 import { useOutputFormat } from "../useOutputFormat";
+
+const { t } = useI18n();
 
 /**
  * 音频拼接：多个音频按顺序拼成一个，拖动或用箭头调整顺序，片段之间可以留一点空白。
@@ -25,12 +28,7 @@ const loading = ref(false);
 const error = ref("");
 let nextId = 1;
 
-const GAPS = [
-  { value: 0, label: "无" },
-  { value: 0.5, label: "0.5 秒" },
-  { value: 1, label: "1 秒" },
-  { value: 2, label: "2 秒" },
-];
+const GAPS = computed(() => [0, 0.5, 1, 2].map((value) => ({ value, label: value ? t("audio.gapSeconds", { n: value }) : t("audio.gapNone") })));
 const gap = useStoredRef("audio.joinGap", 0);
 
 const addFiles = async (files: File[]) => {
@@ -96,7 +94,7 @@ watch(
 );
 // 交给音轨播放器：转成 WAV 播放，和其他工具的音轨一致
 const trackSources = computed<TrackSource[]>(() =>
-  joined.value ? [{ key: `joined:${joinToken}`, label: `共 ${items.value.length} 段`, blob: new Blob([encodeWav(joined.value) as Uint8Array<ArrayBuffer>], { type: "audio/wav" }) }] : [],
+  joined.value ? [{ key: `joined:${joinToken}`, label: t("audio.segments", { n: items.value.length }), blob: new Blob([encodeWav(joined.value) as Uint8Array<ArrayBuffer>], { type: "audio/wav" }) }] : [],
 );
 
 // ---------- 导出 ----------
@@ -107,7 +105,7 @@ const save = async () => {
   error.value = "";
   try {
     const data = await encodeAudio(joined.value ?? (await joinAll(items.value)), format.value, quality.value);
-    await saveFile(data, `拼接音频.${format.value}`);
+    await saveFile(data, `${t("audio.joinedName")}.${format.value}`);
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
   } finally {
@@ -120,26 +118,26 @@ const save = async () => {
   <div class="join">
     <aside class="card panel">
       <section class="section">
-        <h3>片段之间留空白</h3>
+        <h3>{{ t("audio.gap") }}</h3>
         <div class="seg fill">
           <button v-for="g in GAPS" :key="g.value" :class="{ on: gap === g.value }" @click="gap = g.value">{{ g.label }}</button>
         </div>
       </section>
       <section class="section">
-        <h3>导出</h3>
+        <h3>{{ t("audio.export") }}</h3>
         <OutputFormat />
         <button class="btn primary full" :disabled="items.length < 2 || saving" @click="save">
-          <Download :size="14" />{{ saving ? "拼接中…" : "拼接并保存" }}
+          <Download :size="14" />{{ saving ? t("audio.joining") : t("audio.join") }}
         </button>
-        <p class="tip">{{ items.length < 2 ? "至少添加两个音频" : `共 ${items.length} 段，总时长 ${formatTime(total, false)}` }}</p>
+        <p class="tip">{{ items.length < 2 ? t("audio.needTwo") : t("audio.joinSummary", { n: items.length, time: formatTime(total, false) }) }}</p>
         <p v-if="error" class="error">{{ error }}</p>
       </section>
     </aside>
 
     <section class="card list">
       <div class="card-title">
-        拼接顺序<span class="hint">从上到下依次拼接，可以拖动调整</span>
-        <button v-if="items.length" class="btn small subtle push" @click="(player.stop(), (items = []))">清空</button>
+        {{ t("audio.order") }}<span class="hint">{{ t("audio.orderHint") }}</span>
+        <button v-if="items.length" class="btn small subtle push" @click="(player.stop(), (items = []))">{{ t("audio.clear") }}</button>
       </div>
       <FileDropZone
         v-if="!items.length"
@@ -147,8 +145,8 @@ const save = async () => {
         accept="audio/*,video/*,.m4a,.flac,.ogg,.aac"
         multiple
         :paste="false"
-        :title="loading ? '正在读取…' : '拖入要拼接的音频，或点击选择（可多选）'"
-        hint="按添加的顺序排列，之后可以调整"
+        :title="loading ? t('audio.reading') : t('audio.dropJoin')"
+        :hint="t('audio.dropJoinHint')"
         @files="addFiles"
       />
       <template v-else>
@@ -169,15 +167,15 @@ const save = async () => {
             <PlayButton :playing="player.playingKey.value === item.id" @click="togglePlay(item)" />
             <span class="name" :title="item.name">{{ item.name }}</span>
             <span class="len">{{ formatTime(duration(item.pcm), false) }}</span>
-            <button class="icon-btn" title="上移" :disabled="i === 0" @click="move(i, -1)"><ArrowUp :size="13" /></button>
-            <button class="icon-btn" title="下移" :disabled="i === items.length - 1" @click="move(i, 1)"><ArrowDown :size="13" /></button>
-            <button class="icon-btn" title="移除" @click="remove(item)"><X :size="13" /></button>
+            <button class="icon-btn" :title="t('audio.moveUp')" :disabled="i === 0" @click="move(i, -1)"><ArrowUp :size="13" /></button>
+            <button class="icon-btn" :title="t('audio.moveDown')" :disabled="i === items.length - 1" @click="move(i, 1)"><ArrowDown :size="13" /></button>
+            <button class="icon-btn" :title="t('files.remove')" @click="remove(item)"><X :size="13" /></button>
           </li>
         </ol>
-        <FileDropZone compact class="more" accept="audio/*,video/*,.m4a,.flac,.ogg,.aac" multiple :paste="false" :title="loading ? '正在读取…' : '继续添加音频'" @files="addFiles" />
+        <FileDropZone compact class="more" accept="audio/*,video/*,.m4a,.flac,.ogg,.aac" multiple :paste="false" :title="loading ? t('audio.reading') : t('audio.addAudio')" @files="addFiles" />
       </template>
       <!-- 拼接后的音轨：没有音频时显示一条空的音轨 -->
-      <AudioTrack ref="track" class="player" :sources="trackSources" title="拼接效果" empty-text="添加音频后在这里显示拼接后的音轨，可以试听" @play="player.stop()" />
+      <AudioTrack ref="track" class="player" :sources="trackSources" :title="t('audio.joinedTrack')" :empty-text="t('audio.joinedEmpty')" @play="player.stop()" />
     </section>
   </div>
 </template>

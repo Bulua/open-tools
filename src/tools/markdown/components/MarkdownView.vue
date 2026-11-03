@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { t } from "@/locales";
 import { useClipboard } from "@/composables/useClipboard";
 import { openExternal } from "@/utils/openExternal";
 import { MARKDOWN_CSS } from "../markdownStyle";
@@ -26,7 +27,7 @@ const onClick = (e: MouseEvent) => {
     openExternal(href);
   } else {
     copy(href);
-    toast.value = "已复制链接";
+    toast.value = t("markdown.linkCopied");
     clearTimeout(timer);
     timer = window.setTimeout(() => (toast.value = ""), 1500);
   }

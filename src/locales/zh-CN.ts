@@ -102,6 +102,14 @@ const zhCN = {
     saturation: "饱和度 %",
     lightness: "亮度 %",
   },
+  /** 批量处理的文件列表，多个工具共用 */
+  files: {
+    title: "文件",
+    selected: "已选 {checked} / {total} 个",
+    count: "{n} 个",
+    checkHint: "勾选的文件才处理",
+    remove: "移除",
+  },
   datetime: {
     placeholder: "选择日期和时间",
     week: ["一", "二", "三", "四", "五", "六", "日"],

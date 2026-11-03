@@ -2,6 +2,8 @@
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { isTauri } from "@tauri-apps/api/core";
 import { Download, Gauge, Play, Square } from "lucide-vue-next";
+import { useI18n } from "vue-i18n";
+import { locale } from "@/locales";
 import AppSelect from "@/components/common/AppSelect.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { saveFile } from "@/utils/saveFile";
@@ -14,43 +16,57 @@ import { useOutputFormat } from "../useOutputFormat";
  * 文字转语音：使用 Windows 自带的语音朗读，可以保存成音频文件（不需要联网）。
  * 浏览器预览时使用浏览器的朗读功能，只能播放，不能保存。
  */
+const { t } = useI18n();
 const desktop = isTauri();
 const text = useStoredRef("tts.text", "");
 const voice = useStoredRef("tts.voice", "");
 const rate = useStoredRef("tts.rate", 0);
 
-interface VoiceOption {
-  value: string;
+/** 本机的一个语音；culture 是语言代码（如 zh-CN），gender 只有桌面版有 */
+interface Voice {
+  name: string;
   label: string;
-  hint?: string;
+  culture: string;
+  gender?: string;
 }
-const voices = ref<VoiceOption[]>([]);
-const LANGS: Record<string, string> = { zh: "中文", en: "英文", ja: "日文", ko: "韩文", fr: "法文", de: "德文", es: "西班牙文" };
-const langName = (culture: string) => LANGS[culture.split("-")[0]] ?? culture;
+const rawVoices = ref<Voice[]>([]);
+/** 语言名跟着界面语言显示，例如 zh → 中文 / Chinese */
+const langName = (culture: string) => {
+  try {
+    return new Intl.DisplayNames([locale.value], { type: "language" }).of(culture.split("-")[0]) ?? culture;
+  } catch {
+    return culture;
+  }
+};
+const genderName = (g?: string) => (g === "Female" ? t("audio.female") : g === "Male" ? t("audio.male") : "");
+const voices = computed(() =>
+  rawVoices.value.map((v) => ({ value: v.name, label: v.label, hint: [langName(v.culture), genderName(v.gender)].filter(Boolean).join(" · ") })),
+);
 
 onMounted(async () => {
   if (desktop) {
     const { invoke } = await import("@tauri-apps/api/core");
     const list = await invoke<{ name: string; culture: string; gender: string }[]>("tts_voices").catch(() => []);
-    voices.value = list.map((v) => ({
-      value: v.name,
+    rawVoices.value = list.map((v) => ({
+      name: v.name,
       label: v.name.replace(/^Microsoft\s+/, "").replace(/\s+Desktop$/, ""),
-      hint: `${langName(v.culture)} · ${v.gender === "Female" ? "女声" : v.gender === "Male" ? "男声" : ""}`,
+      culture: v.culture,
+      gender: v.gender,
     }));
   } else {
     const load = () => {
-      voices.value = speechSynthesis.getVoices().map((v) => ({ value: v.name, label: v.name.replace(/^Microsoft\s+/, ""), hint: langName(v.lang) }));
+      rawVoices.value = speechSynthesis.getVoices().map((v) => ({ name: v.name, label: v.name.replace(/^Microsoft\s+/, ""), culture: v.lang }));
     };
     load();
     speechSynthesis.onvoiceschanged = load;
   }
 });
 // 没有选过或选过的语音不在了：优先选中文
-watch(voices, (list) => {
-  if (list.length && !list.some((v) => v.value === voice.value)) voice.value = (list.find((v) => v.hint?.startsWith("中文")) ?? list[0]).value;
+watch(rawVoices, (list) => {
+  if (list.length && !list.some((v) => v.name === voice.value)) voice.value = (list.find((v) => v.culture.startsWith("zh")) ?? list[0]).name;
 });
 
-const RATE_LABEL = computed(() => (rate.value === 0 ? "正常" : rate.value > 0 ? `快 ${rate.value}` : `慢 ${-rate.value}`));
+const RATE_LABEL = computed(() => (rate.value === 0 ? t("audio.rateNormal") : rate.value > 0 ? t("audio.rateFast", { n: rate.value }) : t("audio.rateSlow", { n: -rate.value })));
 
 // ---------- 生成与朗读 ----------
 const player = usePlayer();
@@ -110,7 +126,7 @@ const save = async () => {
   error.value = "";
   try {
     const pcm = await synthesize();
-    const name = text.value.trim().slice(0, 12).replace(/[\\/:*?"<>|\s]+/g, "_") || "语音";
+    const name = text.value.trim().slice(0, 12).replace(/[\\/:*?"<>|\s]+/g, "_") || t("audio.speechName");
     await saveFile(await encodeAudio(pcm, format.value, quality.value), `${name}.${format.value}`);
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
@@ -124,9 +140,9 @@ const save = async () => {
   <div class="tts">
     <aside class="card panel">
       <section class="section">
-        <h3>声音</h3>
-        <AppSelect v-model="voice" :options="voices" placeholder="正在读取本机语音…" />
-        <h3>语速<span class="value">{{ RATE_LABEL }}</span></h3>
+        <h3>{{ t("audio.voice") }}</h3>
+        <AppSelect v-model="voice" :options="voices" :placeholder="t('audio.loadingVoices')" />
+        <h3>{{ t("audio.rate") }}<span class="value">{{ RATE_LABEL }}</span></h3>
         <label class="slider">
           <Gauge :size="14" />
           <input v-model.number="rate" type="range" min="-10" max="10" @dblclick="rate = 0" />
@@ -135,30 +151,30 @@ const save = async () => {
 
       <section class="section">
         <button v-if="!isPlaying" class="btn full" :disabled="!text.trim() || busy" @click="speak">
-          <Play :size="14" />{{ busy ? "正在生成…" : "朗读" }}
+          <Play :size="14" />{{ busy ? t("audio.generating") : t("audio.speak") }}
         </button>
-        <button v-else class="btn full" @click="stopSpeaking"><Square :size="13" />停止</button>
+        <button v-else class="btn full" @click="stopSpeaking"><Square :size="13" />{{ t("audio.stop") }}</button>
       </section>
 
       <section class="section">
-        <h3>保存为音频</h3>
+        <h3>{{ t("audio.saveAsAudio") }}</h3>
         <template v-if="desktop">
           <OutputFormat />
           <button class="btn primary full" :disabled="!text.trim() || saving" @click="save">
-            <Download :size="14" />{{ saving ? "正在生成…" : "保存音频" }}
+            <Download :size="14" />{{ saving ? t("audio.generating") : t("audio.saveAudio") }}
           </button>
         </template>
-        <p v-else class="tip">浏览器中只能朗读；保存音频请使用安装后的桌面版。</p>
+        <p v-else class="tip">{{ t("audio.browserOnly") }}</p>
         <p v-if="error" class="error">{{ error }}</p>
       </section>
     </aside>
 
     <section class="card editor">
       <div class="card-title">
-        文字<span class="count">{{ text.length }} 字</span>
-        <button v-if="text" class="btn small subtle push" @click="text = ''">清空</button>
+        {{ t("audio.text") }}<span class="count">{{ t("audio.chars", { n: text.length }) }}</span>
+        <button v-if="text" class="btn small subtle push" @click="text = ''">{{ t("audio.clear") }}</button>
       </div>
-      <textarea v-model="text" spellcheck="false" placeholder="在这里输入或粘贴要朗读的文字" />
+      <textarea v-model="text" spellcheck="false" :placeholder="t('audio.textPlaceholder')" />
     </section>
   </div>
 </template>

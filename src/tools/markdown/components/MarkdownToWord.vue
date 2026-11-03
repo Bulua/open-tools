@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import AppSelect from "@/components/common/AppSelect.vue";
 import { Download, FileText, ImageOff, X } from "lucide-vue-next";
 import CheckAll from "@/components/common/CheckAll.vue";
@@ -8,7 +9,8 @@ import { useFileChecks } from "@/composables/useFileChecks";
 import { saveFiles } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
 import MarkdownView from "./MarkdownView.vue";
-import { FONTS, renderSafe, useDocxOptions } from "../shared";
+import { locale } from "@/locales";
+import { FONTS, FONT_NAMES_EN, renderSafe, useDocxOptions } from "../shared";
 import { createImageLoader, imageSources } from "../images";
 import { FONT_SIZES, docxNameOf, markdownToDocx } from "../toDocx";
 
@@ -16,7 +18,11 @@ import { FONT_SIZES, docxNameOf, markdownToDocx } from "../toDocx";
  * Markdown 转 Word：一次转换多个 .md 文件。
  * 文档里引用的本地图片，和 .md 一起拖入（或直接拖入整个文件夹）即可嵌入 Word。
  */
+const { t } = useI18n();
 const { font, fontSize, lineSpacing, options } = useDocxOptions();
+const fontOptions = computed(() => FONTS.map((f) => ({ value: f, label: locale.value === "zh-CN" ? f : FONT_NAMES_EN[f] ?? f })));
+/** 中文用「小四」等字号名，英文直接显示磅数 */
+const sizeLabel = (s: { label: string; value: number }) => (locale.value === "zh-CN" ? s.label : `${s.value} pt`);
 
 interface Doc {
   id: number;
@@ -70,9 +76,9 @@ const convert = async () => {
       const data = await markdownToDocx(doc.text, { ...options.value, loadImage: (src) => loader.value.load(src, doc.path) });
       files.push({ name: docxNameOf(doc.name), data });
     }
-    await saveFiles(files, "Markdown 转 Word.zip");
+    await saveFiles(files, t("markdown.zipName"));
   } catch (e) {
-    error.value = `转换失败：${e instanceof Error ? e.message : e}`;
+    error.value = t("markdown.convertFailed", { error: e instanceof Error ? e.message : String(e) });
   } finally {
     converting.value = false;
   }
@@ -91,24 +97,24 @@ const previewStyle = computed(() => ({
     <aside class="card panel">
       <section class="section files">
         <h3>
-          <CheckAll v-if="docs.length" :checked="allChecked" :partly="partlyChecked" :disabled="converting" @toggle="toggleAll">文件</CheckAll>
-          <template v-else>文件</template>
-          <span class="push">{{ docs.length > 1 ? `已选 ${checkedItems.length} / ${docs.length} 个` : `${docs.length} 个` }}</span>
+          <CheckAll v-if="docs.length" :checked="allChecked" :partly="partlyChecked" :disabled="converting" @toggle="toggleAll">{{ t("files.title") }}</CheckAll>
+          <template v-else>{{ t("files.title") }}</template>
+          <span class="push">{{ docs.length > 1 ? t("files.selected", { checked: checkedItems.length, total: docs.length }) : t("files.count", { n: docs.length }) }}</span>
         </h3>
         <ul>
           <li v-for="doc in docs" :key="doc.id" :class="{ on: doc.id === selected?.id, unchecked: !isChecked(doc) }" @click="selectedId = doc.id">
-            <input type="checkbox" class="file-check" title="勾选的文件才转换" :checked="isChecked(doc)" :disabled="converting" @click.stop @change="toggleFile(doc)" />
+            <input type="checkbox" class="file-check" :title="t('files.checkHint')" :checked="isChecked(doc)" :disabled="converting" @click.stop @change="toggleFile(doc)" />
             <FileText :size="14" class="icon" />
             <span class="name" :title="doc.path">{{ doc.name }}</span>
             <span
               v-if="missing.get(doc.id)?.length"
               class="warn"
-              :title="`找不到这些图片，会显示为文字说明：\n${missing.get(doc.id)!.join('\n')}\n\n请把图片和 .md 文件一起拖入`"
+              :title="t('markdown.missingImages', { list: missing.get(doc.id)!.join('\n') })"
             >
               <ImageOff :size="13" />{{ missing.get(doc.id)!.length }}
             </span>
             <span v-else class="size">{{ formatBytes(doc.size) }}</span>
-            <button class="icon-btn remove" title="移除" @click.stop="remove(doc)"><X :size="13" /></button>
+            <button class="icon-btn remove" :title="t('files.remove')" @click.stop="remove(doc)"><X :size="13" /></button>
           </li>
         </ul>
         <FileDropZone
@@ -117,31 +123,31 @@ const previewStyle = computed(() => ({
           multiple
           directories
           :paste="false"
-          title="继续添加文件或图片"
+          :title="t('markdown.addMore')"
           @entries="addEntries"
         />
-        <p v-if="images.length" class="tip">已附带 {{ images.length }} 张图片</p>
+        <p v-if="images.length" class="tip">{{ t("markdown.attachedImages", { n: images.length }) }}</p>
       </section>
 
       <section class="section">
-        <h3>正文格式</h3>
+        <h3>{{ t("markdown.bodyFormat") }}</h3>
         <label class="row">
-          <span>字体</span>
-          <AppSelect v-model="font" class="select" size="sm" :options="FONTS.map((f) => ({ value: f, label: f }))" />
+          <span>{{ t("markdown.font") }}</span>
+          <AppSelect v-model="font" class="select" size="sm" :options="fontOptions" />
         </label>
         <div class="row">
-          <span>字号</span>
+          <span>{{ t("markdown.fontSize") }}</span>
           <div class="seg">
-            <button v-for="s in FONT_SIZES" :key="s.value" :class="{ on: fontSize === s.value }" @click="fontSize = s.value">{{ s.label }}</button>
+            <button v-for="s in FONT_SIZES" :key="s.value" :class="{ on: fontSize === s.value }" @click="fontSize = s.value">{{ sizeLabel(s) }}</button>
           </div>
         </div>
         <div class="row">
-          <span>行距</span>
+          <span>{{ t("markdown.lineSpacing") }}</span>
           <div class="seg">
-            <button v-for="l in LINE_SPACINGS" :key="l" :class="{ on: lineSpacing === l }" @click="lineSpacing = l">{{ l }} 倍</button>
+            <button v-for="l in LINE_SPACINGS" :key="l" :class="{ on: lineSpacing === l }" @click="lineSpacing = l">{{ t("markdown.times", { n: l }) }}</button>
           </div>
         </div>
-        <p class="tip">标题使用 Word 内置标题样式，可在导航窗格中查看，也能直接生成目录</p>
+        <p class="tip">{{ t("markdown.headingTip") }}</p>
       </section>
 
       <section class="section">
@@ -149,12 +155,12 @@ const previewStyle = computed(() => ({
         <button class="btn primary full" :disabled="converting || !checkedItems.length" @click="convert">
           <Download :size="14" />{{
             converting
-              ? "转换中…"
+              ? t("markdown.converting")
               : docs.length && !checkedItems.length
-                ? "请勾选要转换的文件"
+                ? t("markdown.checkToConvert")
                 : docs.length > 1
-                  ? `转换选中的 ${checkedItems.length} 个（ZIP）`
-                  : "转换并下载 Word"
+                  ? t("markdown.convertSelected", { n: checkedItems.length })
+                  : t("markdown.convertOne")
           }}
         </button>
       </section>
@@ -162,7 +168,7 @@ const previewStyle = computed(() => ({
 
     <section class="card stage">
       <div class="card-title">
-        Word 效果预览<span class="hint">{{ selected?.name }}</span>
+        {{ t("markdown.wordPreview") }}<span class="hint">{{ selected?.name }}</span>
       </div>
       <FileDropZone
         v-if="!docs.length"
@@ -170,8 +176,8 @@ const previewStyle = computed(() => ({
         accept=".md,.markdown,.txt,image/*"
         multiple
         directories
-        title="拖入 Markdown 文件或文件夹，或点击选择（可多选）"
-        hint="文档里引用的本地图片，和 .md 一起拖入或拖入整个文件夹即可嵌入 Word；要转换粘贴的文本，请用「Markdown 编辑预览」的导出 Word"
+        :title="t('markdown.dropTitle')"
+        :hint="t('markdown.dropHint')"
         :paste="false"
         @entries="addEntries"
       />

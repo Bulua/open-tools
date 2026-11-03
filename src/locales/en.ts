@@ -102,6 +102,13 @@ const en: Messages<typeof zhCN> = {
     saturation: "Saturation %",
     lightness: "Lightness %",
   },
+  files: {
+    title: "Files",
+    selected: "{checked} / {total} selected",
+    count: "{n}",
+    checkHint: "Only checked files are processed",
+    remove: "Remove",
+  },
   datetime: {
     placeholder: "Pick a date and time",
     week: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],

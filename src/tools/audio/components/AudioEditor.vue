@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { Download, Pause, Play, RefreshCw, Scissors, SquareX, Undo2, Volume2, TrendingDown, TrendingUp } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useWindowEvent } from "@/composables/useWindowEvent";
@@ -9,6 +10,8 @@ import OutputFormat from "./OutputFormat.vue";
 import { decodeFile, encodeAudio, outputName, usePlayer } from "../audio";
 import { applyGain, duration, fade, formatTime, normalize, removeRange, slice, type Pcm } from "../pcm";
 import { useOutputFormat } from "../useOutputFormat";
+
+const { t } = useI18n();
 
 /**
  * 音频剪辑：在波形上拖动选择一段，保留或删除；淡入淡出、音量调整。可以撤销。
@@ -105,7 +108,7 @@ const download = async () => {
   saving.value = true;
   try {
     const data = await encodeAudio(applyGain(pcm.value, volume.value / 100), format.value, quality.value);
-    await saveFile(data, outputName(fileName.value, format.value, "_剪辑"));
+    await saveFile(data, outputName(fileName.value, format.value, t("audio.editSuffix")));
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
   } finally {
@@ -118,23 +121,23 @@ const download = async () => {
   <div class="editor">
     <aside class="card panel">
       <section class="section">
-        <h3>选区</h3>
+        <h3>{{ t("audio.selection") }}</h3>
         <p class="sel-info">
-          <template v-if="sel">{{ formatTime(sel[0]) }} – {{ formatTime(sel[1]) }}<em>（{{ (sel[1] - sel[0]).toFixed(1) }} 秒）</em></template>
-          <template v-else>在右侧波形上拖动选择一段</template>
+          <template v-if="sel">{{ formatTime(sel[0]) }} – {{ formatTime(sel[1]) }}<em>{{ t("audio.seconds", { n: (sel[1] - sel[0]).toFixed(1) }) }}</em></template>
+          <template v-else>{{ t("audio.selectHint") }}</template>
         </p>
         <div class="actions">
-          <button class="btn" :disabled="!sel" title="只保留选中的部分" @click="keep"><Scissors :size="14" />保留选区</button>
-          <button class="btn" :disabled="!sel" title="删除选中的部分" @click="cut"><SquareX :size="14" />删除选区</button>
-          <button class="btn" :disabled="!pcm" title="有选区时作用于选区，否则作用于开头 3 秒" @click="fadeIn"><TrendingUp :size="14" />淡入</button>
-          <button class="btn" :disabled="!pcm" title="有选区时作用于选区，否则作用于结尾 3 秒" @click="fadeOut"><TrendingDown :size="14" />淡出</button>
+          <button class="btn" :disabled="!sel" :title="t('audio.keepTitle')" @click="keep"><Scissors :size="14" />{{ t("audio.keep") }}</button>
+          <button class="btn" :disabled="!sel" :title="t('audio.cutTitle')" @click="cut"><SquareX :size="14" />{{ t("audio.cut") }}</button>
+          <button class="btn" :disabled="!pcm" :title="t('audio.fadeInTitle')" @click="fadeIn"><TrendingUp :size="14" />{{ t("audio.fadeIn") }}</button>
+          <button class="btn" :disabled="!pcm" :title="t('audio.fadeOutTitle')" @click="fadeOut"><TrendingDown :size="14" />{{ t("audio.fadeOut") }}</button>
         </div>
       </section>
 
       <section class="section">
         <h3>
-          音量
-          <button class="link" :disabled="!pcm" title="把最响的地方调到合适的音量，适合声音太小的录音" @click="autoVolume">自动调整</button>
+          {{ t("audio.volume") }}
+          <button class="link" :disabled="!pcm" :title="t('audio.autoVolumeTitle')" @click="autoVolume">{{ t("audio.autoVolume") }}</button>
         </h3>
         <label class="slider">
           <Volume2 :size="14" />
@@ -144,10 +147,10 @@ const download = async () => {
       </section>
 
       <section class="section">
-        <h3>导出</h3>
+        <h3>{{ t("audio.export") }}</h3>
         <OutputFormat />
         <button class="btn primary full" :disabled="!pcm || saving" @click="download">
-          <Download :size="14" />{{ saving ? "导出中…" : "保存音频" }}
+          <Download :size="14" />{{ saving ? t("audio.exporting") : t("audio.saveAudio") }}
         </button>
         <p v-if="error" class="error">{{ error }}</p>
       </section>
@@ -155,10 +158,10 @@ const download = async () => {
 
     <section class="card stage">
       <div class="card-title">
-        <span class="file" :title="fileName">{{ fileName || "未选择音频" }}</span>
+        <span class="file" :title="fileName">{{ fileName || t("audio.noAudio") }}</span>
         <template v-if="pcm">
-          <button class="btn small subtle push" :disabled="history.length < 2" @click="undo"><Undo2 :size="14" />撤销</button>
-          <button class="btn small subtle" title="更换音频" @click="dropZone?.open()"><RefreshCw :size="14" />更换</button>
+          <button class="btn small subtle push" :disabled="history.length < 2" @click="undo"><Undo2 :size="14" />{{ t("audio.undo") }}</button>
+          <button class="btn small subtle" :title="t('audio.replaceTitle')" @click="dropZone?.open()"><RefreshCw :size="14" />{{ t("audio.replace") }}</button>
         </template>
       </div>
 
@@ -169,8 +172,8 @@ const download = async () => {
         class="drop"
         accept="audio/*,video/*,.m4a,.flac,.ogg,.aac"
         :paste="false"
-        :title="loading ? '正在读取…' : '拖入音频文件，或点击选择'"
-        hint="也可以拖入视频文件，剪辑其中的声音"
+        :title="loading ? t('audio.reading') : t('audio.dropAudio')"
+        :hint="t('audio.dropAudioHint')"
         @files="onFiles"
       >
         <span v-if="error" class="error">{{ error }}</span>
@@ -179,12 +182,12 @@ const download = async () => {
       <!-- 音轨：没有文件时显示一条空的音轨 -->
       <Waveform v-model:selection="selection" class="wave" :class="{ empty: !pcm }" :pcm="pcm" :position="pcm ? position : null" @seek="seek" />
       <div class="transport">
-        <button class="play" :disabled="!pcm" :title="player.playing.value ? '暂停（空格）' : '播放（空格）'" @click="toggle">
+        <button class="play" :disabled="!pcm" :title="player.playing.value ? t('audio.pauseSpace') : t('audio.playSpace')" @click="toggle">
           <Pause v-if="player.playing.value" :size="18" />
           <Play v-else :size="18" />
         </button>
         <span class="time">{{ formatTime(position) }} <em>/ {{ formatTime(pcm ? duration(pcm) : 0) }}</em></span>
-        <span class="hint">{{ !pcm ? "添加音频后在上方显示波形" : `点击波形定位，拖动选择一段；${sel ? "播放时只播放选区" : "空格键播放 / 暂停"}` }}</span>
+        <span class="hint">{{ !pcm ? t("audio.waveEmpty") : t("audio.waveHint", { extra: sel ? t("audio.waveHintSel") : t("audio.waveHintSpace") }) }}</span>
       </div>
     </section>
   </div>
@@ -231,11 +234,13 @@ h3 {
 }
 .actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* 两列等宽，文字较长（如英文）时也不撑出面板 */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 .actions .btn {
   justify-content: center;
+  min-width: 0;
 }
 .stage {
   flex: 1;

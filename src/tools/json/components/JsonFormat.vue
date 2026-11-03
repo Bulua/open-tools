@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { ChevronsDownUp, ChevronsUpDown, CircleAlert, CircleCheck } from "lucide-vue-next";
 import TextPane from "@/components/common/TextPane.vue";
 import SplitPane from "@/components/common/SplitPane.vue";
@@ -8,6 +9,10 @@ import { useStoredRef } from "@/composables/useStoredRef";
 import ToolActions from "@/components/tool/ToolActions.vue";
 import { describeError, editorErrorOf, formatJson, minifyJson, parseJson, sortKeys, type Indent } from "../utils";
 import JsonTreeView from "./JsonTreeView.vue";
+
+const { t } = useI18n();
+/** 输入框提示里的示例，放在文案外面，免得花括号被当成插值 */
+const EXAMPLE = '{"name":"Open Tools"}';
 
 // 输入变化时实时校验，并以代码或树形展示结果
 const input = ref("");
@@ -33,11 +38,11 @@ const treeValue = computed(() => {
   return sort.value ? sortKeys(r.value) : r.value;
 });
 
-const indentOptions: { label: string; value: Indent }[] = [
-  { label: "2 空格", value: 2 },
-  { label: "4 空格", value: 4 },
+const indentOptions = computed<{ label: string; value: Indent }[]>(() => [
+  { label: t("json.spaces", { n: 2 }), value: 2 },
+  { label: t("json.spaces", { n: 4 }), value: 4 },
   { label: "Tab", value: "tab" },
-];
+]);
 
 const locate = () => {
   const r = result.value;
@@ -51,8 +56,8 @@ const locate = () => {
     <ToolActions>
       <template v-if="view === 'code'">
         <div class="seg">
-          <button :class="{ on: mode === 'format' }" @click="mode = 'format'">格式化</button>
-          <button :class="{ on: mode === 'minify' }" @click="mode = 'minify'">压缩</button>
+          <button :class="{ on: mode === 'format' }" @click="mode = 'format'">{{ t("json.format") }}</button>
+          <button :class="{ on: mode === 'minify' }" @click="mode = 'minify'">{{ t("json.minify") }}</button>
         </div>
         <div v-if="mode === 'format'" class="seg">
           <button v-for="o in indentOptions" :key="o.value" :class="{ on: indent === o.value }" @click="indent = o.value">
@@ -60,7 +65,7 @@ const locate = () => {
           </button>
         </div>
       </template>
-      <label class="check"><input v-model="sort" type="checkbox" />按键名排序</label>
+      <label class="check"><input v-model="sort" type="checkbox" />{{ t("json.sortKeys") }}</label>
     </ToolActions>
 
     <SplitPane storage-key="json-format" :default-ratio="0.4">
@@ -68,30 +73,30 @@ const locate = () => {
         <TextPane
           ref="inputPane"
           v-model="input"
-          label="输入"
+          :label="t('json.input')"
           language="json"
           :code-error="editorErrorOf(result)"
-          placeholder='粘贴 JSON，例如 {"name":"Open Tools"}'
+          :placeholder="t('json.inputPlaceholder', { example: EXAMPLE })"
         >
           <template #actions>
-            <span v-if="result?.ok" class="status ok"><CircleCheck :size="13" />有效</span>
-            <button v-else-if="result" class="status bad" title="跳到出错位置" @click="locate">
-              <CircleAlert :size="13" />{{ result.line ? `第 ${result.line} 行有误` : "格式有误" }}
+            <span v-if="result?.ok" class="status ok"><CircleCheck :size="13" />{{ t("json.valid") }}</span>
+            <button v-else-if="result" class="status bad" :title="t('json.jumpToError')" @click="locate">
+              <CircleAlert :size="13" />{{ result.line ? t("json.errorLine", { line: result.line }) : t("json.invalid") }}
             </button>
           </template>
         </TextPane>
       </template>
 
       <template #right>
-        <TextPane :model-value="output" class="output" label="结果" readonly nowrap language="json" placeholder="结果会实时显示在这里">
+        <TextPane :model-value="output" class="output" :label="t('json.result')" readonly nowrap language="json" :placeholder="t('json.resultPlaceholder')">
           <template #actions>
             <div class="seg">
-              <button :class="{ on: view === 'code' }" @click="view = 'code'">代码</button>
-              <button :class="{ on: view === 'tree' }" @click="view = 'tree'">树形</button>
+              <button :class="{ on: view === 'code' }" @click="view = 'code'">{{ t("json.code") }}</button>
+              <button :class="{ on: view === 'tree' }" @click="view = 'tree'">{{ t("json.tree") }}</button>
             </div>
             <template v-if="view === 'tree' && treeValue !== null">
-              <button class="icon-btn" title="全部折叠" @click="treeView?.collapseAll()"><ChevronsDownUp :size="14" /></button>
-              <button class="icon-btn" title="全部展开" @click="treeView?.expandAll()"><ChevronsUpDown :size="14" /></button>
+              <button class="icon-btn" :title="t('json.collapseAll')" @click="treeView?.collapseAll()"><ChevronsDownUp :size="14" /></button>
+              <button class="icon-btn" :title="t('json.expandAll')" @click="treeView?.expandAll()"><ChevronsUpDown :size="14" /></button>
             </template>
           </template>
 
@@ -99,12 +104,12 @@ const locate = () => {
           <template v-if="result && !result.ok" #body>
             <div class="error">
               <p>{{ describeError(result) }}</p>
-              <button v-if="result.position !== undefined" class="btn" @click="locate">定位到出错位置</button>
+              <button v-if="result.position !== undefined" class="btn" @click="locate">{{ t("json.locateError") }}</button>
             </div>
           </template>
           <template v-else-if="view === 'tree'" #body>
             <JsonTreeView v-if="treeValue !== null" ref="treeView" :value="treeValue" />
-            <EmptyState v-else title="还没有数据" description="在左侧粘贴 JSON，这里会以树形结构展示，点击节点可以复制它的路径。" />
+            <EmptyState v-else :title="t('json.treeEmptyTitle')" :description="t('json.treeEmptyDesc')" />
           </template>
         </TextPane>
       </template>

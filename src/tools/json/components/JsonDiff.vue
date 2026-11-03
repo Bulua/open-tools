@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import TextPane from "@/components/common/TextPane.vue";
 import { describeError, diffJson, editorErrorOf, parseJson, preview, type DiffKind, type ParseResult } from "../utils";
 
+const { t } = useI18n();
 const left = ref("");
 const right = ref("");
 
@@ -10,10 +12,10 @@ const parse = (text: string) => (text.trim() ? parseJson(text) : null);
 const leftResult = computed(() => parse(left.value));
 const rightResult = computed(() => parse(right.value));
 
-const errorOf = (r: ParseResult | null, side: string) => (r && !r.ok ? `${side} ${describeError(r)}` : "");
+const errorOf = (r: ParseResult | null, side: "leftSide" | "rightSide") => (r && !r.ok ? t(`json.${side}`, { error: describeError(r) }) : "");
 
 const error = computed(() =>
-  [errorOf(leftResult.value, "左侧"), errorOf(rightResult.value, "右侧")].filter(Boolean).join("\n"),
+  [errorOf(leftResult.value, "leftSide"), errorOf(rightResult.value, "rightSide")].filter(Boolean).join("\n"),
 );
 
 const diffs = computed(() => {
@@ -24,7 +26,6 @@ const diffs = computed(() => {
 
 const count = (kind: DiffKind) => diffs.value?.filter((d) => d.kind === kind).length ?? 0;
 
-const KIND_LABEL: Record<DiffKind, string> = { added: "新增", removed: "删除", changed: "修改" };
 </script>
 
 <template>
@@ -32,36 +33,36 @@ const KIND_LABEL: Record<DiffKind, string> = { added: "新增", removed: "删除
     <div class="panes">
       <TextPane
         v-model="left"
-        label="原始 JSON（左）"
+        :label="t('json.diffLeft')"
         language="json"
         :code-error="editorErrorOf(leftResult)"
-        placeholder="粘贴修改前的 JSON"
+        :placeholder="t('json.diffLeftPlaceholder')"
       />
       <TextPane
         v-model="right"
-        label="新 JSON（右）"
+        :label="t('json.diffRight')"
         language="json"
         :code-error="editorErrorOf(rightResult)"
-        placeholder="粘贴修改后的 JSON"
+        :placeholder="t('json.diffRightPlaceholder')"
       />
     </div>
 
     <section class="card result">
       <header class="card-title">
-        <span class="title">对比结果</span>
+        <span class="title">{{ t("json.diffResult") }}</span>
         <template v-if="diffs">
-          <span class="chip added">新增 {{ count("added") }}</span>
-          <span class="chip removed">删除 {{ count("removed") }}</span>
-          <span class="chip changed">修改 {{ count("changed") }}</span>
+          <span class="chip added">{{ t("json.added") }} {{ count("added") }}</span>
+          <span class="chip removed">{{ t("json.removed") }} {{ count("removed") }}</span>
+          <span class="chip changed">{{ t("json.changed") }} {{ count("changed") }}</span>
         </template>
       </header>
 
       <p v-if="error" class="message error">{{ error }}</p>
-      <p v-else-if="!diffs" class="message">在上方分别粘贴两段 JSON，差异会实时显示在这里。</p>
-      <p v-else-if="!diffs.length" class="message same">两段 JSON 内容完全一致。</p>
+      <p v-else-if="!diffs" class="message">{{ t("json.diffHint") }}</p>
+      <p v-else-if="!diffs.length" class="message same">{{ t("json.diffSame") }}</p>
       <ul v-else class="list">
         <li v-for="d in diffs" :key="d.path + d.kind" class="item">
-          <span class="kind" :class="d.kind">{{ KIND_LABEL[d.kind] }}</span>
+          <span class="kind" :class="d.kind">{{ t(`json.${d.kind}`) }}</span>
           <code class="path">{{ d.path }}</code>
           <span class="values">
             <code v-if="d.kind !== 'added'" class="before">{{ preview(d.before) }}</code>

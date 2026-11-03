@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, inject, ref, watch } from "vue";
 import { ChevronRight } from "lucide-vue-next";
+import { useI18n } from "vue-i18n";
 import type { JsonValue } from "../utils";
 import { TREE_CONTEXT, type TreeContext } from "./treeContext";
 
@@ -11,6 +12,7 @@ const props = defineProps<{
   path: string;
   depth: number;
 }>();
+const { t } = useI18n();
 
 const ctx = inject(TREE_CONTEXT) as TreeContext;
 
@@ -59,7 +61,7 @@ const onClick = () => {
       <span v-if="name !== undefined" class="colon">:</span>
       <template v-if="isBranch">
         <span class="brace">{{ isArray ? "[" : "{" }}</span>
-        <span v-if="!open" class="summary">{{ entries.length }} {{ isArray ? "项" : "个键" }}</span>
+        <span v-if="!open" class="summary">{{ t(isArray ? "json.items" : "json.keys", { n: entries.length }) }}</span>
         <span v-if="!open" class="brace">{{ isArray ? "]" : "}" }}</span>
       </template>
       <span v-else class="value" :class="valueClass">{{ JSON.stringify(value) }}</span>

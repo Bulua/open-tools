@@ -1,5 +1,6 @@
 /** JSON 工具用到的纯函数，不依赖界面，便于测试 */
 import { dump, load } from "js-yaml";
+import { t } from "@/locales";
 
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
@@ -36,7 +37,7 @@ export function parseJson(text: string): ParseResult {
 /** 解析失败时的完整提示，例如「第 3 行第 7 列：Expected ':' after property name」 */
 export function describeError(result: ParseResult): string {
   if (result.ok) return "";
-  return result.line ? `第 ${result.line} 行第 ${result.column} 列：${result.message}` : result.message;
+  return result.line ? t("json.errorAt", { line: result.line, column: result.column, message: result.message }) : result.message;
 }
 
 /** 转成代码编辑器需要的错误标记 */

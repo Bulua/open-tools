@@ -1,4 +1,5 @@
 import { onBeforeUnmount, ref } from "vue";
+import { t } from "@/locales";
 import { encodeWav, withChannels, type Pcm } from "./pcm";
 
 /**
@@ -14,7 +15,7 @@ export async function decodeFile(file: Blob): Promise<Pcm> {
     const buffer = await audioContext().decodeAudioData(await file.arrayBuffer());
     return fromAudioBuffer(buffer);
   } catch {
-    throw new Error("无法读取，可能不是音频文件，或者格式不受支持");
+    throw new Error(t("audio.decodeFailed"));
   }
 }
 
@@ -46,11 +47,8 @@ export async function resample(p: Pcm, sampleRate: number): Promise<Pcm> {
 export type OutputFormat = "mp3" | "wav";
 export type Mp3Quality = 128 | 192 | 320;
 
-export const QUALITIES: { value: Mp3Quality; label: string }[] = [
-  { value: 128, label: "普通" },
-  { value: 192, label: "高" },
-  { value: 320, label: "最高" },
-];
+/** MP3 音质，显示名称见文案 audio.q128 等 */
+export const QUALITIES: Mp3Quality[] = [128, 192, 320];
 
 const MP3_RATES = [8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000];
 
@@ -62,8 +60,8 @@ async function encodeMp3(p: Pcm, bitrate: Mp3Quality): Promise<Uint8Array> {
   try {
     return await new Promise<Uint8Array>((resolve, reject) => {
       worker.onmessage = (e: MessageEvent<{ ok: boolean; data?: Uint8Array; error?: string }>) =>
-        e.data.ok ? resolve(e.data.data!) : reject(new Error(`MP3 编码失败：${e.data.error}`));
-      worker.onerror = () => reject(new Error("MP3 编码失败"));
+        e.data.ok ? resolve(e.data.data!) : reject(new Error(t("audio.mp3FailedDetail", { error: e.data.error })));
+      worker.onerror = () => reject(new Error(t("audio.mp3Failed")));
       worker.postMessage({ channels: pcm.channels, sampleRate: pcm.sampleRate, bitrate });
     });
   } finally {

@@ -1,5 +1,5 @@
 /** 「插入示例」的内容：展示支持的语法 */
-export const SAMPLE_MARKDOWN = `# 项目说明
+export const SAMPLE_MARKDOWN_ZH = `# 项目说明
 
 这是一段 **Markdown** 示例，左侧编辑，右侧*实时*预览。支持 ~~删除线~~、\`行内代码\` 和 [链接](https://github.com/Bulua/open-tools)。
 
@@ -40,3 +40,48 @@ function greet(name: string): string {
 
 最后一段正文。
 `;
+
+export const SAMPLE_MARKDOWN_EN = `# About the Project
+
+This is a **Markdown** sample — edit on the left, see a *live* preview on the right. It supports ~~strikethrough~~, \`inline code\` and [links](https://github.com/Bulua/open-tools).
+
+## Features
+
+- Live preview with code highlighting
+- Tables and task lists
+  - Lists can be nested
+- Export to Word or HTML
+
+1. Step one: write the content
+2. Step two: check the preview
+3. Step three: export the file
+
+## To Do
+
+- [x] Finish the first draft
+- [ ] Proofread
+
+## Table
+
+| Tool | Description | Status |
+| --- | --- | :---: |
+| Markdown Preview | Live rendering | ✓ |
+| Markdown to Word | Batch conversion | ✓ |
+
+## Code
+
+\`\`\`ts
+function greet(name: string): string {
+  return \`Hello, \${name}\`;
+}
+\`\`\`
+
+> Quote: good docs matter as much as good code.
+
+---
+
+The last paragraph.
+`;
+
+/** 示例文档，跟着界面语言 */
+export const sampleMarkdown = (locale: string) => (locale === "zh-CN" ? SAMPLE_MARKDOWN_ZH : SAMPLE_MARKDOWN_EN);

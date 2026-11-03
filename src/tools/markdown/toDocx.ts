@@ -1,4 +1,5 @@
 import { Lexer, type Token, type Tokens } from "marked";
+import { t as i18n } from "@/locales";
 import {
   AlignmentType,
   BorderStyle,
@@ -154,7 +155,7 @@ class Converter {
   }
 
   private async image(t: Tokens.Image): Promise<ParagraphChild> {
-    const fallback = this.run(`[图片${t.text ? `：${t.text}` : ""}]`, { italics: true });
+    const fallback = this.run(`[${t.text ? i18n("markdown.imageAlt", { alt: t.text }) : i18n("markdown.image")}]`, { italics: true });
     const img = await this.options.loadImage?.(t.href).catch(() => null);
     if (!img || !img.width || !img.height) return fallback;
     // 超过版心宽度的图片按比例缩小
@@ -354,4 +355,4 @@ export async function markdownToDocx(markdown: string, options: DocxOptions = DE
 }
 
 /** 文件名：a.md → a.docx */
-export const docxNameOf = (name: string) => `${name.replace(/\.(md|markdown|txt)$/i, "") || "文档"}.docx`;
+export const docxNameOf = (name: string) => `${name.replace(/\.(md|markdown|txt)$/i, "") || i18n("markdown.untitled")}.docx`;

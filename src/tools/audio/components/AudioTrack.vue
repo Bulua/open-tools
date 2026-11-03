@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
 import { LoaderCircle, Pause, Play } from "lucide-vue-next";
+import { useI18n } from "vue-i18n";
+import { t as i18n } from "@/locales";
 import Waveform from "./Waveform.vue";
 import { formatTime } from "../pcm";
 import { readPeaks, type Peaks } from "../peaks";
@@ -19,8 +21,9 @@ export interface TrackSource {
 const props = withDefaults(defineProps<{ sources?: TrackSource[]; title?: string; emptyText?: string }>(), {
   sources: () => [],
   title: "",
-  emptyText: "添加文件后在这里显示音轨，可以试听",
+  emptyText: undefined,
 });
+const { t } = useI18n();
 // 开始播放时通知外面，用来停掉页面上其他正在播放的声音
 const emit = defineEmits<{ play: [] }>();
 
@@ -53,7 +56,7 @@ watch(
       const result = await readPeaks(blob, (p) => current === token && (peaks.value = { ...p }));
       if (current === token) peaks.value = { ...result };
     } catch {
-      if (current === token) failed.value = "无法读取这段声音的波形，仍然可以播放";
+      if (current === token) failed.value = i18n("audio.trackFailed");
     } finally {
       if (current === token) loading.value = false;
     }
@@ -129,12 +132,12 @@ defineExpose({ play, pause, playing });
 <template>
   <div class="track">
     <div class="head">
-      <button class="play" :disabled="!active" :title="playing ? '暂停' : '播放'" @click="toggle">
+      <button class="play" :disabled="!active" :title="playing ? t('audio.pause') : t('audio.play')" @click="toggle">
         <Pause v-if="playing" :size="16" />
         <Play v-else :size="16" />
       </button>
       <div class="info">
-        <span class="title" :title="title">{{ title || "音轨" }}</span>
+        <span class="title" :title="title">{{ title || t("audio.track") }}</span>
         <span class="time">{{ formatTime(position, false) }} / {{ formatTime(total, false) }}</span>
       </div>
       <div v-if="sources.length > 1" class="seg">
@@ -143,9 +146,9 @@ defineExpose({ play, pause, playing });
       <span v-else-if="active" class="label">{{ active.label }}</span>
     </div>
     <Waveform class="wave" :peaks="peaks" :position="active ? position : null" :selectable="false" @seek="seek">
-      <span v-if="!active" class="overlay">{{ emptyText }}</span>
+      <span v-if="!active" class="overlay">{{ emptyText ?? t("audio.trackEmpty") }}</span>
       <span v-else-if="failed" class="overlay">{{ failed }}</span>
-      <span v-else-if="loading && !peaks?.version" class="overlay"><LoaderCircle :size="13" class="spin" />正在读取波形…</span>
+      <span v-else-if="loading && !peaks?.version" class="overlay"><LoaderCircle :size="13" class="spin" />{{ t("audio.readingWave") }}</span>
     </Waveform>
     <audio
       ref="audio"

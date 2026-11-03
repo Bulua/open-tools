@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { CircleAlert, CircleCheck, Download, LoaderCircle, X } from "lucide-vue-next";
 import CheckAll from "@/components/common/CheckAll.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
@@ -10,6 +11,8 @@ import AudioTrack, { type TrackSource } from "./AudioTrack.vue";
 import PlayButton from "./PlayButton.vue";
 import OutputFormat from "./OutputFormat.vue";
 import { decodeFile, encodeAudio, outputName } from "../audio";
+
+const { t } = useI18n();
 import { formatTime } from "../pcm";
 import { useOutputFormat } from "../useOutputFormat";
 
@@ -77,8 +80,8 @@ const track = ref<InstanceType<typeof AudioTrack>>();
 const trackSources = computed<TrackSource[]>(() => {
   const item = selected.value;
   if (!item) return [];
-  const list: TrackSource[] = [{ key: `${item.id}:source`, label: item.video ? "原视频声音" : "原文件", blob: item.file }];
-  if (item.resultBlob) list.push({ key: `${item.id}:result`, label: "转换结果", blob: item.resultBlob });
+  const list: TrackSource[] = [{ key: `${item.id}:source`, label: item.video ? t("audio.sourceVideo") : t("audio.sourceFile"), blob: item.file }];
+  if (item.resultBlob) list.push({ key: `${item.id}:result`, label: t("audio.result"), blob: item.resultBlob });
   return list;
 });
 /** 列表里的试听：在下方音轨中从头播放，正在播放的再点一下停止 */
@@ -111,7 +114,7 @@ const convertAll = async () => {
       }
     }
     const done = checkedItems.value.filter((i) => i.result);
-    if (done.length) await saveFiles(done.map((i) => ({ name: outputName(i.file.name, format.value), data: i.result! })), "音频.zip");
+    if (done.length) await saveFiles(done.map((i) => ({ name: outputName(i.file.name, format.value), data: i.result! })), t("audio.zipName"));
   } finally {
     working.value = false;
   }
@@ -125,31 +128,31 @@ const pending = computed(() => checkedItems.value.filter((i) => i.status !== "do
   <div class="convert">
     <aside class="card panel">
       <section class="section">
-        <h3>转换为</h3>
+        <h3>{{ t("audio.convertTo") }}</h3>
         <OutputFormat />
       </section>
       <section class="section">
         <button class="btn primary full" :disabled="!checkedItems.length || working" @click="convertAll">
           <Download :size="14" />{{
             working
-              ? "转换中…"
+              ? t("audio.converting")
               : items.length && !checkedItems.length
-                ? "请勾选要转换的文件"
+                ? t("audio.checkToConvert")
                 : items.length > 1
-                  ? `转换选中的 ${checkedItems.length} 个`
-                  : "转换并保存"
+                  ? t("audio.convertSelected", { n: checkedItems.length })
+                  : t("audio.convertOne")
           }}
         </button>
-        <p class="tip">也可以拖入视频文件（MP4、MOV、WebM），提取其中的声音</p>
+        <p class="tip">{{ t("audio.videoTip") }}</p>
       </section>
     </aside>
 
     <section class="card list">
       <div class="card-title">
-        <CheckAll v-if="items.length" :checked="allChecked" :partly="partlyChecked" :disabled="working" @toggle="toggleAll">文件</CheckAll>
-        <template v-else>文件</template>
-        <span v-if="items.length" class="count">{{ items.length > 1 ? `已选 ${checkedItems.length} / ${items.length} 个` : `${items.length} 个` }}</span>
-        <button v-if="items.length && !working" class="btn small subtle push" @click="clear">清空</button>
+        <CheckAll v-if="items.length" :checked="allChecked" :partly="partlyChecked" :disabled="working" @toggle="toggleAll">{{ t("files.title") }}</CheckAll>
+        <template v-else>{{ t("files.title") }}</template>
+        <span v-if="items.length" class="count">{{ items.length > 1 ? t("files.selected", { checked: checkedItems.length, total: items.length }) : t("files.count", { n: items.length }) }}</span>
+        <button v-if="items.length && !working" class="btn small subtle push" @click="clear">{{ t("audio.clear") }}</button>
       </div>
       <FileDropZone
         v-if="!items.length"
@@ -157,8 +160,8 @@ const pending = computed(() => checkedItems.value.filter((i) => i.status !== "do
         :accept="ACCEPT"
         multiple
         :paste="false"
-        title="拖入音频或视频文件，或点击选择（可多选）"
-        hint="支持 MP3、WAV、M4A、AAC、OGG、FLAC，以及 MP4、MOV、WebM 视频"
+        :title="t('audio.dropFiles')"
+        :hint="t('audio.dropFilesHint')"
         @files="addFiles"
       />
       <template v-else>
@@ -170,7 +173,7 @@ const pending = computed(() => checkedItems.value.filter((i) => i.status !== "do
             :class="{ unchecked: !isChecked(item), on: item.id === selected?.id }"
             @click="selectedId = item.id"
           >
-            <input type="checkbox" class="file-check" title="勾选的文件才转换" :checked="isChecked(item)" :disabled="working" @click.stop @change="toggleFile(item)" />
+            <input type="checkbox" class="file-check" :title="t('files.checkHint')" :checked="isChecked(item)" :disabled="working" @click.stop @change="toggleFile(item)" />
             <PlayButton :playing="isPlaying(item)" @click.stop="play(item)" />
             <div class="meta">
               <span class="name" :title="item.file.name">{{ item.file.name }}</span>
@@ -182,15 +185,15 @@ const pending = computed(() => checkedItems.value.filter((i) => i.status !== "do
             </div>
             <LoaderCircle v-if="item.status === 'working'" :size="15" class="spin" />
             <CircleAlert v-else-if="item.status === 'error'" :size="15" class="bad" />
-            <button v-else-if="item.status === 'done'" class="icon-btn ok" title="保存这个文件" @click.stop="downloadOne(item)"><CircleCheck :size="15" /></button>
-            <button class="icon-btn" title="移除" :disabled="working" @click.stop="remove(item)"><X :size="14" /></button>
+            <button v-else-if="item.status === 'done'" class="icon-btn ok" :title="t('audio.saveOne')" @click.stop="downloadOne(item)"><CircleCheck :size="15" /></button>
+            <button class="icon-btn" :title="t('files.remove')" :disabled="working" @click.stop="remove(item)"><X :size="14" /></button>
           </li>
         </ul>
-        <FileDropZone compact class="more" :accept="ACCEPT" multiple :paste="false" title="继续添加文件" @files="addFiles" />
+        <FileDropZone compact class="more" :accept="ACCEPT" multiple :paste="false" :title="t('audio.addMore')" @files="addFiles" />
       </template>
-      <p v-if="items.length && pending === 0 && !working" class="done-tip">全部转换完成，点文件右侧的 ✓ 可以单独保存</p>
+      <p v-if="items.length && pending === 0 && !working" class="done-tip">{{ t("audio.allDone") }}</p>
       <!-- 音轨：没有文件时也显示 -->
-      <AudioTrack ref="track" class="player" :sources="trackSources" :title="selected?.file.name" empty-text="添加文件后在这里显示音轨，可以试听" />
+      <AudioTrack ref="track" class="player" :sources="trackSources" :title="selected?.file.name" />
     </section>
   </div>
 </template>

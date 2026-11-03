@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { FileDown, FileText, FolderOpen, ListTree } from "lucide-vue-next";
 import TextPane from "@/components/common/TextPane.vue";
 import ToolActions from "@/components/tool/ToolActions.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { saveFile } from "@/utils/saveFile";
 import MarkdownView from "./MarkdownView.vue";
-import { SAMPLE_MARKDOWN } from "../sample";
+import { locale } from "@/locales";
+import { sampleMarkdown } from "../sample";
 import { countWords, renderSafe, useDocxOptions } from "../shared";
 import { standaloneHtml } from "../markdownStyle";
 import { createImageLoader } from "../images";
@@ -16,6 +18,7 @@ import { markdownToDocx } from "../toDocx";
  * Markdown 编辑预览：左侧编辑，右侧实时预览（GitHub 风格，代码高亮）。
  * 可以打开 .md 文件，导出 Word 或单独的 HTML 网页。
  */
+const { t } = useI18n();
 type Layout = "split" | "edit" | "preview";
 const layout = useStoredRef<Layout>("markdown.layout", "split");
 const showOutline = useStoredRef("markdown.outline", false);
@@ -32,7 +35,7 @@ watch(source, (text) => {
 });
 
 const words = computed(() => countWords(source.value));
-const baseName = computed(() => fileName.value.replace(/\.(md|markdown|txt)$/i, "") || rendered.value.headings[0]?.text || "文档");
+const baseName = computed(() => fileName.value.replace(/\.(md|markdown|txt)$/i, "") || rendered.value.headings[0]?.text || t("markdown.untitled"));
 
 // ---------- 打开文件 ----------
 const fileInput = ref<HTMLInputElement>();
@@ -58,7 +61,7 @@ const exportWord = async () => {
     const data = await markdownToDocx(source.value, { ...options.value, loadImage: (src) => loader.load(src) });
     await saveFile(data, `${baseName.value}.docx`);
   } catch (e) {
-    exportError.value = `导出失败：${e instanceof Error ? e.message : e}`;
+    exportError.value = t("markdown.exportFailed", { error: e instanceof Error ? e.message : String(e) });
   } finally {
     exporting.value = false;
   }
@@ -74,15 +77,15 @@ const jump = (id: string) => view.value?.root?.querySelector(`[id="${CSS.escape(
 <template>
   <ToolActions>
     <div class="seg">
-      <button :class="{ on: layout === 'edit' }" @click="layout = 'edit'">编辑</button>
-      <button :class="{ on: layout === 'split' }" @click="layout = 'split'">分栏</button>
-      <button :class="{ on: layout === 'preview' }" @click="layout = 'preview'">预览</button>
+      <button :class="{ on: layout === 'edit' }" @click="layout = 'edit'">{{ t("markdown.edit") }}</button>
+      <button :class="{ on: layout === 'split' }" @click="layout = 'split'">{{ t("markdown.split") }}</button>
+      <button :class="{ on: layout === 'preview' }" @click="layout = 'preview'">{{ t("markdown.preview") }}</button>
     </div>
-    <button class="btn" @click="fileInput?.click()"><FolderOpen :size="14" />打开</button>
+    <button class="btn" @click="fileInput?.click()"><FolderOpen :size="14" />{{ t("markdown.open") }}</button>
     <input ref="fileInput" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden @change="openFile" />
-    <button class="btn" :disabled="!source.trim()" @click="exportHtml"><FileText :size="14" />导出 HTML</button>
+    <button class="btn" :disabled="!source.trim()" @click="exportHtml"><FileText :size="14" />{{ t("markdown.exportHtml") }}</button>
     <button class="btn primary" :disabled="!source.trim() || exporting" @click="exportWord">
-      <FileDown :size="14" />{{ exporting ? "导出中…" : "导出 Word" }}
+      <FileDown :size="14" />{{ exporting ? t("markdown.exporting") : t("markdown.exportWord") }}
     </button>
   </ToolActions>
 
@@ -93,22 +96,22 @@ const jump = (id: string) => view.value?.root?.querySelector(`[id="${CSS.escape(
       class="editor"
       :label="fileName || 'Markdown'"
       language="markdown"
-      placeholder="在这里输入或粘贴 Markdown，也可以点右上角「打开」读取 .md 文件"
+      :placeholder="t('markdown.placeholder')"
     >
       <template #actions>
-        <span v-if="source" class="count">{{ words }} 字</span>
+        <span v-if="source" class="count">{{ t("markdown.words", { n: words }) }}</span>
       </template>
     </TextPane>
 
     <section v-show="layout !== 'edit'" class="card preview">
       <div class="card-title">
-        预览
+        {{ t("markdown.preview") }}
         <span v-if="exportError" class="error">{{ exportError }}</span>
         <button
           v-if="rendered.headings.length"
           class="icon-btn push"
           :class="{ on: showOutline }"
-          title="目录"
+          :title="t('markdown.outline')"
           @click="showOutline = !showOutline"
         >
           <ListTree :size="14" />
@@ -129,8 +132,8 @@ const jump = (id: string) => view.value?.root?.querySelector(`[id="${CSS.escape(
         <div class="scroll">
           <MarkdownView v-if="source.trim()" ref="view" :html="rendered.html" />
           <div v-else class="empty">
-            <p>在左侧输入 Markdown，这里实时显示排版效果</p>
-            <button class="btn" @click="source = SAMPLE_MARKDOWN">插入示例</button>
+            <p>{{ t("markdown.emptyPreview") }}</p>
+            <button class="btn" @click="source = sampleMarkdown(locale)">{{ t("markdown.insertSample") }}</button>
           </div>
         </div>
       </div>
