@@ -60,9 +60,10 @@ open-tools/
 │   ├── tauri.conf.json      # 窗口、应用名、更新配置（版本号读取 package.json）
 │   ├── tauri.release.conf.json  # 发布版本时额外启用的配置（生成更新文件）
 │   ├── capabilities/        # 前端可调用的系统能力（权限白名单）
-│   ├── icons/               # 应用图标（由 app-icon.svg 生成）
+│   ├── icons/               # 应用图标（由 app-icon.png 生成）
 │   └── src/                 # Rust 入口与插件注册
-└── app-icon.svg             # 图标源文件
+├── branding/                # 远程图标：不发新版本也能换图标，历史图标都在这里
+└── app-icon.png             # 图标源文件（1024×1024，四角透明）
 ```
 
 ## 新增一个工具
@@ -152,10 +153,15 @@ import ToolActions from "@/components/tool/ToolActions.vue";
 
 ## 修改应用图标
 
-编辑根目录的 `app-icon.svg`，然后重新生成各尺寸图标：
+有两种方式：
 
-```bash
-npx tauri icon app-icon.svg
-```
+- **不发新版本，远程换图标**：用 `scripts/branding.mjs` 加入或切换图标，推送 master 后用户自动换上。
+  所有用过的图标都保留在 `branding/icons`，随时可以换回去。详见 [branding/README.md](../branding/README.md)。
+- **随新版本更换程序自带的图标**：替换根目录的 `app-icon.png`（正方形、四角透明），然后重新生成各尺寸图标：
 
-同时把 `app-icon.svg` 复制到 `public/favicon.svg`，并同步更新 `src/components/layout/AppLogo.vue`。
+  ```bash
+  npx tauri icon app-icon.png
+  ```
+
+  同时更新顶栏 Logo（`src/assets/app-logo.png`，96×96）和网页图标（`public/favicon.png`，64×64）。
+  `.exe`、安装包的图标只能这样换。

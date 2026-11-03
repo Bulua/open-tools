@@ -1,4 +1,5 @@
 mod ai_models;
+mod branding;
 mod document;
 mod douyin;
 mod hdr;
@@ -42,11 +43,16 @@ pub fn run() {
             vault::vault_write,
             hdr::hdr_enabled,
             hdr::hdr_disable,
-            hdr::hdr_restore
+            hdr::hdr_restore,
+            branding::branding_current,
+            branding::branding_logo,
+            branding::branding_activate
         ])
         // 关闭窗口时隐藏到托盘，从托盘菜单退出
         .setup(|app| {
             tray::setup(app)?;
+            // 换上之前从 Gitee / GitHub 下载的图标（见 branding.rs）
+            branding::apply_cached(app.handle());
             Ok(())
         })
         .on_window_event(tray::on_window_event)

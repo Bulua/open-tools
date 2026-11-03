@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="app-icon.svg" width="96" height="96" alt="Open Tools" />
+<img src="app-icon.png" width="96" height="96" alt="Open Tools" />
 
 # Open Tools
 

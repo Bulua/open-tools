@@ -12,6 +12,7 @@ import UpdateDialog from "@/components/layout/UpdateDialog.vue";
 import { useUpdater } from "@/composables/useUpdater";
 import CountdownAlerts from "@/components/layout/CountdownAlerts.vue";
 import { startCountdownTicker } from "@/tools/utility/countdownStore";
+import { startBrandingSync } from "@/utils/branding";
 
 const { theme, toggleTheme } = useTheme();
 
@@ -53,6 +54,9 @@ onMounted(startAutoCheck);
 
 // ---------- 倒计时：在后台每秒检查，到期时在任何工具里都会提醒 ----------
 onMounted(startCountdownTicker);
+
+// ---------- 远程图标：不发新版本也能换图标，见 utils/branding.ts ----------
+onMounted(startBrandingSync);
 </script>
 
 <template>

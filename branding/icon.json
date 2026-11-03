@@ -1,0 +1,27 @@
+{
+  "current": "orange",
+  "icons": [
+    {
+      "id": "classic",
+      "name": "陶土色方格（初版）",
+      "added": "2026-10-31",
+      "png": "icons/classic.png",
+      "ico": "icons/classic.ico",
+      "sha256": {
+        "png": "26944c3b8e955153d986b011421ba0bf199f5f27b068b896f650c172a932cb0d",
+        "ico": "dfff70cded35ed58c2ceeca47915b46afa221be27b549ded857f4d1b7c8840f2"
+      }
+    },
+    {
+      "id": "orange",
+      "name": "橙色渐变",
+      "added": "2026-11-03",
+      "png": "icons/orange.png",
+      "ico": "icons/orange.ico",
+      "sha256": {
+        "png": "b58709b9652e4e805a1a3553e8dd47f3950da744ba7db5e1056574d355bdca70",
+        "ico": "44df169ea2bd323b7c3df109700c9fc5e51855fd6f61a656cfd8d9fe5af724cc"
+      }
+    }
+  ]
+}
