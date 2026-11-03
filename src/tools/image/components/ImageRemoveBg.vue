@@ -310,14 +310,15 @@ const save = async () => {
                 <b>{{ modelName(m) }}</b>
                 <span v-if="isReady(m)" class="badge ok"><CircleCheck :size="11" />{{ t("image.downloaded") }}</span>
                 <span class="size">{{ formatBytes(m.size) }}</span>
+                <!-- 右侧操作：未下载时下载，已下载时悬停显示删除 -->
+                <template v-if="progress[m.id] === undefined">
+                  <button v-if="isReady(m)" class="icon-btn act del" :title="t('image.deleteModel')" @click.stop="remove(m)"><Trash2 :size="13" /></button>
+                  <button v-else-if="canDownload()" class="icon-btn act" :title="t('image.downloadModel')" @click.stop="download(m)"><Download :size="13" /></button>
+                </template>
               </div>
               <p>{{ modelDesc(m) }}</p>
               <ProgressBar v-if="progress[m.id] !== undefined" :value="progress[m.id]" />
-              <template v-else-if="!isReady(m)">
-                <button v-if="canDownload()" class="btn small" @click.stop="download(m)"><Download :size="12" />{{ t("image.downloadModel") }}</button>
-                <span v-else class="hint-text">{{ t("image.desktopOnly") }}</span>
-              </template>
-              <button v-else class="icon-btn del" :title="t('image.deleteModel')" @click.stop="remove(m)"><Trash2 :size="12" /></button>
+              <span v-else-if="!isReady(m) && !canDownload()" class="hint-text">{{ t("image.desktopOnly") }}</span>
             </div>
           </div>
           <div v-if="canDownload()" class="source">
@@ -334,7 +335,6 @@ const save = async () => {
               {{ status.runtimeSize ? t("image.runtimeTip", { size: formatBytes(status.runtimeSize) }) : t("image.runtimeTipNoSize") }}
             </p>
             <p v-else-if="!currentModel" class="tip">{{ t("image.noModel") }}</p>
-            <p class="tip">{{ t("image.modelTip", { dir: status.dir }) }}</p>
           </template>
         </template>
         <p v-else class="tip">{{ t("image.aiOff") }}</p>
@@ -524,19 +524,12 @@ h3 svg {
   font-size: 12px;
   color: var(--text-3);
 }
-.model .btn.small {
-  align-self: flex-start;
-  height: 24px;
-  margin-top: 2px;
-  padding: 0 8px;
-  font-size: 12px;
-}
-.model .del {
-  position: absolute;
-  right: 6px;
-  bottom: 6px;
+.model .act {
   width: 22px;
   height: 22px;
+  margin-right: -4px;
+}
+.model .del {
   opacity: 0;
 }
 .model:hover .del {
@@ -634,7 +627,7 @@ h3 svg {
 }
 
 .panel {
-  flex: 0 0 272px;
+  flex: 0 0 320px;
   align-self: flex-start;
 }
 h3 {
