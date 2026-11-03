@@ -233,38 +233,56 @@ const statusText = computed(() =>
 
 <template>
   <div class="video-recorder">
-    <aside class="card panel">
-      <section v-if="source === 'screen' && hdr && !hdrControllable" class="section hdr">
-        <h3><TriangleAlert :size="14" />{{ t("video.hdrWarn") }}</h3>
-        <Translation keypath="video.hdrSteps" tag="p" class="tip">
-          <template #path><b>{{ t("video.hdrPath") }}</b></template>
-          <template #option><b>{{ t("video.hdrOption") }}</b></template>
-        </Translation>
+    <div class="side">
+      <aside class="card panel">
+        <section v-if="source === 'screen' && hdr && !hdrControllable" class="section hdr">
+          <h3><TriangleAlert :size="14" />{{ t("video.hdrWarn") }}</h3>
+          <Translation keypath="video.hdrSteps" tag="p" class="tip">
+            <template #path><b>{{ t("video.hdrPath") }}</b></template>
+            <template #option><b>{{ t("video.hdrOption") }}</b></template>
+          </Translation>
+        </section>
+        <section class="section">
+          <h3>{{ t("video.quality") }}</h3>
+          <div class="seg fill">
+            <button v-for="q in QUALITY_OPTIONS" :key="q.value" :class="{ on: quality === q.value }" :disabled="busy" @click="quality = q.value">{{ q.label || t("video.original") }}</button>
+          </div>
+          <h3>{{ t("video.frameRate") }}</h3>
+          <div class="seg fill">
+            <button v-for="f in FRAME_RATES" :key="f" :class="{ on: frameRate === f }" :disabled="busy" @click="frameRate = f">{{ t("video.fps", { n: f }) }}</button>
+          </div>
+          <p class="tip">{{ t("video.fpsTip") }}</p>
+        </section>
+        <section class="section">
+          <h3>{{ t("video.recordAudio") }}</h3>
+          <label v-if="source === 'screen'" class="check"><input v-model="systemAudio" type="checkbox" :disabled="busy" />{{ t("video.systemAudio") }}</label>
+          <label class="check"><input v-model="microphone" type="checkbox" :disabled="busy" />{{ t("video.microphone") }}</label>
+        </section>
+        <section class="section">
+          <p class="tip">
+            <template v-if="source === 'screen'">{{ t("video.screenTip") }}</template>
+            <template v-else>{{ t("video.cameraTip") }}</template>
+          </p>
+          <p class="tip">{{ t("video.keepTip") }}</p>
+        </section>
+      </aside>
+
+      <section class="card list">
+        <div class="card-title">{{ t("video.recordings") }}<span v-if="recordings.length" class="count">{{ t("video.segments", { n: recordings.length }) }}</span></div>
+        <ul v-if="recordings.length" class="rows">
+          <li v-for="r in recordings" :key="r.id" class="row" :class="{ on: r.id === selectedId && !busy }" @click="selectedId = r.id">
+            <Video :size="15" class="icon" />
+            <div class="info">
+              <span class="name">{{ r.name }}</span>
+              <span class="len">{{ formatTime(r.seconds, false) }} · {{ formatBytes(r.blob.size) }} · {{ r.ext.toUpperCase() }}</span>
+            </div>
+            <button class="icon-btn" :disabled="saving === r.id" :title="saving === r.id ? t('video.saving') : t('video.save')" @click.stop="save(r)"><Download :size="14" /></button>
+            <button class="icon-btn" :title="t('video.delete')" @click.stop="remove(r)"><Trash2 :size="14" /></button>
+          </li>
+        </ul>
+        <p v-else class="empty">{{ t("video.recordingsEmpty") }}</p>
       </section>
-      <section class="section">
-        <h3>{{ t("video.quality") }}</h3>
-        <div class="seg fill">
-          <button v-for="q in QUALITY_OPTIONS" :key="q.value" :class="{ on: quality === q.value }" :disabled="busy" @click="quality = q.value">{{ q.label || t("video.original") }}</button>
-        </div>
-        <h3>{{ t("video.frameRate") }}</h3>
-        <div class="seg fill">
-          <button v-for="f in FRAME_RATES" :key="f" :class="{ on: frameRate === f }" :disabled="busy" @click="frameRate = f">{{ t("video.fps", { n: f }) }}</button>
-        </div>
-        <p class="tip">{{ t("video.fpsTip") }}</p>
-      </section>
-      <section class="section">
-        <h3>{{ t("video.recordAudio") }}</h3>
-        <label v-if="source === 'screen'" class="check"><input v-model="systemAudio" type="checkbox" :disabled="busy" />{{ t("video.systemAudio") }}</label>
-        <label class="check"><input v-model="microphone" type="checkbox" :disabled="busy" />{{ t("video.microphone") }}</label>
-      </section>
-      <section class="section">
-        <p class="tip">
-          <template v-if="source === 'screen'">{{ t("video.screenTip") }}</template>
-          <template v-else>{{ t("video.cameraTip") }}</template>
-        </p>
-        <p class="tip">{{ t("video.keepTip") }}</p>
-      </section>
-    </aside>
+    </div>
 
     <div class="main">
       <section class="card deck" :class="state">
@@ -309,20 +327,6 @@ const statusText = computed(() =>
         <p v-if="error" class="error">{{ error }}</p>
         <p v-else-if="warning" class="tip warn">{{ warning }}</p>
       </section>
-
-      <section class="card list">
-        <div class="card-title">{{ t("video.recordings") }}<span v-if="recordings.length" class="count">{{ t("video.segments", { n: recordings.length }) }}</span></div>
-        <ul v-if="recordings.length" class="rows">
-          <li v-for="r in recordings" :key="r.id" class="row" :class="{ on: r.id === selectedId && !busy }" @click="selectedId = r.id">
-            <Video :size="15" class="icon" />
-            <span class="name">{{ r.name }}</span>
-            <span class="len">{{ formatTime(r.seconds, false) }} · {{ formatBytes(r.blob.size) }} · {{ r.ext.toUpperCase() }}</span>
-            <button class="btn small" :disabled="saving === r.id" @click.stop="save(r)"><Download :size="14" />{{ saving === r.id ? t("video.saving") : t("video.save") }}</button>
-            <button class="icon-btn" :title="t('video.delete')" @click.stop="remove(r)"><Trash2 :size="14" /></button>
-          </li>
-        </ul>
-        <p v-else class="empty">{{ t("video.recordingsEmpty") }}</p>
-      </section>
     </div>
 
     <!-- 屏幕开着 HDR：问用户是否在录制期间临时关闭 -->
@@ -353,9 +357,16 @@ const statusText = computed(() =>
   display: flex;
   gap: 14px;
 }
-.panel {
+/* 左侧：设置在上，录好的视频列表在下 */
+.side {
   flex: 0 0 280px;
-  align-self: flex-start;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.panel {
+  flex-shrink: 0;
 }
 .tip {
   line-height: 1.6;
@@ -534,9 +545,9 @@ const statusText = computed(() =>
 .deck > .warn {
   padding: 0 14px 12px;
 }
+/* 录像多时列表在左侧剩余空间内滚动 */
 .list {
-  flex-shrink: 0;
-  max-height: 40%;
+  min-height: 0;
 }
 .count {
   margin-left: 6px;
@@ -552,8 +563,8 @@ const statusText = computed(() =>
 .row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 8px;
+  gap: 8px;
+  padding: 6px 4px 6px 8px;
   border-radius: 8px;
   cursor: pointer;
 }
@@ -567,9 +578,15 @@ const statusText = computed(() =>
   flex-shrink: 0;
   color: var(--text-3);
 }
-.name {
+/* 文件名一行，时长、大小、格式一行 */
+.info {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.name {
   font-size: 13px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -580,6 +597,8 @@ const statusText = computed(() =>
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .empty {
   margin: 0;
