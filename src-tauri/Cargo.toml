@@ -3,6 +3,7 @@ name = "open-tools"
 version = "0.2.0"
 description = "工具百宝箱"
 edition = "2021"
+license = "AGPL-3.0-or-later"
 
 [lib]
 name = "open_tools_lib"

@@ -120,4 +120,4 @@ Open Tools 把这些常用工具放进一个桌面程序：
 
 ## 许可证
 
-[MIT](LICENSE) © Bulua
+[AGPL-3.0](LICENSE) © Bulua

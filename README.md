@@ -118,4 +118,4 @@ If Open Tools is useful to you, consider starring the project. Report bugs or su
 
 ## License
 
-[MIT](LICENSE) © Bulua
+[AGPL-3.0](LICENSE) © Bulua

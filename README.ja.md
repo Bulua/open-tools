@@ -118,4 +118,4 @@ Open Tools が役に立ったら、ぜひ Star をお願いします。不具合
 
 ## ライセンス
 
-[MIT](LICENSE) © Bulua
+[AGPL-3.0](LICENSE) © Bulua
