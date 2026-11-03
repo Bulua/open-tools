@@ -1,14 +1,64 @@
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { isTauri } from "@tauri-apps/api/core";
-import { useStoredRef } from "@/composables/useStoredRef";
 import { nextOccurrence, type CountdownItem } from "./countdown";
 
 /**
  * 倒计时数据与到期提醒，整个程序共用一份：
- * - 保存在本地，关闭程序后仍然保留，直到用户删除
+ * - 保存在本地，关闭程序后仍然保留，直到用户删除。桌面版存在数据文件夹（安装目录下的 data）里，
+ *   程序更新、卸载时都不会删除；浏览器中存在 localStorage
  * - 程序启动后每秒检查一次，不打开倒计时工具也会提醒；程序关闭期间到期的，下次打开时提醒
  */
-export const countdowns = useStoredRef<CountdownItem[]>("countdowns", []);
+export const countdowns = ref<CountdownItem[]>([]);
+
+/** 浏览器中、以及旧版本桌面版保存数据的位置 */
+const WEB_KEY = "countdowns";
+
+function readLocal(): CountdownItem[] {
+  try {
+    return JSON.parse(localStorage.getItem(WEB_KEY) ?? "[]");
+  } catch {
+    return [];
+  }
+}
+
+function keepInLocal() {
+  watch(
+    countdowns,
+    (v) => {
+      try {
+        localStorage.setItem(WEB_KEY, JSON.stringify(v));
+      } catch {
+        // 写入失败不影响使用
+      }
+    },
+    { deep: true },
+  );
+}
+
+/** 读取保存的倒计时，之后有改动时自动保存；旧版本存在 localStorage 里的，第一次运行时搬进文件 */
+async function load() {
+  const local = readLocal();
+  if (!isTauri()) {
+    countdowns.value = local;
+    keepInLocal();
+    return;
+  }
+  const { invoke } = await import("@tauri-apps/api/core");
+  let data: string | null;
+  try {
+    data = await invoke<string | null>("countdown_read");
+    countdowns.value = data === null ? local : JSON.parse(data);
+  } catch (e) {
+    // 文件读不了或内容损坏时退回 localStorage，不覆盖原文件
+    console.error(e);
+    countdowns.value = local;
+    keepInLocal();
+    return;
+  }
+  const save = (v: CountdownItem[]) => invoke("countdown_write", { data: JSON.stringify(v) }).catch(console.error);
+  if (data === null && local.length) save(local);
+  watch(countdowns, save, { deep: true });
+}
 export const now = ref(Date.now());
 /** 刚到期、等待用户确认的提醒 */
 export const alerts = ref<{ id: string; title: string; target: number }[]>([]);
@@ -96,10 +146,11 @@ function check() {
 }
 
 let started = false;
-/** 程序启动时调用一次 */
-export function startCountdownTicker() {
+/** 程序启动时调用一次；读取完保存的数据后才开始检查 */
+export async function startCountdownTicker() {
   if (started) return;
   started = true;
+  await load();
   check();
   setInterval(check, 1000);
 }
