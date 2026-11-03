@@ -3,6 +3,7 @@ import { computed, onMounted, watch } from "vue";
 import { CircleAlert, CircleCheck, LoaderCircle, RefreshCw, X } from "lucide-vue-next";
 import { Translation, useI18n } from "vue-i18n";
 import { useUpdater } from "@/composables/useUpdater";
+import { locale } from "@/locales";
 
 /**
  * 更新对话框：显示当前版本、新版本的更新内容、下载进度。
@@ -37,7 +38,7 @@ watch(status, (s) => s === "latest" && loadCurrentNotes(), { immediate: true });
 const busy = () => status.value === "downloading" || status.value === "installing";
 /** 可以手动重新检查：正在检查、下载、安装时不行 */
 const canRecheck = computed(() => supported && !busy() && status.value !== "checking");
-const checkedAt = computed(() => (lastChecked.value ? new Date(lastChecked.value).toLocaleTimeString() : ""));
+const checkedAt = computed(() => (lastChecked.value ? new Date(lastChecked.value).toLocaleTimeString(locale.value) : ""));
 const close = () => !busy() && emit("close");
 </script>
 

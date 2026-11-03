@@ -1,7 +1,8 @@
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { isTauri } from "@tauri-apps/api/core";
 import type { Update } from "@tauri-apps/plugin-updater";
-import { t } from "@/locales";
+import { locale, t } from "@/locales";
+import { pickNotes } from "@/utils/releaseNotes";
 
 /**
  * 在线更新（只在桌面版可用）：
@@ -13,11 +14,14 @@ export type UpdateStatus = "idle" | "checking" | "latest" | "available" | "downl
 const status = ref<UpdateStatus>("idle");
 const currentVersion = ref("");
 const newVersion = ref("");
-const notes = ref("");
+/** 新版本的更新说明原文（可能按语言分段），显示时按界面语言挑选，见 utils/releaseNotes.ts */
+const notesRaw = ref("");
+const notes = computed(() => pickNotes(notesRaw.value, locale.value));
 const progress = ref(0);
 const error = ref("");
 /** 当前版本的更新说明（已是最新版本时显示） */
-const currentNotes = ref("");
+const currentNotesRaw = ref("");
+const currentNotes = computed(() => pickNotes(currentNotesRaw.value, locale.value));
 /** 更新对话框是否打开 */
 const dialogOpen = ref(false);
 /** 上次检查完成的时间（毫秒），0 表示还没检查过 */
@@ -60,7 +64,7 @@ async function checkForUpdate(silent = false, prompt = false) {
     pending = await check();
     if (pending) {
       newVersion.value = pending.version;
-      notes.value = cleanNotes(pending.body, pending.version);
+      notesRaw.value = cleanNotes(pending.body, pending.version);
       status.value = "available";
       if (prompt && pending.version !== readSkipped()) dialogOpen.value = true;
     } else {
@@ -94,7 +98,7 @@ const MANIFEST_URLS = ["https://gitee.com/bulua/open-tools/raw/updater/latest.js
 
 /** 读取当前版本的更新说明：最新的更新文件就是当前版本时，取其中的说明 */
 async function loadCurrentNotes() {
-  if (!updaterSupported || currentNotes.value) return;
+  if (!updaterSupported || currentNotesRaw.value) return;
   await loadCurrentVersion();
   const { fetch } = await import("@tauri-apps/plugin-http");
   for (const url of MANIFEST_URLS) {
@@ -102,7 +106,7 @@ async function loadCurrentNotes() {
       const res = await fetch(url);
       if (!res.ok) continue;
       const manifest = (await res.json()) as { version?: string; notes?: string };
-      if (manifest.version === currentVersion.value) currentNotes.value = cleanNotes(manifest.notes, currentVersion.value);
+      if (manifest.version === currentVersion.value) currentNotesRaw.value = cleanNotes(manifest.notes, currentVersion.value);
       return;
     } catch {
       // 换下一个地址
