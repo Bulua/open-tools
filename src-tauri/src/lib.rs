@@ -1,5 +1,6 @@
 mod ai_models;
 mod branding;
+mod countdown;
 mod document;
 mod douyin;
 mod hdr;
@@ -43,6 +44,8 @@ pub fn run() {
             inference::ai_run,
             vault::vault_read,
             vault::vault_write,
+            countdown::countdown_read,
+            countdown::countdown_write,
             hdr::hdr_enabled,
             hdr::hdr_disable,
             hdr::hdr_restore,
