@@ -45,6 +45,8 @@ export const i18n = createI18n({
   messages,
   missingWarn: false,
   fallbackWarn: false,
+  // 文案只通过 {{ }} 和属性绑定显示（会自动转义），不用 v-html，所以「<Token>」这类尖括号不需要提醒
+  warnHtmlMessage: false,
 });
 
 // 全局实例只用到这两样；写成简单类型，避免 vue-i18n 的类型推导过深

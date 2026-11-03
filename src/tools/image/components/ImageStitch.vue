@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { ChevronLeft, ChevronRight, Download, X } from "lucide-vue-next";
 import ColorPicker from "@/components/common/ColorPicker.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
@@ -14,6 +15,7 @@ import { contentBounds, stitchLayout, type Box, type StitchDirection } from "../
  * 自由模式下可以在预览上拖动图片调整位置，拖动右下角缩放（保持比例）。
  */
 type Mode = StitchDirection | "free";
+const { t } = useI18n();
 const direction = useStoredRef<Mode>("stitch.direction", "vertical");
 const columns = useStoredRef("stitch.columns", 2);
 const unify = useStoredRef("stitch.unify", true);
@@ -240,18 +242,18 @@ const saved = ref(false);
 const download = async () => {
   if (!canvas.value) return;
   const bytes = await canvasToBytes(canvas.value, format.value, quality.value / 100);
-  if (await saveFile(bytes, `拼接图片.${formatInfo(format.value).ext}`)) {
+  if (await saveFile(bytes, `${t("image.stitchName")}.${formatInfo(format.value).ext}`)) {
     saved.value = true;
     setTimeout(() => (saved.value = false), 1500);
   }
 };
 
-const DIRECTIONS: { value: Mode; label: string }[] = [
-  { value: "vertical", label: "纵向" },
-  { value: "horizontal", label: "横向" },
-  { value: "grid", label: "宫格" },
-  { value: "free", label: "自由" },
-];
+const DIRECTIONS = computed<{ value: Mode; label: string }[]>(() => [
+  { value: "vertical", label: t("image.vertical") },
+  { value: "horizontal", label: t("image.horizontal") },
+  { value: "grid", label: t("image.grid") },
+  { value: "free", label: t("image.free") },
+]);
 const toNumber = (e: Event, max: number) => Math.min(max, Math.max(0, Math.round(Number((e.target as HTMLInputElement).value) || 0)));
 </script>
 
@@ -259,78 +261,78 @@ const toNumber = (e: Event, max: number) => Math.min(max, Math.max(0, Math.round
   <div class="stitch">
     <!-- 左：设置 -->
     <aside class="card settings">
-      <div class="card-title">拼接设置</div>
+      <div class="card-title">{{ t("image.stitchSettings") }}</div>
 
       <section class="section">
-        <h3>排列方式</h3>
+        <h3>{{ t("image.layout") }}</h3>
         <div class="seg fill">
           <button v-for="d in DIRECTIONS" :key="d.value" :class="{ on: direction === d.value }" @click="direction = d.value">
             {{ d.label }}
           </button>
         </div>
         <label v-if="direction === 'grid'" class="row">
-          <span>每行</span>
+          <span>{{ t("image.perRow") }}</span>
           <input class="field small" type="number" min="1" max="10" :value="columns" @change="columns = Math.max(1, toNumber($event, 10))" />
-          <span>张</span>
+          <span>{{ t("image.perRowUnit") }}</span>
         </label>
         <label v-if="direction !== 'free'" class="check">
-          <input v-model="unify" type="checkbox" />{{ direction === "horizontal" ? "统一高度" : "统一宽度" }}
+          <input v-model="unify" type="checkbox" />{{ direction === "horizontal" ? t("image.unifyHeight") : t("image.unifyWidth") }}
         </label>
         <template v-else>
           <div class="row">
-            <span>画布</span>
+            <span>{{ t("image.canvas") }}</span>
             <input class="field small wide" type="number" min="10" :value="freeSize.width" @change="setFreeSize('width', $event)" />
             <span>×</span>
             <input class="field small wide" type="number" min="10" :value="freeSize.height" @change="setFreeSize('height', $event)" />
           </div>
           <div class="row">
-            <button class="btn small" title="画布缩小到刚好包住所有图片" @click="fitContent">适应内容</button>
-            <button class="btn small subtle" title="恢复为之前自动排列的位置" @click="initFree">重新排列</button>
+            <button class="btn small" :title="t('image.fitContentTitle')" @click="fitContent">{{ t("image.fitContent") }}</button>
+            <button class="btn small subtle" :title="t('image.rearrangeTitle')" @click="initFree">{{ t("image.rearrange") }}</button>
           </div>
-          <p class="tip">在右侧拖动图片调整位置，拖动右下角圆点缩放</p>
+          <p class="tip">{{ t("image.freeTip") }}</p>
         </template>
       </section>
 
       <section class="section">
-        <h3>间距</h3>
+        <h3>{{ t("image.spacing") }}</h3>
         <div class="row">
           <template v-if="direction !== 'free'">
-            <span>图片间</span>
+            <span>{{ t("image.between") }}</span>
             <input class="field small" type="number" min="0" :value="gap" @change="gap = toNumber($event, 500)" />
           </template>
-          <span>外边距</span>
+          <span>{{ t("image.padding") }}</span>
           <input class="field small" type="number" min="0" :value="padding" @change="padding = toNumber($event, 500)" />
         </div>
       </section>
 
       <section class="section">
-        <h3>背景</h3>
+        <h3>{{ t("image.background") }}</h3>
         <div class="row">
           <ColorPicker v-model="background" :disabled="transparent" />
-          <span class="mono">{{ transparent ? "透明" : background }}</span>
-          <label class="check push"><input v-model="transparent" type="checkbox" />透明</label>
+          <span class="mono">{{ transparent ? t("image.transparent") : background }}</span>
+          <label class="check push"><input v-model="transparent" type="checkbox" />{{ t("image.transparent") }}</label>
         </div>
       </section>
 
       <section class="section">
-        <h3>导出</h3>
+        <h3>{{ t("image.export") }}</h3>
         <div class="seg fill">
           <button v-for="f in IMAGE_FORMATS" :key="f.value" :class="{ on: format === f.value }" @click="format = f.value">
             {{ f.label }}
           </button>
         </div>
         <label v-if="formatInfo(format).lossy" class="slider">
-          <span>质量</span>
+          <span>{{ t("image.quality") }}</span>
           <input v-model.number="quality" type="range" min="10" max="100" step="5" />
           <em>{{ quality }}%</em>
         </label>
         <p v-if="items.length" class="tip">
-          输出 {{ layout.outWidth }} × {{ layout.outHeight }}
-          <template v-if="layout.scale < 1">（图片太大，已自动缩小）</template>
-          <template v-if="transparent && format === 'image/jpeg'"><br />JPG 不支持透明，背景会是白色</template>
+          {{ t("image.outputSize", { w: layout.outWidth, h: layout.outHeight }) }}
+          <template v-if="layout.scale < 1">{{ t("image.scaledDown") }}</template>
+          <template v-if="transparent && format === 'image/jpeg'"><br />{{ t("image.jpgNoAlpha") }}</template>
         </p>
         <button class="btn primary full" :disabled="!items.length" @click="download">
-          <Download :size="14" />{{ saved ? "已保存" : "下载拼接图" }}
+          <Download :size="14" />{{ saved ? t("image.saved") : t("image.downloadStitched") }}
         </button>
       </section>
     </aside>
@@ -343,13 +345,13 @@ const toNumber = (e: Event, max: number) => Math.min(max, Math.max(0, Math.round
         class="drop"
         accept="image/*"
         multiple
-        title="拖入多张图片，或点击选择"
-        hint="按添加顺序拼接，之后可以调整顺序；也可以按 Ctrl + V 粘贴截图"
+        :title="t('image.dropMany')"
+        :hint="t('image.stitchDropHint')"
         @files="addFiles"
       />
 
       <template v-else>
-        <div class="card-title">预览</div>
+        <div class="card-title">{{ t("image.preview") }}</div>
         <div :ref="observeArea" class="area checker" @pointerdown.self="selectedId = null">
           <div class="frame" :style="frameStyle">
             <canvas ref="canvas" />
@@ -364,7 +366,7 @@ const toNumber = (e: Event, max: number) => Math.min(max, Math.max(0, Math.round
                 :title="item.name"
                 @pointerdown="startDrag($event, item, 'move')"
               >
-                <span class="handle" title="拖动缩放" @pointerdown.stop="startDrag($event, item, 'resize')" />
+                <span class="handle" :title="t('image.dragResize')" @pointerdown.stop="startDrag($event, item, 'resize')" />
               </div>
             </template>
           </div>
@@ -376,12 +378,12 @@ const toNumber = (e: Event, max: number) => Math.min(max, Math.max(0, Math.round
             <img :src="item.url" :alt="item.name" :title="item.name" />
             <span class="index">{{ i + 1 }}</span>
             <div class="thumb-actions">
-              <button v-if="direction !== 'free'" title="前移" :disabled="i === 0" @click="move(i, -1)"><ChevronLeft :size="12" /></button>
-              <button title="移除" @click="remove(item)"><X :size="12" /></button>
-              <button v-if="direction !== 'free'" title="后移" :disabled="i === items.length - 1" @click="move(i, 1)"><ChevronRight :size="12" /></button>
+              <button v-if="direction !== 'free'" :title="t('image.moveForward')" :disabled="i === 0" @click="move(i, -1)"><ChevronLeft :size="12" /></button>
+              <button :title="t('image.remove')" @click="remove(item)"><X :size="12" /></button>
+              <button v-if="direction !== 'free'" :title="t('image.moveBack')" :disabled="i === items.length - 1" @click="move(i, 1)"><ChevronRight :size="12" /></button>
             </div>
           </figure>
-          <FileDropZone ref="dropZone" compact class="add" accept="image/*" multiple title="" aria-label="继续添加图片" @files="addFiles" />
+          <FileDropZone ref="dropZone" compact class="add" accept="image/*" multiple title="" :aria-label="t('image.addImages')" @files="addFiles" />
         </div>
       </template>
     </section>

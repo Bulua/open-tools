@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { isTauri } from "@tauri-apps/api/core";
 import { Play, Square, Trash2 } from "lucide-vue-next";
 import { useStoredRef } from "@/composables/useStoredRef";
@@ -9,6 +10,7 @@ import { isValidHost, parsePingOutput, pingStats, type PingReply } from "../ping
  * Ping：每秒 ping 一次目标地址，实时显示每次的延迟、统计和延迟图。
  * 浏览器里无法发送 ICMP，由桌面端调用系统自带的 ping 命令完成，只能在桌面版使用。
  */
+const { t } = useI18n();
 const supported = isTauri();
 const host = useStoredRef("ping.host", "www.baidu.com");
 /** 次数，0 表示一直 ping 直到停止 */
@@ -64,11 +66,11 @@ const bars = computed(() => {
 });
 
 const fmt = (ms?: number) => (ms === undefined ? "—" : `${ms}`);
-const COUNTS = [
-  { value: 4, label: "4 次" },
-  { value: 10, label: "10 次" },
-  { value: 0, label: "持续" },
-];
+const COUNTS = computed(() => [
+  { value: 4, label: t("network.times", { n: 4 }) },
+  { value: 10, label: t("network.times", { n: 10 }) },
+  { value: 0, label: t("network.continuous") },
+]);
 </script>
 
 <template>
@@ -79,7 +81,7 @@ const COUNTS = [
         class="field mono host"
         :class="{ invalid: host.trim() && !valid }"
         spellcheck="false"
-        placeholder="域名或 IP，例如 www.baidu.com"
+        :placeholder="t('network.hostPlaceholder')"
         :disabled="running"
         @keydown.enter="start"
       />
@@ -88,36 +90,36 @@ const COUNTS = [
           {{ c.label }}
         </button>
       </div>
-      <button v-if="!running" class="btn primary" :disabled="!supported || !valid" @click="start"><Play :size="14" />开始</button>
-      <button v-else class="btn" @click="stop"><Square :size="13" />停止</button>
-      <p v-if="!supported" class="notice">Ping 需要调用系统命令，只能在安装后的桌面版中使用。</p>
-      <p v-else-if="host.trim() && !valid" class="notice error">地址只能包含字母、数字、点、短横线和冒号</p>
+      <button v-if="!running" class="btn primary" :disabled="!supported || !valid" @click="start"><Play :size="14" />{{ t("network.start") }}</button>
+      <button v-else class="btn" @click="stop"><Square :size="13" />{{ t("network.stop") }}</button>
+      <p v-if="!supported" class="notice">{{ t("network.pingDesktop") }}</p>
+      <p v-else-if="host.trim() && !valid" class="notice error">{{ t("network.badHost") }}</p>
     </section>
 
     <!-- 统计 -->
     <section class="stats">
       <div class="stat">
-        <span class="stat-label">平均延迟</span>
+        <span class="stat-label">{{ t("network.avg") }}</span>
         <span class="stat-value">{{ fmt(stats.avg) }}<small v-if="stats.avg !== undefined">ms</small></span>
       </div>
       <div class="stat">
-        <span class="stat-label">最小 / 最大</span>
+        <span class="stat-label">{{ t("network.minMax") }}</span>
         <span class="stat-value">{{ fmt(stats.min) }} / {{ fmt(stats.max) }}<small v-if="stats.min !== undefined">ms</small></span>
       </div>
       <div class="stat" :class="{ bad: stats.loss > 0 }">
-        <span class="stat-label">丢包率</span>
+        <span class="stat-label">{{ t("network.loss") }}</span>
         <span class="stat-value">{{ stats.sent ? stats.loss : "—" }}<small v-if="stats.sent">%</small></span>
       </div>
       <div class="stat">
-        <span class="stat-label">已发送 / 收到</span>
+        <span class="stat-label">{{ t("network.sentReceived") }}</span>
         <span class="stat-value">{{ stats.sent }} / {{ stats.received }}</span>
       </div>
     </section>
 
     <section class="card result">
       <header class="card-title">
-        <span class="grow">{{ target ? `Ping ${target}` : "结果" }}<em v-if="running"> · 进行中</em></span>
-        <button v-if="replies.length && !running" class="icon-btn" title="清空" @click="replies = []"><Trash2 :size="14" /></button>
+        <span class="grow">{{ target ? `Ping ${target}` : t("network.result") }}<em v-if="running">{{ t("network.running") }}</em></span>
+        <button v-if="replies.length && !running" class="icon-btn" :title="t('network.clear')" @click="replies = []"><Trash2 :size="14" /></button>
       </header>
       <div v-if="bars.length" class="chart">
         <span v-for="b in bars" :key="b.seq" class="bar" :class="{ fail: !b.ok }" :style="{ height: `${b.height}%` }" :title="b.title" />
@@ -126,14 +128,14 @@ const COUNTS = [
         <li v-for="r in replies" :key="r.seq" :class="{ fail: !r.ok }">
           <span class="seq">#{{ r.seq }}</span>
           <template v-if="r.ok">
-            <span>来自 {{ r.ip || target }}</span>
+            <span>{{ t("network.from", { ip: r.ip || target }) }}</span>
             <span class="time">{{ r.under1ms ? "<1" : r.time }} ms</span>
             <span v-if="r.ttl" class="ttl">TTL={{ r.ttl }}</span>
           </template>
           <span v-else>{{ r.error }}</span>
         </li>
       </ol>
-      <p v-else class="empty">输入地址后点「开始」，每秒 ping 一次，超时时间 {{ TIMEOUT / 1000 }} 秒</p>
+      <p v-else class="empty">{{ t("network.pingEmpty", { n: TIMEOUT / 1000 }) }}</p>
     </section>
   </div>
 </template>

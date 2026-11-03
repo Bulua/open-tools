@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, shallowRef, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { Brush, Download, RefreshCw, SquareDashed, Undo2 } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
@@ -12,6 +13,7 @@ import { pixelate, type Box } from "../effects";
  * 图片马赛克：框选或画笔涂抹，把区域打上马赛克或模糊。
  * 每次操作生成新画布记入历史，可以撤销。
  */
+const { t } = useI18n();
 const effect = useStoredRef<"mosaic" | "blur">("mosaic.effect", "mosaic");
 const tool = useStoredRef<"rect" | "brush">("mosaic.tool", "rect");
 const strength = useStoredRef("mosaic.strength", 16);
@@ -183,7 +185,7 @@ const download = async () => {
   if (!current.value) return;
   const bytes = await canvasToBytes(current.value, fileType.value, 0.92);
   const base = fileName.value.replace(/\.[^.]+$/, "") || "image";
-  if (await saveFile(bytes, `${base}_马赛克.${formatInfo(fileType.value).ext}`)) {
+  if (await saveFile(bytes, `${base}_${t("image.mosaicSuffix")}.${formatInfo(fileType.value).ext}`)) {
     saved.value = true;
     setTimeout(() => (saved.value = false), 1500);
   }
@@ -194,45 +196,45 @@ const download = async () => {
   <div class="mosaic">
     <aside class="card panel">
       <section class="section">
-        <h3>效果</h3>
+        <h3>{{ t("image.effect") }}</h3>
         <div class="seg fill">
-          <button :class="{ on: effect === 'mosaic' }" @click="effect = 'mosaic'">马赛克</button>
-          <button :class="{ on: effect === 'blur' }" @click="effect = 'blur'">模糊</button>
+          <button :class="{ on: effect === 'mosaic' }" @click="effect = 'mosaic'">{{ t("image.mosaic") }}</button>
+          <button :class="{ on: effect === 'blur' }" @click="effect = 'blur'">{{ t("image.blur") }}</button>
         </div>
         <label class="slider">
-          <span>强度</span>
+          <span>{{ t("image.strength") }}</span>
           <input v-model.number="strength" type="range" min="4" max="60" step="2" />
           <em>{{ strength }}</em>
         </label>
       </section>
 
       <section class="section">
-        <h3>选区</h3>
+        <h3>{{ t("image.selection") }}</h3>
         <div class="seg fill">
-          <button :class="{ on: tool === 'rect' }" @click="tool = 'rect'"><SquareDashed :size="14" />框选</button>
-          <button :class="{ on: tool === 'brush' }" @click="tool = 'brush'"><Brush :size="14" />画笔</button>
+          <button :class="{ on: tool === 'rect' }" @click="tool = 'rect'"><SquareDashed :size="14" />{{ t("image.rect") }}</button>
+          <button :class="{ on: tool === 'brush' }" @click="tool = 'brush'"><Brush :size="14" />{{ t("image.brush") }}</button>
         </div>
         <label v-if="tool === 'brush'" class="slider">
-          <span>笔刷</span>
+          <span>{{ t("image.brushSize") }}</span>
           <input v-model.number="brushSize" type="range" min="10" max="200" step="5" />
           <em>{{ brushSize }}</em>
         </label>
       </section>
 
       <section class="section">
-        <p class="tip">{{ current ? `已处理 ${history.length - 1} 处，导出为原格式（${formatInfo(fileType).label}）` : "放入图片后，在图片上框选或涂抹" }}</p>
-        <button class="btn primary full" :disabled="!current" @click="download"><Download :size="14" />{{ saved ? "已保存" : "下载图片" }}</button>
+        <p class="tip">{{ current ? t("image.mosaicDone", { n: history.length - 1, format: formatInfo(fileType).label }) : t("image.mosaicEmpty") }}</p>
+        <button class="btn primary full" :disabled="!current" @click="download"><Download :size="14" />{{ saved ? t("image.saved") : t("image.downloadImage") }}</button>
       </section>
     </aside>
 
     <section class="card stage">
       <header class="card-title">
-        <span class="file" :title="fileName">{{ fileName || "未选择图片" }}</span>
+        <span class="file" :title="fileName">{{ fileName || t("image.noImage") }}</span>
         <template v-if="current">
-          <span class="hint">{{ tool === "rect" ? "在图片上拖动框选区域" : "按住鼠标在图片上涂抹" }}</span>
-          <button class="btn small subtle" :disabled="history.length < 2" @click="undo"><Undo2 :size="14" />撤销</button>
-          <button class="btn small subtle" :disabled="history.length < 2" @click="reset">重置</button>
-          <button class="btn small subtle" title="更换图片" @click="dropZone?.open()"><RefreshCw :size="14" />更换</button>
+          <span class="hint">{{ tool === "rect" ? t("image.rectHint") : t("image.brushHint") }}</span>
+          <button class="btn small subtle" :disabled="history.length < 2" @click="undo"><Undo2 :size="14" />{{ t("image.undo") }}</button>
+          <button class="btn small subtle" :disabled="history.length < 2" @click="reset">{{ t("image.reset") }}</button>
+          <button class="btn small subtle" :title="t('image.replaceImage')" @click="dropZone?.open()"><RefreshCw :size="14" />{{ t("image.replace") }}</button>
         </template>
       </header>
       <!-- 加载后隐藏但保留：「更换」按钮由它打开选择框 -->
@@ -242,8 +244,8 @@ const download = async () => {
         :paste="!current"
         class="drop"
         accept="image/*"
-        title="拖入图片，或点击选择"
-        hint="框选或涂抹需要遮挡的区域（人脸、车牌、手机号等）；也可以按 Ctrl + V 粘贴截图"
+        :title="t('image.dropImage')"
+        :hint="t('image.mosaicDropHint')"
         @files="onFiles"
       >
         <span v-if="loadError" class="load-error">{{ loadError }}</span>

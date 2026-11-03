@@ -1,4 +1,5 @@
 /** 图片工具共用的函数。纯计算部分（尺寸、ICO、调色板）不依赖浏览器，便于测试 */
+import { t } from "@/locales";
 
 export type ImageFormat = "image/jpeg" | "image/png" | "image/webp";
 
@@ -40,7 +41,7 @@ export function loadImage(source: Blob): Promise<HTMLImageElement> {
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(new Error("无法读取图片，文件可能已损坏或格式不支持"));
+      reject(new Error(t("image.loadFailed")));
     };
     img.src = url;
   });
@@ -65,7 +66,7 @@ export async function canvasToBytes(source: HTMLCanvasElement, format: ImageForm
     canvas = flat;
   }
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, format, quality));
-  if (!blob) throw new Error("导出图片失败");
+  if (!blob) throw new Error(t("image.exportFailed"));
   return new Uint8Array(await blob.arrayBuffer());
 }
 

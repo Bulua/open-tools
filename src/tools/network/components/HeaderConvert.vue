@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import AppSelect from "@/components/common/AppSelect.vue";
 import TextPane from "@/components/common/TextPane.vue";
 import SplitPane from "@/components/common/SplitPane.vue";
@@ -12,13 +13,14 @@ import { filterHeaders, parseInput, toCurl, toFetch, toHeaderText, toJson, toPyt
  * 转成 JSON、cURL（bash / Windows CMD）、fetch、Python requests 或整理后的请求头。
  */
 type Target = "json" | "curl" | "fetch" | "python" | "headers";
-const TARGETS: { value: Target; label: string }[] = [
+const { t } = useI18n();
+const TARGETS = computed<{ value: Target; label: string }[]>(() => [
   { value: "json", label: "JSON" },
   { value: "curl", label: "cURL" },
   { value: "fetch", label: "fetch" },
   { value: "python", label: "Python" },
-  { value: "headers", label: "请求头" },
-];
+  { value: "headers", label: t("network.headers") },
+]);
 
 const input = ref("");
 const target = useStoredRef<Target>("headers.target", "json");
@@ -65,12 +67,16 @@ const output = computed(() => {
   }
 });
 
-const SOURCE_LABELS = { headers: "请求头", curl: "cURL 命令", json: "JSON", empty: "" };
+const SOURCE_LABELS = computed(() => ({ headers: t("network.headers"), curl: t("network.curlCommand"), json: "JSON", empty: "" }));
 const summary = computed(() => {
   const req = parsed.value.req;
   if (!req || req.source === "empty") return "";
   const removed = req.headers.length - headers.value.length;
-  return `识别为${SOURCE_LABELS[req.source]} · ${req.headers.length} 个请求头${removed ? `（已去掉 ${removed} 个）` : ""}${req.body ? ` · 请求体 ${req.body.length} 字符` : ""}`;
+  return (
+    t("network.summary", { source: SOURCE_LABELS.value[req.source], n: req.headers.length }) +
+    (removed ? t("network.summaryRemoved", { n: removed }) : "") +
+    (req.body ? t("network.summaryBody", { n: req.body.length }) : "")
+  );
 });
 
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
@@ -86,31 +92,31 @@ Content-Length: 42`;
 
 <template>
   <ToolActions>
-    <label class="check" title="去掉 Content-Length、Host、Connection、Accept-Encoding，这些由工具自动生成"><input v-model="dropAuto" type="checkbox" />去掉自动生成的头</label>
-    <label class="check"><input v-model="dropCookie" type="checkbox" />去掉 Cookie</label>
+    <label class="check" :title="t('network.dropAutoTitle')"><input v-model="dropAuto" type="checkbox" />{{ t("network.dropAuto") }}</label>
+    <label class="check"><input v-model="dropCookie" type="checkbox" />{{ t("network.dropCookie") }}</label>
   </ToolActions>
 
   <div class="headers">
     <section class="card bar">
       <AppSelect v-model="method" class="method" :options="METHODS.map((m) => ({ value: m, label: m }))" />
-      <input v-model="url" class="field mono" spellcheck="false" placeholder="请求地址（从 Host 或 cURL 中自动识别，也可以手动填写）" />
+      <input v-model="url" class="field mono" spellcheck="false" :placeholder="t('network.urlPlaceholder')" />
       <span class="summary" :class="{ error: parsed.error }">{{ parsed.error || summary }}</span>
     </section>
 
     <SplitPane storage-key="headers" :default-ratio="0.45">
       <template #left>
-        <TextPane v-model="input" label="输入" language="text" placeholder="粘贴浏览器开发者工具中复制的请求头（Key: Value 每行一个），也可以粘贴 cURL 命令或 JSON">
+        <TextPane v-model="input" :label="t('network.input')" language="text" :placeholder="t('network.headersPlaceholder')">
           <template #actions>
-            <button v-if="!input" class="btn small subtle" @click="input = SAMPLE">示例</button>
+            <button v-if="!input" class="btn small subtle" @click="input = SAMPLE">{{ t("network.sample") }}</button>
           </template>
         </TextPane>
       </template>
       <template #right>
-        <TextPane :model-value="output" label="结果" readonly nowrap :language="target === 'json' ? 'json' : 'text'" placeholder="转换结果会实时显示在这里">
+        <TextPane :model-value="output" :label="t('network.result')" readonly nowrap :language="target === 'json' ? 'json' : 'text'" :placeholder="t('network.resultPlaceholder')">
           <template #actions>
             <div v-if="target === 'curl'" class="seg">
               <button :class="{ on: shell === 'bash' }" title="macOS、Linux、Git Bash" @click="shell = 'bash'">bash</button>
-              <button :class="{ on: shell === 'cmd' }" title="Windows 命令提示符" @click="shell = 'cmd'">CMD</button>
+              <button :class="{ on: shell === 'cmd' }" :title="t('network.cmdTitle')" @click="shell = 'cmd'">CMD</button>
             </div>
             <div class="seg">
               <button v-for="t in TARGETS" :key="t.value" :class="{ on: target === t.value }" @click="target = t.value">{{ t.label }}</button>

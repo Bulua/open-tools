@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { Download, RefreshCw } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
@@ -11,6 +12,7 @@ import { canvasToBytes, createCanvas, loadImage, writeIco } from "../utils";
  * 把图片生成多尺寸 ICO 图标（网站 favicon、Windows 程序图标），也可以导出各尺寸 PNG。
  * 非正方形图片可以选择「完整显示」（四周留透明）或「裁切铺满」。
  */
+const { t } = useI18n();
 const ALL_SIZES = [16, 24, 32, 48, 64, 128, 256];
 const sizes = useStoredRef<number[]>("ico.sizes", [16, 32, 48, 256]);
 const fit = useStoredRef<"contain" | "cover">("ico.fit", "contain");
@@ -76,16 +78,16 @@ const downloadPngs = () =>
     <!-- 左：设置 -->
     <section class="card options">
       <header class="card-title">
-        <span class="file" :title="fileName">{{ fileName || "未选择图片" }}</span>
-        <button v-if="img" class="btn small subtle" title="更换图片" @click="dropZone?.open()"><RefreshCw :size="14" />更换</button>
+        <span class="file" :title="fileName">{{ fileName || t("image.noImage") }}</span>
+        <button v-if="img" class="btn small subtle" :title="t('image.replaceImage')" @click="dropZone?.open()"><RefreshCw :size="14" />{{ t("image.replace") }}</button>
       </header>
       <div class="option-body">
         <div v-if="img" class="option">
-          <span class="label">原图</span>
+          <span class="label">{{ t("image.original") }}</span>
           <span>{{ img.naturalWidth }} × {{ img.naturalHeight }}</span>
         </div>
         <div class="option column">
-          <span class="label">包含尺寸</span>
+          <span class="label">{{ t("image.sizes") }}</span>
           <div class="sizes">
             <label v-for="s in ALL_SIZES" :key="s" class="check">
               <input type="checkbox" :checked="sizes.includes(s)" @change="toggleSize(s)" />{{ s }}
@@ -93,10 +95,10 @@ const downloadPngs = () =>
           </div>
         </div>
         <div v-if="img && img.naturalWidth !== img.naturalHeight" class="option column">
-          <span class="label">非正方形</span>
+          <span class="label">{{ t("image.nonSquare") }}</span>
           <div class="seg">
-            <button :class="{ on: fit === 'contain' }" @click="fit = 'contain'">完整显示</button>
-            <button :class="{ on: fit === 'cover' }" @click="fit = 'cover'">裁切铺满</button>
+            <button :class="{ on: fit === 'contain' }" @click="fit = 'contain'">{{ t("image.contain") }}</button>
+            <button :class="{ on: fit === 'cover' }" @click="fit = 'cover'">{{ t("image.cover") }}</button>
           </div>
         </div>
       </div>
@@ -104,7 +106,7 @@ const downloadPngs = () =>
 
     <!-- 右：预览与下载 -->
     <section class="card previews">
-      <div class="card-title">预览</div>
+      <div class="card-title">{{ t("image.preview") }}</div>
       <!-- 加载后隐藏但保留：「更换」按钮由它打开选择框 -->
       <FileDropZone
         v-show="!img"
@@ -112,8 +114,8 @@ const downloadPngs = () =>
         :paste="!img"
         class="drop"
         accept="image/*"
-        title="拖入图片，或点击选择"
-        hint="建议使用 256 × 256 以上的正方形 PNG；也可以按 Ctrl + V 粘贴"
+        :title="t('image.dropImage')"
+        :hint="t('image.icoHint')"
         @files="onFiles"
       >
         <span v-if="loadError" class="load-error">{{ loadError }}</span>
@@ -127,12 +129,12 @@ const downloadPngs = () =>
           <figcaption>{{ o.size }} × {{ o.size }}</figcaption>
         </figure>
       </div>
-      <p v-else-if="img" class="empty">请至少选择一个尺寸</p>
+      <p v-else-if="img" class="empty">{{ t("image.needSize") }}</p>
 
       <footer class="actions">
-        <span v-if="ico" class="size">ICO 文件 {{ formatBytes(ico.length) }}</span>
-        <button class="btn" :disabled="!outputs.length" @click="downloadPngs"><Download :size="14" />下载 PNG{{ outputs.length > 1 ? "（ZIP）" : "" }}</button>
-        <button class="btn primary" :disabled="!ico" @click="downloadIco"><Download :size="14" />下载 ICO</button>
+        <span v-if="ico" class="size">{{ t("image.icoSize", { size: formatBytes(ico.length) }) }}</span>
+        <button class="btn" :disabled="!outputs.length" @click="downloadPngs"><Download :size="14" />{{ t("image.downloadPng") }}{{ outputs.length > 1 ? t("image.zipSuffix") : "" }}</button>
+        <button class="btn primary" :disabled="!ico" @click="downloadIco"><Download :size="14" />{{ t("image.downloadIco") }}</button>
       </footer>
     </section>
   </div>

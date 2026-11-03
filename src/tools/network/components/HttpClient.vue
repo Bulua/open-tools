@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { Check, Copy, Download, FileInput, History, LoaderCircle, Send, Square, Trash2, Upload, X } from "lucide-vue-next";
 import AppSelect from "@/components/common/AppSelect.vue";
 import SplitPane from "@/components/common/SplitPane.vue";
@@ -14,7 +15,6 @@ import KeyValueEditor from "./KeyValueEditor.vue";
 import { parseInput } from "../headers";
 import {
   METHODS,
-  STATUS_TEXT,
   applyQuery,
   decodeText,
   detectKind,
@@ -29,6 +29,7 @@ import {
   responseFileName,
   sendMode,
   sendRequest,
+  statusText,
   toCurlCommand,
   type BodyType,
   type HistoryEntry,
@@ -72,24 +73,25 @@ const METHOD_OPTIONS = METHODS.map((m) => ({ value: m, label: m }));
 const methodColor = (m: string) => ({ GET: "get", POST: "post", PUT: "put", PATCH: "patch", DELETE: "delete" })[m] ?? "other";
 
 // ---------- 请求设置 ----------
+const { t } = useI18n();
 type Tab = "params" | "headers" | "auth" | "body" | "settings";
 const tab = useStoredRef<Tab>("http.tab", "params");
 const count = (rows: { enabled: boolean; key: string }[]) => rows.filter((r) => r.enabled && r.key).length;
 const TABS = computed<{ value: Tab; label: string; badge?: number | string }[]>(() => [
-  { value: "params", label: "参数", badge: count(req.value.params) || undefined },
-  { value: "headers", label: "请求头", badge: count(req.value.headers) || undefined },
-  { value: "auth", label: "认证", badge: req.value.auth.type !== "none" ? "●" : undefined },
-  { value: "body", label: "请求体", badge: req.value.bodyType !== "none" ? "●" : undefined },
-  { value: "settings", label: "设置" },
+  { value: "params", label: t("network.params"), badge: count(req.value.params) || undefined },
+  { value: "headers", label: t("network.headers"), badge: count(req.value.headers) || undefined },
+  { value: "auth", label: t("network.auth"), badge: req.value.auth.type !== "none" ? "●" : undefined },
+  { value: "body", label: t("network.body"), badge: req.value.bodyType !== "none" ? "●" : undefined },
+  { value: "settings", label: t("network.settings") },
 ]);
-const BODY_TYPES: { value: BodyType; label: string }[] = [
-  { value: "none", label: "无" },
+const BODY_TYPES = computed<{ value: BodyType; label: string }[]>(() => [
+  { value: "none", label: t("network.none") },
   { value: "json", label: "JSON" },
-  { value: "text", label: "文本" },
-  { value: "form", label: "表单" },
-  { value: "multipart", label: "多部分（含文件）" },
-  { value: "binary", label: "文件" },
-];
+  { value: "text", label: t("network.text") },
+  { value: "form", label: t("network.form") },
+  { value: "multipart", label: t("network.multipart") },
+  { value: "binary", label: t("network.file") },
+]);
 const TEXT_TYPES = ["text/plain", "application/xml", "text/html", "text/csv", "application/javascript"].map((t) => ({ value: t, label: t }));
 const COMMON_HEADERS = [
   "Accept",
@@ -168,12 +170,12 @@ const restore = (h: HistoryEntry) => {
   syncing = false;
   closeHistory();
 };
-const ago = (t: number) => {
-  const s = Math.round((Date.now() - t) / 1000);
-  if (s < 60) return "刚刚";
-  if (s < 3600) return `${Math.floor(s / 60)} 分钟前`;
-  if (s < 86400) return `${Math.floor(s / 3600)} 小时前`;
-  return new Date(t).toLocaleDateString();
+const ago = (time: number) => {
+  const s = Math.round((Date.now() - time) / 1000);
+  if (s < 60) return t("network.justNow");
+  if (s < 3600) return t("network.minutesAgo", { n: Math.floor(s / 60) });
+  if (s < 86400) return t("network.hoursAgo", { n: Math.floor(s / 3600) });
+  return new Date(time).toLocaleDateString();
 };
 
 // ---------- 导入 / 复制 cURL ----------
@@ -186,7 +188,7 @@ const doImport = () => {
   importError.value = "";
   const parsed = parseInput(importText.value);
   if (!parsed.url) {
-    importError.value = "没有找到请求地址，请粘贴 cURL 命令（在浏览器开发者工具中右键请求 →「复制为 cURL」）";
+    importError.value = t("network.noUrlInCurl");
     return;
   }
   syncing = true;
@@ -243,7 +245,17 @@ const statusClass = computed(() => {
   const s = response.value?.status ?? 0;
   return s >= 500 ? "s5" : s >= 400 ? "s4" : s >= 300 ? "s3" : "s2";
 });
-const KIND_LABEL = { json: "JSON", html: "网页", xml: "XML", text: "文本", image: "图片", audio: "音频", video: "视频", pdf: "PDF", binary: "文件" };
+const KIND_LABEL = computed(() => ({
+  json: "JSON",
+  html: t("network.kindHtml"),
+  xml: "XML",
+  text: t("network.text"),
+  image: t("network.kindImage"),
+  audio: t("network.kindAudio"),
+  video: t("network.kindVideo"),
+  pdf: "PDF",
+  binary: t("network.file"),
+}));
 </script>
 
 <template>
@@ -254,15 +266,15 @@ const KIND_LABEL = { json: "JSON", html: "网页", xml: "XML", text: "文本", i
       <div class="method" :class="methodColor(req.method)">
         <AppSelect v-model="req.method" :options="METHOD_OPTIONS" :menu-width="120" />
       </div>
-      <input v-model="req.url" class="field url" placeholder="输入请求地址，例如 https://api.example.com/users?page=1" spellcheck="false" @keydown.enter.exact="send" />
-      <button v-if="!sending" class="btn primary send" title="发送（Ctrl + Enter）" @click="send"><Send :size="14" />发送</button>
-      <button v-else class="btn send" title="取消请求" @click="cancel"><Square :size="13" />取消</button>
-      <button ref="importBtn" class="btn subtle" title="从 cURL 命令导入" @click="toggleImport"><FileInput :size="14" />导入</button>
-      <button class="btn subtle" :class="{ ok: curlCopied }" title="复制为 cURL 命令" @click="copyCurl">
+      <input v-model="req.url" class="field url" :placeholder="t('network.requestUrlPlaceholder')" spellcheck="false" @keydown.enter.exact="send" />
+      <button v-if="!sending" class="btn primary send" :title="t('network.sendTitle')" @click="send"><Send :size="14" />{{ t("network.send") }}</button>
+      <button v-else class="btn send" :title="t('network.cancelTitle')" @click="cancel"><Square :size="13" />{{ t("network.cancel") }}</button>
+      <button ref="importBtn" class="btn subtle" :title="t('network.importTitle')" @click="toggleImport"><FileInput :size="14" />{{ t("network.import") }}</button>
+      <button class="btn subtle" :class="{ ok: curlCopied }" :title="t('network.copyCurlTitle')" @click="copyCurl">
         <Check v-if="curlCopied" :size="14" />
         <Copy v-else :size="14" />cURL
       </button>
-      <button ref="historyBtn" class="btn subtle" title="最近的请求" @click="toggleHistory"><History :size="14" />历史</button>
+      <button ref="historyBtn" class="btn subtle" :title="t('network.historyTitle')" @click="toggleHistory"><History :size="14" />{{ t("network.history") }}</button>
     </div>
 
     <SplitPane storage-key="http-client" :default-ratio="0.45" :min="320">
@@ -270,102 +282,102 @@ const KIND_LABEL = { json: "JSON", html: "网页", xml: "XML", text: "文本", i
       <template #left>
         <section class="pane-box">
           <div class="tabs">
-            <button v-for="t in TABS" :key="t.value" :class="{ on: tab === t.value }" @click="tab = t.value">
-              {{ t.label }}<em v-if="t.badge !== undefined">{{ t.badge }}</em>
+            <button v-for="tb in TABS" :key="tb.value" :class="{ on: tab === tb.value }" @click="tab = tb.value">
+              {{ tb.label }}<em v-if="tb.badge !== undefined">{{ tb.badge }}</em>
             </button>
           </div>
           <div class="tab-body">
             <template v-if="tab === 'params'">
-              <p class="hint">与网址中的查询参数同步，修改任意一边都会更新另一边。</p>
-              <KeyValueEditor v-model="req.params" key-placeholder="参数名" value-placeholder="参数值" />
+              <p class="hint">{{ t("network.paramsHint") }}</p>
+              <KeyValueEditor v-model="req.params" :key-placeholder="t('network.paramName')" :value-placeholder="t('network.paramValue')" />
             </template>
 
             <template v-else-if="tab === 'headers'">
               <p class="hint">
-                认证、请求体的 Content-Type 会自动添加，这里设置的优先。
-                <template v-if="mode === 'browser'">浏览器中 Cookie、Origin 等请求头无法设置，请使用桌面版。</template>
+                {{ t("network.headersHint") }}
+                <template v-if="mode === 'browser'">{{ t("network.browserHeadersHint") }}</template>
               </p>
-              <KeyValueEditor v-model="req.headers" key-placeholder="名称，如 Accept" value-placeholder="值" :suggestions="COMMON_HEADERS" />
+              <KeyValueEditor v-model="req.headers" :key-placeholder="t('network.headerName')" :value-placeholder="t('network.value')" :suggestions="COMMON_HEADERS" />
             </template>
 
             <template v-else-if="tab === 'auth'">
               <div class="seg">
-                <button :class="{ on: req.auth.type === 'none' }" @click="req.auth.type = 'none'">无</button>
+                <button :class="{ on: req.auth.type === 'none' }" @click="req.auth.type = 'none'">{{ t("network.none") }}</button>
                 <button :class="{ on: req.auth.type === 'bearer' }" @click="req.auth.type = 'bearer'">Bearer Token</button>
-                <button :class="{ on: req.auth.type === 'basic' }" @click="req.auth.type = 'basic'">用户名密码（Basic）</button>
+                <button :class="{ on: req.auth.type === 'basic' }" @click="req.auth.type = 'basic'">{{ t("network.basic") }}</button>
               </div>
               <template v-if="req.auth.type === 'bearer'">
-                <input v-model="req.auth.token" class="field mono" placeholder="Token，例如 eyJhbGciOi…" spellcheck="false" />
-                <p class="hint">发送时添加请求头 Authorization: Bearer &lt;Token&gt;</p>
+                <input v-model="req.auth.token" class="field mono" :placeholder="t('network.tokenPlaceholder')" spellcheck="false" />
+                <p class="hint">{{ t("network.bearerHint") }}</p>
               </template>
               <template v-else-if="req.auth.type === 'basic'">
-                <input v-model="req.auth.username" class="field" placeholder="用户名" spellcheck="false" />
-                <input v-model="req.auth.password" class="field" type="password" placeholder="密码" />
-                <p class="hint">发送时添加请求头 Authorization: Basic &lt;Base64(用户名:密码)&gt;</p>
+                <input v-model="req.auth.username" class="field" :placeholder="t('network.username')" spellcheck="false" />
+                <input v-model="req.auth.password" class="field" type="password" :placeholder="t('network.password')" />
+                <p class="hint">{{ t("network.basicHint") }}</p>
               </template>
-              <p v-else class="hint">需要登录的接口可以在这里填写凭据，也可以直接在「请求头」中添加 Authorization。</p>
+              <p v-else class="hint">{{ t("network.authHint") }}</p>
             </template>
 
             <template v-else-if="tab === 'body'">
               <div class="seg wrap">
                 <button v-for="b in BODY_TYPES" :key="b.value" :class="{ on: req.bodyType === b.value }" @click="req.bodyType = b.value">{{ b.label }}</button>
               </div>
-              <p v-if="bodyIgnored" class="warn">{{ req.method }} 请求不发送请求体，请把方法改为 POST、PUT 等。</p>
+              <p v-if="bodyIgnored" class="warn">{{ t("network.bodyIgnored", { method: req.method }) }}</p>
               <template v-if="req.bodyType === 'json'">
-                <TextPane v-model="req.bodyText" class="body-editor" label="JSON" language="json" placeholder='{"name": "张三"}'>
+                <TextPane v-model="req.bodyText" class="body-editor" label="JSON" language="json" :placeholder="t('network.jsonBodyPlaceholder')">
                   <template #actions>
-                    <button class="btn small subtle" :disabled="!!jsonError" @click="formatJsonBody">格式化</button>
+                    <button class="btn small subtle" :disabled="!!jsonError" @click="formatJsonBody">{{ t("network.format") }}</button>
                   </template>
                 </TextPane>
-                <p v-if="jsonError" class="warn">JSON 格式有误：{{ jsonError }}</p>
+                <p v-if="jsonError" class="warn">{{ t("network.jsonError", { error: jsonError }) }}</p>
               </template>
               <template v-else-if="req.bodyType === 'text'">
                 <div class="row">
-                  <span>类型</span>
+                  <span>{{ t("network.type") }}</span>
                   <AppSelect v-model="req.textType" :options="TEXT_TYPES" size="sm" />
                 </div>
-                <TextPane v-model="req.bodyText" class="body-editor" label="内容" language="text" />
+                <TextPane v-model="req.bodyText" class="body-editor" :label="t('network.content')" language="text" />
               </template>
               <template v-else-if="req.bodyType === 'form'">
-                <p class="hint">application/x-www-form-urlencoded，与网页表单提交相同。</p>
-                <KeyValueEditor v-model="req.form" key-placeholder="字段名" value-placeholder="值" />
+                <p class="hint">{{ t("network.formHint") }}</p>
+                <KeyValueEditor v-model="req.form" :key-placeholder="t('network.fieldName')" :value-placeholder="t('network.value')" />
               </template>
               <template v-else-if="req.bodyType === 'multipart'">
-                <p class="hint">multipart/form-data，用于上传文件：点每行右侧的回形针选择文件。</p>
-                <KeyValueEditor v-model="req.multipart" key-placeholder="字段名，如 file" value-placeholder="值" allow-files />
+                <p class="hint">{{ t("network.multipartHint") }}</p>
+                <KeyValueEditor v-model="req.multipart" :key-placeholder="t('network.fieldFile')" :value-placeholder="t('network.value')" allow-files />
               </template>
               <template v-else-if="req.bodyType === 'binary'">
-                <p class="hint">把整个文件作为请求体发送，Content-Type 按文件类型自动设置。</p>
+                <p class="hint">{{ t("network.binaryHint") }}</p>
                 <label class="pick">
                   <Upload :size="15" />
-                  <span>{{ req.binary ? `${req.binary.name}（${formatBytes(req.binary.size)}）` : "选择文件" }}</span>
+                  <span>{{ req.binary ? req.binary.name + t("network.paren", { text: formatBytes(req.binary.size) }) : t("network.chooseFile") }}</span>
                   <input type="file" hidden @change="pickBinary" />
                 </label>
-                <button v-if="req.binary" class="btn small subtle" @click="req.binary = null"><X :size="13" />移除文件</button>
+                <button v-if="req.binary" class="btn small subtle" @click="req.binary = null"><X :size="13" />{{ t("network.removeFile") }}</button>
               </template>
-              <p v-else class="hint">不发送请求体。</p>
+              <p v-else class="hint">{{ t("network.noBody") }}</p>
             </template>
 
             <template v-else>
               <div class="row">
-                <span>超时</span>
+                <span>{{ t("network.timeoutLabel") }}</span>
                 <input v-model.number="req.timeout" class="field num" type="number" min="1" max="600" />
-                <span>秒</span>
+                <span>{{ t("network.seconds") }}</span>
               </div>
-              <label class="check"><input v-model="req.followRedirects" type="checkbox" />自动跟随跳转（301、302 等）</label>
+              <label class="check"><input v-model="req.followRedirects" type="checkbox" />{{ t("network.followRedirects") }}</label>
               <label class="check" :class="{ disabled: mode !== 'desktop' }">
-                <input v-model="req.insecure" type="checkbox" :disabled="mode !== 'desktop'" />忽略 HTTPS 证书错误（自签名证书、内网测试环境）
+                <input v-model="req.insecure" type="checkbox" :disabled="mode !== 'desktop'" />{{ t("network.insecure") }}
               </label>
               <p class="hint">
                 {{
                   mode === "desktop"
-                    ? "桌面版：请求由程序直接发出，不受浏览器跨域限制。"
+                    ? t("network.modeDesktop")
                     : mode === "dev-proxy"
-                      ? "网页版（开发）：请求经开发服务器转发，不受跨域限制；忽略证书错误只有桌面版支持。"
-                      : "浏览器中直接发送：受跨域限制，部分接口可能无法访问，建议使用桌面版。"
+                      ? t("network.modeProxy")
+                      : t("network.modeBrowser")
                 }}
               </p>
-              <button class="btn small subtle" @click="req = newRequest()"><Trash2 :size="13" />清空所有设置</button>
+              <button class="btn small subtle" @click="req = newRequest()"><Trash2 :size="13" />{{ t("network.resetAll") }}</button>
             </template>
           </div>
         </section>
@@ -376,55 +388,55 @@ const KIND_LABEL = { json: "JSON", html: "网页", xml: "XML", text: "文本", i
         <section class="pane-box">
           <div class="res-head">
             <template v-if="response">
-              <span class="status" :class="statusClass">{{ response.status }} {{ response.statusText || STATUS_TEXT[response.status] || "" }}</span>
+              <span class="status" :class="statusClass">{{ response.status }} {{ response.statusText || statusText(response.status) }}</span>
               <span class="meta">{{ Math.round(response.time) }} ms</span>
               <span class="meta">{{ formatBytes(response.body.length) }}</span>
               <span v-if="kind" class="meta kind">{{ KIND_LABEL[kind.kind] }}</span>
               <div class="tabs small push">
-                <button :class="{ on: resTab === 'preview' }" @click="resTab = 'preview'">预览</button>
-                <button :class="{ on: resTab === 'raw' }" @click="resTab = 'raw'">原始内容</button>
-                <button :class="{ on: resTab === 'headers' }" @click="resTab = 'headers'">响应头<em>{{ response.headers.length }}</em></button>
+                <button :class="{ on: resTab === 'preview' }" @click="resTab = 'preview'">{{ t("network.preview") }}</button>
+                <button :class="{ on: resTab === 'raw' }" @click="resTab = 'raw'">{{ t("network.raw") }}</button>
+                <button :class="{ on: resTab === 'headers' }" @click="resTab = 'headers'">{{ t("network.responseHeaders") }}<em>{{ response.headers.length }}</em></button>
               </div>
-              <button class="btn small primary" :disabled="!response.body.length" :title="`保存为 ${fileName}`" @click="save"><Download :size="13" />保存</button>
+              <button class="btn small primary" :disabled="!response.body.length" :title="t('network.saveAs', { name: fileName })" @click="save"><Download :size="13" />{{ t("network.save") }}</button>
             </template>
-            <span v-else class="res-title">响应</span>
+            <span v-else class="res-title">{{ t("network.response") }}</span>
           </div>
 
-          <div v-if="sending" class="state"><LoaderCircle :size="18" class="spin" />正在请求…</div>
+          <div v-if="sending" class="state"><LoaderCircle :size="18" class="spin" />{{ t("network.requesting") }}</div>
           <div v-else-if="error" class="state error">{{ error }}</div>
           <div v-else-if="!response" class="state">
-            <p>输入地址，点「发送」或按 Ctrl + Enter</p>
-            <p class="sub">支持 JSON、网页、图片、音视频、PDF 及各种文件的响应</p>
+            <p>{{ t("network.emptyHint") }}</p>
+            <p class="sub">{{ t("network.emptySub") }}</p>
           </div>
 
           <template v-else>
-            <p v-if="response.url !== req.url && response.url && resTab !== 'headers'" class="redirect" :title="response.url">跳转到：{{ response.url }}</p>
-            <p v-if="truncated && resTab !== 'headers'" class="redirect">内容较大，只显示前 2 MB；完整内容请点「保存」。</p>
+            <p v-if="response.url !== req.url && response.url && resTab !== 'headers'" class="redirect" :title="response.url">{{ t("network.redirectedTo", { url: response.url }) }}</p>
+            <p v-if="truncated && resTab !== 'headers'" class="redirect">{{ t("network.truncated") }}</p>
 
             <!-- 预览 -->
             <template v-if="resTab === 'preview' && kind">
-              <TextPane v-if="kind.kind === 'json' || kind.kind === 'xml' || kind.kind === 'text'" :model-value="previewText" class="res-body" label="内容" :language="kind.kind === 'json' ? 'json' : 'text'" readonly nowrap />
+              <TextPane v-if="kind.kind === 'json' || kind.kind === 'xml' || kind.kind === 'text'" :model-value="previewText" class="res-body" :label="t('network.content')" :language="kind.kind === 'json' ? 'json' : 'text'" readonly nowrap />
               <!-- 网页：不运行脚本，只显示页面 -->
-              <iframe v-else-if="kind.kind === 'html'" class="frame" sandbox="" :srcdoc="text" title="网页预览" />
+              <iframe v-else-if="kind.kind === 'html'" class="frame" sandbox="" :srcdoc="text" :title="t('network.webPreview')" />
               <div v-else-if="kind.kind === 'image'" class="media checker">
                 <img :src="blobUrl" alt="" @load="imageSize = `${($event.target as HTMLImageElement).naturalWidth} × ${($event.target as HTMLImageElement).naturalHeight}`" />
                 <span v-if="imageSize" class="media-info">{{ imageSize }}</span>
               </div>
               <div v-else-if="kind.kind === 'audio'" class="media"><audio :src="blobUrl" controls /></div>
               <div v-else-if="kind.kind === 'video'" class="media"><video :src="blobUrl" controls /></div>
-              <iframe v-else-if="kind.kind === 'pdf'" class="frame" :src="blobUrl" title="PDF 预览" />
+              <iframe v-else-if="kind.kind === 'pdf'" class="frame" :src="blobUrl" :title="t('network.pdfPreview')" />
               <div v-else class="binary">
                 <p>
-                  {{ response.body.length ? `${kind.mime} 文件，无法直接预览，点「保存」下载为 ${fileName}` : "响应没有内容" }}
+                  {{ response.body.length ? t("network.noPreview", { mime: kind.mime, name: fileName }) : t("network.emptyResponse") }}
                 </p>
-                <TextPane v-if="response.body.length" :model-value="hexDump(response.body, 1024)" class="res-body" label="十六进制（前 1 KB）" language="text" readonly nowrap />
+                <TextPane v-if="response.body.length" :model-value="hexDump(response.body, 1024)" class="res-body" :label="t('network.hexFirst')" language="text" readonly nowrap />
               </div>
             </template>
-            <TextPane v-else-if="resTab === 'raw'" :model-value="rawText" class="res-body" :label="isTextual ? '原始内容' : '十六进制'" language="text" readonly nowrap />
+            <TextPane v-else-if="resTab === 'raw'" :model-value="rawText" class="res-body" :label="isTextual ? t('network.raw') : t('network.hex')" language="text" readonly nowrap />
             <div v-else class="headers-table">
               <button class="btn small subtle copy-headers" :class="{ ok: headersCopied }" @click="copyHeaders(headersText)">
                 <Check v-if="headersCopied" :size="13" />
-                <Copy v-else :size="13" />复制全部
+                <Copy v-else :size="13" />{{ t("network.copyAll") }}
               </button>
               <table>
                 <tr v-for="([k, v], i) in response.headers" :key="i">
@@ -443,25 +455,25 @@ const KIND_LABEL = { json: "JSON", html: "网页", xml: "XML", text: "文本", i
       <Transition name="pop">
         <div v-if="historyOpen" ref="historyPanel" class="popover history" :style="historyStyle">
           <div class="pop-head">
-            最近的请求
-            <button v-if="history.length" class="btn small subtle" @click="history = []"><Trash2 :size="12" />清空</button>
+            {{ t("network.historyTitle") }}
+            <button v-if="history.length" class="btn small subtle" @click="history = []"><Trash2 :size="12" />{{ t("network.clear") }}</button>
           </div>
-          <p v-if="!history.length" class="pop-empty">发送过的请求会出现在这里（文件不会保存）</p>
+          <p v-if="!history.length" class="pop-empty">{{ t("network.historyEmpty") }}</p>
           <button v-for="h in history" :key="h.id" class="history-item" @click="restore(h)">
             <span class="m" :class="methodColor(h.request.method)">{{ h.request.method }}</span>
             <span class="u" :title="h.request.url">{{ h.request.url }}</span>
             <span v-if="h.status" class="code" :class="h.status >= 400 ? 'bad' : 'good'">{{ h.status }}</span>
-            <span v-else class="code bad">失败</span>
+            <span v-else class="code bad">{{ t("network.failed") }}</span>
             <span class="t">{{ ago(h.time) }}</span>
           </button>
         </div>
       </Transition>
       <Transition name="pop">
         <div v-if="importOpen" ref="importPanel" class="popover import" :style="importStyle">
-          <div class="pop-head">导入 cURL 命令</div>
-          <textarea v-model="importText" class="field area" placeholder="粘贴 cURL 命令，例如：&#10;curl 'https://api.example.com/users' -H 'Accept: application/json'&#10;&#10;在浏览器开发者工具中右键请求 →「复制」→「以 cURL 格式复制」" spellcheck="false" />
+          <div class="pop-head">{{ t("network.importHead") }}</div>
+          <textarea v-model="importText" class="field area" :placeholder="t('network.importPlaceholder')" spellcheck="false" />
           <p v-if="importError" class="warn">{{ importError }}</p>
-          <button class="btn primary" :disabled="!importText.trim()" @click="doImport">导入</button>
+          <button class="btn primary" :disabled="!importText.trim()" @click="doImport">{{ t("network.import") }}</button>
         </div>
       </Transition>
     </Teleport>

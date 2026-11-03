@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { Download, Plus, X } from "lucide-vue-next";
 import ColorPicker from "@/components/common/ColorPicker.vue";
 import CheckAll from "@/components/common/CheckAll.vue";
@@ -16,6 +17,7 @@ import { anchorPosition, tilePositions, type Anchor } from "../effects";
  * 支持多张图片使用同一水印，批量下载。
  * 文字大小按图片短边的百分比计算，不同尺寸的图片效果一致。
  */
+const { t } = useI18n();
 const kind = useStoredRef<"text" | "image">("watermark.kind", "text");
 const text = useStoredRef("watermark.text", "© Open Tools");
 const fontSize = useStoredRef("watermark.fontSize", 5);
@@ -157,27 +159,18 @@ const download = async () => {
     for (const item of checkedItems.value) {
       const format = outputFormatOf(item.file.type);
       files.push({
-        name: replaceExtension(item.file.name.replace(/(\.[^.]+)?$/, "_水印$1"), formatInfo(format).ext),
+        name: replaceExtension(item.file.name.replace(/(\.[^.]+)?$/, `_${t("image.watermarkSuffix")}$1`), formatInfo(format).ext),
         data: await canvasToBytes(render(item.img), format, 0.92),
       });
     }
-    await saveFiles(files, "水印图片.zip");
+    await saveFiles(files, t("image.watermarkZip"));
   } finally {
     saving.value = false;
   }
 };
 
-const ANCHORS: { value: Anchor; label: string }[] = [
-  { value: "tl", label: "左上" },
-  { value: "t", label: "上方" },
-  { value: "tr", label: "右上" },
-  { value: "l", label: "左侧" },
-  { value: "c", label: "居中" },
-  { value: "r", label: "右侧" },
-  { value: "bl", label: "左下" },
-  { value: "b", label: "下方" },
-  { value: "br", label: "右下" },
-];
+/** 九个位置，名称见文案 image.tl 等 */
+const ANCHORS: Anchor[] = ["tl", "t", "tr", "l", "c", "r", "bl", "b", "br"];
 </script>
 
 <template>
@@ -185,19 +178,19 @@ const ANCHORS: { value: Anchor; label: string }[] = [
     <aside class="card panel">
       <section class="section">
         <div class="seg fill">
-          <button :class="{ on: kind === 'text' }" @click="kind = 'text'">文字水印</button>
-          <button :class="{ on: kind === 'image' }" @click="kind = 'image'">图片水印</button>
+          <button :class="{ on: kind === 'text' }" @click="kind = 'text'">{{ t("image.textWatermark") }}</button>
+          <button :class="{ on: kind === 'image' }" @click="kind = 'image'">{{ t("image.imageWatermark") }}</button>
         </div>
 
         <template v-if="kind === 'text'">
-          <input v-model="text" class="field" placeholder="水印文字" maxlength="60" />
+          <input v-model="text" class="field" :placeholder="t('image.watermarkText')" maxlength="60" />
           <div class="row">
-            <ColorPicker v-model="color" title="文字颜色" />
-            <label class="check"><input v-model="bold" type="checkbox" />粗体</label>
-            <label class="check"><input v-model="shadow" type="checkbox" />阴影</label>
+            <ColorPicker v-model="color" :title="t('image.textColor')" />
+            <label class="check"><input v-model="bold" type="checkbox" />{{ t("image.bold") }}</label>
+            <label class="check"><input v-model="shadow" type="checkbox" />{{ t("image.shadow") }}</label>
           </div>
           <label class="slider">
-            <span>字号</span>
+            <span>{{ t("image.fontSize") }}</span>
             <input v-model.number="fontSize" type="range" min="1" max="20" step="0.5" />
             <em>{{ fontSize }}%</em>
           </label>
@@ -205,12 +198,12 @@ const ANCHORS: { value: Anchor; label: string }[] = [
 
         <template v-else>
           <label class="btn">
-            <Plus :size="14" />{{ logo ? "更换 Logo" : "选择 Logo 图片" }}
+            <Plus :size="14" />{{ logo ? t("image.replaceLogo") : t("image.chooseLogo") }}
             <input type="file" accept="image/*" hidden @change="onLogo" />
           </label>
-          <p class="tip">建议使用背景透明的 PNG</p>
+          <p class="tip">{{ t("image.logoTip") }}</p>
           <label class="slider">
-            <span>大小</span>
+            <span>{{ t("image.size") }}</span>
             <input v-model.number="logoSize" type="range" min="5" max="60" />
             <em>{{ logoSize }}%</em>
           </label>
@@ -219,12 +212,12 @@ const ANCHORS: { value: Anchor; label: string }[] = [
 
       <section class="section">
         <label class="slider">
-          <span>透明度</span>
+          <span>{{ t("image.opacity") }}</span>
           <input v-model.number="opacity" type="range" min="10" max="100" step="5" />
           <em>{{ opacity }}%</em>
         </label>
         <label class="slider">
-          <span>旋转</span>
+          <span>{{ t("image.rotation") }}</span>
           <input v-model.number="rotation" type="range" min="-90" max="90" step="5" @dblclick="rotation = 0" />
           <em>{{ rotation }}°</em>
         </label>
@@ -232,14 +225,14 @@ const ANCHORS: { value: Anchor; label: string }[] = [
 
       <section class="section">
         <h3>
-          位置
-          <label class="check push"><input v-model="tiled" type="checkbox" />平铺</label>
+          {{ t("image.position") }}
+          <label class="check push"><input v-model="tiled" type="checkbox" />{{ t("image.tiled") }}</label>
         </h3>
         <div v-if="!tiled" class="anchors">
-          <button v-for="a in ANCHORS" :key="a.value" :class="{ on: anchor === a.value }" :title="a.label" @click="anchor = a.value"><i /></button>
+          <button v-for="a in ANCHORS" :key="a" :class="{ on: anchor === a }" :title="t(`image.${a}`)" @click="anchor = a"><i /></button>
         </div>
         <label class="slider">
-          <span>{{ tiled ? "间距" : "边距" }}</span>
+          <span>{{ tiled ? t("image.gap") : t("image.margin") }}</span>
           <input v-if="tiled" v-model.number="spacing" type="range" min="2" max="50" />
           <input v-else v-model.number="margin" type="range" min="0" max="15" />
           <em>{{ tiled ? spacing : margin }}%</em>
@@ -250,12 +243,12 @@ const ANCHORS: { value: Anchor; label: string }[] = [
         <button class="btn primary full" :disabled="saving || !checkedItems.length" @click="download">
           <Download :size="14" />{{
             saving
-              ? "处理中…"
+              ? t("image.processing")
               : items.length && !checkedItems.length
-                ? "请勾选要下载的图片"
+                ? t("image.checkToDownload")
                 : items.length > 1
-                  ? `下载选中的 ${checkedItems.length} 张（ZIP）`
-                  : "下载图片"
+                  ? t("image.downloadSelected", { n: checkedItems.length })
+                  : t("image.downloadImage")
           }}
         </button>
       </section>
@@ -263,9 +256,9 @@ const ANCHORS: { value: Anchor; label: string }[] = [
 
     <section class="card stage">
       <div class="card-title">
-        预览<span class="hint">{{ selected?.file.name }}</span>
+        {{ t("image.preview") }}<span class="hint">{{ selected?.file.name }}</span>
         <CheckAll v-if="items.length > 1" class="all" :checked="allChecked" :partly="partlyChecked" :disabled="saving" @toggle="toggleAll">
-          已选 {{ checkedItems.length }} / {{ items.length }} 张
+          {{ t("image.selectedCount", { checked: checkedItems.length, total: items.length }) }}
         </CheckAll>
       </div>
       <FileDropZone
@@ -273,8 +266,8 @@ const ANCHORS: { value: Anchor; label: string }[] = [
         class="drop"
         accept="image/*"
         multiple
-        title="拖入图片，或点击选择（可多选）"
-        hint="多张图片会使用同一个水印，可以一起下载；也可以按 Ctrl + V 粘贴截图"
+        :title="t('image.dropImages')"
+        :hint="t('image.watermarkDropHint')"
         @files="addFiles"
       />
       <div v-else :ref="observeArea" class="area">
@@ -290,10 +283,10 @@ const ANCHORS: { value: Anchor; label: string }[] = [
           @click="selectedId = item.id"
         >
           <img :src="item.url" alt="" />
-          <input type="checkbox" class="file-check pick" title="勾选的图片才下载" :checked="isChecked(item)" :disabled="saving" @click.stop @change="toggleFile(item)" />
-          <button class="remove" title="移除" @click.stop="remove(item)"><X :size="11" /></button>
+          <input type="checkbox" class="file-check pick" :title="t('image.checkHint')" :checked="isChecked(item)" :disabled="saving" @click.stop @change="toggleFile(item)" />
+          <button class="remove" :title="t('image.remove')" @click.stop="remove(item)"><X :size="11" /></button>
         </figure>
-        <FileDropZone compact class="add" accept="image/*" multiple title="" aria-label="继续添加图片" @files="addFiles" />
+        <FileDropZone compact class="add" accept="image/*" multiple title="" :aria-label="t('image.addImages')" @files="addFiles" />
       </div>
     </section>
   </div>

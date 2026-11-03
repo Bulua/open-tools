@@ -2,6 +2,7 @@
  * 请求头转换：把浏览器复制的请求头、cURL 命令或 JSON 解析成统一的请求信息，
  * 再生成 JSON、cURL（bash / Windows CMD）、fetch、Python requests 等写法。
  */
+import { t } from "@/locales";
 
 export interface ParsedRequest {
   method: string;
@@ -74,9 +75,9 @@ export function parseJsonHeaders(text: string): ParsedRequest {
   try {
     data = JSON.parse(text);
   } catch (e) {
-    throw new Error(`JSON 格式有误：${e instanceof Error ? e.message : e}`);
+    throw new Error(t("network.jsonInvalid", { error: e instanceof Error ? e.message : String(e) }));
   }
-  if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("JSON 需要是 { \"名称\": \"值\" } 形式的对象");
+  if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error(t("network.jsonObject"));
   const headers: [string, string][] = [];
   for (const [k, v] of Object.entries(data as Record<string, unknown>)) {
     if (Array.isArray(v)) v.forEach((x) => headers.push([k, String(x)]));

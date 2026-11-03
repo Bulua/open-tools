@@ -1,4 +1,5 @@
 import { isTauri } from "@tauri-apps/api/core";
+import { locale, t } from "@/locales";
 
 /**
  * HTTP 请求工具的核心逻辑：根据界面上的设置组装请求、发送、识别响应内容的类型。
@@ -118,11 +119,11 @@ const base64 = (s: string) => btoa(String.fromCharCode(...new TextEncoder().enco
 /** 按界面设置组装请求：认证写入 Authorization，请求体自动加上 Content-Type（用户自己设置了就不加） */
 export function prepareRequest(m: RequestModel): PreparedRequest {
   const url = normalizeUrl(m.url);
-  if (!url) throw new Error("请输入请求地址");
+  if (!url) throw new Error(t("network.needUrl"));
   try {
     new URL(url);
   } catch {
-    throw new Error("请求地址格式不正确");
+    throw new Error(t("network.badUrl"));
   }
   const headers: [string, string][] = m.headers.filter((h) => h.enabled && h.key.trim()).map((h) => [h.key.trim(), h.value]);
   if (m.auth.type === "bearer" && m.auth.token.trim() && !hasHeader(headers, "authorization")) headers.push(["Authorization", `Bearer ${m.auth.token.trim()}`]);
@@ -214,7 +215,7 @@ export async function sendRequest(m: RequestModel, signal?: AbortSignal): Promis
       signal,
     });
     const error = res.headers.get("x-ot-error");
-    if (error !== null) throw new Error(friendlyError(decodeURIComponent(error)));
+    if (error !== null) throw new FriendlyError(friendlyError(decodeURIComponent(error)));
     const body = new Uint8Array(await res.arrayBuffer());
     return {
       status: Number(res.headers.get("x-ot-status")),
@@ -244,10 +245,10 @@ export async function sendRequest(m: RequestModel, signal?: AbortSignal): Promis
       res = await fetch(req.url, init);
     }
   } catch (e) {
-    if (timer.aborted) throw new Error("请求超时");
-    if (signal?.aborted) throw new Error("已取消");
+    if (timer.aborted) throw new Error(t("network.timeout"));
+    if (signal?.aborted) throw new Error(t("network.cancelled"));
     const message = e instanceof Error ? e.message : String(e);
-    if (mode === "browser" && e instanceof TypeError) throw new Error(`请求失败：可能是目标网站不允许跨域访问，请使用桌面版（${message}）`);
+    if (mode === "browser" && e instanceof TypeError) throw new Error(t("network.corsFailed", { error: message }));
     throw new Error(friendlyError(message));
   }
   const body = new Uint8Array(await res.arrayBuffer());
@@ -256,18 +257,21 @@ export async function sendRequest(m: RequestModel, signal?: AbortSignal): Promis
   return { status: res.status, statusText: res.statusText, url: res.url || req.url, headers: list, body, time: performance.now() - started, requestSize: bytes?.length ?? 0 };
 }
 
-/** 常见的网络错误换成中文说明 */
+/** 常见的网络错误换成容易看懂的说明 */
 export function friendlyError(message: string): string {
   const rules: [RegExp, string][] = [
-    [/ENOTFOUND|dns error|failed to lookup|No such host/i, "找不到这个域名，请检查网址"],
-    [/ECONNREFUSED|Connection refused|actively refused/i, "连接被拒绝：对方没有在这个端口上提供服务"],
-    [/ETIMEDOUT|timed out|timeout/i, "请求超时"],
-    [/certificate|CERT_|self.signed|SSL|TLS/i, "HTTPS 证书错误；如果确认安全，可以在「设置」里勾选忽略证书错误（桌面版）"],
-    [/ECONNRESET|connection reset|closed/i, "连接被对方断开"],
+    [/ENOTFOUND|dns error|failed to lookup|No such host/i, "dnsFailed"],
+    [/ECONNREFUSED|Connection refused|actively refused/i, "refused"],
+    [/ETIMEDOUT|timed out|timeout/i, "timeout"],
+    [/certificate|CERT_|self.signed|SSL|TLS/i, "certError"],
+    [/ECONNRESET|connection reset|closed/i, "reset"],
   ];
   const hit = rules.find(([re]) => re.test(message));
-  return hit ? `${hit[1]}（${message}）` : `请求失败：${message}`;
+  return hit ? t("network.withDetail", { reason: t(`network.${hit[1]}`), error: message }) : t("network.requestFailed", { error: message });
 }
+
+/** 已经整理成说明文字的错误，外层不再用 friendlyError 包一次 */
+class FriendlyError extends Error {}
 
 // ---------- 响应内容 ----------
 
@@ -421,7 +425,7 @@ export function hexDump(body: Uint8Array, limit = 4096): string {
     const text = Array.from(row, (b) => (b >= 32 && b < 127 ? String.fromCharCode(b) : ".")).join("");
     lines.push(`${i.toString(16).padStart(8, "0")}  ${hex.padEnd(47)}  ${text}`);
   }
-  if (body.length > limit) lines.push(`…… 共 ${body.length} 字节，只显示前 ${limit} 字节`);
+  if (body.length > limit) lines.push(t("network.hexMore", { total: body.length, limit }));
   return lines.join("\n");
 }
 
@@ -442,7 +446,10 @@ export function toCurlCommand(m: RequestModel): string {
   return parts.join(" \\\n  ");
 }
 
-/** 状态码说明 */
+/** 状态码说明，没有的返回空字符串 */
+export const statusText = (code: number) => (code in STATUS_TEXT ? (locale.value === "zh-CN" ? STATUS_TEXT[code] : t(`network.s${code}`)) : "");
+
+/** 状态码的中文说明（英文见文案 network.s200 等） */
 export const STATUS_TEXT: Record<number, string> = {
   200: "成功",
   201: "已创建",
@@ -581,22 +588,22 @@ export async function fetchBytes(url: string, o: FetchOptions = {}): Promise<{ d
       const error = res.headers.get("x-ot-error");
       if (error !== null) throw new Error(friendlyError(decodeURIComponent(error)));
       const status = Number(res.headers.get("x-ot-status"));
-      if (status < 200 || status >= 300) throw new Error(`下载失败：服务器返回 ${status}`);
+      if (status < 200 || status >= 300) throw new FriendlyError(t("network.downloadFailed", { status }));
       total = Number(res.headers.get("x-ot-length")) || 0;
       list = JSON.parse(decodeURIComponent(res.headers.get("x-ot-headers") ?? "[]"));
       finalUrl = decodeURIComponent(res.headers.get("x-ot-final-url") ?? "") || url;
     } else {
       const doFetch = mode === "desktop" ? (await import("@tauri-apps/plugin-http")).fetch : fetch;
       res = await doFetch(url, { headers, signal: o.signal });
-      if (!res.ok) throw new Error(`下载失败：服务器返回 ${res.status}`);
+      if (!res.ok) throw new FriendlyError(t("network.downloadFailed", { status: res.status }));
       total = Number(res.headers.get("content-length")) || 0;
       res.headers.forEach((v, k) => list.push([k, v]));
       finalUrl = res.url || url;
     }
   } catch (e) {
-    if (o.signal?.aborted) throw new Error("已取消");
-    const message = e instanceof Error ? e.message : String(e);
-    throw new Error(message.startsWith("下载失败") || message.startsWith("请求失败") ? message : friendlyError(message));
+    if (o.signal?.aborted) throw new Error(t("network.cancelled"));
+    if (e instanceof FriendlyError) throw e;
+    throw new Error(friendlyError(e instanceof Error ? e.message : String(e)));
   }
   return { data: await readBody(res, total, o.onProgress), headers: list, url: finalUrl };
 }

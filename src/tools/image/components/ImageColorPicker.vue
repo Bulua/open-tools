@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { RefreshCw, Trash2 } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import ZoomControls from "@/components/common/ZoomControls.vue";
@@ -7,6 +8,8 @@ import CopyList from "@/components/common/CopyList.vue";
 import { toHex, toHsl, toRgb, type Rgba } from "@/utils/color";
 import { createCanvas, extractPalette, loadImage, type PaletteColor } from "../utils";
 import { useZoomPan } from "@/composables/useZoomPan";
+
+const { t } = useI18n();
 
 /** 图片取色：鼠标移到图片上预览颜色，点击取色；自动提取主色调 */
 const loaded = ref(false);
@@ -103,7 +106,7 @@ const css = (c: Rgba | PaletteColor) => toRgb({ a: 1, ...c });
   <div class="picker">
     <aside class="panel card">
       <section class="section">
-        <h3>当前颜色</h3>
+        <h3>{{ t("image.currentColor") }}</h3>
         <div class="current">
           <span class="big-swatch" :style="{ background: selected ? css(selected) : 'transparent' }" />
           <CopyList :items="items" label-width="36px" />
@@ -111,15 +114,15 @@ const css = (c: Rgba | PaletteColor) => toRgb({ a: 1, ...c });
       </section>
 
       <section class="section">
-        <h3>主色调</h3>
-        <p v-if="!palette.length" class="empty">放入图片后自动提取</p>
+        <h3>{{ t("image.palette") }}</h3>
+        <p v-if="!palette.length" class="empty">{{ t("image.paletteEmpty") }}</p>
         <div v-else class="swatches">
           <button
             v-for="c in palette"
             :key="toHex({ ...c, a: 1 })"
             class="swatch"
             :style="{ background: css(c) }"
-            :title="`${toHex({ ...c, a: 1 })}，约占 ${Math.round(c.ratio * 100)}%`"
+            :title="t('image.colorShare', { hex: toHex({ ...c, a: 1 }), n: Math.round(c.ratio * 100) })"
             @click="selected = { ...c, a: 1 }"
           >
             <em>{{ Math.round(c.ratio * 100) }}%</em>
@@ -129,8 +132,8 @@ const css = (c: Rgba | PaletteColor) => toRgb({ a: 1, ...c });
 
       <section class="section">
         <h3>
-          已取颜色
-          <button v-if="picked.length" class="link" title="清空" @click="picked = []"><Trash2 :size="12" /></button>
+          {{ t("image.picked") }}
+          <button v-if="picked.length" class="link" :title="t('image.clear')" @click="picked = []"><Trash2 :size="12" /></button>
         </h3>
         <div v-if="picked.length" class="swatches">
           <button
@@ -143,16 +146,16 @@ const css = (c: Rgba | PaletteColor) => toRgb({ a: 1, ...c });
             @click="selected = c"
           />
         </div>
-        <p v-else class="empty">点击图片取到的颜色会出现在这里</p>
+        <p v-else class="empty">{{ t("image.pickedEmpty") }}</p>
       </section>
     </aside>
 
     <section class="stage card">
       <header class="card-title">
-        <span class="file" :title="fileName">{{ fileName || "未选择图片" }}</span>
-        <span v-if="loaded" class="hint">点击图片取色，滚轮缩放，按住拖动</span>
+        <span class="file" :title="fileName">{{ fileName || t("image.noImage") }}</span>
+        <span v-if="loaded" class="hint">{{ t("image.pickHint") }}</span>
         <ZoomControls v-if="loaded" :zoom="zoom" :min="MIN_ZOOM" :max="MAX_ZOOM" @zoom="zoomAt" @reset="resetView" />
-        <button v-if="loaded" class="btn small subtle" title="更换图片" @click="dropZone?.open()"><RefreshCw :size="14" />更换</button>
+        <button v-if="loaded" class="btn small subtle" :title="t('image.replaceImage')" @click="dropZone?.open()"><RefreshCw :size="14" />{{ t("image.replace") }}</button>
       </header>
       <!-- 加载后隐藏但保留：「更换」按钮由它打开选择框 -->
       <FileDropZone
@@ -161,8 +164,8 @@ const css = (c: Rgba | PaletteColor) => toRgb({ a: 1, ...c });
         :paste="!loaded"
         class="drop"
         accept="image/*"
-        title="拖入图片，或点击选择"
-        hint="点击图片任意位置取色，并自动提取主色调；也可以按 Ctrl + V 粘贴截图"
+        :title="t('image.dropImage')"
+        :hint="t('image.pickDropHint')"
         @files="onFiles"
       >
         <span v-if="loadError" class="load-error">{{ loadError }}</span>

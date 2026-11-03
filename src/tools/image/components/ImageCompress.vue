@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { Download, Plus, Trash2, X } from "lucide-vue-next";
 import CheckAll from "@/components/common/CheckAll.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
@@ -26,6 +27,7 @@ import {
  * 选项一改，所有图片自动重新处理。
  */
 const props = withDefaults(defineProps<{ mode?: "compress" | "convert" }>(), { mode: "compress" });
+const { t } = useI18n();
 const converting = props.mode === "convert";
 
 const targetFormatSetting = useStoredRef<ImageFormat>("image-convert.format", "image/webp");
@@ -141,15 +143,15 @@ const downloadOne = (item: Item) => item.result && saveFile(item.result.bytes, o
 const downloadAll = () =>
   saveFiles(
     done.value.map((i) => ({ name: outputName(i), data: i.result!.bytes })),
-    converting ? `转换为 ${formatInfo(targetFormatSetting.value).label} 的图片.zip` : "压缩后的图片.zip",
+    converting ? t("image.convertZip", { format: formatInfo(targetFormatSetting.value).label }) : t("image.compressZip"),
   );
 
 const lossless = computed(() => (converting ? targetFormatSetting.value === "image/png" : items.value.length > 0 && items.value.every((i) => outputFormatOf(i.file.type) === "image/png")));
-const FORMAT_NOTES: Record<ImageFormat, string> = {
-  "image/jpeg": "通用，体积小，不支持透明",
-  "image/png": "无损，支持透明",
-  "image/webp": "体积最小，支持透明",
-};
+const FORMAT_NOTES = computed<Record<ImageFormat, string>>(() => ({
+  "image/jpeg": t("image.noteJpeg"),
+  "image/png": t("image.notePng"),
+  "image/webp": t("image.noteWebp"),
+}));
 const parseSize = (e: Event) => Math.max(0, Math.floor(Number((e.target as HTMLInputElement).value) || 0));
 </script>
 
@@ -157,10 +159,10 @@ const parseSize = (e: Event) => Math.max(0, Math.floor(Number((e.target as HTMLI
   <div class="compress">
     <!-- 左：设置 + 结果汇总 -->
     <aside class="card settings">
-      <div class="card-title">{{ converting ? "转换设置" : "压缩设置" }}</div>
+      <div class="card-title">{{ converting ? t("image.convertSettings") : t("image.compressSettings") }}</div>
 
       <section v-if="converting" class="section">
-        <h3>转换为</h3>
+        <h3>{{ t("image.convertTo") }}</h3>
         <div class="formats">
           <button v-for="f in IMAGE_FORMATS" :key="f.value" :class="{ on: targetFormatSetting === f.value }" @click="targetFormatSetting = f.value">
             <b>{{ f.label }}</b>
@@ -170,42 +172,42 @@ const parseSize = (e: Event) => Math.max(0, Math.floor(Number((e.target as HTMLI
       </section>
 
       <section class="section">
-        <h3>质量 <b class="value">{{ lossless ? "无损" : `${quality}%` }}</b></h3>
+        <h3>{{ t("image.quality") }} <b class="value">{{ lossless ? t("image.lossless") : `${quality}%` }}</b></h3>
         <input v-model.number="quality" class="range" type="range" min="10" max="100" step="5" :disabled="lossless" />
         <p class="tip">
           {{
             lossless
               ? converting
-                ? "PNG 为无损格式，不需要设置质量"
-                : "PNG 为无损格式，只能通过缩小尺寸减小体积"
-              : "数值越小文件越小，80% 左右肉眼几乎看不出差别"
+                ? t("image.pngNoQuality")
+                : t("image.pngResizeOnly")
+              : t("image.qualityTip")
           }}
         </p>
       </section>
 
       <section v-if="!converting" class="section">
-        <h3>最大尺寸 <span class="tip inline">超过时等比缩小</span></h3>
+        <h3>{{ t("image.maxSize") }} <span class="tip inline">{{ t("image.maxSizeTip") }}</span></h3>
         <div class="size-row">
-          <input class="field size" type="number" min="0" :value="maxWidth || ''" placeholder="宽不限" @change="maxWidth = parseSize($event)" />
+          <input class="field size" type="number" min="0" :value="maxWidth || ''" :placeholder="t('image.anyWidth')" @change="maxWidth = parseSize($event)" />
           <span class="times">×</span>
-          <input class="field size" type="number" min="0" :value="maxHeight || ''" placeholder="高不限" @change="maxHeight = parseSize($event)" />
+          <input class="field size" type="number" min="0" :value="maxHeight || ''" :placeholder="t('image.anyHeight')" @change="maxHeight = parseSize($event)" />
         </div>
       </section>
 
       <!-- 结果汇总：最重要的信息，放大显示 -->
       <section class="section total">
-        <h3>结果<em v-if="processing">处理中…</em></h3>
+        <h3>{{ t("image.result") }}<em v-if="processing">{{ t("image.processing") }}</em></h3>
         <div class="saving" :class="{ empty: !done.length, bad: done.length && totalAfter > totalBefore }">
           {{ done.length ? percent(totalBefore, totalAfter) : "—" }}
         </div>
         <p class="tip">
           <template v-if="done.length">
-            {{ done.length }} 张 · {{ formatBytes(totalBefore) }} → {{ formatBytes(totalAfter) }}
+            {{ t("image.summary", { n: done.length, before: formatBytes(totalBefore), after: formatBytes(totalAfter) }) }}
           </template>
-          <template v-else>添加图片后显示{{ converting ? "转换" : "压缩" }}效果</template>
+          <template v-else>{{ converting ? t("image.convertEmpty") : t("image.compressEmpty") }}</template>
         </p>
         <button class="btn primary full" :disabled="!done.length || processing" @click="downloadAll">
-          <Download :size="14" />{{ items.length && !checkedItems.length ? "请勾选要下载的图片" : done.length > 1 ? `下载选中的 ${done.length} 张（ZIP）` : "下载" }}
+          <Download :size="14" />{{ items.length && !checkedItems.length ? t("image.checkToDownload") : done.length > 1 ? t("image.downloadSelected", { n: done.length }) : t("image.download") }}
         </button>
       </section>
     </aside>
@@ -214,13 +216,13 @@ const parseSize = (e: Event) => Math.max(0, Math.floor(Number((e.target as HTMLI
     <section class="card list">
       <header class="card-title">
         <span class="list-title">
-          <CheckAll v-if="items.length" :checked="allChecked" :partly="partlyChecked" @toggle="toggleAll">图片</CheckAll>
-          <template v-else>图片</template>
+          <CheckAll v-if="items.length" :checked="allChecked" :partly="partlyChecked" @toggle="toggleAll">{{ t("image.images") }}</CheckAll>
+          <template v-else>{{ t("image.images") }}</template>
           <em v-if="items.length">{{ items.length > 1 ? `${checkedItems.length} / ${items.length}` : items.length }}</em>
         </span>
         <template v-if="items.length">
-          <button class="btn small subtle" @click="dropZone?.open()"><Plus :size="14" />添加</button>
-          <button class="btn small subtle" @click="clear"><Trash2 :size="14" />清空</button>
+          <button class="btn small subtle" @click="dropZone?.open()"><Plus :size="14" />{{ t("image.add") }}</button>
+          <button class="btn small subtle" @click="clear"><Trash2 :size="14" />{{ t("image.clear") }}</button>
         </template>
       </header>
 
@@ -230,15 +232,15 @@ const parseSize = (e: Event) => Math.max(0, Math.floor(Number((e.target as HTMLI
         class="drop"
         accept="image/*"
         multiple
-        title="拖入图片，或点击选择（可多选）"
-        hint="支持 JPG、PNG、WebP、GIF、BMP，也可以按 Ctrl + V 粘贴截图"
+        :title="t('image.dropImages')"
+        :hint="t('image.dropImagesHint')"
         @files="addFiles"
       />
 
       <template v-else>
         <ul class="rows">
           <li v-for="item in items" :key="item.id" class="row" :class="{ unchecked: !isChecked(item) }">
-            <input type="checkbox" class="file-check" title="勾选的图片才下载" :checked="isChecked(item)" @change="toggleFile(item)" />
+            <input type="checkbox" class="file-check" :title="t('image.checkHint')" :checked="isChecked(item)" @change="toggleFile(item)" />
             <img v-if="item.thumb" class="thumb" :src="item.thumb" alt="" />
             <span v-else class="thumb" />
             <div class="meta">
@@ -258,16 +260,16 @@ const parseSize = (e: Event) => Math.max(0, Math.floor(Number((e.target as HTMLI
               <!-- 压缩后占原图的比例 -->
               <span class="bar"><i :style="{ width: `${Math.min(100, (item.result.bytes.length / item.file.size) * 100)}%` }" /></span>
             </div>
-            <span v-else class="sizes muted">处理中…</span>
+            <span v-else class="sizes muted">{{ t("image.processing") }}</span>
 
             <b v-if="item.result" class="badge" :class="item.result.bytes.length <= item.file.size ? 'good' : 'bad'">
-              {{ item.result.keptOriginal ? "保留原图" : percent(item.file.size, item.result.bytes.length) }}
+              {{ item.result.keptOriginal ? t("image.keptOriginal") : percent(item.file.size, item.result.bytes.length) }}
             </b>
-            <button class="icon-btn" title="下载" :disabled="!item.result" @click="downloadOne(item)"><Download :size="14" /></button>
-            <button class="icon-btn" title="移除" @click="remove(item)"><X :size="14" /></button>
+            <button class="icon-btn" :title="t('image.download')" :disabled="!item.result" @click="downloadOne(item)"><Download :size="14" /></button>
+            <button class="icon-btn" :title="t('image.remove')" @click="remove(item)"><X :size="14" /></button>
           </li>
         </ul>
-        <FileDropZone ref="dropZone" compact class="more" accept="image/*" multiple title="拖入或点击继续添加" @files="addFiles" />
+        <FileDropZone ref="dropZone" compact class="more" accept="image/*" multiple :title="t('image.addMore')" @files="addFiles" />
       </template>
     </section>
   </div>

@@ -2,6 +2,7 @@
  * 解析系统 ping 命令的输出（中文 / 英文 Windows，以及 Linux / macOS 格式），统计结果。
  * 纯文本处理，便于测试。
  */
+import { t } from "@/locales";
 
 export interface PingReply {
   ok: boolean;
@@ -37,11 +38,12 @@ export function parsePingOutput(text: string): PingReply {
     };
   }
 
-  let error = "无响应";
-  if (/找不到主机|could not find host|unknown host|not known|无法解析/i.test(text)) error = "找不到主机，请检查地址";
-  else if (/超时|timed out/i.test(text)) error = "请求超时";
-  else if (/无法访问|unreachable/i.test(text)) error = "目标不可达";
-  else if (/一般故障|general failure/i.test(text)) error = "网络故障，请检查网络连接";
+  // 正则同时匹配中文和英文系统的 ping 输出
+  let error = t("network.noReply");
+  if (/找不到主机|could not find host|unknown host|not known|无法解析/i.test(text)) error = t("network.hostNotFound");
+  else if (/超时|timed out/i.test(text)) error = t("network.timeout");
+  else if (/无法访问|unreachable/i.test(text)) error = t("network.unreachable");
+  else if (/一般故障|general failure/i.test(text)) error = t("network.networkFailure");
   return { ok: false, ip, error };
 }
 

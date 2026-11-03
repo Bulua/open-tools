@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { isTauri } from "@tauri-apps/api/core";
 import { Check, Copy, MapPin, RefreshCw, Search } from "lucide-vue-next";
 import CopyList from "@/components/common/CopyList.vue";
 import { useClipboard } from "@/composables/useClipboard";
 import { SERVICE_NAMES, formatCoordinates, lookupIp, type IpInfo } from "../ipLookup";
+
+const { t } = useI18n();
 
 /** 查询本机公网 IP 及归属地、经纬度；也可以查询任意 IP */
 const info = ref<IpInfo | null>(null);
@@ -46,17 +49,17 @@ const items = computed(() => {
   const i = info.value;
   if (!i) return [];
   return [
-    { label: "位置", value: location.value },
-    { label: "经纬度", value: formatCoordinates(i.latitude, i.longitude) },
-    { label: "经纬度（数值）", value: Number.isFinite(i.latitude) ? `${i.latitude}, ${i.longitude}` : "" },
-    { label: "运营商", value: i.isp },
-    { label: "组织", value: i.org !== i.isp ? i.org : "" },
+    { label: t("network.location"), value: location.value },
+    { label: t("network.coordinates"), value: formatCoordinates(i.latitude, i.longitude) },
+    { label: t("network.coordinatesRaw"), value: Number.isFinite(i.latitude) ? `${i.latitude}, ${i.longitude}` : "" },
+    { label: t("network.isp"), value: i.isp },
+    { label: t("network.org"), value: i.org !== i.isp ? i.org : "" },
     { label: "ASN", value: i.asn },
-    { label: "时区", value: i.timezone ? `${i.timezone}（UTC${i.utcOffset}）` : "" },
-    { label: "邮编", value: i.postal },
-    { label: "IP 类型", value: i.type },
-    { label: "数据来源", value: i.source },
-    ...(isSelf.value && localIp.value ? [{ label: "局域网 IP", value: localIp.value }] : []),
+    { label: t("network.timezone"), value: i.timezone ? i.timezone + t("network.paren", { text: `UTC${i.utcOffset}` }) : "" },
+    { label: t("network.postal"), value: i.postal },
+    { label: t("network.ipType"), value: i.type },
+    { label: t("network.source"), value: i.source },
+    ...(isSelf.value && localIp.value ? [{ label: t("network.localIp"), value: localIp.value }] : []),
   ].filter((x) => x.value);
 });
 
@@ -67,10 +70,10 @@ const { copied, copy } = useClipboard();
   <div class="ip">
     <section class="card hero">
       <div class="hero-body">
-        <span class="caption">{{ isSelf ? "本机公网 IP" : "查询的 IP" }}</span>
+        <span class="caption">{{ isSelf ? t("network.selfIp") : t("network.queriedIp") }}</span>
         <div class="ip-row">
-          <span class="ip-value" :class="{ muted: !info }">{{ info?.ip || (loading ? "查询中…" : "—") }}</span>
-          <button v-if="info" class="icon-btn" :class="{ ok: copied }" title="复制 IP" @click="copy(info.ip)">
+          <span class="ip-value" :class="{ muted: !info }">{{ info?.ip || (loading ? t("network.querying") : "—") }}</span>
+          <button v-if="info" class="icon-btn" :class="{ ok: copied }" :title="t('network.copyIp')" @click="copy(info.ip)">
             <Check v-if="copied" :size="16" />
             <Copy v-else :size="16" />
           </button>
@@ -80,21 +83,20 @@ const { copied, copy } = useClipboard();
       </div>
 
       <div class="search">
-        <input v-model="query" class="field mono" spellcheck="false" placeholder="查询其他 IP，例如 8.8.8.8" @keydown.enter="run(query)" />
-        <button class="btn primary" :disabled="loading || !query.trim()" @click="run(query)"><Search :size="14" />查询</button>
-        <button class="btn" :disabled="loading" title="重新查询本机" @click="query = ''; run()"><RefreshCw :size="14" />本机</button>
+        <input v-model="query" class="field mono" spellcheck="false" :placeholder="t('network.ipPlaceholder')" @keydown.enter="run(query)" />
+        <button class="btn primary" :disabled="loading || !query.trim()" @click="run(query)"><Search :size="14" />{{ t("network.query") }}</button>
+        <button class="btn" :disabled="loading" :title="t('network.selfTitle')" @click="query = ''; run()"><RefreshCw :size="14" />{{ t("network.self") }}</button>
       </div>
     </section>
 
     <section class="card">
-      <div class="card-title">详细信息</div>
+      <div class="card-title">{{ t("network.details") }}</div>
       <CopyList v-if="items.length" :items="items" label-width="96px" />
-      <p v-else class="empty">{{ loading ? "正在查询…" : "暂无数据" }}</p>
+      <p v-else class="empty">{{ loading ? t("network.queryingLong") : t("network.noData") }}</p>
     </section>
 
     <p class="notice">
-      归属地数据来自免费的公共服务（依次尝试 {{ SERVICE_NAMES }}），查询时会把要查询的 IP 发送给该服务，其中 ip-api.com 不支持加密传输；
-      位置根据 IP 估算，精确到城市级别，使用代理或 VPN 时显示的是代理服务器的位置。
+      {{ t("network.ipNotice1", { services: SERVICE_NAMES }) }}{{ t("network.ipNotice2") }}
     </p>
   </div>
 </template>

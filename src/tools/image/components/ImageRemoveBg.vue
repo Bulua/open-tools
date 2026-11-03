@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { CircleCheck, Download, LoaderCircle, Pipette, RefreshCw, Sparkles, Trash2, X } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import ProgressBar from "@/components/common/ProgressBar.vue";
@@ -21,6 +22,7 @@ import { formatBytes } from "@/utils/format";
  * 有残留时在图片上点一下，就把这种颜色的背景也去掉（可以连续点多处）。
  * Logo、签名等纯色背景也可以关掉 AI，只按颜色去除。去除后可以换成其他底色。
  */
+const { t } = useI18n();
 const useAi = useStoredRef("removebg.ai", true);
 const modelId = useStoredRef("removebg.model", "u2netp");
 const tolerance = useStoredRef("removebg.tolerance", 12);
@@ -29,12 +31,16 @@ const contiguous = useStoredRef("removebg.contiguous", true);
 /** 新背景：transparent 透明，或者一个颜色 */
 const fill = useStoredRef("removebg.fill", "transparent");
 
-const PRESETS = [
-  { value: "transparent", label: "透明" },
-  { value: "#ffffff", label: "白" },
-  { value: "#438edb", label: "蓝" },
-  { value: "#d9001b", label: "红" },
-];
+const PRESETS = computed(() => [
+  { value: "transparent", label: t("image.fillTransparent") },
+  { value: "#ffffff", label: t("image.fillWhite") },
+  { value: "#438edb", label: t("image.fillBlue") },
+  { value: "#d9001b", label: t("image.fillRed") },
+]);
+/** 模型的名称和说明，按模型 id 取文案 */
+const MODEL_TEXT: Record<string, string> = { u2netp: "modelLight", silueta: "modelStandard", "isnet-general-use": "modelFine", u2net_human_seg: "modelPortrait" };
+const modelName = (m: AiModel) => (MODEL_TEXT[m.id] ? t(`image.${MODEL_TEXT[m.id]}`) : m.name);
+const modelDesc = (m: AiModel) => (MODEL_TEXT[m.id] ? t(`image.${MODEL_TEXT[m.id]}Desc`) : m.desc);
 
 const fileName = ref("");
 const loadError = ref("");
@@ -268,7 +274,7 @@ const save = async () => {
   const transparent = fill.value === "transparent";
   const bytes = await canvasToBytes(compose(), transparent ? "image/png" : "image/jpeg", 0.95);
   const base = fileName.value.replace(/\.[^.]+$/, "") || "image";
-  if (await saveFile(bytes, `${base}_去背景.${transparent ? "png" : "jpg"}`)) {
+  if (await saveFile(bytes, `${base}_${t("image.removebgSuffix")}.${transparent ? "png" : "jpg"}`)) {
     saved.value = true;
     setTimeout(() => (saved.value = false), 1500);
   }
@@ -280,8 +286,8 @@ const save = async () => {
     <aside class="card panel">
       <section class="section">
         <h3>
-          <Sparkles :size="13" />AI 识别主体
-          <label class="switch" title="Logo、签名等纯色背景可以关掉，只按点选的颜色去除"><input v-model="useAi" type="checkbox" />开启</label>
+          <Sparkles :size="13" />{{ t("image.aiSubject") }}
+          <label class="switch" :title="t('image.aiSwitchTitle')"><input v-model="useAi" type="checkbox" />{{ t("image.on") }}</label>
         </h3>
         <template v-if="useAi">
           <div class="models">
@@ -293,54 +299,54 @@ const save = async () => {
               @click="selectModel(m)"
             >
               <div class="model-head">
-                <b>{{ m.name }}</b>
-                <span v-if="m.builtin" class="badge">内置</span>
-                <span v-else-if="isReady(m)" class="badge ok"><CircleCheck :size="11" />已下载</span>
+                <b>{{ modelName(m) }}</b>
+                <span v-if="m.builtin" class="badge">{{ t("image.builtin") }}</span>
+                <span v-else-if="isReady(m)" class="badge ok"><CircleCheck :size="11" />{{ t("image.downloaded") }}</span>
                 <span class="size">{{ formatBytes(m.size) }}</span>
               </div>
-              <p>{{ m.desc }}</p>
+              <p>{{ modelDesc(m) }}</p>
               <ProgressBar v-if="progress[m.id] !== undefined" :value="progress[m.id]" />
               <template v-else-if="!isReady(m)">
-                <button v-if="canDownload()" class="btn small" @click.stop="download(m)"><Download :size="12" />下载到本机</button>
-                <span v-else class="hint-text">桌面版可下载</span>
+                <button v-if="canDownload()" class="btn small" @click.stop="download(m)"><Download :size="12" />{{ t("image.downloadModel") }}</button>
+                <span v-else class="hint-text">{{ t("image.desktopOnly") }}</span>
               </template>
-              <button v-else-if="!m.builtin" class="icon-btn del" title="删除这个模型，释放空间" @click.stop="remove(m)"><Trash2 :size="12" /></button>
+              <button v-else-if="!m.builtin" class="icon-btn del" :title="t('image.deleteModel')" @click.stop="remove(m)"><Trash2 :size="12" /></button>
             </div>
           </div>
           <p v-if="aiError" class="error">{{ aiError }}</p>
-          <p v-else class="tip">下载的模型保存在本机，之后无需联网</p>
+          <p v-else class="tip">{{ t("image.modelTip") }}</p>
         </template>
-        <p v-else class="tip">已关闭，只按点选的颜色去除背景，适合 Logo、签名、截图</p>
+        <p v-else class="tip">{{ t("image.aiOff") }}</p>
       </section>
 
       <section class="section">
         <h3>
-          <Pipette :size="13" />点选去除的背景色
-          <button v-if="picks.length" class="link" title="清空点选的颜色" @click="picks = []">清空</button>
+          <Pipette :size="13" />{{ t("image.pickBg") }}
+          <button v-if="picks.length" class="link" :title="t('image.clearPicks')" @click="picks = []">{{ t("image.clear") }}</button>
         </h3>
         <div class="colors">
           <span v-for="(p, i) in picks" :key="hexOf(p.color) + i" class="color-chip" :title="hexOf(p.color)">
             <i :style="{ background: hexOf(p.color) }" />
-            <button title="移除这个颜色" @click="removePick(i)"><X :size="11" /></button>
+            <button :title="t('image.removeColor')" @click="removePick(i)"><X :size="11" /></button>
           </span>
-          <span v-if="!picks.length" class="tip">在图片上点击残留的背景，就会去掉这种颜色</span>
+          <span v-if="!picks.length" class="tip">{{ t("image.pickTip") }}</span>
         </div>
         <label class="slider">
-          <span>容差</span>
+          <span>{{ t("image.tolerance") }}</span>
           <input v-model.number="tolerance" type="range" min="1" max="60" />
           <em>{{ tolerance }}</em>
         </label>
         <label class="slider">
-          <span>柔化</span>
+          <span>{{ t("image.feather") }}</span>
           <input v-model.number="feather" type="range" min="0" max="40" />
           <em>{{ feather }}</em>
         </label>
-        <label class="check"><input v-model="contiguous" type="checkbox" />只去除相连的区域</label>
-        <p class="tip">容差越大去除越多；主体里有和背景相近的颜色时，保持勾选「只去除相连的区域」</p>
+        <label class="check"><input v-model="contiguous" type="checkbox" />{{ t("image.contiguous") }}</label>
+        <p class="tip">{{ t("image.toleranceTip") }}</p>
       </section>
 
       <section class="section">
-        <h3>新背景</h3>
+        <h3>{{ t("image.newBg") }}</h3>
         <div class="fills">
           <button
             v-for="p in PRESETS"
@@ -354,29 +360,29 @@ const save = async () => {
           <ColorPicker
             class="fill custom"
             :class="{ on: !PRESETS.some((p) => p.value === fill) }"
-            title="自定义颜色"
+            :title="t('image.customColor')"
             :model-value="fill === 'transparent' ? '#ffffff' : fill"
             @update:model-value="fill = $event"
           >
             <span />
           </ColorPicker>
         </div>
-        <p class="tip">证件照可以直接换成白、蓝、红底</p>
+        <p class="tip">{{ t("image.idPhotoTip") }}</p>
       </section>
 
       <section class="section">
         <button class="btn primary full" :disabled="!hasResult || recognizing" @click="save">
-          <Download :size="14" />{{ saved ? "已保存" : fill === "transparent" ? "下载 PNG（透明背景）" : "下载 JPG" }}
+          <Download :size="14" />{{ saved ? t("image.saved") : fill === "transparent" ? t("image.downloadPngTransparent") : t("image.downloadJpg") }}
         </button>
       </section>
     </aside>
 
     <section class="card stage">
       <header class="card-title">
-        <span class="file" :title="fileName">{{ fileName || "未选择图片" }}</span>
-        <span class="hint">{{ recognizing ? "正在识别主体…" : source ? "点击残留的背景即可去除，滚轮缩放，按住拖动" : "" }}</span>
+        <span class="file" :title="fileName">{{ fileName || t("image.noImage") }}</span>
+        <span class="hint">{{ recognizing ? t("image.recognizing") : source ? t("image.removebgHint") : "" }}</span>
         <ZoomControls v-if="source" :zoom="zoom" :min="MIN_ZOOM" :max="MAX_ZOOM" @zoom="zoomAt" @reset="resetView" />
-        <button v-if="source" class="btn small subtle" title="更换图片" @click="dropZone?.open()"><RefreshCw :size="14" />更换</button>
+        <button v-if="source" class="btn small subtle" :title="t('image.replaceImage')" @click="dropZone?.open()"><RefreshCw :size="14" />{{ t("image.replace") }}</button>
       </header>
       <!-- 加载后隐藏但保留：「更换」按钮由它打开选择框 -->
       <FileDropZone
@@ -385,8 +391,8 @@ const save = async () => {
         :paste="!source"
         class="drop"
         accept="image/*"
-        title="拖入图片，或点击选择"
-        hint="自动用 AI 识别主体去除背景，残留的背景点一下即可去掉。也可以按 Ctrl + V 粘贴"
+        :title="t('image.dropImage')"
+        :hint="t('image.removebgDropHint')"
         @files="onFiles"
       >
         <span v-if="loadError" class="load-error">{{ loadError }}</span>
@@ -405,7 +411,7 @@ const save = async () => {
         <div class="frame" :style="[frameStyle, zoomStyle]">
           <canvas ref="view" />
         </div>
-        <div v-if="recognizing" class="busy"><LoaderCircle :size="22" class="spin" />正在识别主体…</div>
+        <div v-if="recognizing" class="busy"><LoaderCircle :size="22" class="spin" />{{ t("image.recognizing") }}</div>
       </div>
     </section>
   </div>

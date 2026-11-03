@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Paperclip, X } from "lucide-vue-next";
+import { useI18n } from "vue-i18n";
 import { emptyRow, type KeyValue } from "../http";
 
 /**
@@ -8,12 +9,13 @@ import { emptyRow, type KeyValue } from "../http";
  * allowFiles 为 true 时（multipart 表单）每行可以选择文件代替文字。
  */
 const props = withDefaults(defineProps<{ keyPlaceholder?: string; valuePlaceholder?: string; allowFiles?: boolean; suggestions?: string[] }>(), {
-  keyPlaceholder: "名称",
-  valuePlaceholder: "值",
+  keyPlaceholder: undefined,
+  valuePlaceholder: undefined,
   allowFiles: false,
   suggestions: () => [],
 });
 const rows = defineModel<KeyValue[]>({ required: true });
+const { t } = useI18n();
 const listId = `kv-${Math.random().toString(36).slice(2)}`;
 
 const update = (i: number, patch: Partial<KeyValue>) => {
@@ -44,21 +46,21 @@ const isEmpty = (r: KeyValue, i: number) => i === rows.value.length - 1 && !r.ke
         class="file-check"
         :checked="row.enabled"
         :disabled="isEmpty(row, i)"
-        title="停用后不发送这一项"
+        :title="t('network.disableTitle')"
         @change="update(i, { enabled: !row.enabled })"
       />
-      <input class="field cell" :value="row.key" :placeholder="keyPlaceholder" :list="suggestions.length ? listId : undefined" spellcheck="false" @input="update(i, { key: ($event.target as HTMLInputElement).value })" />
+      <input class="field cell" :value="row.key" :placeholder="keyPlaceholder ?? t('network.name')" :list="suggestions.length ? listId : undefined" spellcheck="false" @input="update(i, { key: ($event.target as HTMLInputElement).value })" />
       <div v-if="row.file" class="field cell file" :title="row.file.name">
         <Paperclip :size="13" />
         <span>{{ row.file.name }}</span>
-        <button class="icon-btn" title="改回文字" @click="update(i, { file: null })"><X :size="12" /></button>
+        <button class="icon-btn" :title="t('network.backToText')" @click="update(i, { file: null })"><X :size="12" /></button>
       </div>
-      <input v-else class="field cell" :value="row.value" :placeholder="valuePlaceholder" spellcheck="false" @input="update(i, { value: ($event.target as HTMLInputElement).value })" />
-      <label v-if="props.allowFiles" class="icon-btn attach" title="选择文件">
+      <input v-else class="field cell" :value="row.value" :placeholder="valuePlaceholder ?? t('network.value')" spellcheck="false" @input="update(i, { value: ($event.target as HTMLInputElement).value })" />
+      <label v-if="props.allowFiles" class="icon-btn attach" :title="t('network.chooseFile')">
         <Paperclip :size="14" />
         <input type="file" hidden @change="pickFile(i, $event)" />
       </label>
-      <button class="icon-btn" title="删除" :disabled="isEmpty(row, i)" @click="remove(i)"><X :size="14" /></button>
+      <button class="icon-btn" :title="t('network.delete')" :disabled="isEmpty(row, i)" @click="remove(i)"><X :size="14" /></button>
     </div>
     <datalist v-if="suggestions.length" :id="listId">
       <option v-for="s in suggestions" :key="s" :value="s" />

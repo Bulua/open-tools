@@ -5,6 +5,11 @@
  * 因为不同网络环境下能访问的服务不一样。
  * 这是本程序除检查更新外少数会访问外部网络的功能，只在打开「IP 地址与位置查询」或点击查询时请求。
  */
+import { locale, t } from "@/locales";
+
+/** 服务明确回答「查询失败」（比如 IP 格式不对），换别的服务也没用 */
+class QueryError extends Error {}
+const queryFailed = (detail?: string) => new QueryError(detail ? t("network.queryFailedDetail", { error: detail }) : t("network.queryFailed"));
 
 export interface IpInfo {
   ip: string;
@@ -47,9 +52,9 @@ export const PROVIDERS: Provider[] = [
     // 返回中文地名，速度快；免费版只支持 HTTP
     name: "ip-api.com",
     url: (ip) =>
-      `http://ip-api.com/json/${encodeURIComponent(ip)}?lang=zh-CN&fields=status,message,country,countryCode,regionName,city,zip,lat,lon,timezone,offset,isp,org,as,query`,
+      `http://ip-api.com/json/${encodeURIComponent(ip)}?lang=${locale.value === "zh-CN" ? "zh-CN" : "en"}&fields=status,message,country,countryCode,regionName,city,zip,lat,lon,timezone,offset,isp,org,as,query`,
     parse: (d) => {
-      if (d.status !== "success") throw new Error(d.message ? `查询失败：${d.message}` : "查询失败");
+      if (d.status !== "success") throw queryFailed(d.message);
       return {
         ip: d.query ?? "",
         type: ipType(d.query ?? ""),
@@ -73,7 +78,7 @@ export const PROVIDERS: Provider[] = [
     name: "ipwho.is",
     url: (ip) => `https://ipwho.is/${encodeURIComponent(ip)}?lang=zh-CN`,
     parse: (d) => {
-      if (d.success === false) throw new Error(d.message ? `查询失败：${d.message}` : "查询失败");
+      if (d.success === false) throw queryFailed(d.message);
       return {
         ip: d.ip ?? "",
         type: d.type ?? ipType(d.ip ?? ""),
@@ -97,7 +102,7 @@ export const PROVIDERS: Provider[] = [
     name: "ipapi.co",
     url: (ip) => (ip ? `https://ipapi.co/${encodeURIComponent(ip)}/json/` : "https://ipapi.co/json/"),
     parse: (d) => {
-      if (d.error) throw new Error(d.reason ? `查询失败：${d.reason}` : "查询失败");
+      if (d.error) throw queryFailed(d.reason);
       const offset = String(d.utc_offset ?? "");
       return {
         ip: d.ip ?? "",
@@ -135,11 +140,11 @@ export async function lookupIp(ip = ""): Promise<IpInfo> {
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       // 服务明确回答「查询失败」（比如 IP 格式不对）时，换别的服务也没用
-      if (message.startsWith("查询失败")) throw e;
+      if (e instanceof QueryError) throw e;
       lastError = message;
     }
   }
-  throw new Error(`无法连接查询服务（已尝试 ${SERVICE_NAMES}），请检查网络。${lastError ? `最后的错误：${lastError}` : ""}`);
+  throw new Error(t("network.noService", { services: SERVICE_NAMES }) + (lastError ? t("network.lastError", { error: lastError }) : ""));
 }
 
 /** 经纬度格式化为「39.9042° N, 116.4074° E」 */

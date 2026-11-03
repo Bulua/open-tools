@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, shallowRef, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { Crop, Download, FlipHorizontal2, FlipVertical2, Lock, LockOpen, RefreshCw, RotateCcw, RotateCw, Undo2 } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
@@ -17,6 +18,7 @@ import { rotatedSize } from "../effects";
  * 裁剪、旋转等操作记入历史，可以撤销。没有图片时操作面板也显示，只是不能点。
  */
 const props = withDefaults(defineProps<{ mode?: "crop" | "rotate" | "adjust" }>(), { mode: "crop" });
+const { t } = useI18n();
 
 // ---------- 图片与历史 ----------
 const fileName = ref("");
@@ -146,7 +148,7 @@ const scaleTo = (percent: number) => {
 
 // ---------- 裁剪 ----------
 const RATIOS: { label: string; value: number | null }[] = [
-  { label: "自由", value: null },
+  { label: "", value: null },
   { label: "1:1", value: 1 },
   { label: "4:3", value: 4 / 3 },
   { label: "3:4", value: 3 / 4 },
@@ -225,20 +227,21 @@ const filter = computed(() =>
 );
 const adjusted = computed(() => (Object.keys(NEUTRAL) as (keyof typeof NEUTRAL)[]).some((k) => adjust[k] !== NEUTRAL[k]));
 const ADJUST_SLIDERS = [
-  { key: "brightness", label: "亮度", min: 0, max: 200, unit: "%" },
-  { key: "contrast", label: "对比度", min: 0, max: 200, unit: "%" },
-  { key: "saturate", label: "饱和度", min: 0, max: 200, unit: "%" },
-  { key: "hue", label: "色相", min: -180, max: 180, unit: "°" },
+  { key: "brightness", min: 0, max: 200, unit: "%" },
+  { key: "contrast", min: 0, max: 200, unit: "%" },
+  { key: "saturate", min: 0, max: 200, unit: "%" },
+  { key: "hue", min: -180, max: 180, unit: "°" },
 ] as const;
+/** label 是文案 key（image.fGray 等） */
 const PRESETS: { label: string; value: Partial<typeof NEUTRAL> }[] = [
-  { label: "原图", value: {} },
-  { label: "黑白", value: { grayscale: 1, contrast: 110 } },
-  { label: "复古", value: { sepia: 0.6, contrast: 95, brightness: 105 } },
-  { label: "鲜艳", value: { saturate: 150, contrast: 110 } },
-  { label: "柔和", value: { saturate: 80, contrast: 90, brightness: 108 } },
-  { label: "冷色", value: { hue: -15, saturate: 110 } },
-  { label: "暖色", value: { hue: 12, sepia: 0.2 } },
-  { label: "反色", value: { invert: 1 } },
+  { label: "fOriginal", value: {} },
+  { label: "fGray", value: { grayscale: 1, contrast: 110 } },
+  { label: "fVintage", value: { sepia: 0.6, contrast: 95, brightness: 105 } },
+  { label: "fVivid", value: { saturate: 150, contrast: 110 } },
+  { label: "fSoft", value: { saturate: 80, contrast: 90, brightness: 108 } },
+  { label: "fCool", value: { hue: -15, saturate: 110 } },
+  { label: "fWarm", value: { hue: 12, sepia: 0.2 } },
+  { label: "fInvert", value: { invert: 1 } },
 ];
 const applyPreset = (p: Partial<typeof NEUTRAL>) => Object.assign(adjust, NEUTRAL, p);
 
@@ -247,7 +250,7 @@ const exportFormat = useStoredRef<ImageFormat>("image-edit.format", "image/png")
 const exportQuality = useStoredRef("image-edit.quality", 90);
 const saved = ref(false);
 
-const SUFFIX = { crop: "裁剪", rotate: "旋转", adjust: "调色" };
+const SUFFIX = { crop: "suffixCrop", rotate: "suffixRotate", adjust: "suffixAdjust" };
 const download = async () => {
   const src = displayed.value;
   if (!src) return;
@@ -256,17 +259,13 @@ const download = async () => {
   ctx.drawImage(src, 0, 0);
   const bytes = await canvasToBytes(canvas, exportFormat.value, exportQuality.value / 100);
   const base = fileName.value.replace(/\.[^.]+$/, "") || "image";
-  if (await saveFile(bytes, `${base}_${SUFFIX[props.mode]}.${formatInfo(exportFormat.value).ext}`)) {
+  if (await saveFile(bytes, `${base}_${t(`image.${SUFFIX[props.mode]}`)}.${formatInfo(exportFormat.value).ext}`)) {
     saved.value = true;
     setTimeout(() => (saved.value = false), 1500);
   }
 };
 
-const HINTS = {
-  crop: "拖动裁剪框选择区域，可以固定比例；也可以按像素或百分比调整尺寸",
-  rotate: "旋转 90°、任意角度旋转、水平或垂直翻转",
-  adjust: "调节亮度、对比度、饱和度、色相，或一键套用滤镜",
-};
+const HINTS = { crop: "hintCrop", rotate: "hintRotate", adjust: "hintAdjust" };
 </script>
 
 <template>
@@ -276,33 +275,33 @@ const HINTS = {
       <template v-if="mode === 'crop'">
         <section class="section">
           <header class="section-head">
-            <h3>裁剪</h3>
+            <h3>{{ t("image.crop") }}</h3>
             <template v-if="cropping">
-              <button class="btn small primary" @click="applyCrop">应用裁剪</button>
-              <button class="btn small subtle" @click="cropping = false">取消</button>
+              <button class="btn small primary" @click="applyCrop">{{ t("image.applyCrop") }}</button>
+              <button class="btn small subtle" @click="cropping = false">{{ t("image.cancel") }}</button>
             </template>
-            <button v-else class="btn small" :disabled="!current" @click="startCrop"><Crop :size="13" />开始裁剪</button>
+            <button v-else class="btn small" :disabled="!current" @click="startCrop"><Crop :size="13" />{{ t("image.startCrop") }}</button>
           </header>
           <div class="seg fill">
-            <button v-for="r in RATIOS" :key="r.label" :class="{ on: ratio === r.value }" @click="setRatio(r.value)">{{ r.label }}</button>
+            <button v-for="r in RATIOS" :key="r.label" :class="{ on: ratio === r.value }" @click="setRatio(r.value)">{{ r.value === null ? t("image.free") : r.label }}</button>
           </div>
         </section>
 
         <section class="section">
-          <h3>调整尺寸</h3>
+          <h3>{{ t("image.resize") }}</h3>
           <div class="size-row">
-            <input class="field size" type="number" min="1" title="宽" :disabled="!current" :value="resizeW || ''" placeholder="宽" @change="onResizeW" />
+            <input class="field size" type="number" min="1" :title="t('image.width')" :disabled="!current" :value="resizeW || ''" :placeholder="t('image.width')" @change="onResizeW" />
             <button
               class="lock"
               :class="{ on: keepRatio }"
-              :title="keepRatio ? '保持比例（点击解除）' : '不保持比例（点击锁定）'"
+              :title="keepRatio ? t('image.ratioLocked') : t('image.ratioUnlocked')"
               @click="keepRatio = !keepRatio"
             >
               <Lock v-if="keepRatio" :size="13" />
               <LockOpen v-else :size="13" />
             </button>
-            <input class="field size" type="number" min="1" title="高" :disabled="!current" :value="resizeH || ''" placeholder="高" @change="onResizeH" />
-            <button class="btn small" :disabled="!current" @click="applyResize">应用</button>
+            <input class="field size" type="number" min="1" :title="t('image.height')" :disabled="!current" :value="resizeH || ''" :placeholder="t('image.height')" @change="onResizeH" />
+            <button class="btn small" :disabled="!current" @click="applyResize">{{ t("image.apply") }}</button>
           </div>
           <div class="chips">
             <button v-for="p in [25, 50, 75, 150, 200]" :key="p" :disabled="!current" @click="scaleTo(p)">{{ p }}%</button>
@@ -312,55 +311,55 @@ const HINTS = {
 
       <template v-else-if="mode === 'rotate'">
         <section class="section">
-          <h3>旋转 90°</h3>
+          <h3>{{ t("image.rotate90") }}</h3>
           <div class="big-row">
-            <button class="btn" :disabled="!current" @click="rotate(-90)"><RotateCcw :size="15" />向左</button>
-            <button class="btn" :disabled="!current" @click="rotate(90)"><RotateCw :size="15" />向右</button>
+            <button class="btn" :disabled="!current" @click="rotate(-90)"><RotateCcw :size="15" />{{ t("image.left") }}</button>
+            <button class="btn" :disabled="!current" @click="rotate(90)"><RotateCw :size="15" />{{ t("image.right") }}</button>
           </div>
         </section>
         <section class="section">
-          <h3>翻转</h3>
+          <h3>{{ t("image.flip") }}</h3>
           <div class="big-row">
-            <button class="btn" :disabled="!current" @click="flip(true)"><FlipHorizontal2 :size="15" />水平翻转</button>
-            <button class="btn" :disabled="!current" @click="flip(false)"><FlipVertical2 :size="15" />垂直翻转</button>
+            <button class="btn" :disabled="!current" @click="flip(true)"><FlipHorizontal2 :size="15" />{{ t("image.flipH") }}</button>
+            <button class="btn" :disabled="!current" @click="flip(false)"><FlipVertical2 :size="15" />{{ t("image.flipV") }}</button>
           </div>
         </section>
         <section class="section">
           <header class="section-head">
-            <h3>任意角度</h3>
-            <button v-if="angle" class="link" @click="angle = 0">归零</button>
+            <h3>{{ t("image.anyAngle") }}</h3>
+            <button v-if="angle" class="link" @click="angle = 0">{{ t("image.zero") }}</button>
           </header>
           <label class="slider">
-            <span>角度</span>
+            <span>{{ t("image.angle") }}</span>
             <input v-model.number="angle" type="range" min="-180" max="180" :disabled="!current" @dblclick="angle = 0" />
             <em>{{ angle }}°</em>
           </label>
           <div class="row">
-            <span class="label">空白处</span>
+            <span class="label">{{ t("image.blank") }}</span>
             <div class="seg">
-              <button :class="{ on: rotateBg === 'transparent' }" @click="rotateBg = 'transparent'">透明</button>
-              <button :class="{ on: rotateBg === 'white' }" @click="rotateBg = 'white'">白色</button>
+              <button :class="{ on: rotateBg === 'transparent' }" @click="rotateBg = 'transparent'">{{ t("image.transparent") }}</button>
+              <button :class="{ on: rotateBg === 'white' }" @click="rotateBg = 'white'">{{ t("image.white") }}</button>
             </div>
-            <button class="btn small push" :disabled="!current || !angle" @click="applyAngle">应用</button>
+            <button class="btn small push" :disabled="!current || !angle" @click="applyAngle">{{ t("image.apply") }}</button>
           </div>
-          <p class="tip">导出 JPG 时透明处会变成白色</p>
+          <p class="tip">{{ t("image.jpgWhite") }}</p>
         </section>
       </template>
 
       <template v-else>
         <section class="section">
-          <h3>滤镜</h3>
+          <h3>{{ t("image.filters") }}</h3>
           <div class="presets">
-            <button v-for="p in PRESETS" :key="p.label" :disabled="!current" @click="applyPreset(p.value)">{{ p.label }}</button>
+            <button v-for="p in PRESETS" :key="p.label" :disabled="!current" @click="applyPreset(p.value)">{{ t(`image.${p.label}`) }}</button>
           </div>
         </section>
         <section class="section">
           <header class="section-head">
-            <h3>调节</h3>
-            <button v-if="adjusted" class="link" @click="resetAdjust">恢复</button>
+            <h3>{{ t("image.adjust") }}</h3>
+            <button v-if="adjusted" class="link" @click="resetAdjust">{{ t("image.restore") }}</button>
           </header>
           <label v-for="s in ADJUST_SLIDERS" :key="s.key" class="slider">
-            <span>{{ s.label }}</span>
+            <span>{{ t(`image.${s.key}`) }}</span>
             <input
               v-model.number="adjust[s.key]"
               type="range"
@@ -371,40 +370,40 @@ const HINTS = {
             />
             <em>{{ adjust[s.key] }}{{ s.unit }}</em>
           </label>
-          <p class="tip">双击滑块恢复默认值</p>
+          <p class="tip">{{ t("image.dblclickReset") }}</p>
         </section>
       </template>
 
       <section class="section">
-        <h3>导出</h3>
+        <h3>{{ t("image.export") }}</h3>
         <div class="seg fill">
           <button v-for="f in IMAGE_FORMATS" :key="f.value" :class="{ on: exportFormat === f.value }" @click="exportFormat = f.value">
             {{ f.label }}
           </button>
         </div>
         <label v-if="formatInfo(exportFormat).lossy" class="slider">
-          <span>质量</span>
+          <span>{{ t("image.quality") }}</span>
           <input v-model.number="exportQuality" type="range" min="10" max="100" step="5" />
           <em>{{ exportQuality }}%</em>
         </label>
-        <button class="btn primary full" :disabled="!current" @click="download"><Download :size="14" />{{ saved ? "已保存" : "下载图片" }}</button>
+        <button class="btn primary full" :disabled="!current" @click="download"><Download :size="14" />{{ saved ? t("image.saved") : t("image.downloadImage") }}</button>
       </section>
     </aside>
 
     <section class="stage card">
       <header class="card-title">
-        <span class="file" :title="fileName">{{ fileName || "未选择图片" }}</span>
+        <span class="file" :title="fileName">{{ fileName || t("image.noImage") }}</span>
         <span v-if="displayed" class="dims">{{ displayed.width }} × {{ displayed.height }}</span>
         <span class="spacer" />
         <template v-if="current">
-          <button class="btn small subtle" :disabled="history.length < 2" title="撤销" @click="undo"><Undo2 :size="14" />撤销</button>
-          <button class="btn small subtle" title="恢复到原图" @click="reset">重置</button>
-          <button class="btn small subtle" title="更换图片" @click="dropZone?.open()"><RefreshCw :size="14" />更换</button>
+          <button class="btn small subtle" :disabled="history.length < 2" :title="t('image.undo')" @click="undo"><Undo2 :size="14" />{{ t("image.undo") }}</button>
+          <button class="btn small subtle" :title="t('image.resetTitle')" @click="reset">{{ t("image.reset") }}</button>
+          <button class="btn small subtle" :title="t('image.replaceImage')" @click="dropZone?.open()"><RefreshCw :size="14" />{{ t("image.replace") }}</button>
         </template>
       </header>
 
       <!-- 加载后隐藏但保留：「更换」按钮由它打开选择框 -->
-      <FileDropZone v-show="!current" ref="dropZone" :paste="!current" class="drop" accept="image/*" title="拖入图片，或点击选择" :hint="`${HINTS[mode]}；也可以按 Ctrl + V 粘贴截图`" @files="onFiles">
+      <FileDropZone v-show="!current" ref="dropZone" :paste="!current" class="drop" accept="image/*" :title="t('image.dropImage')" :hint="t('image.pasteHint', { hint: t(`image.${HINTS[mode]}`) })" @files="onFiles">
         <span v-if="loadError" class="load-error">{{ loadError }}</span>
       </FileDropZone>
       <div v-if="current" :ref="observeArea" class="canvas-area checker">

@@ -1,3 +1,4 @@
+import { t } from "@/locales";
 import { createCanvas } from "./utils";
 import { loadModelBytes, toInputTensor, toMask, type AiModel } from "./aiModels";
 
@@ -20,11 +21,11 @@ function run(model: AiModel, input: Float32Array, modelBytes?: ArrayBuffer): Pro
   const w = getWorker();
   return new Promise((resolve, reject) => {
     w.onmessage = (e: MessageEvent<{ ok: boolean; mask?: Float32Array; error?: string }>) =>
-      e.data.ok ? resolve(e.data.mask!) : reject(new Error(`识别失败：${e.data.error}`));
+      e.data.ok ? resolve(e.data.mask!) : reject(new Error(t("image.segmentFailed", { error: e.data.error })));
     w.onerror = () => {
       worker?.terminate();
       worker = null;
-      reject(new Error("识别失败，模型无法运行"));
+      reject(new Error(t("image.segmentCrashed")));
     };
     w.postMessage({ modelId: model.id, modelBytes, input, size: model.input }, modelBytes ? [modelBytes] : []);
   });
