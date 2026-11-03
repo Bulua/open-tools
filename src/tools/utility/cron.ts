@@ -393,16 +393,16 @@ function describeCronEn(c: ParsedCron): string {
 
 /** 常用表达式（Linux 格式），i18n 是其他语言的名称 */
 export const PRESETS: { label: string; i18n: Translations<string>; expr: string }[] = [
-  { label: "每分钟", i18n: { en: "Every minute" }, expr: "* * * * *" },
-  { label: "每 5 分钟", i18n: { en: "Every 5 minutes" }, expr: "*/5 * * * *" },
-  { label: "每小时", i18n: { en: "Hourly" }, expr: "0 * * * *" },
-  { label: "每天 0 点", i18n: { en: "Daily at 0:00" }, expr: "0 0 * * *" },
-  { label: "每天 9:30", i18n: { en: "Daily at 9:30" }, expr: "30 9 * * *" },
-  { label: "工作日 9 点", i18n: { en: "Weekdays at 9:00" }, expr: "0 9 * * 1-5" },
-  { label: "每周一 10 点", i18n: { en: "Mondays at 10:00" }, expr: "0 10 * * 1" },
-  { label: "每月 1 日", i18n: { en: "1st of each month" }, expr: "0 0 1 * *" },
-  { label: "每月最后一天", i18n: { en: "Last day of month" }, expr: "0 18 L * *" },
-  { label: "工作时间每 15 分钟", i18n: { en: "Every 15 min in work hours" }, expr: "*/15 9-18 * * 1-5" },
+  { label: "每分钟", i18n: { en: "Every minute", ja: "毎分" }, expr: "* * * * *" },
+  { label: "每 5 分钟", i18n: { en: "Every 5 minutes", ja: "5 分ごと" }, expr: "*/5 * * * *" },
+  { label: "每小时", i18n: { en: "Hourly", ja: "毎時" }, expr: "0 * * * *" },
+  { label: "每天 0 点", i18n: { en: "Daily at 0:00", ja: "毎日 0:00" }, expr: "0 0 * * *" },
+  { label: "每天 9:30", i18n: { en: "Daily at 9:30", ja: "毎日 9:30" }, expr: "30 9 * * *" },
+  { label: "工作日 9 点", i18n: { en: "Weekdays at 9:00", ja: "平日 9:00" }, expr: "0 9 * * 1-5" },
+  { label: "每周一 10 点", i18n: { en: "Mondays at 10:00", ja: "毎週月曜 10:00" }, expr: "0 10 * * 1" },
+  { label: "每月 1 日", i18n: { en: "1st of each month", ja: "毎月 1 日" }, expr: "0 0 1 * *" },
+  { label: "每月最后一天", i18n: { en: "Last day of month", ja: "毎月の最終日" }, expr: "0 18 L * *" },
+  { label: "工作时间每 15 分钟", i18n: { en: "Every 15 min in work hours", ja: "勤務時間中 15 分ごと" }, expr: "*/15 9-18 * * 1-5" },
 ];
 
 /** 各字段的名称，用于逐项说明 */
