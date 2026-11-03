@@ -6,7 +6,7 @@ import { locale, t } from "@/locales";
  *
  * 发送方式：
  * - 桌面版：由 Rust 发出（Tauri HTTP 插件），不受跨域限制，可以设置任何请求头
- * - 网页版开发时：经开发服务器转发（见根目录 devProxy.ts），同样不受跨域限制
+ * - 网页版开发时：经开发服务器转发（见 scripts/devProxy.ts），同样不受跨域限制
  * - 其他情况：浏览器直接发送，受跨域限制
  */
 

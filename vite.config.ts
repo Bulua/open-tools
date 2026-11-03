@@ -1,7 +1,7 @@
 import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
-import { devProxy } from "./devProxy";
+import { devProxy } from "./scripts/devProxy";
 
 const host = process.env.TAURI_DEV_HOST;
 
