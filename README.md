@@ -4,7 +4,7 @@
 
 # Open Tools
 
-[English](README.md) | [简体中文](README.zh-CN.md)
+English | [简体中文](README.zh-CN.md) | [日本語](README.ja.md)
 
 **A developer toolbox for Windows**
 
@@ -30,20 +30,21 @@ Formatting JSON, decoding Base64, converting timestamps, or compressing images o
 - **One workspace:** Switch categories at the top, choose tools in the sidebar, or press `Ctrl K` to search.
 - **Keep your work:** Switching tools preserves recent inputs and results.
 - **Built-in updates:** Get notified when a new version is available and install it from the app.
+- **Multiple languages:** The interface is available in Simplified Chinese, English and Japanese, following your system language by default.
 
 ## Features
 
-8 categories and 45 tools:
+9 categories and 57 tools:
 
 | Category | Tools |
 | --- | --- |
 | JSON | Format and validate (code/tree views), compare JSON, escape strings, convert to YAML, generate TypeScript types |
-| Text & encoding | Base64, URL/Unicode/HTML encoding, hashes, JWT decoding, password generation, regex testing, naming convention conversion |
+| Text & encoding | Base64, URL/Unicode/HTML encoding, hashes, JWT decoding, password generation, password vault, regex testing, naming convention conversion |
 | Time | Timestamp conversion, time zones and world clocks, cron expressions, countdown reminders |
 | Calculators & converters | Calculator, unit conversion, number bases, color conversion |
 | Images | Compression, format conversion, cropping, rotation, color adjustment, stitching, mosaic, watermarks, background removal (including AI subject detection), color picker, ICO generation |
 | Audio | Format conversion (including extracting audio from video), trimming, joining, recording, text to speech |
-| Video | Bilibili video download (with in-app playback), Douyin download without watermark, video to audio (copy the original track or convert to MP3/M4A/WAV), video concatenation |
+| Video | Bilibili video download (with in-app playback), Douyin download without watermark, video to audio (copy the original track or convert to MP3/M4A/WAV), video concatenation, background music, screen recording, camera recording |
 | Documents & files | Word to PDF, PDF to Word, Word watermarks and watermark removal, PDF page editing, PDF watermark removal, Markdown editing/preview and Word export, archiving and extraction |
 | Network | HTTP request client, IP address and location lookup, ping, HTTP headers to JSON/cURL |
 
@@ -73,10 +74,11 @@ The app checks for updates shortly after startup. When a new version is availabl
 | `Ctrl F` | Search in the JSON editor |
 | Lower-left sidebar button | Collapse the sidebar |
 | Theme button in the header | Switch between light and dark themes |
+| Language button in the header | Switch between Follow system, 简体中文, English and 日本語 |
 | Close the window | Hide the app in the system tray; click the tray icon to restore it, or right-click and choose Exit |
 | Drag the divider | Resize the input/output panes in the JSON formatter; double-click to reset |
 
-The app remembers your last category and tool, theme, and commonly used tool options.
+The app remembers your last category and tool, theme, language, and commonly used tool options.
 
 ## Privacy
 
@@ -93,7 +95,7 @@ Processing is local unless a feature explicitly needs network access:
 | Area | Technology |
 | --- | --- |
 | Desktop | Tauri 2 (Rust and system WebView2) |
-| UI | Vue 3, TypeScript, Vite |
+| UI | Vue 3, TypeScript, Vite, vue-i18n |
 | Code editor | CodeMirror 6 |
 | Documents | PDF.js, pdf-lib, docx, docx-preview, marked |
 | Audio | Web Audio, wasm-media-encoders (MP3), Windows speech |
