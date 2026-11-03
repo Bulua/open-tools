@@ -43,11 +43,17 @@ function Get-FromNuGet($package, $version, $inner, $path) {
   Remove-Item -Recurse -Force $tmp
 }
 
-# Models from the rembg project's GitHub releases
+# Background removal models from the rembg project's GitHub releases
 $models = Join-Path $Out 'models'
 foreach ($id in 'u2netp', 'silueta', 'isnet-general-use', 'u2net_human_seg') {
   Get-File "https://github.com/danielgatis/rembg/releases/download/v0.0.0/$id.onnx" (Join-Path $models "$id.onnx")
 }
+
+# Inpainting models for watermark removal (saved under shorter names, file contents unchanged)
+# LaMa (Apache-2.0), ONNX export by Carve; the fp32 export is the one its README recommends
+Get-File 'https://huggingface.co/Carve/LaMa-ONNX/resolve/main/lama_fp32.onnx' (Join-Path $models 'lama.onnx')
+# MI-GAN (MIT), ONNX export from the Hugging Face repo linked in the MI-GAN README
+Get-File 'https://huggingface.co/andraniksargsyan/migan/resolve/main/migan.onnx' (Join-Path $models 'migan.onnx')
 
 # ONNX Runtime with DirectML, and the DirectML library it loads
 $runtime = Join-Path $Out "runtime\$OrtVersion\win-x64"

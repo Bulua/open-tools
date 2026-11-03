@@ -13,6 +13,16 @@ This repository redistributes third-party files without modification. Each file 
 
 Apache License 2.0 full text: https://www.apache.org/licenses/LICENSE-2.0
 
+`lama.onnx` is `lama_fp32.onnx` from [Carve/LaMa-ONNX](https://huggingface.co/Carve/LaMa-ONNX) (renamed only), an ONNX export of:
+
+- LaMa (Resolution-robust Large Mask Inpainting with Fourier Convolutions) — Copyright (c) the LaMa authors (advimman/lama).
+  Licensed under the Apache License 2.0: https://github.com/advimman/lama/blob/main/LICENSE
+
+`migan.onnx` is from [andraniksargsyan/migan](https://huggingface.co/andraniksargsyan/migan), an ONNX export of:
+
+- MI-GAN (Mobile Inpainting GAN) — Copyright (c) 2024 Picsart AI Research (PAIR). Code and weights are licensed under the MIT License:
+  https://github.com/Picsart-AI-Research/MI-GAN/blob/main/LICENSE and https://github.com/Picsart-AI-Research/MI-GAN/blob/main/LICENSE-WEIGHTS
+
 ## ONNX Runtime (`runtime/*/win-x64/onnxruntime.dll`)
 
 Copyright (c) Microsoft Corporation. Licensed under the MIT License:

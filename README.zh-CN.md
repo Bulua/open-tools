@@ -36,7 +36,7 @@ Open Tools 把这些常用工具放进一个桌面程序：
 
 ## 功能一览
 
-目前共 9 个分类、57 个工具。
+目前共 9 个分类、58 个工具。
 
 | 分类 | 包含 |
 | --- | --- |
@@ -44,7 +44,7 @@ Open Tools 把这些常用工具放进一个桌面程序：
 | 文本编码 | Base64、URL / Unicode / HTML 编码、哈希计算、JWT 解码、随机密码、密码本、正则表达式测试、命名风格转换 |
 | 时间 | 时间戳转换、时区转换与世界时间、Cron 表达式、倒计时提醒 |
 | 计算换算 | 计算器、单位换算、进制转换、颜色转换 |
-| 图片 | 压缩、格式转换、裁剪、旋转、调色、拼接、马赛克、水印、去背景（AI 识别主体）、取色、ICO 图标生成 |
+| 图片 | 压缩、格式转换、裁剪、旋转、调色、拼接、马赛克、水印、去背景（AI 识别主体）、去水印（AI 修补）、取色、ICO 图标生成 |
 | 音频 | 格式转换（含视频提取声音）、剪辑、拼接、录音机、文字转语音 |
 | 视频 | B 站视频下载（可在线播放）、抖音无水印下载、视频转音频（直接复制原始音轨或转 MP3、M4A、WAV）、视频拼接、视频配乐、屏幕录制、摄像头录制 |
 | 文档文件 | Word 转 PDF、PDF 转 Word、Word 加水印与去水印、PDF 页面编辑、PDF 去水印、Markdown 编辑预览与转 Word、文件压缩与解压 |
@@ -90,7 +90,7 @@ Open Tools 把这些常用工具放进一个桌面程序：
   - **检查更新**：访问本仓库在 Gitee / GitHub 上的版本信息文件，不携带任何个人数据。
   - **IP 地址与位置查询**：打开这个工具或点击查询时，向免费的公共服务查询 IP 归属地（依次尝试 ip-api.com、ipwho.is、ipapi.co，会把要查询的 IP 发送给该服务；其中 ip-api.com 不支持加密传输）。
   - **Ping 网络测试**：只向你输入的地址发送 ping。
-  - **下载 AI 抠图模型**：只有在「图片去背景」中点击下载时，下载模型文件和 AI 运行环境（ONNX Runtime），优先从国内的魔搭社区（ModelScope）下载，失败时换到 Hugging Face；图片本身始终在本机处理。
+  - **下载 AI 抠图模型**：只有在「图片去背景」「图片去水印」中点击下载时，下载模型文件和 AI 运行环境（ONNX Runtime），优先从国内的魔搭社区（ModelScope）下载，失败时换到 Hugging Face；图片本身始终在本机处理。
 
 ## 技术栈
 
@@ -102,7 +102,7 @@ Open Tools 把这些常用工具放进一个桌面程序：
 | 文档处理 | PDF.js · pdf-lib · docx · docx-preview · marked |
 | 音频 | Web Audio · wasm-media-encoders（MP3 编码）· Windows 语音 |
 | 视频 | Mediabunny（WebCodecs 硬件编解码） |
-| AI 抠图 | ONNX Runtime（DirectML 显卡加速）· rembg 开源模型（U²-Net、IS-Net） |
+| AI 抠图、去水印 | ONNX Runtime · rembg 开源模型（U²-Net、IS-Net）· LaMa · MI-GAN |
 | 图标 | Lucide |
 | 测试 | Vitest |
 | 打包与发布 | GitHub Actions · tauri-action |

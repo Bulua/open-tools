@@ -81,8 +81,8 @@ export async function aiStatus(): Promise<AiStatus> {
   return isTauri() ? invoke<AiStatus>("ai_status").catch(() => empty) : empty;
 }
 
-/** 下载模型（运行环境缺少的文件一起下载）；onProgress 收到 0～1 的进度 */
-export async function downloadModel(model: AiModel, source: AiSource, onProgress: (ratio: number) => void): Promise<void> {
+/** 下载模型（运行环境缺少的文件一起下载）；onProgress 收到 0～1 的进度。抠图、修补等各类模型都可以用 */
+export async function downloadModel(model: { id: string }, source: AiSource, onProgress: (ratio: number) => void): Promise<void> {
   const timer = window.setInterval(async () => {
     const p = await invoke<{ done: number; total: number }>("ai_model_progress", { id: model.id }).catch(() => null);
     if (p?.total) onProgress(Math.min(0.99, p.done / p.total));
@@ -95,11 +95,31 @@ export async function downloadModel(model: AiModel, source: AiSource, onProgress
   }
 }
 
-export const deleteModel = (model: AiModel) => invoke("ai_model_delete", { id: model.id });
+export const deleteModel = (model: { id: string }) => invoke("ai_model_delete", { id: model.id });
 
-/** 运行模型：输入 float32 张量及形状，返回第一个输出 */
+/** 模型的一个输入张量：float32 或 uint8（同一次运行的输入类型要相同） */
+export interface ModelInput {
+  data: Float32Array | Uint8Array;
+  shape: number[];
+}
+
+/** 运行模型：按模型输入的顺序传入张量，返回第一个输出的原始字节（float32 小端或 uint8，取决于模型） */
+export async function runModelRaw(id: string, inputs: ModelInput[]): Promise<ArrayBuffer> {
+  const body = new Uint8Array(inputs.reduce((n, i) => n + i.data.byteLength, 0));
+  let offset = 0;
+  for (const { data } of inputs) {
+    body.set(new Uint8Array(data.buffer, data.byteOffset, data.byteLength), offset);
+    offset += data.byteLength;
+  }
+  const headers = {
+    "x-model": id,
+    "x-shape": inputs.map((i) => i.shape.join(",")).join(";"),
+    "x-dtype": inputs[0]?.data instanceof Uint8Array ? "u8" : "f32",
+  };
+  return invoke<ArrayBuffer>("ai_run", body, { headers });
+}
+
+/** 运行模型：输入一个 float32 张量及形状，返回第一个输出 */
 export async function runModel(model: AiModel, input: Float32Array, shape: number[]): Promise<Float32Array> {
-  const body = new Uint8Array(input.buffer, input.byteOffset, input.byteLength);
-  const out = await invoke<ArrayBuffer>("ai_run", body, { headers: { "x-model": model.id, "x-shape": shape.join(",") } });
-  return new Float32Array(out);
+  return new Float32Array(await runModelRaw(model.id, [{ data: input, shape }]));
 }

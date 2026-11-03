@@ -5,10 +5,12 @@ import { computed, ref } from "vue";
  * 滚轮以鼠标位置为中心缩放；按住拖动平移，移动超过几个像素才算拖动，否则当作点击。
  * 事件绑定在内容的外层区域上（内容在其中居中），transform 用 style 加到内容上。
  * 默认最小就是适应区域（zoom = 1）；传入 min < 1 时还可以缩得比区域更小，四周留出空间方便摆放。
+ * 默认按住左键拖动；左键另有用途（如画笔涂抹）时可以用 buttons 改成右键（2）、中键（1）。
  */
-export function useZoomPan(options: { min?: number; max?: number } = {}) {
+export function useZoomPan(options: { min?: number; max?: number; buttons?: number[] } = {}) {
   const MIN_ZOOM = options.min ?? 1;
   const MAX_ZOOM = options.max ?? 40;
+  const BUTTONS = options.buttons ?? [0];
   const zoom = ref(1);
   /** 相对居中位置的偏移 */
   const pan = ref({ x: 0, y: 0 });
@@ -37,7 +39,7 @@ export function useZoomPan(options: { min?: number; max?: number } = {}) {
   let dragStart: { x: number; y: number; pan: { x: number; y: number } } | null = null;
   let dragged = false;
   const onDown = (e: PointerEvent) => {
-    if (e.button !== 0) return;
+    if (!BUTTONS.includes(e.button)) return;
     dragStart = { x: e.clientX, y: e.clientY, pan: { ...pan.value } };
     dragged = false;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);

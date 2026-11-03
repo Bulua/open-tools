@@ -1,5 +1,5 @@
 import { defineAsyncComponent } from "vue";
-import { AppWindow, Crop, Eraser, Grid3x3, LayoutGrid, Minimize2, Pipette, Replace, RotateCw, SlidersHorizontal, Stamp } from "lucide-vue-next";
+import { AppWindow, Crop, Eraser, Grid3x3, LayoutGrid, Minimize2, Pipette, Replace, RotateCw, SlidersHorizontal, Stamp, WandSparkles } from "lucide-vue-next";
 import type { Category } from "../types";
 
 // 同一个界面组件按用途注册成多个工具
@@ -77,6 +77,13 @@ const image: Category = {
       desc: "AI 自动识别人物、商品等主体去除背景，残留的背景点一下即可去掉；可换成白、蓝、红等底色",
       icon: Eraser,
       component: defineAsyncComponent(() => import("./components/ImageRemoveBg.vue")),
+    },
+    {
+      id: "image-inpaint",
+      name: "图片去水印",
+      desc: "涂抹或框选水印、文字、杂物，AI 自动补全背景，大图也清晰",
+      icon: WandSparkles,
+      component: defineAsyncComponent(() => import("./components/ImageInpaint.vue")),
     },
     {
       id: "image-color",
