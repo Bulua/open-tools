@@ -4,6 +4,7 @@ mod document;
 mod douyin;
 mod hdr;
 mod network;
+mod paths;
 mod script;
 mod tray;
 mod tts;
@@ -51,6 +52,8 @@ pub fn run() {
         ])
         // 关闭窗口时隐藏到托盘，从托盘菜单退出
         .setup(|app| {
+            // 旧版本放在别处的数据（密码本、模型、图标）搬进数据文件夹，要在读取这些数据之前
+            paths::migrate(app.handle());
             tray::setup(app)?;
             // 换上之前从 Gitee / GitHub 下载的图标（见 branding.rs）
             branding::apply_cached(app.handle());

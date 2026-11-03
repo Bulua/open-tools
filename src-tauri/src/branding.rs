@@ -1,6 +1,6 @@
 //! 远程图标：前端从 Gitee / GitHub 读取仓库里的 branding/icon.json，下载并校验好图标后交给这里。
 //! 这里负责把图标保存到本机、换上窗口和托盘图标、改写快捷方式的图标；下次启动时直接换上保存的图标。
-//! 图标保存在应用数据目录的 branding 文件夹：<id>.png、<id>.ico，current.txt 记录正在使用的图标 id。
+//! 图标保存在数据文件夹（见 paths.rs）的 branding 文件夹：<id>.png、<id>.ico，current.txt 记录正在使用的图标 id。
 
 use std::path::PathBuf;
 
@@ -12,9 +12,7 @@ use tauri::{AppHandle, Manager, Runtime};
 const MAX_SIZE: usize = 2 * 1024 * 1024;
 
 fn branding_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
-    let dir = app.path().app_local_data_dir().map_err(|e| e.to_string())?.join("branding");
-    std::fs::create_dir_all(&dir).map_err(|e| format!("Can't create the icon folder: {e}"))?;
-    Ok(dir)
+    crate::paths::sub_dir(app, "branding")
 }
 
 /// 图标 id 会拼进文件名，只允许小写字母、数字和连字符
