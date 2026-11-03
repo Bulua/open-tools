@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from "vue";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-vue-next";
 import { usePopover } from "@/composables/usePopover";
+import { useI18n } from "vue-i18n";
 
 // 弹出层用 Teleport 放在 body 下，组件有两个根节点；class 等属性交给触发按钮
 defineOptions({ inheritAttrs: false });
@@ -11,7 +12,8 @@ defineOptions({ inheritAttrs: false });
  * 值的格式与 datetime-local 相同：「2026-11-01T09:30」，空字符串表示未选择。
  * 左边选日期（周一开头），右边选小时和分钟，修改立即生效。
  */
-withDefaults(defineProps<{ placeholder?: string }>(), { placeholder: "选择日期和时间" });
+defineProps<{ placeholder?: string }>();
+const { t, tm, rt } = useI18n();
 const model = defineModel<string>({ default: "" });
 
 const trigger = ref<HTMLButtonElement>();
@@ -19,8 +21,9 @@ const panel = ref<HTMLDivElement>();
 const { open, style, toggle, close } = usePopover(trigger, panel, { maxHeight: 340 });
 
 const pad = (n: number) => String(n).padStart(2, "0");
-const WEEK = ["一", "二", "三", "四", "五", "六", "日"];
-const WEEK_FULL = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+/** 日历表头（周一开头）和显示用的星期（周日开头，与 Date.getDay() 对应） */
+const WEEK = computed(() => (tm("datetime.week") as string[]).map((w) => rt(w)));
+const WEEK_FULL = computed(() => (tm("datetime.weekFull") as string[]).map((w) => rt(w)));
 
 // 本地保存一份：连续点小时、分钟时，不必等外部更新完成也能在最新的值上修改
 const local = ref(model.value);
@@ -40,7 +43,7 @@ const emit = (y: number, mo: number, d: number, h: number, mi: number) => {
 const display = computed(() => {
   const p = parsed.value;
   if (!p) return "";
-  return `${p.y}-${pad(p.mo)}-${pad(p.d)}  ${pad(p.h)}:${pad(p.mi)}  ${WEEK_FULL[new Date(p.y, p.mo - 1, p.d).getDay()]}`;
+  return `${p.y}-${pad(p.mo)}-${pad(p.d)}  ${pad(p.h)}:${pad(p.mi)}  ${WEEK_FULL.value[new Date(p.y, p.mo - 1, p.d).getDay()]}`;
 });
 
 // ---------- 日历 ----------
@@ -131,7 +134,7 @@ watch(() => parsed.value?.h, () => open.value && nextTick(scrollTimes));
 <template>
   <button v-bind="$attrs" ref="trigger" type="button" class="dt-trigger" :class="{ open }" @click="toggle">
     <CalendarDays :size="14" class="icon" />
-    <span class="value" :class="{ placeholder: !display }">{{ display || placeholder }}</span>
+    <span class="value" :class="{ placeholder: !display }">{{ display || placeholder || t("datetime.placeholder") }}</span>
   </button>
 
   <Teleport to="body">
@@ -139,9 +142,9 @@ watch(() => parsed.value?.h, () => open.value && nextTick(scrollTimes));
       <div v-if="open" ref="panel" class="dt-panel" :style="style">
         <div class="calendar">
           <header>
-            <button type="button" class="nav" title="上个月" @click="shiftMonth(-1)"><ChevronLeft :size="15" /></button>
-            <b>{{ viewYear }} 年 {{ viewMonth }} 月</b>
-            <button type="button" class="nav" title="下个月" @click="shiftMonth(1)"><ChevronRight :size="15" /></button>
+            <button type="button" class="nav" :title="t('datetime.prevMonth')" @click="shiftMonth(-1)"><ChevronLeft :size="15" /></button>
+            <b>{{ t("datetime.month", { year: viewYear, month: viewMonth }) }}</b>
+            <button type="button" class="nav" :title="t('datetime.nextMonth')" @click="shiftMonth(1)"><ChevronRight :size="15" /></button>
           </header>
           <div class="grid week">
             <span v-for="w in WEEK" :key="w">{{ w }}</span>
@@ -161,7 +164,7 @@ watch(() => parsed.value?.h, () => open.value && nextTick(scrollTimes));
         </div>
 
         <div class="times">
-          <div class="time-head"><span>时</span><span>分</span></div>
+          <div class="time-head"><span>{{ t("datetime.hour") }}</span><span>{{ t("datetime.minute") }}</span></div>
           <div class="columns">
             <div ref="hourList" class="column">
               <button
@@ -191,9 +194,9 @@ watch(() => parsed.value?.h, () => open.value && nextTick(scrollTimes));
         </div>
 
         <footer>
-          <button type="button" class="link" @click="setNow">现在</button>
-          <span class="current">{{ display || "未选择" }}</span>
-          <button type="button" class="btn small primary" @click="close">确定</button>
+          <button type="button" class="link" @click="setNow">{{ t("datetime.now") }}</button>
+          <span class="current">{{ display || t("datetime.none") }}</span>
+          <button type="button" class="btn small primary" @click="close">{{ t("datetime.ok") }}</button>
         </footer>
       </div>
     </Transition>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { ArrowDownUp } from "lucide-vue-next";
+import { useI18n } from "vue-i18n";
 import type { ToolAction } from "@/tools/types";
 import TextPane from "@/components/common/TextPane.vue";
 
@@ -10,6 +11,7 @@ import TextPane from "@/components/common/TextPane.vue";
  */
 defineProps<{ actions: ToolAction[]; placeholder?: string }>();
 
+const { t } = useI18n();
 const input = ref("");
 const output = ref("");
 const error = ref("");
@@ -20,7 +22,7 @@ const run = async (action: ToolAction) => {
     output.value = await action.run(input.value);
   } catch (e) {
     output.value = "";
-    error.value = `${action.label}失败：${e instanceof Error ? e.message : String(e)}`;
+    error.value = t("tool.actionFailed", { action: action.label, error: e instanceof Error ? e.message : String(e) });
   }
 };
 
@@ -32,7 +34,7 @@ const swap = () => {
 
 <template>
   <div class="transform">
-    <TextPane v-model="input" label="输入" :placeholder="placeholder ?? '输入或粘贴内容'" />
+    <TextPane v-model="input" :label="t('tool.input')" :placeholder="placeholder ?? t('tool.inputPlaceholder')" />
 
     <div class="toolbar">
       <button
@@ -45,13 +47,13 @@ const swap = () => {
         {{ a.label }}
       </button>
       <span class="spacer" />
-      <button class="btn subtle" title="交换输入与输出" @click="swap">
+      <button class="btn subtle" :title="t('tool.swapTitle')" @click="swap">
         <ArrowDownUp :size="14" />
-        交换
+        {{ t("tool.swap") }}
       </button>
     </div>
 
-    <TextPane v-model="output" label="输出" readonly placeholder="结果会显示在这里" :error="error" />
+    <TextPane v-model="output" :label="t('tool.output')" readonly :placeholder="t('tool.outputPlaceholder')" :error="error" />
   </div>
 </template>
 

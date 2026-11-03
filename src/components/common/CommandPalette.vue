@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { CornerDownLeft, Search } from "lucide-vue-next";
+import { useI18n } from "vue-i18n";
 import type { Category, Tool } from "@/tools";
+import { searchTextOf } from "@/locales/tools";
 import { boxOf, glide } from "@/utils/motion";
 
 const props = defineProps<{ categories: Category[] }>();
 const emit = defineEmits<{ pick: [categoryId: string, toolId: string]; close: [] }>();
 
+const { t } = useI18n();
 const keyword = ref("");
 const cursor = ref(0);
 const inputEl = ref<HTMLInputElement>();
@@ -23,7 +26,7 @@ const groups = computed(() => {
   return props.categories
     .map((c) => ({
       category: c,
-      tools: c.tools.filter((t) => !k || (t.name + t.desc + t.id + c.name).toLowerCase().includes(k)),
+      tools: c.tools.filter((tool) => !k || searchTextOf(tool, c).includes(k)),
     }))
     .filter((g) => g.tools.length);
 });
@@ -78,7 +81,7 @@ const indexOf = (tool: Tool) => flat.value.findIndex((h) => h.tool === tool);
     <div class="palette" @keydown="onKey">
       <label class="input">
         <Search :size="16" />
-        <input ref="inputEl" v-model="keyword" placeholder="搜索所有工具…" />
+        <input ref="inputEl" v-model="keyword" :placeholder="t('palette.placeholder')" />
         <kbd>Esc</kbd>
       </label>
 
@@ -86,21 +89,21 @@ const indexOf = (tool: Tool) => flat.value.findIndex((h) => h.tool === tool);
         <template v-for="g in groups" :key="g.category.id">
           <div class="group">{{ g.category.name }}</div>
           <button
-            v-for="t in g.tools"
-            :key="t.id"
-            :data-index="indexOf(t)"
+            v-for="tool in g.tools"
+            :key="tool.id"
+            :data-index="indexOf(tool)"
             class="hit"
-            :class="{ active: indexOf(t) === cursor }"
-            @mousemove="cursor = indexOf(t)"
-            @click="pick({ category: g.category, tool: t })"
+            :class="{ active: indexOf(tool) === cursor }"
+            @mousemove="cursor = indexOf(tool)"
+            @click="pick({ category: g.category, tool })"
           >
-            <component :is="t.icon" :size="16" :stroke-width="1.75" class="icon" />
-            <span class="name">{{ t.name }}</span>
-            <span class="desc">{{ t.desc }}</span>
-            <CornerDownLeft v-if="indexOf(t) === cursor" :size="14" class="enter" />
+            <component :is="tool.icon" :size="16" :stroke-width="1.75" class="icon" />
+            <span class="name">{{ tool.name }}</span>
+            <span class="desc">{{ tool.desc }}</span>
+            <CornerDownLeft v-if="indexOf(tool) === cursor" :size="14" class="enter" />
           </button>
         </template>
-        <p v-if="!flat.length" class="none">没有找到「{{ keyword }}」相关的工具</p>
+        <p v-if="!flat.length" class="none">{{ t("palette.none", { keyword }) }}</p>
       </div>
     </div>
   </div>

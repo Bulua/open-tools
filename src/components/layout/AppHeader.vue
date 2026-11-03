@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { ArrowUpCircle, ChevronLeft, ChevronRight, Github, Moon, Search, Sun } from "lucide-vue-next";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { ArrowUpCircle, Check, ChevronLeft, ChevronRight, Github, Languages, Moon, Search, Sun } from "lucide-vue-next";
+import { useI18n } from "vue-i18n";
 import type { Category } from "@/tools";
 import { useUpdater } from "@/composables/useUpdater";
+import { usePopover } from "@/composables/usePopover";
+import { LOCALES, useLocale, type LocalePref } from "@/locales";
 import { REPO_URL, openExternal } from "@/utils/openExternal";
 import { boxOf, glide } from "@/utils/motion";
 import AppLogo from "./AppLogo.vue";
@@ -17,6 +20,18 @@ const props = defineProps<{
 defineEmits<{ select: [id: string]; toggleTheme: []; openSearch: []; openUpdate: [] }>();
 
 const { status: updateStatus, newVersion } = useUpdater();
+const { t } = useI18n();
+
+// 语言切换菜单：跟随系统，或固定某种语言
+const { pref: localePref } = useLocale();
+const langBtn = ref<HTMLElement>();
+const langMenu = ref<HTMLElement>();
+const { open: langOpen, style: langStyle, toggle: toggleLang, close: closeLang } = usePopover(langBtn, langMenu, { minWidth: 140 });
+const localeOptions = computed<{ value: LocalePref; label: string }[]>(() => [{ value: "auto", label: t("locale.auto") }, ...LOCALES]);
+const pickLocale = (value: LocalePref) => {
+  localePref.value = value;
+  closeLang();
+};
 
 // 分类多了以后横向滚动，两侧出现箭头
 const scroller = ref<HTMLElement>();
@@ -85,7 +100,7 @@ watch(
     </div>
 
     <div class="tabs-wrap" :class="{ 'fade-left': canLeft, 'fade-right': canRight }">
-      <button v-show="canLeft" class="arrow left" aria-label="向左滚动" @click="scrollBy(-1)">
+      <button v-show="canLeft" class="arrow left" :aria-label="t('header.scrollLeft')" @click="scrollBy(-1)">
         <ChevronLeft :size="16" />
       </button>
       <nav ref="scroller" class="tabs" @scroll="update" @wheel.prevent="onWheel">
@@ -100,7 +115,7 @@ watch(
           {{ c.name }}<sup>{{ c.tools.length }}</sup>
         </button>
       </nav>
-      <button v-show="canRight" class="arrow right" aria-label="向右滚动" @click="scrollBy(1)">
+      <button v-show="canRight" class="arrow right" :aria-label="t('header.scrollRight')" @click="scrollBy(1)">
         <ChevronRight :size="16" />
       </button>
     </div>
@@ -108,24 +123,46 @@ watch(
     <div class="actions">
       <button class="search" @click="$emit('openSearch')">
         <Search :size="14" />
-        <span>搜索工具</span>
+        <span>{{ t("header.search") }}</span>
         <kbd>Ctrl K</kbd>
       </button>
       <!-- 有新版本时显示醒目的提示，否则是普通的「检查更新」按钮 -->
       <button v-if="updateStatus === 'available'" class="update-pill" @click="$emit('openUpdate')">
-        <ArrowUpCircle :size="14" />新版本 v{{ newVersion }}
+        <ArrowUpCircle :size="14" />{{ t("header.newVersion", { version: newVersion }) }}
       </button>
-      <button v-else class="theme-btn" title="检查更新" @click="$emit('openUpdate')">
+      <button v-else class="theme-btn" :title="t('header.checkUpdate')" @click="$emit('openUpdate')">
         <ArrowUpCircle :size="16" />
       </button>
-      <button class="theme-btn" :title="theme === 'dark' ? '浅色模式' : '深色模式'" @click="$emit('toggleTheme')">
+      <button ref="langBtn" class="theme-btn" :class="{ active: langOpen }" :title="t('locale.title')" @click="toggleLang">
+        <Languages :size="16" />
+      </button>
+      <button class="theme-btn" :title="theme === 'dark' ? t('header.lightMode') : t('header.darkMode')" @click="$emit('toggleTheme')">
         <Sun v-if="theme === 'dark'" :size="16" />
         <Moon v-else :size="16" />
       </button>
-      <button class="theme-btn" :title="`GitHub 仓库：${REPO_URL}`" @click="openExternal(REPO_URL)">
+      <button class="theme-btn" :title="t('header.github', { url: REPO_URL })" @click="openExternal(REPO_URL)">
         <Github :size="16" />
       </button>
     </div>
+
+    <Teleport to="body">
+      <Transition name="pop">
+        <div v-if="langOpen" ref="langMenu" class="lang-menu" role="listbox" :style="langStyle">
+          <div
+            v-for="o in localeOptions"
+            :key="o.value"
+            class="lang-option"
+            role="option"
+            :aria-selected="o.value === localePref"
+            :class="{ selected: o.value === localePref }"
+            @click="pickLocale(o.value)"
+          >
+            <span>{{ o.label }}</span>
+            <Check v-if="o.value === localePref" :size="13" />
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </header>
 </template>
 
@@ -316,8 +353,40 @@ watch(
   background: none;
   color: var(--text-2);
 }
-.theme-btn:hover {
+.theme-btn:hover,
+.theme-btn.active {
   background: var(--hover);
   color: var(--text);
+}
+
+/* 语言菜单（Teleport 到 body 下，scoped 样式仍然生效） */
+.lang-menu {
+  position: fixed;
+  z-index: 100;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+.lang-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 30px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.lang-option:hover {
+  background: var(--hover);
+}
+.lang-option.selected {
+  color: var(--accent);
+  font-weight: 500;
 }
 </style>

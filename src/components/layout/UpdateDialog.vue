@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, watch } from "vue";
 import { CircleAlert, CircleCheck, LoaderCircle, RefreshCw, X } from "lucide-vue-next";
+import { Translation, useI18n } from "vue-i18n";
 import { useUpdater } from "@/composables/useUpdater";
 
 /**
@@ -8,6 +9,7 @@ import { useUpdater } from "@/composables/useUpdater";
  * 自动检查发现新版本时弹出，点右上角的更新按钮也打开它；已是最新版本时显示当前版本的更新内容。
  */
 const emit = defineEmits<{ close: [] }>();
+const { t } = useI18n();
 const {
   supported,
   status,
@@ -41,45 +43,47 @@ const close = () => !busy() && emit("close");
 
 <template>
   <div class="overlay" @mousedown.self="close">
-    <div class="dialog" role="dialog" aria-label="检查更新" @keydown.esc="close">
+    <div class="dialog" role="dialog" :aria-label="t('update.title')" @keydown.esc="close">
       <header class="head">
-        <h2>{{ status === "available" ? "发现新版本" : "检查更新" }}</h2>
+        <h2>{{ status === "available" ? t("update.found") : t("update.title") }}</h2>
         <div class="head-actions">
-          <button v-if="supported" class="icon-btn" :class="{ spinning: status === 'checking' }" title="重新检查" :disabled="!canRecheck" @click="checkForUpdate()">
+          <button v-if="supported" class="icon-btn" :class="{ spinning: status === 'checking' }" :title="t('update.recheck')" :disabled="!canRecheck" @click="checkForUpdate()">
             <RefreshCw :size="15" />
           </button>
-          <button class="icon-btn" title="关闭" :disabled="busy()" @click="close"><X :size="16" /></button>
+          <button class="icon-btn" :title="t('update.close')" :disabled="busy()" @click="close"><X :size="16" /></button>
         </div>
       </header>
 
       <div class="body">
         <p class="version">
-          当前版本 <b>{{ supported ? `v${currentVersion || "…"}` : "开发预览" }}</b>
-          <span v-if="checkedAt && status !== 'checking'" class="checked">· {{ checkedAt }} 检查</span>
+          {{ t("update.current") }} <b>{{ supported ? `v${currentVersion || "…"}` : t("update.devPreview") }}</b>
+          <span v-if="checkedAt && status !== 'checking'" class="checked">{{ t("update.checkedAt", { time: checkedAt }) }}</span>
         </p>
 
-        <p v-if="!supported" class="state">在线更新只在安装后的桌面版中可用。</p>
+        <p v-if="!supported" class="state">{{ t("update.unsupported") }}</p>
 
-        <p v-else-if="status === 'checking'" class="state"><LoaderCircle :size="16" class="spin" />正在检查新版本…</p>
+        <p v-else-if="status === 'checking'" class="state"><LoaderCircle :size="16" class="spin" />{{ t("update.checking") }}</p>
 
         <template v-else-if="status === 'latest'">
-          <p class="state ok"><CircleCheck :size="16" />已是最新版本</p>
+          <p class="state ok"><CircleCheck :size="16" />{{ t("update.upToDate") }}</p>
           <template v-if="currentNotes">
-            <h3>本版本更新内容</h3>
+            <h3>{{ t("update.currentNotes") }}</h3>
             <div class="notes">{{ currentNotes }}</div>
           </template>
         </template>
 
         <template v-else-if="status === 'available'">
-          <p class="state accent">新版本 <b>v{{ newVersion }}</b> 已发布</p>
-          <h3>更新内容</h3>
-          <div class="notes">{{ notes || "这个版本没有填写更新说明" }}</div>
+          <Translation keypath="update.released" tag="p" class="state accent">
+            <template #version><b>v{{ newVersion }}</b></template>
+          </Translation>
+          <h3>{{ t("update.notes") }}</h3>
+          <div class="notes">{{ notes || t("update.noNotes") }}</div>
         </template>
 
         <template v-else-if="status === 'downloading' || status === 'installing'">
           <p class="state">
             <LoaderCircle :size="16" class="spin" />
-            {{ status === "downloading" ? `正在下载 v${newVersion}… ${progress}%` : "下载完成，正在安装，程序会自动重启" }}
+            {{ status === "downloading" ? t("update.downloading", { version: newVersion, progress }) : t("update.installing") }}
           </p>
           <div class="bar"><i :style="{ width: `${status === 'installing' ? 100 : progress}%` }" /></div>
         </template>
@@ -89,14 +93,14 @@ const close = () => !busy() && emit("close");
 
       <footer class="foot">
         <template v-if="status === 'available'">
-          <button class="btn subtle skip" title="自动检查到这个版本时不再提醒，之后仍可以在右上角手动更新" @click="skipVersion">跳过此版本</button>
-          <button class="btn subtle" @click="close">稍后</button>
-          <button class="btn primary" @click="installUpdate">立即更新</button>
+          <button class="btn subtle skip" :title="t('update.skipTitle')" @click="skipVersion">{{ t("update.skip") }}</button>
+          <button class="btn subtle" @click="close">{{ t("update.later") }}</button>
+          <button class="btn primary" @click="installUpdate">{{ t("update.install") }}</button>
         </template>
-        <button v-else-if="status === 'error'" class="btn primary" @click="checkForUpdate()">重试</button>
+        <button v-else-if="status === 'error'" class="btn primary" @click="checkForUpdate()">{{ t("update.retry") }}</button>
         <template v-else-if="!busy()">
-          <button v-if="supported" class="btn subtle" :disabled="!canRecheck" @click="checkForUpdate()"><RefreshCw :size="14" />重新检查</button>
-          <button class="btn" @click="close">关闭</button>
+          <button v-if="supported" class="btn subtle" :disabled="!canRecheck" @click="checkForUpdate()"><RefreshCw :size="14" />{{ t("update.recheck") }}</button>
+          <button class="btn" @click="close">{{ t("update.close") }}</button>
         </template>
       </footer>
     </div>

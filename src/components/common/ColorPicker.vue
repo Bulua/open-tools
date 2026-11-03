@@ -2,6 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { Pipette } from "lucide-vue-next";
 import { usePopover } from "@/composables/usePopover";
+import { useI18n } from "vue-i18n";
 import { hslToRgb, hsvToRgb, parseColor, rgbToHsl, rgbToHsv, toHex } from "@/utils/color";
 
 /**
@@ -10,6 +11,7 @@ import { hslToRgb, hsvToRgb, parseColor, rgbToHsl, rgbToHsv, toHex } from "@/uti
  * 默认显示一个小色块，也可以通过插槽自定义触发区域。
  */
 defineProps<{ disabled?: boolean }>();
+const { t } = useI18n();
 const model = defineModel<string>({ default: "#000000" });
 
 const trigger = ref<HTMLButtonElement>();
@@ -108,7 +110,7 @@ const eyeDrop = async () => {
             <div class="cp-hue" @pointerdown="onHue">
               <i class="cp-thumb" :style="{ left: `${(hsv.h / 360) * 100}%`, background: `hsl(${hsv.h}, 100%, 50%)` }" />
             </div>
-            <button v-if="canEyeDrop" type="button" class="cp-eye" title="从屏幕上取色" @click="eyeDrop"><Pipette :size="14" /></button>
+            <button v-if="canEyeDrop" type="button" class="cp-eye" :title="t('common.eyeDropper')" @click="eyeDrop"><Pipette :size="14" /></button>
           </div>
           <div class="cp-fields">
             <label>HEX</label>
@@ -119,9 +121,9 @@ const eyeDrop = async () => {
             </div>
             <label>HSL</label>
             <div class="cp-nums">
-              <input type="number" min="0" max="360" :value="hsl.h" title="色相 0～360" @input="onHsl('h', $event)" />
-              <input type="number" min="0" max="100" :value="hsl.s" title="饱和度 %" @input="onHsl('s', $event)" />
-              <input type="number" min="0" max="100" :value="hsl.l" title="亮度 %" @input="onHsl('l', $event)" />
+              <input type="number" min="0" max="360" :value="hsl.h" :title="t('common.hue')" @input="onHsl('h', $event)" />
+              <input type="number" min="0" max="100" :value="hsl.s" :title="t('common.saturation')" @input="onHsl('s', $event)" />
+              <input type="number" min="0" max="100" :value="hsl.l" :title="t('common.lightness')" @input="onHsl('l', $event)" />
             </div>
           </div>
         </div>

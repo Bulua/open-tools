@@ -13,12 +13,14 @@ export interface CopyItem {
 import { ref } from "vue";
 import { Check, Copy } from "lucide-vue-next";
 import { useClipboard } from "@/composables/useClipboard";
+import { useI18n } from "vue-i18n";
 
 /**
  * 「名称 + 结果 + 复制按钮」列表，用于一次显示多种结果。
  * 例如哈希计算的 MD5 / SHA、时间戳的各种格式。
  */
 withDefaults(defineProps<{ items: CopyItem[]; labelWidth?: string }>(), { labelWidth: "72px" });
+const { t } = useI18n();
 
 const { copy } = useClipboard();
 const copiedLabel = ref<string | null>(null);
@@ -40,7 +42,7 @@ const onCopy = async (item: CopyItem) => {
         class="icon-btn"
         :class="{ ok: copiedLabel === item.label }"
         :disabled="!item.value"
-        title="复制"
+        :title="t('common.copy')"
         @click="onCopy(item)"
       >
         <Check v-if="copiedLabel === item.label" :size="14" />

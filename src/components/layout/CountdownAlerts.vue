@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { AlarmClock, X } from "lucide-vue-next";
+import { useI18n } from "vue-i18n";
 import { formatDateTime } from "@/utils/time";
 import { alerts, dismissAlert } from "@/tools/utility/countdownStore";
 
 /** 倒计时到期提醒：显示在窗口右下角，在任何工具中都能看到 */
 const emit = defineEmits<{ open: [] }>();
+const { t } = useI18n();
 </script>
 
 <template>
@@ -12,11 +14,11 @@ const emit = defineEmits<{ open: [] }>();
     <div v-for="a in alerts" :key="a.id" class="alert" role="alert">
       <span class="icon"><AlarmClock :size="18" /></span>
       <div class="text">
-        <b>{{ a.title || "倒计时" }} 时间到了</b>
+        <b>{{ t("countdown.timeUp", { title: a.title || t("countdown.defaultTitle") }) }}</b>
         <span>{{ formatDateTime(new Date(a.target)) }}</span>
       </div>
-      <button class="btn small" @click="emit('open'), dismissAlert(a.id)">查看</button>
-      <button class="icon-btn" title="知道了" @click="dismissAlert(a.id)"><X :size="14" /></button>
+      <button class="btn small" @click="emit('open'), dismissAlert(a.id)">{{ t("countdown.view") }}</button>
+      <button class="icon-btn" :title="t('countdown.dismiss')" @click="dismissAlert(a.id)"><X :size="14" /></button>
     </div>
   </TransitionGroup>
 </template>

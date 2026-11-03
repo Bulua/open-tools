@@ -1,6 +1,7 @@
 <script lang="ts">
 export interface Session {
   id: number;
+  /** 用户改过的名称；为空时显示默认的「会话 N」，跟着界面语言变 */
   name: string;
 }
 </script>
@@ -8,6 +9,7 @@ export interface Session {
 <script setup lang="ts">
 import { nextTick, ref } from "vue";
 import { Plus, X } from "lucide-vue-next";
+import { useI18n } from "vue-i18n";
 
 /** 会话标签栏：切换、新建、关闭，双击标签重命名 */
 defineProps<{ sessions: Session[]; activeId: number; max: number }>();
@@ -18,13 +20,16 @@ const emit = defineEmits<{
   rename: [id: number, name: string];
 }>();
 
+const { t } = useI18n();
+const labelOf = (s: Session) => s.name || t("tool.session", { n: s.id });
+
 const editingId = ref<number | null>(null);
 const draft = ref("");
 const input = ref<HTMLInputElement[]>();
 
 const startRename = async (s: Session) => {
   editingId.value = s.id;
-  draft.value = s.name;
+  draft.value = labelOf(s);
   await nextTick();
   input.value?.[0]?.select();
 };
@@ -47,7 +52,7 @@ const onMouseUp = (e: MouseEvent, id: number) => e.button === 1 && emit("close",
       :class="{ active: s.id === activeId }"
       role="tab"
       :aria-selected="s.id === activeId"
-      :title="editingId === s.id ? '' : `${s.name}（双击重命名）`"
+      :title="editingId === s.id ? '' : t('tool.renameHint', { name: labelOf(s) })"
       @click="emit('select', s.id)"
       @dblclick="startRename(s)"
       @mouseup="onMouseUp($event, s.id)"
@@ -63,10 +68,10 @@ const onMouseUp = (e: MouseEvent, id: number) => e.button === 1 && emit("close",
         @blur="commit"
         @click.stop
       />
-      <span v-else class="name">{{ s.name }}</span>
-      <button class="close" title="关闭" @click.stop="emit('close', s.id)"><X :size="12" /></button>
+      <span v-else class="name">{{ labelOf(s) }}</span>
+      <button class="close" :title="t('tool.closeSession')" @click.stop="emit('close', s.id)"><X :size="12" /></button>
     </div>
-    <button v-if="sessions.length < max" class="add" title="新建会话" @click="emit('add')"><Plus :size="14" /></button>
+    <button v-if="sessions.length < max" class="add" :title="t('tool.newSession')" @click="emit('add')"><Plus :size="14" /></button>
   </div>
 </template>
 

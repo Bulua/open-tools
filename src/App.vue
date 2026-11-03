@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
-import { categories } from "@/tools";
+import { useI18n } from "vue-i18n";
+import { localizedCategories as categories } from "@/locales/tools";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { useTheme } from "@/composables/useTheme";
 import AppHeader from "@/components/layout/AppHeader.vue";
@@ -14,16 +15,17 @@ import CountdownAlerts from "@/components/layout/CountdownAlerts.vue";
 import { startCountdownTicker } from "@/tools/utility/countdownStore";
 import { startBrandingSync } from "@/utils/branding";
 
+const { t } = useI18n();
 const { theme, toggleTheme } = useTheme();
 
 // ---------- 当前分类与工具（会被记住，下次打开时恢复） ----------
-const activeCategoryId = useStoredRef("category", categories[0].id);
+const activeCategoryId = useStoredRef("category", categories.value[0].id);
 /** 每个分类上次选中的工具 */
 const activeToolByCategory = useStoredRef<Record<string, string>>("toolByCategory", {});
 const sidebarCollapsed = useStoredRef("sidebarCollapsed", false);
 
 const activeCategory = computed(
-  () => categories.find((c) => c.id === activeCategoryId.value) ?? categories[0],
+  () => categories.value.find((c) => c.id === activeCategoryId.value) ?? categories.value[0],
 );
 const activeTool = computed(() => {
   const tools = activeCategory.value.tools;
@@ -86,8 +88,8 @@ onMounted(startBrandingSync);
         </KeepAlive>
         <EmptyState
           v-if="!activeTool"
-          :title="`${activeCategory.name}，敬请期待`"
-          description="这个分类下的工具正在规划中。你可以按 Ctrl K 搜索其他分类的工具。"
+          :title="t('app.comingSoonTitle', { name: activeCategory.name })"
+          :description="t('app.comingSoonDesc')"
         />
       </main>
     </div>

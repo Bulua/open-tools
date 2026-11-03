@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { FilePlus2 } from "lucide-vue-next";
 import { useWindowEvent } from "@/composables/useWindowEvent";
+import { useI18n } from "vue-i18n";
 
 /**
  * 文件拖放区：可以拖入、点击选择，或按 Ctrl+V 粘贴（截图、复制的文件）。
@@ -21,8 +22,11 @@ const props = withDefaults(
     /** 允许拖入文件夹：会展开文件夹内的所有文件，并通过 entries 事件给出相对路径 */
     directories?: boolean;
   }>(),
-  { accept: "", multiple: false, title: "拖入文件，或点击选择", hint: "", paste: true, compact: false, directories: false },
+  { accept: "", multiple: false, title: undefined, hint: "", paste: true, compact: false, directories: false },
 );
+const { t } = useI18n();
+/** 没传 title 时显示默认提示；传空字符串则不显示 */
+const titleText = computed(() => props.title ?? t("common.dropTitle"));
 
 const emit = defineEmits<{
   files: [files: File[]];
@@ -89,7 +93,7 @@ const onPick = (e: Event) => {
 
 const onPaste = (e: ClipboardEvent) => {
   const files = [...(e.clipboardData?.files ?? [])].map((f) =>
-    f.name ? f : new File([f], `粘贴的图片.${f.type.split("/")[1] || "png"}`, { type: f.type }),
+    f.name ? f : new File([f], `${t("common.pastedImage")}.${f.type.split("/")[1] || "png"}`, { type: f.type }),
   );
   if (files.length) {
     e.preventDefault();
@@ -121,7 +125,7 @@ defineExpose({
     <input ref="input" type="file" :accept="accept" :multiple="multiple" hidden @change="onPick" />
     <input v-if="directories" ref="folderInput" type="file" webkitdirectory hidden @change="onPick" />
     <FilePlus2 :size="compact ? 16 : 28" :stroke-width="1.5" />
-    <strong v-if="title">{{ title }}</strong>
+    <strong v-if="titleText">{{ titleText }}</strong>
     <span v-if="hint">{{ hint }}</span>
     <slot />
   </button>

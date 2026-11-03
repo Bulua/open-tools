@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref } from "vue";
 import { useStoredRef } from "@/composables/useStoredRef";
+import { useI18n } from "vue-i18n";
 
 /**
  * 左右分栏：两侧拼在同一个面板里，拖动中间的分隔线调整宽度，双击分隔线恢复默认。
@@ -17,6 +18,7 @@ const props = withDefaults(
   }>(),
   { defaultRatio: 0.4, min: 220 },
 );
+const { t } = useI18n();
 
 const ratio = useStoredRef(`split.${props.storageKey}`, props.defaultRatio);
 const root = ref<HTMLDivElement>();
@@ -65,7 +67,7 @@ const onKey = (e: KeyboardEvent) => {
       role="separator"
       aria-orientation="vertical"
       tabindex="0"
-      title="拖动调整宽度，双击恢复默认"
+      :title="t('common.splitDrag')"
       @pointerdown="start"
       @dblclick="ratio = defaultRatio"
       @keydown="onKey"

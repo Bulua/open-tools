@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { provide, toRef } from "vue";
+import { useI18n } from "vue-i18n";
 import type { Tool } from "@/tools/types";
 import TextTransform from "./TextTransform.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
@@ -16,11 +17,13 @@ import { TOOL_ACTIVE } from "./toolActions";
  */
 const props = withDefaults(defineProps<{ tool: Tool; active?: boolean }>(), { active: true });
 
+const { t } = useI18n();
+
 provide(TOOL_ACTIVE, toRef(props, "active"));
 </script>
 
 <template>
   <component :is="tool.component" v-if="tool.component" v-bind="tool.props" />
   <TextTransform v-else-if="tool.actions" :actions="tool.actions" :placeholder="tool.inputPlaceholder" />
-  <EmptyState v-else title="即将上线" :description="`「${tool.name}」还在打磨中，很快就能在这里使用。`" />
+  <EmptyState v-else :title="t('tool.soonTitle')" :description="t('tool.soonDesc', { name: tool.name })" />
 </template>

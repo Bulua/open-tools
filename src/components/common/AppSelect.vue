@@ -13,6 +13,7 @@ export interface SelectOption<T = string | number> {
 import { computed, nextTick, ref, watch } from "vue";
 import { Check, ChevronDown, Search } from "lucide-vue-next";
 import { usePopover } from "@/composables/usePopover";
+import { useI18n } from "vue-i18n";
 
 // 弹出层用 Teleport 放在 body 下，组件有两个根节点；class 等属性交给触发按钮
 defineOptions({ inheritAttrs: false });
@@ -31,8 +32,9 @@ const props = withDefaults(
     menuWidth?: number;
     size?: "sm" | "md";
   }>(),
-  { placeholder: "请选择", searchable: undefined, menuWidth: 0, size: "md" },
+  { placeholder: undefined, searchable: undefined, menuWidth: 0, size: "md" },
 );
+const { t } = useI18n();
 const model = defineModel<T>({ required: true });
 
 const trigger = ref<HTMLButtonElement>();
@@ -99,7 +101,7 @@ const showGroup = (i: number) => {
 
 <template>
   <button v-bind="$attrs" ref="trigger" type="button" class="app-select" :class="[size, { open }]" @click="toggle" @keydown="onKeydown">
-    <span class="label" :class="{ placeholder: !selected }">{{ selected?.label ?? placeholder }}</span>
+    <span class="label" :class="{ placeholder: !selected }">{{ selected?.label ?? placeholder ?? t("common.select") }}</span>
     <ChevronDown :size="14" class="chevron" />
   </button>
 
@@ -108,7 +110,7 @@ const showGroup = (i: number) => {
       <div v-if="open" ref="panel" class="select-menu" :style="style" @keydown="onKeydown">
         <label v-if="showSearch" class="search">
           <Search :size="13" />
-          <input ref="searchInput" v-model="query" placeholder="搜索" spellcheck="false" />
+          <input ref="searchInput" v-model="query" :placeholder="t('common.search')" spellcheck="false" />
         </label>
         <div ref="list" class="options" role="listbox">
           <template v-for="(o, i) in filtered" :key="`${o.group ?? ''}-${o.value}`">
@@ -127,7 +129,7 @@ const showGroup = (i: number) => {
               <Check v-if="o.value === model" :size="13" class="check" />
             </div>
           </template>
-          <p v-if="!filtered.length" class="empty">没有匹配的选项</p>
+          <p v-if="!filtered.length" class="empty">{{ t("common.noOptions") }}</p>
         </div>
       </div>
     </Transition>

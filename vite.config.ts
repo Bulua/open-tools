@@ -12,6 +12,12 @@ export default defineConfig({
   resolve: {
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
+  // vue-i18n 的编译开关：只用 Composition API，不打包旧版 API 和开发者工具支持
+  define: {
+    __VUE_I18N_FULL_INSTALL__: true,
+    __VUE_I18N_LEGACY_API__: false,
+    __INTLIFY_PROD_DEVTOOLS__: false,
+  },
   clearScreen: false,
   server: {
     port: 1420,

@@ -1,6 +1,7 @@
 import { ref } from "vue";
 import { isTauri } from "@tauri-apps/api/core";
 import type { Update } from "@tauri-apps/plugin-updater";
+import { t } from "@/locales";
 
 /**
  * 在线更新（只在桌面版可用）：
@@ -68,7 +69,7 @@ async function checkForUpdate(silent = false, prompt = false) {
     lastChecked.value = Date.now();
   } catch (e) {
     status.value = silent ? "idle" : "error";
-    error.value = `检查更新失败：${e instanceof Error ? e.message : String(e)}`;
+    error.value = t("update.checkFailed", { error: e instanceof Error ? e.message : String(e) });
   }
 }
 
@@ -129,7 +130,7 @@ async function installUpdate() {
     await relaunch();
   } catch (e) {
     status.value = "error";
-    error.value = `更新失败：${e instanceof Error ? e.message : String(e)}`;
+    error.value = t("update.installFailed", { error: e instanceof Error ? e.message : String(e) });
   }
 }
 

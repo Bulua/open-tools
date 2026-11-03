@@ -1,5 +1,6 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { zipSync } from "fflate";
+import { t } from "@/locales";
 
 /**
  * 把数据保存为本地文件。
@@ -41,7 +42,7 @@ export async function saveToFolder(files: { parts: string[]; data: Uint8Array }[
   const { mkdir, writeFile } = await import("@tauri-apps/plugin-fs");
   const { join } = await import("@tauri-apps/api/path");
 
-  const folder = await open({ directory: true, title: "选择解压到的文件夹" });
+  const folder = await open({ directory: true, title: t("common.pickFolder") });
   if (typeof folder !== "string") return null;
 
   for (const file of files) {

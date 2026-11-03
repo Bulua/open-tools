@@ -2,6 +2,7 @@
 import { defineAsyncComponent, ref } from "vue";
 import { Check, ChevronsDownUp, ChevronsUpDown, ClipboardPaste, Copy, X } from "lucide-vue-next";
 import { useClipboard } from "@/composables/useClipboard";
+import { useI18n } from "vue-i18n";
 import type CodeEditorComponent from "./CodeEditor.vue";
 import type { EditorError } from "./CodeEditor.vue";
 import type { TextMark } from "./codeEditorExtensions";
@@ -34,6 +35,7 @@ const props = withDefaults(
   }>(),
   { placeholder: "", readonly: false, error: "", nowrap: false, language: undefined, codeError: null, codeMarks: () => [] },
 );
+const { t } = useI18n();
 
 const model = defineModel<string>({ default: "" });
 
@@ -64,14 +66,14 @@ defineExpose({ focusAt });
       <div class="pane-actions">
         <slot name="actions" />
         <template v-if="language === 'json' && !$slots.body">
-          <button class="icon-btn" title="全部折叠" @click="editor?.foldAll()"><ChevronsDownUp :size="14" /></button>
-          <button class="icon-btn" title="全部展开" @click="editor?.unfoldAll()"><ChevronsUpDown :size="14" /></button>
+          <button class="icon-btn" :title="t('common.foldAll')" @click="editor?.foldAll()"><ChevronsDownUp :size="14" /></button>
+          <button class="icon-btn" :title="t('common.unfoldAll')" @click="editor?.unfoldAll()"><ChevronsUpDown :size="14" /></button>
         </template>
         <template v-if="!props.readonly">
-          <button class="icon-btn" title="粘贴" @click="onPaste"><ClipboardPaste :size="14" /></button>
-          <button class="icon-btn" title="清空" @click="model = ''"><X :size="14" /></button>
+          <button class="icon-btn" :title="t('common.paste')" @click="onPaste"><ClipboardPaste :size="14" /></button>
+          <button class="icon-btn" :title="t('common.clear')" @click="model = ''"><X :size="14" /></button>
         </template>
-        <button v-else class="icon-btn" :class="{ ok: copied }" title="复制" @click="copy(model)">
+        <button v-else class="icon-btn" :class="{ ok: copied }" :title="t('common.copy')" @click="copy(model)">
           <Check v-if="copied" :size="14" />
           <Copy v-else :size="14" />
         </button>

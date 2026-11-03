@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { PanelLeftClose, PanelLeftOpen, Search, X } from "lucide-vue-next";
+import { useI18n } from "vue-i18n";
 import { isAvailable, type Category } from "@/tools";
+import { searchTextOf } from "@/locales/tools";
 import { boxOf, glide } from "@/utils/motion";
 
 const props = defineProps<{ category: Category; activeId?: string; collapsed: boolean }>();
 defineEmits<{ select: [id: string]; toggle: [] }>();
+const { t } = useI18n();
 
 const keyword = ref("");
 watch(
@@ -31,7 +34,7 @@ watch(
 const filtered = computed(() => {
   const k = keyword.value.trim().toLowerCase();
   if (!k) return props.category.tools;
-  return props.category.tools.filter((t) => (t.name + t.desc).toLowerCase().includes(k));
+  return props.category.tools.filter((tool) => searchTextOf(tool).includes(k));
 });
 </script>
 
@@ -39,30 +42,30 @@ const filtered = computed(() => {
   <aside class="sidebar" :class="{ collapsed }">
     <label v-if="!collapsed" class="filter">
       <Search :size="14" />
-      <input v-model="keyword" :placeholder="`搜索 ${category.name}`" @keydown.esc="keyword = ''" />
-      <button v-if="keyword" class="clear" title="清空" @click="keyword = ''"><X :size="12" /></button>
+      <input v-model="keyword" :placeholder="t('sidebar.search', { name: category.name })" @keydown.esc="keyword = ''" />
+      <button v-if="keyword" class="clear" :title="t('sidebar.clear')" @click="keyword = ''"><X :size="12" /></button>
     </label>
 
     <ul ref="list" class="list">
-      <li v-for="t in filtered" :key="t.id">
+      <li v-for="tool in filtered" :key="tool.id">
         <button
           class="item"
-          :class="{ active: t.id === activeId }"
-          :title="collapsed ? t.name : t.desc"
-          @click="$emit('select', t.id)"
+          :class="{ active: tool.id === activeId }"
+          :title="collapsed ? tool.name : tool.desc"
+          @click="$emit('select', tool.id)"
         >
-          <component :is="t.icon" :size="16" :stroke-width="1.75" class="icon" />
-          <span v-if="!collapsed" class="label">{{ t.name }}</span>
-          <span v-if="!collapsed && !isAvailable(t)" class="soon">即将上线</span>
+          <component :is="tool.icon" :size="16" :stroke-width="1.75" class="icon" />
+          <span v-if="!collapsed" class="label">{{ tool.name }}</span>
+          <span v-if="!collapsed && !isAvailable(tool)" class="soon">{{ t("sidebar.soon") }}</span>
         </button>
       </li>
     </ul>
 
     <p v-if="!collapsed && !filtered.length" class="empty">
-      {{ category.tools.length ? "没有匹配的工具" : "这个分类还是空的" }}
+      {{ category.tools.length ? t("sidebar.noMatch") : t("sidebar.empty") }}
     </p>
 
-    <button class="toggle" :title="collapsed ? '展开侧栏' : '收起侧栏'" @click="$emit('toggle')">
+    <button class="toggle" :title="collapsed ? t('sidebar.expand') : t('sidebar.collapse')" @click="$emit('toggle')">
       <PanelLeftOpen v-if="collapsed" :size="16" />
       <PanelLeftClose v-else :size="16" />
     </button>

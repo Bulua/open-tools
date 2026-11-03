@@ -12,6 +12,7 @@ open-tools/
 ├── scripts/                 # 发布脚本：同步版本到 Gitee
 ├── src/                     # 前端代码，界面全部在这里
 │   ├── main.ts              # 入口
+│   ├── locales/             # 多语言：vue-i18n 初始化、公共文案（zh-CN.ts / en.ts）、工具列表的翻译
 │   ├── App.vue              # 整体布局：顶栏 + 侧栏 + 工具区；记住上次打开的工具
 │   ├── styles/
 │   │   ├── theme.css        # 颜色、字体等设计变量（改主题只改这里）
@@ -50,6 +51,7 @@ open-tools/
 │       ├── types.ts         # Tool / Category 类型定义
 │       ├── json/
 │       │   ├── index.ts         # 本模块的工具定义
+│       │   ├── locales.ts       # 本模块的多语言文案（工具名称的英文、界面文案）
 │       │   ├── utils.ts         # 纯逻辑（解析、对比、生成类型…）
 │       │   ├── utils.test.ts    # 单元测试
 │       │   └── components/      # 需要自定义界面的工具
@@ -139,7 +141,83 @@ import ToolActions from "@/components/tool/ToolActions.vue";
 
 - 新增工具：在模块的 `index.ts` 里定义，再把 id 加到 `categories` 的某个分类中。测试会检查每个工具都恰好出现在一个分类里。
 - 新增分类：在 `categories` 数组里加一项，数组顺序就是顶部分类的顺序。
-- 分类内的工具自动按名称排序（中文按拼音、英文按字母，按首字母混排），定义时的顺序不影响显示。
+- 分类内的工具自动按名称排序（中文按拼音、英文按字母，按首字母混排），定义时的顺序不影响显示。英文界面下按英文名的字母排序。
+- 新增分类时，在 `src/locales/tools.ts` 的 `CATEGORY_NAMES_EN` 里写上分类的英文名。
+
+## 多语言文案
+
+界面支持简体中文和英文，基于 [vue-i18n](https://vue-i18n.intlify.dev/)。语言默认跟随系统，用户可以在顶栏的语言按钮里切换，选择会被记住。
+找不到英文文案时显示中文，所以还没改成多语言的界面照常显示中文，不会报错。
+
+文案放在三个地方：
+
+| 文案 | 中文写在 | 英文写在 |
+|---|---|---|
+| 顶栏、侧栏、更新对话框、公共控件 | `src/locales/zh-CN.ts` | `src/locales/en.ts` |
+| 工具名称、说明、输入框提示、按钮名 | 模块的 `index.ts`（工具定义本身） | 模块的 `locales.ts` 的 `tools` |
+| 工具界面里的文字 | 模块的 `locales.ts` 的 `messages["zh-CN"]` | 模块的 `locales.ts` 的 `messages.en` |
+
+### 新增工具时
+
+1. 照常在模块的 `index.ts` 里用中文写 `name`、`desc`（以及 `inputPlaceholder`、`actions` 的 `label`）。
+2. 在同一模块的 `locales.ts` 的 `tools` 里按工具 id 写英文。`actions` 按顺序一一对应：
+
+```ts
+// src/tools/json/locales.ts
+import { defineModuleLocales } from "@/locales/types";
+
+export default defineModuleLocales({
+  tools: {
+    "json-escape": {
+      name: "JSON String Escape",
+      desc: "Restore escaped JSON from logs, or escape it the other way",
+      placeholder: 'e.g. {\\"name\\":\\"Open Tools\\"}', // 对应 inputPlaceholder
+      actions: ["Unescape", "Escape"], // 对应 actions 的 label
+    },
+  },
+});
+```
+
+测试会检查每个工具都有英文名称和说明，按钮数量、有没有输入框提示也要与工具定义一致。
+
+### 工具界面里的文字
+
+写在模块 `locales.ts` 的 `messages` 里，**以模块名为最外层的 key**，避免与其他模块重名。中文和英文结构必须相同，少写、多写 key 时 `npm run typecheck` 会报错：
+
+```ts
+export default defineModuleLocales({
+  tools: { ... },
+  messages: {
+    "zh-CN": { json: { sortKeys: "按键名排序", errorAt: "第 {line} 行有错误" } },
+    en: { json: { sortKeys: "Sort keys", errorAt: "Error on line {line}" } },
+  },
+});
+```
+
+组件里用 `useI18n()` 取文案：
+
+```vue
+<script setup lang="ts">
+import { useI18n } from "vue-i18n";
+const { t } = useI18n();
+</script>
+
+<template>
+  <label class="check"><input v-model="sort" type="checkbox" />{{ t("json.sortKeys") }}</label>
+  <p :title="t('json.errorAt', { line: 3 })">…</p>
+</template>
+```
+
+普通 `.ts` 文件（如逻辑函数里抛出的错误信息）用 `import { t } from "@/locales"`。测试在中文下运行，测试里断言的中文文案不用改。
+
+注意：
+
+- **变量用 `{name}` 插值**，不要把句子拆成几段再拼接，英文的语序常常和中文不同。
+- 文案里要显示 `{`、`}`、`@`、`|` 这几个字符时，写成 `{'{'}`、`{'}'}`、`{'@'}`、`{'|'}`（它们是 vue-i18n 的语法字符）。
+- 句子中间要加粗等带标签的内容时，用 `<Translation keypath="…">` 组件和具名插槽，参考 `UpdateDialog.vue`。
+- 组件模板的 `v-for` 不要用 `t` 作循环变量，会遮住 `t()` 函数。
+- 需要跟着语言变化的数组（例如星期），用 `tm()` 取出后再用 `rt()` 逐项转换，参考 `DateTimePicker.vue`。
+- 日期、数字的格式可以直接用 `Intl` 并传入 `locale`（`import { locale } from "@/locales"`），参考 `utils/time.ts` 的 `relativeTime`。
 
 ## 代码约定
 

@@ -17,7 +17,7 @@ const props = defineProps<{ tool: Tool }>();
 
 const MAX_SESSIONS = 10;
 let nextId = 1;
-const newSession = (): Session => ({ id: nextId, name: `会话 ${nextId++}` });
+const newSession = (): Session => ({ id: nextId++, name: "" });
 
 const sessions = ref<Session[]>([newSession()]);
 const activeId = ref(sessions.value[0].id);
