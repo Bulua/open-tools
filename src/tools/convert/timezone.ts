@@ -1,6 +1,8 @@
 /**
  * 时区换算：基于浏览器内置的时区数据（Intl），自动处理夏令时。
  */
+import { locale, t } from "@/locales";
+import { CITY_NAMES_EN } from "./namesEn";
 
 export interface City {
   name: string;
@@ -57,7 +59,12 @@ export function allZones(): string[] {
   return [...new Set([...list, ...CITIES.map((c) => c.zone)])].sort();
 }
 
-export const cityName = (zone: string) => CITIES.find((c) => c.zone === zone)?.name ?? zone.split("/").pop()!.replace(/_/g, " ");
+/** 城市在当前界面语言下的名称 */
+export const cityLabel = (c: City) => (locale.value === "zh-CN" ? c.name : CITY_NAMES_EN[c.zone] ?? c.name);
+export const cityName = (zone: string) => {
+  const city = CITIES.find((c) => c.zone === zone);
+  return city ? cityLabel(city) : zone.split("/").pop()!.replace(/_/g, " ");
+};
 
 const formatters = new Map<string, Intl.DateTimeFormat>();
 function partsIn(date: Date, zone: string) {
@@ -106,13 +113,14 @@ export function offsetLabel(minutes: number): string {
 
 /** 时差显示为「+8 小时」「-2.5 小时」「相同」 */
 export function diffLabel(minutes: number): string {
-  if (!minutes) return "时间相同";
+  if (!minutes) return t("convert.sameTime");
   const h = minutes / 60;
-  return `${h > 0 ? "早" : "晚"} ${Number(Math.abs(h).toFixed(2))} 小时`;
+  return t(h > 0 ? "convert.ahead" : "convert.behind", { n: Number(Math.abs(h).toFixed(2)) });
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const WEEK = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+const WEEK_EN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export interface ZonedTime {
   date: string;
@@ -129,7 +137,7 @@ export function timeIn(date: Date, zone: string, withSeconds = false): ZonedTime
     date: `${p.year}-${pad(p.month)}-${pad(p.day)}`,
     time: `${pad(p.hour)}:${pad(p.minute)}${withSeconds ? `:${pad(p.second)}` : ""}`,
     hour: p.hour,
-    weekday: WEEK[p.weekday],
+    weekday: (locale.value === "zh-CN" ? WEEK : WEEK_EN)[p.weekday],
     dayKey: p.year * 10000 + p.month * 100 + p.day,
   };
 }
@@ -152,5 +160,5 @@ export function parseLocalInput(value: string): [number, number, number, number,
 /** 相对基准时区是今天、明天还是昨天 */
 export function dayRelation(target: ZonedTime, base: ZonedTime): string {
   if (target.dayKey === base.dayKey) return "";
-  return target.dayKey > base.dayKey ? "次日" : "前一天";
+  return target.dayKey > base.dayKey ? t("convert.nextDay") : t("convert.prevDay");
 }

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { allTools, categories, type Tool } from "@/tools";
 import { relativeTime } from "@/utils/time";
 import { i18n, t, toolTexts } from "./index";
@@ -47,6 +47,37 @@ describe("工具列表的英文", () => {
     const tool = localizeTool(allTools.find((x) => x.id === "json-format")!, "en");
     expect(searchTextOf(tool)).toContain("json formatter");
     expect(searchTextOf(tool)).toContain("格式化");
+  });
+});
+
+/** 列出文案对象里所有字符串的 key，如 header.search */
+function leafKeys(obj: Record<string, unknown>, prefix = ""): string[] {
+  return Object.entries(obj).flatMap(([k, v]) =>
+    typeof v === "string" ? [prefix + k] : Array.isArray(v) ? [] : leafKeys(v as Record<string, unknown>, `${prefix}${k}.`),
+  );
+}
+
+describe("文案文件", () => {
+  const messages = (i18n.global.messages as unknown as { value: Record<"zh-CN" | "en", Record<string, unknown>> }).value;
+
+  it("中英文的 key 一一对应", () => {
+    expect(leafKeys(messages.en).sort()).toEqual(leafKeys(messages["zh-CN"]).sort());
+  });
+
+  it("所有文案都能正常编译（@、|、花括号等语法字符要转义）", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      for (const l of ["zh-CN", "en"] as const) {
+        setLocale(l);
+        for (const key of leafKeys(messages[l])) expect(() => t(key, {}), key).not.toThrow();
+      }
+      expect(warn).not.toHaveBeenCalled();
+      expect(error).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+      error.mockRestore();
+    }
   });
 });
 

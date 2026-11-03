@@ -1,4 +1,5 @@
 /** Base64 工具用到的纯函数（文本、文件、图片），不依赖界面，便于测试 */
+import { t } from "@/locales";
 
 // ---------- 字节 ↔ Base64 ----------
 
@@ -14,9 +15,9 @@ export function bytesToBase64(bytes: Uint8Array): string {
 /** 支持标准与 URL 安全两种写法，自动忽略空白、补齐末尾的 = */
 export function base64ToBytes(base64: string): Uint8Array {
   let s = base64.replace(/\s+/g, "").replace(/-/g, "+").replace(/_/g, "/");
-  if (!/^[A-Za-z0-9+/]*=*$/.test(s)) throw new Error("包含 Base64 以外的字符");
+  if (!/^[A-Za-z0-9+/]*=*$/.test(s)) throw new Error(t("encode.badBase64Chars"));
   s = s.replace(/=+$/, "");
-  if (s.length % 4 === 1) throw new Error("长度不正确");
+  if (s.length % 4 === 1) throw new Error(t("encode.badLength"));
   s += "=".repeat((4 - (s.length % 4)) % 4);
   return Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 }
@@ -37,7 +38,7 @@ export function base64ToText(base64: string): string {
   try {
     return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {
-    throw new Error("解码结果不是文本，可能是文件或图片");
+    throw new Error(t("encode.notText"));
   }
 }
 

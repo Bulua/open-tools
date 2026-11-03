@@ -1,6 +1,7 @@
 /**
  * 随机密码生成：使用系统的安全随机数（crypto.getRandomValues），密码不会保存或上传。
  */
+import { locale, t } from "@/locales";
 
 export interface PasswordOptions {
   length: number;
@@ -60,7 +61,7 @@ export function charGroups(o: PasswordOptions): string[] {
 
 export function generatePassword(o: PasswordOptions, randomInt: (max: number) => number = secureRandomInt): string {
   const groups = charGroups(o);
-  if (!groups.length) throw new Error("请至少选择一种字符");
+  if (!groups.length) throw new Error(t("encode.needCharset"));
   const all = groups.join("");
   const length = Math.max(1, Math.floor(o.length));
   const chars: string[] = [];
@@ -79,24 +80,36 @@ export function passwordStrength(o: PasswordOptions): { bits: number; level: 0 |
   const size = charGroups(o).join("").length;
   const bits = size > 1 ? Math.round(o.length * Math.log2(size)) : 0;
   const level = bits < 40 ? 0 : bits < 60 ? 1 : bits < 90 ? 2 : 3;
-  return { bits, level, label: ["弱", "一般", "强", "非常强"][level] };
+  return { bits, level, label: t(`encode.${(["weak", "fair", "strong", "veryStrong"] as const)[level]}`) };
 }
 
 /** 暴力破解所需时间的大致描述（按每秒一百亿次尝试估算） */
 export function crackTime(bits: number): string {
   const seconds = 2 ** bits / 2 / 1e10;
-  if (seconds < 1) return "瞬间";
-  const units: [number, string][] = [
-    [31536000 * 1e8, "亿年"],
-    [31536000 * 1e4, "万年"],
-    [31536000, "年"],
-    [86400, "天"],
-    [3600, "小时"],
-    [60, "分钟"],
-    [1, "秒"],
-  ];
+  if (seconds < 1) return t("encode.instant");
+  // 中文按亿年、万年计，英文按 billion、million years 计；最大一档超过一万亿年时不再写具体数字
+  const units: [number, string][] =
+    locale.value === "zh-CN"
+      ? [
+          [31536000 * 1e8, "亿年"],
+          [31536000 * 1e4, "万年"],
+          [31536000, "年"],
+          [86400, "天"],
+          [3600, "小时"],
+          [60, "分钟"],
+          [1, "秒"],
+        ]
+      : [
+          [31536000 * 1e9, "billion years"],
+          [31536000 * 1e6, "million years"],
+          [31536000, "years"],
+          [86400, "days"],
+          [3600, "hours"],
+          [60, "minutes"],
+          [1, "seconds"],
+        ];
+  if (seconds >= 31536000 * 1e12) return t("encode.overTrillion");
   const [size, unit] = units.find(([s]) => seconds >= s)!;
   const n = seconds / size;
-  if (unit === "亿年" && n >= 1e4) return "超过一万亿年";
-  return `约 ${n >= 100 ? Math.round(n) : Number(n.toPrecision(2))} ${unit}`;
+  return t("encode.about", { n: n >= 100 ? Math.round(n) : Number(n.toPrecision(2)), unit });
 }

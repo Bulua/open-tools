@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import CopyList from "@/components/common/CopyList.vue";
 import ColorPicker from "@/components/common/ColorPicker.vue";
 import { parseColor, rgbToHsl, toHex, toHsl, toRgb } from "@/utils/color";
 
 /** HEX / RGB / HSL 互转：输入任意写法或用取色器选择，一次显示所有格式 */
+const { t } = useI18n();
 const input = ref("#c96442");
 const color = computed(() => parseColor(input.value));
 
@@ -16,8 +18,8 @@ const items = computed(() => {
     { label: "HEX", value: toHex(c) },
     { label: "RGB", value: toRgb(c) },
     { label: "HSL", value: toHsl(c) },
-    { label: "RGB 数值", value: `${c.r}, ${c.g}, ${c.b}` },
-    { label: "HSL 数值", value: `${h}, ${s}%, ${l}%` },
+    { label: t("convert.rgbValues"), value: `${c.r}, ${c.g}, ${c.b}` },
+    { label: t("convert.hslValues"), value: `${h}, ${s}%, ${l}%` },
   ];
 });
 
@@ -29,10 +31,10 @@ const pickerValue = computed(() => (color.value ? toHex({ ...color.value, a: 1 }
   <div class="color">
     <!-- 左：大色块（点击打开取色器）+ 输入 -->
     <section class="card picker">
-      <div class="card-title">颜色</div>
-      <ColorPicker class="swatch" title="点击打开取色板" :model-value="pickerValue" @update:model-value="input = $event">
+      <div class="card-title">{{ t("convert.color") }}</div>
+      <ColorPicker class="swatch" :title="t('convert.openPicker')" :model-value="pickerValue" @update:model-value="input = $event">
         <span class="swatch-color" :style="{ background: color ? toRgb(color) : 'transparent' }" />
-        <span class="swatch-hint">点击选择颜色</span>
+        <span class="swatch-hint">{{ t("convert.pickColor") }}</span>
       </ColorPicker>
       <div class="picker-body">
         <input
@@ -42,16 +44,16 @@ const pickerValue = computed(() => (color.value ? toHex({ ...color.value, a: 1 }
           spellcheck="false"
           placeholder="#c96442、rgb(201, 100, 66)、hsl(15, 56%, 52%)"
         />
-        <p v-if="!color && input.trim()" class="error">无法识别，支持 HEX、RGB、HSL 三种写法</p>
-        <p v-else class="hint">支持 HEX、RGB、HSL，带透明度也可以</p>
+        <p v-if="!color && input.trim()" class="error">{{ t("convert.colorInvalid") }}</p>
+        <p v-else class="hint">{{ t("convert.colorHint") }}</p>
       </div>
     </section>
 
     <!-- 右：各种格式 -->
     <section class="card">
-      <div class="card-title">结果</div>
+      <div class="card-title">{{ t("convert.result") }}</div>
       <CopyList :items="items" />
-      <p v-if="!items.length" class="empty">输入颜色后显示各种格式</p>
+      <p v-if="!items.length" class="empty">{{ t("convert.colorEmpty") }}</p>
     </section>
   </div>
 </template>

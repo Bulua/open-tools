@@ -1,4 +1,5 @@
 /** JWT 解码（只解码，不校验签名），不依赖界面，便于测试 */
+import { t } from "@/locales";
 import { base64ToText } from "./base64";
 
 export interface DecodedJwt {
@@ -11,14 +12,14 @@ const decodePart = (part: string, name: string) => {
   try {
     return JSON.parse(base64ToText(part));
   } catch {
-    throw new Error(`${name} 不是合法的 Base64URL 编码 JSON`);
+    throw new Error(t("encode.badJwtPart", { name }));
   }
 };
 
 export function decodeJwt(token: string): DecodedJwt {
   // 允许带上 "Bearer " 前缀直接粘贴
   const parts = token.trim().replace(/^Bearer\s+/i, "").split(".");
-  if (parts.length !== 3 && parts.length !== 2) throw new Error("JWT 应由两个「.」分隔为三段");
+  if (parts.length !== 3 && parts.length !== 2) throw new Error(t("encode.badJwt"));
   return {
     header: decodePart(parts[0], "Header"),
     payload: decodePart(parts[1], "Payload"),

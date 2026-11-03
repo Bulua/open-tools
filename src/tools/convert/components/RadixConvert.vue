@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import AppSelect from "@/components/common/AppSelect.vue";
 import { Check, Copy } from "lucide-vue-next";
 import { useClipboard } from "@/composables/useClipboard";
@@ -7,8 +8,9 @@ import { useStoredRef } from "@/composables/useStoredRef";
 import { formatInteger, groupBinary, parseInteger } from "../radix";
 
 /** 二 / 八 / 十 / 十六进制及任意进制互转：改任意一行，其他行自动更新 */
+const { t } = useI18n();
 const customBase = useStoredRef("radix.customBase", 36);
-const BASE_OPTIONS = Array.from({ length: 35 }, (_, i) => ({ value: i + 2, label: `${i + 2} 进制` }));
+const BASE_OPTIONS = computed(() => Array.from({ length: 35 }, (_, i) => ({ value: i + 2, label: t("convert.baseN", { n: i + 2 }) })));
 
 const value = ref<bigint | null>(255n);
 /** 正在编辑的那一行保留用户原样输入，其余行显示转换结果 */
@@ -16,11 +18,11 @@ const editing = ref<{ base: number; text: string } | null>(null);
 const error = ref<{ base: number; message: string } | null>(null);
 
 const rows = computed(() => [
-  { base: 2, label: "二进制" },
-  { base: 8, label: "八进制" },
-  { base: 10, label: "十进制" },
-  { base: 16, label: "十六进制" },
-  { base: customBase.value, label: `${customBase.value} 进制`, custom: true },
+  { base: 2, label: t("convert.binary") },
+  { base: 8, label: t("convert.octal") },
+  { base: 10, label: t("convert.decimal") },
+  { base: 16, label: t("convert.hex") },
+  { base: customBase.value, label: t("convert.baseN", { n: customBase.value }), custom: true },
 ]);
 
 const display = (base: number) => {
@@ -51,7 +53,7 @@ const onBlur = () => {
 const bitLength = computed(() => {
   if (value.value === null) return "";
   const abs = value.value < 0n ? -value.value : value.value;
-  return `${abs.toString(2).length} 位二进制，二进制分组：${groupBinary(formatInteger(value.value, 2))}`;
+  return t("convert.bitLength", { n: abs.toString(2).length, groups: groupBinary(formatInteger(value.value, 2)) });
 });
 
 const { copy } = useClipboard();
@@ -69,14 +71,14 @@ const onCopy = async (base: number) => {
   <div class="radix">
     <section class="card">
       <header class="card-title">
-        数值
-        <span class="title-hint">修改任意一行，其他进制自动换算</span>
+        {{ t("convert.value") }}
+        <span class="title-hint">{{ t("convert.radixHint") }}</span>
       </header>
       <div class="rows">
         <div v-for="row in rows" :key="row.custom ? 'custom' : row.base" class="row">
           <label class="label">
             <template v-if="!row.custom">{{ row.label }}</template>
-            <AppSelect v-else v-model="customBase" class="base-select" size="sm" :options="BASE_OPTIONS" :searchable="false" title="选择进制" />
+            <AppSelect v-else v-model="customBase" class="base-select" size="sm" :options="BASE_OPTIONS" :searchable="false" :title="t('convert.chooseBase')" />
           </label>
           <div class="input-wrap">
             <input
@@ -89,7 +91,7 @@ const onCopy = async (base: number) => {
             />
             <p v-if="error?.base === row.base" class="error">{{ error.message }}</p>
           </div>
-          <button class="icon-btn" :class="{ ok: copiedBase === row.base }" title="复制" @click="onCopy(row.base)">
+          <button class="icon-btn" :class="{ ok: copiedBase === row.base }" :title="t('convert.copy')" @click="onCopy(row.base)">
             <Check v-if="copiedBase === row.base" :size="14" />
             <Copy v-else :size="14" />
           </button>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref } from "vue";
 import { Pause, Play } from "lucide-vue-next";
+import { useI18n } from "vue-i18n";
 import CopyList from "@/components/common/CopyList.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import ToolActions from "@/components/tool/ToolActions.vue";
@@ -8,6 +9,8 @@ import { formatDateTime, relativeTime } from "@/utils/time";
 import { parseTimeInput, type TimestampUnit } from "../timestamp";
 
 /** 时间戳 ↔ 日期：输入时间戳或日期，一次显示所有常用格式 */
+
+const { t } = useI18n();
 
 // ---------- 当前时间 ----------
 const now = ref(Date.now());
@@ -26,9 +29,9 @@ onDeactivated(stopClock);
 onBeforeUnmount(stopClock);
 
 const nowItems = computed(() => [
-  { label: "秒", value: String(Math.floor(now.value / 1000)) },
-  { label: "毫秒", value: String(now.value) },
-  { label: "本地时间", value: formatDateTime(new Date(now.value)) },
+  { label: t("convert.seconds"), value: String(Math.floor(now.value / 1000)) },
+  { label: t("convert.milliseconds"), value: String(now.value) },
+  { label: t("convert.localTime"), value: formatDateTime(new Date(now.value)) },
 ]);
 
 // ---------- 转换 ----------
@@ -36,18 +39,18 @@ const unit = useStoredRef<TimestampUnit>("timestamp.unit", "auto");
 const input = ref(String(Math.floor(Date.now() / 1000)));
 const parsed = computed(() => parseTimeInput(input.value, unit.value));
 
-const UNIT_LABEL = { s: "按秒解析", ms: "按毫秒解析", date: "按日期解析" };
+const UNIT_LABEL = computed(() => ({ s: t("convert.parsedAsS"), ms: t("convert.parsedAsMs"), date: t("convert.parsedAsDate") }));
 
 const resultItems = computed(() => {
   const p = parsed.value;
   const d = p.ok ? p.date : null;
   return [
-    { label: "本地时间", value: d ? formatDateTime(d) : "" },
-    { label: "秒", value: d ? String(Math.floor(d.getTime() / 1000)) : "" },
-    { label: "毫秒", value: d ? String(d.getTime()) : "" },
+    { label: t("convert.localTime"), value: d ? formatDateTime(d) : "" },
+    { label: t("convert.seconds"), value: d ? String(Math.floor(d.getTime() / 1000)) : "" },
+    { label: t("convert.milliseconds"), value: d ? String(d.getTime()) : "" },
     { label: "ISO 8601", value: d ? d.toISOString() : "" },
     { label: "UTC", value: d ? d.toUTCString() : "" },
-    { label: "相对现在", value: d ? relativeTime(d.getTime(), now.value) : "" },
+    { label: t("convert.relative"), value: d ? relativeTime(d.getTime(), now.value) : "" },
   ];
 });
 
@@ -57,25 +60,25 @@ const useNow = () => (input.value = String(Math.floor(Date.now() / 1000)));
 <template>
   <div class="timestamp">
     <ToolActions>
-      <div class="seg" title="输入数字时如何理解">
-        <button :class="{ on: unit === 'auto' }" @click="unit = 'auto'">自动识别</button>
-        <button :class="{ on: unit === 's' }" @click="unit = 's'">秒</button>
-        <button :class="{ on: unit === 'ms' }" @click="unit = 'ms'">毫秒</button>
+      <div class="seg" :title="t('convert.unitTitle')">
+        <button :class="{ on: unit === 'auto' }" @click="unit = 'auto'">{{ t("convert.auto") }}</button>
+        <button :class="{ on: unit === 's' }" @click="unit = 's'">{{ t("convert.seconds") }}</button>
+        <button :class="{ on: unit === 'ms' }" @click="unit = 'ms'">{{ t("convert.milliseconds") }}</button>
       </div>
     </ToolActions>
 
     <!-- 左：转换（主要功能） -->
     <section class="card convert">
-      <div class="card-title">转换</div>
+      <div class="card-title">{{ t("convert.convert") }}</div>
       <div class="input-row">
         <input
           v-model="input"
           class="field mono big"
           :class="{ invalid: !parsed.ok && parsed.message }"
           spellcheck="false"
-          placeholder="时间戳（秒 / 毫秒）或日期，例如 2024-01-02 03:04:05"
+          :placeholder="t('convert.timePlaceholder')"
         />
-        <button class="btn" @click="useNow">现在</button>
+        <button class="btn" @click="useNow">{{ t("convert.now") }}</button>
       </div>
       <p v-if="!parsed.ok && parsed.message" class="message error">{{ parsed.message }}</p>
       <p v-else-if="parsed.ok" class="message">{{ UNIT_LABEL[parsed.unit] }}</p>
@@ -85,8 +88,8 @@ const useNow = () => (input.value = String(Math.floor(Date.now() / 1000)));
     <!-- 右：当前时间，大字号显示 -->
     <section class="card now">
       <header class="card-title">
-        <span>当前时间</span>
-        <button class="icon-btn" :title="running ? '暂停' : '继续'" @click="running = !running">
+        <span>{{ t("convert.currentTime") }}</span>
+        <button class="icon-btn" :title="running ? t('convert.pause') : t('convert.resume')" @click="running = !running">
           <Pause v-if="running" :size="14" />
           <Play v-else :size="14" />
         </button>

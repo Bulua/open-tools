@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { FileText, RefreshCw, X } from "lucide-vue-next";
 import TextPane from "@/components/common/TextPane.vue";
 import CopyList from "@/components/common/CopyList.vue";
@@ -10,6 +11,7 @@ import { formatBytes } from "@/utils/format";
 import { HASH_ALGORITHMS, hashBytes, hashText, type HashAlgorithm } from "../hash";
 
 /** 计算文本或文件的 MD5 / SHA-1 / SHA-256 / SHA-512，一次全部显示 */
+const { t } = useI18n();
 const source = useStoredRef<"text" | "file">("hash.source", "text");
 const uppercase = useStoredRef("hash.uppercase", false);
 
@@ -52,13 +54,13 @@ const items = computed(() =>
   <div class="hash">
     <ToolActions>
       <div class="seg">
-        <button :class="{ on: source === 'text' }" @click="source = 'text'">文本</button>
-        <button :class="{ on: source === 'file' }" @click="source = 'file'">文件</button>
+        <button :class="{ on: source === 'text' }" @click="source = 'text'">{{ t("encode.text") }}</button>
+        <button :class="{ on: source === 'file' }" @click="source = 'file'">{{ t("encode.file") }}</button>
       </div>
-      <label class="check"><input v-model="uppercase" type="checkbox" />大写</label>
+      <label class="check"><input v-model="uppercase" type="checkbox" />{{ t("encode.uppercase") }}</label>
     </ToolActions>
 
-    <TextPane v-if="source === 'text'" v-model="text" class="input" label="文本" placeholder="输入要计算哈希的文本（按 UTF-8 计算）" />
+    <TextPane v-if="source === 'text'" v-model="text" class="input" :label="t('encode.text')" :placeholder="t('encode.hashPlaceholder')" />
 
     <template v-else>
       <!-- 选好文件后显示为一行，把空间留给结果 -->
@@ -66,15 +68,15 @@ const items = computed(() =>
         <FileText :size="20" :stroke-width="1.5" class="file-icon" />
         <strong :title="file.name">{{ file.name }}</strong>
         <span class="file-size">{{ formatBytes(file.size) }}</span>
-        <button class="btn subtle" @click="dropZone?.open()"><RefreshCw :size="14" />更换</button>
-        <button class="btn subtle" @click="file = null"><X :size="14" />清除</button>
+        <button class="btn subtle" @click="dropZone?.open()"><RefreshCw :size="14" />{{ t("encode.replace") }}</button>
+        <button class="btn subtle" @click="file = null"><X :size="14" />{{ t("encode.clear") }}</button>
       </section>
       <FileDropZone
         v-show="!file"
         ref="dropZone"
         class="input"
-        title="拖入文件，或点击选择"
-        hint="常用于校验下载的文件是否完整"
+        :title="t('encode.dropFile')"
+        :hint="t('encode.hashHint')"
         :paste="false"
         @files="file = $event[0]"
       />
@@ -82,8 +84,8 @@ const items = computed(() =>
 
     <section class="card results">
       <header class="card-title">
-        <span>结果</span>
-        <span v-if="computing" class="hint">计算中…</span>
+        <span>{{ t("encode.result") }}</span>
+        <span v-if="computing" class="hint">{{ t("encode.computing") }}</span>
       </header>
       <CopyList :items="items" />
     </section>

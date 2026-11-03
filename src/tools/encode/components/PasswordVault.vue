@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
+import { useI18n } from "vue-i18n";
+import { locale } from "@/locales";
 import { Check, Copy, ExternalLink, Eye, EyeOff, KeyRound, Lock, Plus, RefreshCw, Search, Square, SquareCheck, Trash2, X } from "lucide-vue-next";
 import { useClipboard } from "@/composables/useClipboard";
 import { openExternal } from "@/utils/openExternal";
@@ -11,6 +13,7 @@ import { createSession, decryptVault, encryptVault, loadVaultFile, matchEntry, n
  * 主密码只在内存里用来派生密钥，不保存；5 分钟没有操作自动锁定。
  */
 const AUTO_LOCK_MS = 5 * 60 * 1000;
+const { t } = useI18n();
 
 // ---------- 解锁 ----------
 const filePath = ref("");
@@ -37,16 +40,16 @@ onMounted(async () => {
 
 const unlock = async () => {
   error.value = "";
-  if (!master.value) return (error.value = "请输入主密码");
+  if (!master.value) return (error.value = t("encode.enterMaster"));
   if (!exists.value) {
-    if (master.value.length < 6) return (error.value = "主密码至少 6 位");
-    if (master.value !== confirm.value) return (error.value = "两次输入的主密码不一致");
+    if (master.value.length < 6) return (error.value = t("encode.masterTooShort"));
+    if (master.value !== confirm.value) return (error.value = t("encode.masterMismatch"));
   }
   unlocking.value = true;
   try {
     if (exists.value) {
       const file = await loadVaultFile();
-      if (file.data === null) throw new Error("密码本文件不见了");
+      if (file.data === null) throw new Error(t("encode.vaultMissing"));
       const opened = await decryptVault(file.data, master.value);
       session.value = opened.session;
       entries.value = opened.entries;
@@ -206,7 +209,7 @@ const save = async () => {
   const e = editing.value;
   if (!e) return;
   const d = e.draft;
-  if (!d.title.trim()) return (dialogError.value = "请填写名称");
+  if (!d.title.trim()) return (dialogError.value = t("encode.needTitle"));
   const updated = { ...d, title: d.title.trim(), updatedAt: Date.now() };
   const ok = await persist(e.isNew ? [...entries.value, updated] : entries.value.map((x) => (x.id === d.id ? updated : x)));
   // 保存失败的提示显示在弹窗里，不显示在工具栏下面
@@ -278,7 +281,7 @@ const copy = (key: string, text: string) => {
 const isCopied = (key: string) => clip.copied.value && copiedKey.value === key;
 
 const isUrl = (url: string) => /^https?:\/\//i.test(url);
-const formatDate = (t: number) => new Date(t).toLocaleString("zh-CN", { hour12: false });
+const formatDate = (ms: number) => new Date(ms).toLocaleString(locale.value, { hour12: false });
 </script>
 
 <template>
@@ -287,16 +290,16 @@ const formatDate = (t: number) => new Date(t).toLocaleString("zh-CN", { hour12: 
     <section v-if="!session" class="card lock">
       <KeyRound :size="28" class="lock-icon" />
       <template v-if="loading">
-        <p class="tip">正在读取…</p>
+        <p class="tip">{{ t("encode.reading") }}</p>
       </template>
       <form v-else class="lock-form" @submit.prevent="unlock">
-        <h2>{{ exists ? "输入主密码解锁" : "设置主密码" }}</h2>
-        <input v-model="master" class="field" type="password" autocomplete="off" :placeholder="exists ? '主密码' : '主密码（至少 6 位）'" autofocus />
-        <input v-if="!exists" v-model="confirm" class="field" type="password" autocomplete="off" placeholder="再输入一次" />
+        <h2>{{ exists ? t("encode.unlockTitle") : t("encode.setMaster") }}</h2>
+        <input v-model="master" class="field" type="password" autocomplete="off" :placeholder="exists ? t('encode.master') : t('encode.masterMin')" autofocus />
+        <input v-if="!exists" v-model="confirm" class="field" type="password" autocomplete="off" :placeholder="t('encode.again')" />
         <p v-if="error" class="error">{{ error }}</p>
-        <button class="btn primary full" type="submit" :disabled="unlocking">{{ unlocking ? "请稍候…" : exists ? "解锁" : "创建密码本" }}</button>
-        <p v-if="!exists" class="tip warn">主密码用来加密所有内容，不会保存在任何地方。忘记主密码后，密码本无法找回。</p>
-        <p v-if="filePath" class="tip path" :title="filePath">保存位置：{{ filePath }}</p>
+        <button class="btn primary full" type="submit" :disabled="unlocking">{{ unlocking ? t("encode.wait") : exists ? t("encode.unlock") : t("encode.createVault") }}</button>
+        <p v-if="!exists" class="tip warn">{{ t("encode.masterWarn") }}</p>
+        <p v-if="filePath" class="tip path" :title="filePath">{{ t("encode.savedAt", { path: filePath }) }}</p>
       </form>
     </section>
 
@@ -305,26 +308,26 @@ const formatDate = (t: number) => new Date(t).toLocaleString("zh-CN", { hour12: 
       <div class="toolbar bar">
         <div class="search">
           <Search :size="14" />
-          <input v-model="query" placeholder="搜索名称、账号、网址" />
+          <input v-model="query" :placeholder="t('encode.searchPlaceholder')" />
         </div>
-        <button ref="addButton" class="btn primary" @click="add"><Plus :size="14" />新增</button>
+        <button ref="addButton" class="btn primary" @click="add"><Plus :size="14" />{{ t("encode.add") }}</button>
         <button
           class="btn"
           :class="{ 'danger-solid': picking }"
           :disabled="saving || !picking"
-          :title="picking ? '' : '先勾选卡片右上角的框'"
+          :title="picking ? '' : t('encode.pickFirst')"
           @click="removePicked"
           @blur="confirmDelete = false"
         >
-          <Trash2 :size="14" />{{ !picking ? "删除" : confirmDelete ? `确认删除 ${picked.size} 项` : `删除 ${picked.size} 项` }}
+          <Trash2 :size="14" />{{ !picking ? t("encode.delete") : confirmDelete ? t("encode.confirmDeleteN", { n: picked.size }) : t("encode.deleteN", { n: picked.size }) }}
         </button>
         <template v-if="picking">
-          <button class="btn subtle" @click="pickAll">{{ allPicked ? "取消全选" : "全选" }}</button>
-          <button class="btn subtle" @click="clearPicked"><X :size="14" />取消选择</button>
+          <button class="btn subtle" @click="pickAll">{{ allPicked ? t("encode.unselectAll") : t("encode.selectAll") }}</button>
+          <button class="btn subtle" @click="clearPicked"><X :size="14" />{{ t("encode.cancelSelect") }}</button>
         </template>
         <span class="spacer" />
-        <span class="count">共 {{ entries.length }} 个账号</span>
-        <button class="btn subtle" title="锁定密码本" @click="lock"><Lock :size="14" />锁定</button>
+        <span class="count">{{ t("encode.accountCount", { n: entries.length }) }}</span>
+        <button class="btn subtle" :title="t('encode.lockTitle')" @click="lock"><Lock :size="14" />{{ t("encode.lock") }}</button>
       </div>
       <p v-if="error" class="error">{{ error }}</p>
 
@@ -340,35 +343,35 @@ const formatDate = (t: number) => new Date(t).toLocaleString("zh-CN", { hour12: 
         >
           <div class="summary">
             <span class="avatar">{{ (e.title || "?").slice(0, 1).toUpperCase() }}</span>
-            <span class="title" :title="e.title">{{ e.title || "未命名" }}</span>
-            <button class="pick" :title="picked.has(e.id) ? '取消勾选' : '勾选'" @click.stop="togglePick(e.id)">
+            <span class="title" :title="e.title">{{ e.title || t("encode.untitled") }}</span>
+            <button class="pick" :title="picked.has(e.id) ? t('encode.unpick') : t('encode.pick')" @click.stop="togglePick(e.id)">
               <SquareCheck v-if="picked.has(e.id)" :size="16" /><Square v-else :size="16" />
             </button>
           </div>
           <dl class="fields">
-            <dt>账号</dt>
+            <dt>{{ t("encode.account") }}</dt>
             <dd>
               <span class="value" :title="e.username">{{ e.username || "—" }}</span>
-              <button v-if="e.username" class="icon-btn" :class="{ ok: isCopied(e.id + ':user') }" title="复制账号" @click.stop="copy(e.id + ':user', e.username)">
+              <button v-if="e.username" class="icon-btn" :class="{ ok: isCopied(e.id + ':user') }" :title="t('encode.copyAccount')" @click.stop="copy(e.id + ':user', e.username)">
                 <Check v-if="isCopied(e.id + ':user')" :size="13" /><Copy v-else :size="13" />
               </button>
             </dd>
-            <dt>密码</dt>
+            <dt>{{ t("encode.password") }}</dt>
             <dd>
               <span class="value mono">{{ !e.password ? "—" : revealed.has(e.id) ? e.password : "••••••••" }}</span>
               <template v-if="e.password">
-                <button class="icon-btn" :title="revealed.has(e.id) ? '隐藏' : '显示'" @click.stop="toggleReveal(e.id)">
+                <button class="icon-btn" :title="revealed.has(e.id) ? t('encode.hide') : t('encode.show')" @click.stop="toggleReveal(e.id)">
                   <EyeOff v-if="revealed.has(e.id)" :size="13" /><Eye v-else :size="13" />
                 </button>
-                <button class="icon-btn" :class="{ ok: isCopied(e.id + ':pass') }" title="复制密码" @click.stop="copy(e.id + ':pass', e.password)">
+                <button class="icon-btn" :class="{ ok: isCopied(e.id + ':pass') }" :title="t('encode.copyPassword')" @click.stop="copy(e.id + ':pass', e.password)">
                   <Check v-if="isCopied(e.id + ':pass')" :size="13" /><Copy v-else :size="13" />
                 </button>
               </template>
             </dd>
-            <dt>网址</dt>
+            <dt>{{ t("encode.url") }}</dt>
             <dd>
               <span class="value" :title="e.url">{{ e.url || "—" }}</span>
-              <button v-if="isUrl(e.url)" class="icon-btn" title="在浏览器中打开" @click.stop="openExternal(e.url)">
+              <button v-if="isUrl(e.url)" class="icon-btn" :title="t('encode.openInBrowser')" @click.stop="openExternal(e.url)">
                 <ExternalLink :size="13" />
               </button>
             </dd>
@@ -377,58 +380,58 @@ const formatDate = (t: number) => new Date(t).toLocaleString("zh-CN", { hour12: 
 
         <div v-if="!filtered.length" class="blank">
           <KeyRound :size="28" />
-          <p>{{ entries.length ? "没有匹配的账号" : "还没有保存任何账号，点上方「新增」添加一个" }}</p>
-          <span class="tip path" :title="filePath">已加密保存在：{{ filePath }}</span>
+          <p>{{ entries.length ? t("encode.noMatch") : t("encode.empty") }}</p>
+          <span class="tip path" :title="filePath">{{ t("encode.encryptedAt", { path: filePath }) }}</span>
         </div>
       </div>
 
       <!-- 新增 / 编辑弹窗 -->
       <div v-if="editing" ref="overlayEl" class="overlay" @mousedown.self="cancel()" @keydown.esc="cancel()">
-        <form ref="dialogEl" class="dialog" tabindex="-1" role="dialog" :aria-label="editing.isNew ? '新增账号' : '编辑账号'" @submit.prevent="save">
+        <form ref="dialogEl" class="dialog" tabindex="-1" role="dialog" :aria-label="editing.isNew ? t('encode.newAccount') : t('encode.editAccount')" @submit.prevent="save">
           <div class="content">
             <header>
-              <h2>{{ editing.isNew ? "新增账号" : editing.draft.title || "编辑账号" }}</h2>
-              <span v-if="original" class="updated">更新于 {{ formatDate(original.updatedAt) }}</span>
+              <h2>{{ editing.isNew ? t("encode.newAccount") : editing.draft.title || t("encode.editAccount") }}</h2>
+              <span v-if="original" class="updated">{{ t("encode.updatedAt", { time: formatDate(original.updatedAt) }) }}</span>
             </header>
             <div class="form">
               <label>
-                <span>名称</span>
-                <input ref="titleInput" v-model="editing.draft.title" class="field" placeholder="例如 GitHub、公司邮箱" />
+                <span>{{ t("encode.name") }}</span>
+                <input ref="titleInput" v-model="editing.draft.title" class="field" :placeholder="t('encode.namePlaceholder')" />
               </label>
               <label>
-                <span>网址</span>
+                <span>{{ t("encode.url") }}</span>
                 <div class="with-actions">
                   <input v-model="editing.draft.url" class="field" placeholder="https://" />
-                  <button type="button" class="icon-btn" title="在浏览器中打开" :disabled="!isUrl(editing.draft.url)" @click="openExternal(editing.draft.url)">
+                  <button type="button" class="icon-btn" :title="t('encode.openInBrowser')" :disabled="!isUrl(editing.draft.url)" @click="openExternal(editing.draft.url)">
                     <ExternalLink :size="14" />
                   </button>
                 </div>
               </label>
               <label>
-                <span>账号</span>
+                <span>{{ t("encode.account") }}</span>
                 <div class="with-actions">
-                  <input v-model="editing.draft.username" class="field" autocomplete="off" placeholder="用户名、邮箱或手机号" />
-                  <button type="button" class="icon-btn" :class="{ ok: isCopied('edit:user') }" title="复制账号" @click="copy('edit:user', editing.draft.username)">
+                  <input v-model="editing.draft.username" class="field" autocomplete="off" :placeholder="t('encode.accountPlaceholder')" />
+                  <button type="button" class="icon-btn" :class="{ ok: isCopied('edit:user') }" :title="t('encode.copyAccount')" @click="copy('edit:user', editing.draft.username)">
                     <Check v-if="isCopied('edit:user')" :size="14" /><Copy v-else :size="14" />
                   </button>
                 </div>
               </label>
               <label>
-                <span>密码</span>
+                <span>{{ t("encode.password") }}</span>
                 <div class="with-actions">
                   <input v-model="editing.draft.password" class="field mono" :type="showPassword ? 'text' : 'password'" autocomplete="off" />
-                  <button type="button" class="icon-btn" :title="showPassword ? '隐藏' : '显示'" @click="showPassword = !showPassword">
+                  <button type="button" class="icon-btn" :title="showPassword ? t('encode.hide') : t('encode.show')" @click="showPassword = !showPassword">
                     <EyeOff v-if="showPassword" :size="14" /><Eye v-else :size="14" />
                   </button>
-                  <button type="button" class="icon-btn" title="生成随机密码" @click="generate"><RefreshCw :size="14" /></button>
-                  <button type="button" class="icon-btn" :class="{ ok: isCopied('edit:pass') }" title="复制密码" @click="copy('edit:pass', editing.draft.password)">
+                  <button type="button" class="icon-btn" :title="t('encode.generatePassword')" @click="generate"><RefreshCw :size="14" /></button>
+                  <button type="button" class="icon-btn" :class="{ ok: isCopied('edit:pass') }" :title="t('encode.copyPassword')" @click="copy('edit:pass', editing.draft.password)">
                     <Check v-if="isCopied('edit:pass')" :size="14" /><Copy v-else :size="14" />
                   </button>
                 </div>
               </label>
               <label class="wide">
-                <span>备注</span>
-                <textarea v-model="editing.draft.note" class="field note" rows="4" placeholder="密保问题、找回方式等" />
+                <span>{{ t("encode.note") }}</span>
+                <textarea v-model="editing.draft.note" class="field note" rows="4" :placeholder="t('encode.notePlaceholder')" />
               </label>
             </div>
             <p v-if="dialogError" class="error">{{ dialogError }}</p>
@@ -438,15 +441,15 @@ const formatDate = (t: number) => new Date(t).toLocaleString("zh-CN", { hour12: 
                 type="button"
                 class="btn subtle danger"
                 :disabled="saving"
-                :title="confirmRemove ? '再点一次删除这个账号' : '删除这个账号'"
+                :title="confirmRemove ? t('encode.confirmRemoveTitle') : t('encode.removeTitle')"
                 @click="removeEditing"
                 @blur="confirmRemove = false"
               >
-                <Trash2 :size="14" />{{ confirmRemove ? "确认删除" : "删除" }}
+                <Trash2 :size="14" />{{ confirmRemove ? t("encode.confirmDelete") : t("encode.delete") }}
               </button>
               <span class="grow" />
-              <button type="button" class="btn subtle" :disabled="saving" @click="cancel(true)">取消</button>
-              <button type="submit" class="btn primary" :disabled="saving || !dirty">{{ saving ? "保存中…" : "保存" }}</button>
+              <button type="button" class="btn subtle" :disabled="saving" @click="cancel(true)">{{ t("encode.cancel") }}</button>
+              <button type="submit" class="btn primary" :disabled="saving || !dirty">{{ saving ? t("encode.saving") : t("encode.save") }}</button>
             </footer>
           </div>
         </form>

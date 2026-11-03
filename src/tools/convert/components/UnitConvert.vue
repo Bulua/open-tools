@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import CopyList from "@/components/common/CopyList.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
-import { QUANTITIES, convertUnit, formatNumber } from "../units";
+import { QUANTITIES, convertUnit, formatNumber, quantityLabel, unitLabel } from "../units";
 
 /** 温度及常用单位换算：输入一个值，一次显示所有单位的结果 */
+const { t } = useI18n();
 const quantityId = useStoredRef("units.quantity", "temperature");
 const quantity = computed(() => QUANTITIES.find((q) => q.id === quantityId.value) ?? QUANTITIES[0]);
 
@@ -24,22 +26,25 @@ const items = computed(() =>
   quantity.value.units
     .filter((u) => u.id !== from.value)
     .map((u) => ({
-      label: u.label,
+      label: unitLabel(quantity.value, u),
       value: value.value === null ? "" : formatNumber(convertUnit(quantity.value, value.value, from.value, u.id)),
     })),
 );
 
-const fromLabel = computed(() => quantity.value.units.find((u) => u.id === from.value)?.label ?? "");
+const fromLabel = computed(() => {
+  const u = quantity.value.units.find((x) => x.id === from.value);
+  return u ? unitLabel(quantity.value, u) : "";
+});
 </script>
 
 <template>
   <nav class="quantities">
-    <button v-for="q in QUANTITIES" :key="q.id" :class="{ on: quantityId === q.id }" @click="quantityId = q.id">{{ q.label }}</button>
+    <button v-for="q in QUANTITIES" :key="q.id" :class="{ on: quantityId === q.id }" @click="quantityId = q.id">{{ quantityLabel(q) }}</button>
   </nav>
 
   <div class="units">
     <section class="card">
-      <div class="card-title">输入</div>
+      <div class="card-title">{{ t("convert.input") }}</div>
       <div class="body">
         <input
           v-model="input"
@@ -47,21 +52,21 @@ const fromLabel = computed(() => quantity.value.units.find((u) => u.id === from.
           :class="{ invalid: input.trim() && value === null }"
           inputmode="decimal"
           spellcheck="false"
-          placeholder="输入数值"
+          :placeholder="t('convert.inputValue')"
         />
         <div class="unit-list">
           <button v-for="u in quantity.units" :key="u.id" class="unit" :class="{ on: from === u.id }" @click="from = u.id">
-            {{ u.label }}
+            {{ unitLabel(quantity, u) }}
           </button>
         </div>
-        <p v-if="input.trim() && value === null" class="error">请输入数字</p>
+        <p v-if="input.trim() && value === null" class="error">{{ t("convert.enterNumber") }}</p>
       </div>
     </section>
 
     <section class="card">
       <div class="card-title">
-        换算结果
-        <span v-if="value !== null" class="hint">{{ formatNumber(value) }} {{ fromLabel }} 等于</span>
+        {{ t("convert.results") }}
+        <span v-if="value !== null" class="hint">{{ t("convert.equals", { value: formatNumber(value), unit: fromLabel }) }}</span>
       </div>
       <CopyList :items="items" label-width="150px" />
     </section>

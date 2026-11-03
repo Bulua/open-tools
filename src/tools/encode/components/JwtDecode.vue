@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import TextPane from "@/components/common/TextPane.vue";
 import { formatDateTime, relativeTime } from "@/utils/time";
 import { decodeJwt, jwtStatus, type JwtStatus } from "../jwt";
 
 /** 解码 JWT：显示 Header、Payload 和过期状态（不校验签名） */
+const { t } = useI18n();
 const token = ref("");
 
 const decoded = computed(() => {
@@ -18,57 +20,50 @@ const decoded = computed(() => {
 
 const json = (v: unknown) => JSON.stringify(v, null, 2);
 
-const STATUS: Record<JwtStatus, { label: string; tone: string }> = {
-  valid: { label: "有效", tone: "ok" },
-  expired: { label: "已过期", tone: "bad" },
-  notYetValid: { label: "尚未生效", tone: "warn" },
-  noExpiry: { label: "未设置过期时间", tone: "muted" },
-};
+/** 状态的颜色；文字见文案 encode.valid 等 */
+const STATUS_TONE: Record<JwtStatus, string> = { valid: "ok", expired: "bad", notYetValid: "warn", noExpiry: "muted" };
 
-/** 常见的时间字段 */
-const TIME_CLAIMS: [string, string][] = [
-  ["iat", "签发时间"],
-  ["nbf", "生效时间"],
-  ["exp", "过期时间"],
-];
+/** 常见的时间字段，名称见文案 encode.iat 等 */
+const TIME_CLAIMS = ["iat", "nbf", "exp"] as const;
 
 const summary = computed(() => {
   const d = decoded.value;
   if (!d?.ok) return null;
-  const times = TIME_CLAIMS.filter(([k]) => typeof d.payload[k] === "number").map(([k, label]) => {
+  const times = TIME_CLAIMS.filter((k) => typeof d.payload[k] === "number").map((k) => {
     const ms = (d.payload[k] as number) * 1000;
-    return { label, value: formatDateTime(new Date(ms)), relative: relativeTime(ms) };
+    return { label: t(`encode.${k}`), value: formatDateTime(new Date(ms)), relative: relativeTime(ms) };
   });
-  return { alg: String(d.header.alg ?? "未知"), status: STATUS[jwtStatus(d.payload)], times };
+  const status = jwtStatus(d.payload);
+  return { alg: String(d.header.alg ?? t("encode.unknown")), status: { label: t(`encode.${status}`), tone: STATUS_TONE[status] }, times };
 });
 </script>
 
 <template>
   <div class="jwt">
-    <TextPane v-model="token" class="input" label="JWT" placeholder="粘贴 JWT，可以带 Bearer 前缀" />
+    <TextPane v-model="token" class="input" label="JWT" :placeholder="t('encode.jwtPlaceholder')" />
 
     <div class="output">
       <p v-if="decoded && !decoded.ok" class="message error">{{ decoded.message }}</p>
-      <p v-else-if="!decoded" class="message">在左侧粘贴 JWT 后，这里会显示解码内容和过期状态。</p>
+      <p v-else-if="!decoded" class="message">{{ t("encode.jwtHint") }}</p>
 
       <template v-else-if="summary">
         <section class="card">
           <header class="card-title">
-            概要
-            <span class="note">仅解码内容，不校验签名</span>
+            {{ t("encode.summary") }}
+            <span class="note">{{ t("encode.noSignature") }}</span>
           </header>
           <div class="summary">
             <div class="item status">
-              <span class="label">状态</span>
+              <span class="label">{{ t("encode.status") }}</span>
               <span class="chip" :class="summary.status.tone">{{ summary.status.label }}</span>
             </div>
             <div class="item">
-              <span class="label">算法</span>
+              <span class="label">{{ t("encode.algorithm") }}</span>
               <span>{{ summary.alg }}</span>
             </div>
-            <div v-for="t in summary.times" :key="t.label" class="item">
-              <span class="label">{{ t.label }}</span>
-              <span>{{ t.value }}<em>（{{ t.relative }}）</em></span>
+            <div v-for="time in summary.times" :key="time.label" class="item">
+              <span class="label">{{ time.label }}</span>
+              <span>{{ time.value }}<em>{{ t("encode.paren", { text: time.relative }) }}</em></span>
             </div>
           </div>
         </section>

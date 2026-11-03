@@ -1,28 +1,30 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import TwoWayConvert from "@/components/tool/TwoWayConvert.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import ToolActions from "@/components/tool/ToolActions.vue";
 import { base64ToText, textToBase64 } from "../base64";
 
 /** 文本 ↔ Base64，双向实时转换 */
+const { t } = useI18n();
 const urlSafe = useStoredRef("base64.urlSafe", false);
 const encode = computed(() => (text: string) => textToBase64(text, urlSafe.value));
 </script>
 
 <template>
   <ToolActions>
-    <label class="check" title="+ / 替换为 - _，并去掉末尾的 =，适合放在 URL 中">
-      <input v-model="urlSafe" type="checkbox" />URL 安全
+    <label class="check" :title="t('encode.urlSafeTitle')">
+      <input v-model="urlSafe" type="checkbox" />{{ t("encode.urlSafe") }}
     </label>
   </ToolActions>
 
   <TwoWayConvert
-    left-label="文本"
+    :left-label="t('encode.text')"
     right-label="Base64"
     :encode="encode"
     :decode="base64ToText"
-    left-placeholder="输入文本，右侧实时显示 Base64"
-    right-placeholder="或在这里粘贴 Base64，左侧实时解码"
+    :left-placeholder="t('encode.textPlaceholder')"
+    :right-placeholder="t('encode.base64Placeholder')"
   />
 </template>

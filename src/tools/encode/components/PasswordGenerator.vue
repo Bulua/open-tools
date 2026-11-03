@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { Check, Copy, RefreshCw } from "lucide-vue-next";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { useClipboard } from "@/composables/useClipboard";
@@ -9,6 +10,7 @@ import { CHARSETS, DEFAULT_PASSWORD, crackTime, generatePassword, passwordStreng
  * 随机密码生成器：可选字符种类、自定义字符和长度，可以一次生成多个。
  * 使用系统的安全随机数，密码只显示在这里，不保存、不上传。
  */
+const { t } = useI18n();
 const options = useStoredRef<PasswordOptions>("password.options", { ...DEFAULT_PASSWORD });
 // 兼容旧的存储内容：缺少的字段用默认值补上
 options.value = { ...DEFAULT_PASSWORD, ...options.value };
@@ -37,18 +39,18 @@ const strength = computed(() => passwordStrength(options.value));
 const kindOf = (c: string) => (CHARSETS.digits.includes(c) ? "d" : /[A-Za-z]/.test(c) ? "" : "s");
 
 const TOGGLES = [
-  { key: "upper", label: "大写字母", sample: "A-Z" },
-  { key: "lower", label: "小写字母", sample: "a-z" },
-  { key: "digits", label: "数字", sample: "0-9" },
-  { key: "symbols", label: "符号", sample: "!@#$" },
+  { key: "upper", sample: "A-Z" },
+  { key: "lower", sample: "a-z" },
+  { key: "digits", sample: "0-9" },
+  { key: "symbols", sample: "!@#$" },
 ] as const;
 
 const PRESETS: { label: string; value: Partial<PasswordOptions> }[] = [
-  { label: "常规", value: { length: 16, upper: true, lower: true, digits: true, symbols: true, custom: "" } },
-  { label: "高强度", value: { length: 32, upper: true, lower: true, digits: true, symbols: true, custom: "" } },
-  { label: "字母数字", value: { length: 16, upper: true, lower: true, digits: true, symbols: false, custom: "" } },
-  { label: "6 位 PIN", value: { length: 6, upper: false, lower: false, digits: true, symbols: false, custom: "" } },
-  { label: "WiFi 密码", value: { length: 12, upper: true, lower: true, digits: true, symbols: false, custom: "", excludeAmbiguous: true } },
+  { label: "presetNormal", value: { length: 16, upper: true, lower: true, digits: true, symbols: true, custom: "" } },
+  { label: "presetStrong", value: { length: 32, upper: true, lower: true, digits: true, symbols: true, custom: "" } },
+  { label: "presetAlnum", value: { length: 16, upper: true, lower: true, digits: true, symbols: false, custom: "" } },
+  { label: "presetPin", value: { length: 6, upper: false, lower: false, digits: true, symbols: false, custom: "" } },
+  { label: "presetWifi", value: { length: 12, upper: true, lower: true, digits: true, symbols: false, custom: "", excludeAmbiguous: true } },
 ];
 const applyPreset = (p: Partial<PasswordOptions>) => (options.value = { ...options.value, ...p });
 
@@ -71,7 +73,7 @@ const copyOne = (p: string, i: number) => {
   <div class="password">
     <aside class="card panel">
       <section class="section">
-        <h3>长度<b class="value">{{ options.length }}</b></h3>
+        <h3>{{ t("encode.length") }}<b class="value">{{ options.length }}</b></h3>
         <div class="length-row">
           <input v-model.number="options.length" class="range" type="range" min="4" max="64" />
           <input class="field num" type="number" min="1" max="256" :value="options.length" @change="setLength" />
@@ -79,23 +81,23 @@ const copyOne = (p: string, i: number) => {
       </section>
 
       <section class="section">
-        <h3>字符</h3>
+        <h3>{{ t("encode.characters") }}</h3>
         <div class="toggles">
-          <label v-for="t in TOGGLES" :key="t.key" class="toggle" :class="{ on: options[t.key] }">
-            <input v-model="options[t.key]" type="checkbox" />
-            <span>{{ t.label }}</span>
-            <code>{{ t.sample }}</code>
+          <label v-for="g in TOGGLES" :key="g.key" class="toggle" :class="{ on: options[g.key] }">
+            <input v-model="options[g.key]" type="checkbox" />
+            <span>{{ t(`encode.${g.key}`) }}</span>
+            <code>{{ g.sample }}</code>
           </label>
         </div>
-        <input v-model="options.custom" class="field" spellcheck="false" placeholder="自定义字符，例如 _-.@" />
-        <label class="check"><input v-model="options.excludeAmbiguous" type="checkbox" />排除易混淆字符（0 O o 1 l I）</label>
-        <label class="check"><input v-model="options.requireEach" type="checkbox" />每种字符至少出现一次</label>
+        <input v-model="options.custom" class="field" spellcheck="false" :placeholder="t('encode.customPlaceholder')" />
+        <label class="check"><input v-model="options.excludeAmbiguous" type="checkbox" />{{ t("encode.excludeAmbiguous") }}</label>
+        <label class="check"><input v-model="options.requireEach" type="checkbox" />{{ t("encode.requireEach") }}</label>
       </section>
 
       <section class="section">
-        <h3>快速设置</h3>
+        <h3>{{ t("encode.presets") }}</h3>
         <div class="presets">
-          <button v-for="p in PRESETS" :key="p.label" @click="applyPreset(p.value)">{{ p.label }}</button>
+          <button v-for="p in PRESETS" :key="p.label" @click="applyPreset(p.value)">{{ t(`encode.${p.label}`) }}</button>
         </div>
       </section>
     </aside>
@@ -110,34 +112,34 @@ const copyOne = (p: string, i: number) => {
           <div class="meter" :class="`l${strength.level}`">
             <span class="bars"><i v-for="n in 4" :key="n" :class="{ on: n <= strength.level + 1 }" /></span>
             <b>{{ strength.label }}</b>
-            <span class="detail">{{ strength.bits }} 位熵 · 暴力破解{{ crackTime(strength.bits) }}</span>
+            <span class="detail">{{ t("encode.entropy", { bits: strength.bits, time: crackTime(strength.bits) }) }}</span>
           </div>
-          <button class="btn" title="重新生成" @click="regenerate"><RefreshCw :size="14" />换一个</button>
+          <button class="btn" :title="t('encode.regenerateTitle')" @click="regenerate"><RefreshCw :size="14" />{{ t("encode.regenerate") }}</button>
           <button class="btn primary" :disabled="!password" @click="main.copy(password)">
-            <Check v-if="main.copied.value" :size="14" /><Copy v-else :size="14" />{{ main.copied.value ? "已复制" : "复制" }}
+            <Check v-if="main.copied.value" :size="14" /><Copy v-else :size="14" />{{ main.copied.value ? t("encode.copied") : t("encode.copy") }}
           </button>
         </div>
       </section>
 
       <section class="card list">
         <div class="card-title">
-          批量生成
+          {{ t("encode.batch") }}
           <div class="seg count">
-            <button v-for="n in [5, 10, 20, 50]" :key="n" :class="{ on: count === n }" @click="count = n">{{ n }} 个</button>
+            <button v-for="n in [5, 10, 20, 50]" :key="n" :class="{ on: count === n }" @click="count = n">{{ t("encode.countN", { n }) }}</button>
           </div>
           <button class="btn small subtle push" :disabled="!batch.length" @click="all.copy(batch.join('\n'))">
-            <Check v-if="all.copied.value" :size="13" /><Copy v-else :size="13" />复制全部
+            <Check v-if="all.copied.value" :size="13" /><Copy v-else :size="13" />{{ t("encode.copyAll") }}
           </button>
         </div>
         <ol class="items">
           <li v-for="(p, i) in batch" :key="i" @click="copyOne(p, i)">
             <span class="no">{{ i + 1 }}</span>
             <code>{{ p }}</code>
-            <span class="hint">{{ one.copied.value && copiedIndex === i ? "已复制" : "点击复制" }}</span>
+            <span class="hint">{{ one.copied.value && copiedIndex === i ? t("encode.copied") : t("encode.clickToCopy") }}</span>
           </li>
         </ol>
       </section>
-      <p class="note">使用系统安全随机数生成，密码只在本机显示，不会保存或上传。</p>
+      <p class="note">{{ t("encode.secureNote") }}</p>
     </div>
   </div>
 </template>

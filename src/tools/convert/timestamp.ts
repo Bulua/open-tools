@@ -1,4 +1,5 @@
 /** 时间戳转换用到的纯函数，不依赖界面，便于测试 */
+import { t } from "@/locales";
 
 export type TimestampUnit = "auto" | "s" | "ms";
 
@@ -16,13 +17,13 @@ export function parseTimeInput(input: string, unit: TimestampUnit = "auto"): Par
     const n = Number(s);
     const asMs = unit === "ms" || (unit === "auto" && Math.abs(n) >= 1e11);
     const date = new Date(asMs ? n : n * 1000);
-    if (isNaN(date.getTime())) return { ok: false, message: "时间戳超出范围" };
+    if (isNaN(date.getTime())) return { ok: false, message: t("convert.outOfRange") };
     return { ok: true, date, unit: asMs ? "ms" : "s" };
   }
 
   // 「2024-01-02 03:04:05」这种写法按本地时间解析
   const normalized = /^\d{4}-\d{1,2}-\d{1,2} \d/.test(s) ? s.replace(" ", "T") : s;
   const date = new Date(normalized);
-  if (isNaN(date.getTime())) return { ok: false, message: "无法识别，请输入时间戳或日期，例如 2024-01-02 03:04:05" };
+  if (isNaN(date.getTime())) return { ok: false, message: t("convert.badTime") };
   return { ok: true, date, unit: "date" };
 }

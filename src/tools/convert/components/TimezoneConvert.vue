@@ -3,10 +3,12 @@ import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref }
 import AppSelect from "@/components/common/AppSelect.vue";
 import DateTimePicker from "@/components/common/DateTimePicker.vue";
 import { Plus, Radio, X } from "lucide-vue-next";
+import { useI18n } from "vue-i18n";
 import { useStoredRef } from "@/composables/useStoredRef";
 import {
   CITIES,
   allZones,
+  cityLabel,
   cityName,
   dayRelation,
   diffLabel,
@@ -17,6 +19,8 @@ import {
   zoneOffset,
   zonedToDate,
 } from "../timezone";
+
+const { t } = useI18n();
 
 /**
  * 时区转换与世界时间：选择一个基准时区和时间，同时显示其他城市对应的时间。
@@ -73,18 +77,18 @@ const rows = computed(() =>
 );
 
 const zoneOptions = allZones();
-const ZONE_OPTIONS = [
-  ...CITIES.map((c) => ({ value: c.zone, label: c.name, hint: c.zone, group: "常用城市" })),
-  ...zoneOptions.map((z) => ({ value: z, label: z, group: "全部时区" })),
-];
+const ZONE_OPTIONS = computed(() => [
+  ...CITIES.map((c) => ({ value: c.zone, label: cityLabel(c), hint: c.zone, group: t("convert.commonCities") })),
+  ...zoneOptions.map((z) => ({ value: z, label: z, group: t("convert.allZones") })),
+]);
 const query = ref("");
 const addError = ref("");
 const addZone = () => {
   const q = query.value.trim();
   if (!q) return;
-  const zone = CITIES.find((c) => c.name === q)?.zone ?? zoneOptions.find((z) => z.toLowerCase() === q.toLowerCase()) ?? zoneOptions.find((z) => z.toLowerCase().includes(q.toLowerCase()));
+  const zone = CITIES.find((c) => c.name === q || cityLabel(c).toLowerCase() === q.toLowerCase())?.zone ?? zoneOptions.find((z) => z.toLowerCase() === q.toLowerCase()) ?? zoneOptions.find((z) => z.toLowerCase().includes(q.toLowerCase()));
   if (!zone) {
-    addError.value = `没有找到「${q}」，可以输入城市名（如 纽约）或时区（如 America/New_York）`;
+    addError.value = t("convert.zoneNotFound", { q });
     return;
   }
   if (!zones.value.includes(zone)) zones.value = [...zones.value, zone];
@@ -124,31 +128,35 @@ const fmtHour = (hour: number) => {
     <section class="card hero">
       <div class="hero-main">
         <div class="base-label">
-          基准
-          <AppSelect v-model="baseZone" class="zone-select" size="sm" :options="ZONE_OPTIONS" :menu-width="320" title="基准时区" />
+          {{ t("convert.base") }}
+          <AppSelect v-model="baseZone" class="zone-select" size="sm" :options="ZONE_OPTIONS" :menu-width="320" :title="t('convert.baseZone')" />
           <span class="offset">{{ offsetLabel(baseOffset) }}</span>
         </div>
         <div class="big-time">{{ base.time }}</div>
         <div class="big-date">{{ base.date }} {{ base.weekday }}</div>
       </div>
       <div class="hero-side">
-        <label class="field-label">设置时间（按基准时区）</label>
+        <label class="field-label">{{ t("convert.setTime") }}</label>
         <DateTimePicker v-model="pickerValue" />
-        <button class="btn" :class="{ primary: live }" @click="goLive"><Radio :size="14" />{{ live ? "正在显示当前时间" : "回到当前时间" }}</button>
+        <button class="btn" :class="{ primary: live }" @click="goLive"><Radio :size="14" />{{ live ? t("convert.showingNow") : t("convert.backToNow") }}</button>
       </div>
     </section>
 
     <section class="card world">
       <div class="card-title">
-        世界时间
-        <span class="hint">下方色条是基准时区 0～23 点对应的当地时间，<i class="legend work" />工作时间 <i class="legend day" />白天 <i class="legend night" />夜间；点击可设为基准时间</span>
+        {{ t("convert.worldTime") }}
+        <span class="hint"
+          >{{ t("convert.stripHint") }}<i class="legend work" />{{ t("convert.work") }} <i class="legend day" />{{ t("convert.day") }} <i class="legend night" />{{
+            t("convert.night")
+          }}{{ t("convert.stripHint2") }}</span
+        >
       </div>
 
       <div class="rows">
         <div class="row base-row">
           <div class="city">
             <b>{{ cityName(baseZone) }}</b>
-            <span>基准 · {{ offsetLabel(baseOffset) }}</span>
+            <span>{{ t("convert.baseOffset", { offset: offsetLabel(baseOffset) }) }}</span>
           </div>
           <div class="when">
             <span class="time">{{ base.time }}</span>
@@ -174,26 +182,26 @@ const fmtHour = (hour: number) => {
               v-for="h in HOURS"
               :key="h"
               :class="[hourClass(hourAt(h, r.diff)), { now: h === base.hour }]"
-              :title="`基准 ${h}:00 = ${r.name} ${fmtHour(hourAt(h, r.diff))}:00`"
+              :title="t('convert.hourTitle', { h, city: r.name, local: fmtHour(hourAt(h, r.diff)) })"
               @click="pickHour(h)"
             >
               {{ fmtHour(hourAt(h, r.diff)) }}
             </button>
           </div>
           <span class="actions">
-            <button class="icon-btn" title="设为基准" @click="setBase(r.zone)"><Radio :size="13" /></button>
-            <button class="icon-btn" title="移除" @click="removeZone(r.zone)"><X :size="13" /></button>
+            <button class="icon-btn" :title="t('convert.setBase')" @click="setBase(r.zone)"><Radio :size="13" /></button>
+            <button class="icon-btn" :title="t('convert.remove')" @click="removeZone(r.zone)"><X :size="13" /></button>
           </span>
         </div>
       </div>
 
       <form class="add" @submit.prevent="addZone">
-        <input v-model="query" class="field" list="tz-options" placeholder="添加城市或时区，例如 巴黎、America/Chicago" />
+        <input v-model="query" class="field" list="tz-options" :placeholder="t('convert.addPlaceholder')" />
         <datalist id="tz-options">
-          <option v-for="c in CITIES" :key="c.zone" :value="c.name">{{ c.zone }}</option>
+          <option v-for="c in CITIES" :key="c.zone" :value="cityLabel(c)">{{ c.zone }}</option>
           <option v-for="z in zoneOptions" :key="z" :value="z" />
         </datalist>
-        <button class="btn" type="submit"><Plus :size="14" />添加</button>
+        <button class="btn" type="submit"><Plus :size="14" />{{ t("convert.add") }}</button>
         <span v-if="addError" class="error">{{ addError }}</span>
       </form>
     </section>

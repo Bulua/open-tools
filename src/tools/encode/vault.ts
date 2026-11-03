@@ -1,4 +1,5 @@
 import { isTauri } from "@tauri-apps/api/core";
+import { t } from "@/locales";
 
 /**
  * 密码本的加密与存储。
@@ -74,16 +75,16 @@ export async function decryptVault(text: string, password: string): Promise<{ se
   try {
     file = JSON.parse(text);
   } catch {
-    throw new Error("密码本文件已损坏，无法读取");
+    throw new Error(t("encode.vaultCorrupt"));
   }
-  if (file?.version !== 1 || file.kdf !== "PBKDF2-SHA256") throw new Error("不支持的密码本文件格式");
+  if (file?.version !== 1 || file.kdf !== "PBKDF2-SHA256") throw new Error(t("encode.vaultFormat"));
   const salt = fromBase64(file.salt);
   const key = await deriveKey(password, salt, file.iterations);
   let plain: ArrayBuffer;
   try {
     plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: fromBase64(file.iv) }, key, fromBase64(file.data));
   } catch {
-    throw new Error("主密码不正确");
+    throw new Error(t("encode.wrongMaster"));
   }
   return { session: { key, salt, iterations: file.iterations }, entries: JSON.parse(new TextDecoder().decode(plain)) };
 }
@@ -98,7 +99,7 @@ export async function loadVaultFile(): Promise<{ path: string; data: string | nu
     const { invoke } = await import("@tauri-apps/api/core");
     return invoke("vault_read");
   }
-  return { path: "浏览器本地存储", data: localStorage.getItem(WEB_KEY) };
+  return { path: t("encode.browserStorage"), data: localStorage.getItem(WEB_KEY) };
 }
 
 export async function saveVaultFile(data: string): Promise<void> {

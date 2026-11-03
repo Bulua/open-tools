@@ -1,4 +1,5 @@
 /** 进制转换用到的纯函数（支持任意大整数），不依赖界面，便于测试 */
+import { t } from "@/locales";
 
 const DIGITS = "0123456789abcdefghijklmnopqrstuvwxyz";
 const PREFIX: Record<number, RegExp> = { 2: /^0b/i, 8: /^0o/i, 16: /^0x/i };
@@ -9,13 +10,13 @@ export function parseInteger(input: string, base: number): bigint {
   const negative = s.startsWith("-");
   if (negative) s = s.slice(1);
   s = s.replace(PREFIX[base] ?? /^$/, "");
-  if (!s) throw new Error("请输入数字");
+  if (!s) throw new Error(t("convert.enterNumber"));
 
   let value = 0n;
   const b = BigInt(base);
   for (const ch of s) {
     const digit = DIGITS.indexOf(ch);
-    if (digit < 0 || digit >= base) throw new Error(`「${ch}」不是 ${base} 进制的数字`);
+    if (digit < 0 || digit >= base) throw new Error(t("convert.badDigit", { ch, base }));
     value = value * b + BigInt(digit);
   }
   return negative ? -value : value;

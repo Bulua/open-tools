@@ -1,4 +1,5 @@
 /** URL / Unicode / HTML 编码相关的纯函数，不依赖界面，便于测试（Base64 见 base64.ts） */
+import { t } from "@/locales";
 
 // ---------- URL ----------
 
@@ -9,7 +10,7 @@ export const urlDecode = (s: string) => {
     // 表单提交时空格会被编码成 +
     return decodeURIComponent(s.replace(/\+/g, " "));
   } catch {
-    throw new Error("不是合法的 URL 编码");
+    throw new Error(t("encode.badUrl"));
   }
 };
 

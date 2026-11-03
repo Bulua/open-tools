@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { Download, FileText, RefreshCw, X } from "lucide-vue-next";
 import TextPane from "@/components/common/TextPane.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
@@ -10,6 +11,7 @@ import { formatBytes } from "@/utils/format";
 import { FILE_OUTPUT_FORMATS, decodeFile, formatFileOutput, type FileOutputFormat } from "../base64";
 
 /** 文件 / 图片 ↔ Base64。任何文件都可以编码；解码时自动识别类型，图片可预览，均可下载 */
+const { t } = useI18n();
 const direction = useStoredRef<"encode" | "decode">("base64-file.direction", "encode");
 const format = useStoredRef<FileOutputFormat>("base64-file.format", "dataUri");
 
@@ -28,7 +30,9 @@ const dropZone = ref<InstanceType<typeof FileDropZone>>();
 
 const isImage = computed(() => !!file.value?.mime.startsWith("image/"));
 // CSS / HTML 只对图片有意义
-const formats = computed(() => FILE_OUTPUT_FORMATS.filter((f) => !f.imageOnly || isImage.value));
+const formats = computed(() =>
+  FILE_OUTPUT_FORMATS.filter((f) => !f.imageOnly || isImage.value).map((f) => (f.value === "base64" ? { ...f, label: t("encode.pureBase64") } : f)),
+);
 watch(formats, (list) => {
   if (!list.some((f) => f.value === format.value)) format.value = "dataUri";
 });
@@ -44,7 +48,7 @@ const loadFile = (f: File) => {
     if (dataUri.startsWith("data:;")) dataUri = dataUri.replace("data:;", "data:application/octet-stream;");
     file.value = { name: f.name, size: f.size, mime: f.type || "application/octet-stream", dataUri };
   };
-  reader.onerror = () => (loadError.value = "读取文件失败");
+  reader.onerror = () => (loadError.value = t("encode.readFailed"));
   reader.readAsDataURL(f);
 };
 
@@ -102,10 +106,10 @@ const encodeInfo = computed(() => {
   const f = file.value;
   if (!f) return [];
   return [
-    { label: "类型", value: f.mime },
-    ...(isImage.value ? [{ label: "尺寸", value: dimensions.value || "…" }] : []),
-    { label: "文件大小", value: formatBytes(f.size) },
-    { label: "Base64 长度", value: `${output.value.length.toLocaleString()} 字符` },
+    { label: t("encode.type"), value: f.mime },
+    ...(isImage.value ? [{ label: t("encode.dimensions"), value: dimensions.value || "…" }] : []),
+    { label: t("encode.fileSize"), value: formatBytes(f.size) },
+    { label: t("encode.base64Length"), value: t("encode.chars", { n: output.value.length.toLocaleString() }) },
   ];
 });
 
@@ -113,9 +117,9 @@ const decodeInfo = computed(() => {
   if (!decoded.value?.ok) return [];
   const f = decoded.value.file;
   return [
-    { label: "类型", value: f.mime === "application/octet-stream" ? "未知（二进制文件）" : f.mime },
-    ...(f.isImage ? [{ label: "尺寸", value: dimensions.value || "…" }] : []),
-    { label: "文件大小", value: formatBytes(f.bytes.length) },
+    { label: t("encode.type"), value: f.mime === "application/octet-stream" ? t("encode.unknownBinary") : f.mime },
+    ...(f.isImage ? [{ label: t("encode.dimensions"), value: dimensions.value || "…" }] : []),
+    { label: t("encode.fileSize"), value: formatBytes(f.bytes.length) },
   ];
 });
 </script>
@@ -124,8 +128,8 @@ const decodeInfo = computed(() => {
   <div class="base64-file">
     <ToolActions>
       <div class="seg">
-        <button :class="{ on: direction === 'encode' }" @click="direction = 'encode'">文件 → Base64</button>
-        <button :class="{ on: direction === 'decode' }" @click="direction = 'decode'">Base64 → 文件</button>
+        <button :class="{ on: direction === 'encode' }" @click="direction = 'encode'">{{ t("encode.fileToBase64") }}</button>
+        <button :class="{ on: direction === 'decode' }" @click="direction = 'decode'">{{ t("encode.base64ToFile") }}</button>
       </div>
     </ToolActions>
 
@@ -134,10 +138,10 @@ const decodeInfo = computed(() => {
       <section v-if="file" class="card source">
         <header class="card-title">
           <span class="file-name" :title="file.name">{{ file.name }}</span>
-          <button class="btn small subtle" title="更换文件" @click="dropZone?.open()"><RefreshCw :size="14" />更换</button>
-          <button class="icon-btn" title="清除" @click="file = null"><X :size="14" /></button>
+          <button class="btn small subtle" :title="t('encode.replaceFile')" @click="dropZone?.open()"><RefreshCw :size="14" />{{ t("encode.replace") }}</button>
+          <button class="icon-btn" :title="t('encode.clear')" @click="file = null"><X :size="14" /></button>
         </header>
-        <div v-if="isImage" class="preview checker"><img :src="file.dataUri" alt="预览" /></div>
+        <div v-if="isImage" class="preview checker"><img :src="file.dataUri" :alt="t('encode.preview')" /></div>
         <div v-else class="preview file-icon">
           <FileText :size="40" :stroke-width="1.25" />
           <span>{{ file.name }}</span>
@@ -154,14 +158,14 @@ const decodeInfo = computed(() => {
         v-show="!file"
         ref="dropZone"
         class="source"
-        title="拖入文件，或点击选择"
-        hint="支持图片、PDF、压缩包等任意文件，也可以按 Ctrl + V 粘贴截图"
+        :title="t('encode.dropFile')"
+        :hint="t('encode.dropFileHint')"
         @files="loadFile($event[0])"
       >
         <span v-if="loadError" class="error">{{ loadError }}</span>
       </FileDropZone>
 
-      <TextPane :model-value="output" class="result" label="Base64" readonly placeholder="选择文件后，这里会显示编码结果">
+      <TextPane :model-value="output" class="result" label="Base64" readonly :placeholder="t('encode.encodePlaceholder')">
         <template #actions>
           <div class="seg">
             <button v-for="f in formats" :key="f.value" :class="{ on: format === f.value }" @click="format = f.value">
@@ -178,17 +182,17 @@ const decodeInfo = computed(() => {
         v-model="base64Input"
         class="source"
         label="Base64"
-        placeholder="粘贴 Base64 或 Data URI（data:image/png;base64,...）"
+        :placeholder="t('encode.decodePlaceholder')"
       />
 
       <section class="card result">
-        <header class="card-title">解码结果</header>
+        <header class="card-title">{{ t("encode.decodeResult") }}</header>
 
         <template v-if="decoded?.ok">
-          <div v-if="decoded.file.isImage" class="preview checker"><img :src="decoded.file.dataUri" alt="预览" /></div>
+          <div v-if="decoded.file.isImage" class="preview checker"><img :src="decoded.file.dataUri" :alt="t('encode.preview')" /></div>
           <div v-else class="preview file-icon">
             <FileText :size="40" :stroke-width="1.25" />
-            <span>无法预览此类型，可以下载后打开</span>
+            <span>{{ t("encode.noPreview") }}</span>
           </div>
           <dl class="info">
             <template v-for="row in decodeInfo" :key="row.label">
@@ -197,14 +201,14 @@ const decodeInfo = computed(() => {
             </template>
           </dl>
           <footer class="save">
-            <input v-model="fileName" class="name-input" spellcheck="false" placeholder="文件名" />
+            <input v-model="fileName" class="name-input" spellcheck="false" :placeholder="t('encode.fileName')" />
             <button class="btn primary" @click="download">
-              <Download :size="14" />{{ saved ? "已保存" : "下载" }}
+              <Download :size="14" />{{ saved ? t("encode.saved") : t("encode.download") }}
             </button>
           </footer>
         </template>
-        <p v-else-if="decoded" class="message error">解码失败：{{ decoded.message }}</p>
-        <p v-else class="message">在左侧粘贴内容后，这里会显示解码出的文件，可以预览和下载。</p>
+        <p v-else-if="decoded" class="message error">{{ t("encode.decodeFailed", { error: decoded.message }) }}</p>
+        <p v-else class="message">{{ t("encode.decodeHint") }}</p>
       </section>
     </template>
   </div>
