@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { isTauri } from "@tauri-apps/api/core";
 import { CircleAlert, CircleCheck, Download, FileText, LoaderCircle, X } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
@@ -23,6 +24,7 @@ interface Item {
   message?: string;
   warn?: boolean;
 }
+const { t } = useI18n();
 const items = ref<Item[]>([]);
 const selectedId = ref<number | null>(null);
 let nextId = 1;
@@ -67,16 +69,16 @@ const docxName = (item: Item) => item.file.name.replace(/\.pdf$/i, "") + ".docx"
 
 const convertBuiltin = async (item: Item, data: Uint8Array) => {
   const { pdfToDocx } = await import("../pdfRead");
-  const result = await pdfToDocx(data, (done, total) => (item.message = `第 ${done} / ${total} 页`));
-  if (result.textless === result.pages) return { docx: result.docx, message: "没有读到文字，可能是扫描件，只转换了图片", warn: true };
-  if (result.textless) return { docx: result.docx, message: `${result.textless} 页没有文字（可能是扫描页），只转换了图片`, warn: true };
+  const result = await pdfToDocx(data, (done, total) => (item.message = t("document.pageProgress", { done, total })));
+  if (result.textless === result.pages) return { docx: result.docx, message: t("document.noText"), warn: true };
+  if (result.textless) return { docx: result.docx, message: t("document.someNoText", { n: result.textless }), warn: true };
   return { docx: result.docx, message: "", warn: false };
 };
 
 const convertOne = async (item: Item) => {
   const data = new Uint8Array(await item.file.arrayBuffer());
   if (useWord.value) {
-    item.message = "Word 正在转换…";
+    item.message = t("document.wordConverting");
     try {
       const { invoke } = await import("@tauri-apps/api/core");
       return { docx: new Uint8Array(await invoke<ArrayBuffer>("pdf_to_word", data)), message: "", warn: false };
@@ -84,7 +86,7 @@ const convertOne = async (item: Item) => {
       // Word 转换失败（例如版本太旧）时改用内置转换
       const result = await convertBuiltin(item, data);
       const reason = e instanceof Error ? e.message : String(e);
-      return { ...result, message: `Word 转换失败，已改用内置转换（${reason}）`, warn: true };
+      return { ...result, message: t("document.wordFallback", { reason }), warn: true };
     }
   }
   return convertBuiltin(item, data);
@@ -106,11 +108,11 @@ const convertAll = async () => {
       } catch (e) {
         item.status = "error";
         const message = e instanceof Error ? e.message : String(e);
-        item.message = /password/i.test(message) ? "PDF 有密码保护，请先解除密码" : message;
+        item.message = /password/i.test(message) ? t("document.pdfPassword") : message;
       }
     }
     const done = checkedItems.value.filter((i) => i.docx);
-    if (done.length) await saveFiles(done.map((i) => ({ name: docxName(i), data: i.docx! })), "PDF 转 Word.zip");
+    if (done.length) await saveFiles(done.map((i) => ({ name: docxName(i), data: i.docx! })), t("document.pdfToWordZip"));
   } finally {
     converting.value = false;
   }
@@ -127,47 +129,47 @@ const notes = computed(() => items.value.filter((i) => (i.status === "error" || 
     <aside class="card panel">
       <section class="section">
         <h3>
-          <CheckAll v-if="items.length" :checked="allChecked" :partly="partlyChecked" :disabled="converting" @toggle="toggleAll">文件</CheckAll>
-          <template v-else>文件</template>
-          <span class="push">{{ items.length > 1 ? `已选 ${checkedItems.length} / ${items.length} 个` : `${items.length} 个` }}</span>
+          <CheckAll v-if="items.length" :checked="allChecked" :partly="partlyChecked" :disabled="converting" @toggle="toggleAll">{{ t("document.files") }}</CheckAll>
+          <template v-else>{{ t("document.files") }}</template>
+          <span class="push">{{ items.length > 1 ? t("files.selected", { checked: checkedItems.length, total: items.length }) : t("files.count", { n: items.length }) }}</span>
         </h3>
         <ul class="files">
           <li v-for="item in items" :key="item.id" :class="{ on: item.id === selected?.id, unchecked: !isChecked(item) }" @click="selectedId = item.id">
-            <input type="checkbox" class="file-check" title="勾选的文件才转换" :checked="isChecked(item)" :disabled="converting" @click.stop @change="toggle(item)" />
+            <input type="checkbox" class="file-check" :title="t('document.checkFiles')" :checked="isChecked(item)" :disabled="converting" @click.stop @change="toggle(item)" />
             <FileText :size="14" class="icon" />
             <span class="name" :title="item.file.name">{{ item.file.name }}</span>
             <template v-if="item.status === 'working'">
               <span v-if="item.message" class="size">{{ item.message }}</span>
               <LoaderCircle :size="14" class="spin" />
             </template>
-            <button v-else-if="item.status === 'done'" class="icon-btn ok" title="下载这个 Word 文档" @click.stop="downloadOne(item)">
+            <button v-else-if="item.status === 'done'" class="icon-btn ok" :title="t('document.downloadDocx')" @click.stop="downloadOne(item)">
               <CircleCheck :size="14" />
             </button>
             <CircleAlert v-else-if="item.status === 'error'" :size="14" class="bad" />
             <span v-else class="size">{{ formatBytes(item.file.size) }}</span>
-            <button class="icon-btn remove" title="移除" @click.stop="remove(item)"><X :size="13" /></button>
+            <button class="icon-btn remove" :title="t('document.remove')" @click.stop="remove(item)"><X :size="13" /></button>
           </li>
         </ul>
         <p v-for="item in notes" :key="item.id" :class="item.status === 'error' ? 'error' : 'warn-text'">{{ item.file.name }}：{{ item.message }}</p>
-        <FileDropZone compact accept=".pdf" multiple :paste="false" title="继续添加 PDF" @files="addFiles" />
+        <FileDropZone compact accept=".pdf" multiple :paste="false" :title="t('document.addPdf')" @files="addFiles" />
       </section>
 
       <section class="section">
-        <h3>转换方式</h3>
+        <h3>{{ t("document.convertMode") }}</h3>
         <div v-if="hasWord" class="seg fill">
           <button :class="{ on: method === 'word' }" :disabled="converting" @click="method = 'word'">Microsoft Word</button>
-          <button :class="{ on: method === 'builtin' }" :disabled="converting" @click="method = 'builtin'">内置转换</button>
+          <button :class="{ on: method === 'builtin' }" :disabled="converting" @click="method = 'builtin'">{{ t("document.builtin") }}</button>
         </div>
-        <p v-if="hasWord === null" class="note">正在检测本机的 Microsoft Word…</p>
+        <p v-if="hasWord === null" class="note">{{ t("document.detectingWord") }}</p>
         <p v-else-if="useWord" class="note">
-          调用本机的 Word 转换，表格、图片和排版还原得最好，效果与在 Word 里直接打开 PDF 相同。转换时会在后台打开文件，请稍候。
+          {{ t("document.wordNote") }}
         </p>
         <template v-else>
           <p class="note">
-            读出 PDF 里的文字、图片重新排版：保留字号、粗体、段落和标题，表格、多栏会变成普通段落。适合以文字为主的文档。
+            {{ t("document.builtinNote") }}
           </p>
           <p v-if="!hasWord" class="note warn">
-            {{ desktop ? "没有找到 Microsoft Word（2013 或更新版本）" : "浏览器中无法调用 Word" }}，安装后可以更好地还原表格和复杂排版。
+            {{ desktop ? t("document.noWord") : t("document.noWordBrowser") }}
           </p>
         </template>
 
@@ -175,34 +177,34 @@ const notes = computed(() => items.value.filter((i) => (i.status === "error" || 
           <Download :size="14" />
           {{
             converting
-              ? "正在转换…"
+              ? t("document.converting")
               : !checkedItems.length
-                ? "请勾选要转换的文件"
+                ? t("document.checkToConvert")
                 : !pending
-                  ? "已全部转换"
+                  ? t("document.allConverted")
                   : items.length > 1
-                    ? `转换选中的 ${pending} 个`
-                    : "转换为 Word"
+                    ? t("document.convertSelected", { n: pending })
+                    : t("document.toWord")
           }}
         </button>
-        <p class="tip">扫描版 PDF（整页是图片）没有文字，只能得到图片。</p>
+        <p class="tip">{{ t("document.scanTip") }}</p>
       </section>
     </aside>
 
     <section class="card stage">
-      <div class="card-title">预览<span class="hint">{{ selected ? docxName(selected) : "" }}</span></div>
+      <div class="card-title">{{ t("document.preview") }}<span class="hint">{{ selected ? docxName(selected) : "" }}</span></div>
       <FileDropZone
         v-if="!items.length"
         class="drop"
         accept=".pdf"
         multiple
-        title="拖入 PDF，或点击选择（可多选）"
-        hint="转换为可编辑的 Word 文档（.docx）；装有 Microsoft Word 时调用 Word 转换，效果最好"
+        :title="t('document.dropPdfs')"
+        :hint="t('document.pdfToWordHint')"
         :paste="false"
         @files="addFiles"
       />
       <DocxPreview v-else :data="selected?.docx ?? null">
-        <p class="no-preview">{{ selected?.status === "working" ? "正在转换…" : selected?.status === "error" ? "转换失败" : "转换后在这里预览结果" }}</p>
+        <p class="no-preview">{{ selected?.status === "working" ? t("document.converting") : selected?.status === "error" ? t("document.convertFailed") : t("document.previewAfter") }}</p>
       </DocxPreview>
     </section>
   </div>

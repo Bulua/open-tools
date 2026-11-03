@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
+import { Translation, useI18n } from "vue-i18n";
 import { isTauri } from "@tauri-apps/api/core";
 import { CircleAlert, CircleCheck, Download, FileText, LoaderCircle, Printer, X } from "lucide-vue-next";
 import CheckAll from "@/components/common/CheckAll.vue";
@@ -14,6 +15,7 @@ import { printDocx } from "../docxPrint";
  * Word 转 PDF：调用本机安装的 Word / WPS / LibreOffice 转换（与在 Word 里「另存为 PDF」效果相同）。
  * 没有安装这些软件、或在浏览器中预览时，可以用系统打印「另存为 PDF」作为备用。
  */
+const { t } = useI18n();
 const ACCEPT = ".docx,.doc,.docm,.rtf,.odt,.wps";
 
 interface Item {
@@ -84,7 +86,7 @@ const convertAll = async () => {
       }
     }
     const done = checkedItems.value.filter((i) => i.pdf);
-    if (done.length) await saveFiles(done.map((i) => ({ name: pdfName(i), data: i.pdf! })), "Word 转 PDF.zip");
+    if (done.length) await saveFiles(done.map((i) => ({ name: pdfName(i), data: i.pdf! })), t("document.wordToPdfZip"));
   } finally {
     converting.value = false;
   }
@@ -112,78 +114,78 @@ const pending = computed(() => checkedItems.value.filter((i) => i.status !== "do
     <aside class="card panel">
       <section class="section">
         <h3>
-          <CheckAll v-if="items.length" :checked="allChecked" :partly="partlyChecked" :disabled="converting" @toggle="toggleAll">文件</CheckAll>
-          <template v-else>文件</template>
-          <span class="push">{{ items.length > 1 ? `已选 ${checkedItems.length} / ${items.length} 个` : `${items.length} 个` }}</span>
+          <CheckAll v-if="items.length" :checked="allChecked" :partly="partlyChecked" :disabled="converting" @toggle="toggleAll">{{ t("document.files") }}</CheckAll>
+          <template v-else>{{ t("document.files") }}</template>
+          <span class="push">{{ items.length > 1 ? t("files.selected", { checked: checkedItems.length, total: items.length }) : t("files.count", { n: items.length }) }}</span>
         </h3>
         <ul class="files">
           <li v-for="item in items" :key="item.id" :class="{ on: item.id === selected?.id, unchecked: !isChecked(item) }" @click="selectedId = item.id">
-            <input type="checkbox" class="file-check" title="勾选的文件才转换" :checked="isChecked(item)" :disabled="converting" @click.stop @change="toggleFile(item)" />
+            <input type="checkbox" class="file-check" :title="t('document.checkFiles')" :checked="isChecked(item)" :disabled="converting" @click.stop @change="toggleFile(item)" />
             <FileText :size="14" class="icon" />
             <span class="name" :title="item.file.name">{{ item.file.name }}</span>
             <LoaderCircle v-if="item.status === 'working'" :size="14" class="spin" />
-            <button v-else-if="item.status === 'done'" class="icon-btn ok" title="下载这个 PDF" @click.stop="downloadOne(item)">
+            <button v-else-if="item.status === 'done'" class="icon-btn ok" :title="t('document.downloadPdf')" @click.stop="downloadOne(item)">
               <CircleCheck :size="14" />
             </button>
             <CircleAlert v-else-if="item.status === 'error'" :size="14" class="bad" />
             <span v-else class="size">{{ formatBytes(item.file.size) }}</span>
-            <button class="icon-btn remove" title="移除" @click.stop="remove(item)"><X :size="13" /></button>
+            <button class="icon-btn remove" :title="t('document.remove')" @click.stop="remove(item)"><X :size="13" /></button>
           </li>
         </ul>
         <p v-for="item in items.filter((i) => i.status === 'error')" :key="item.id" class="error">{{ item.file.name }}：{{ item.message }}</p>
-        <FileDropZone compact :accept="ACCEPT" multiple :paste="false" title="继续添加文档" @files="addFiles" />
+        <FileDropZone compact :accept="ACCEPT" multiple :paste="false" :title="t('document.addDocs')" @files="addFiles" />
       </section>
 
       <section class="section">
-        <h3>转换方式</h3>
-        <p v-if="!desktop" class="note warn">浏览器中无法调用 Word，请使用安装后的桌面版；也可以用下方的「打印为 PDF」。</p>
-        <p v-else-if="engines === null" class="note">正在检测本机的 Office 软件…</p>
-        <p v-else-if="engines.length" class="note">
-          使用本机的 <b>{{ engines[0] }}</b> 转换，效果与在其中「另存为 PDF」相同。转换时会在后台打开文档，请稍候。
-        </p>
-        <p v-else class="note warn">没有找到 Microsoft Word、WPS 或 LibreOffice。安装其中之一即可一键转换，也可以用下方的「打印为 PDF」。</p>
+        <h3>{{ t("document.convertMode") }}</h3>
+        <p v-if="!desktop" class="note warn">{{ t("document.browserNoWord") }}</p>
+        <p v-else-if="engines === null" class="note">{{ t("document.detectingOffice") }}</p>
+        <Translation v-else-if="engines.length" keypath="document.engineNote" tag="p" class="note">
+          <template #engine><b>{{ engines[0] }}</b></template>
+        </Translation>
+        <p v-else class="note warn">{{ t("document.noOffice") }}</p>
 
         <button v-if="canConvert" class="btn primary full" :disabled="converting || !pending" @click="convertAll">
           <Download :size="14" />
           {{
             converting
-              ? "正在转换…"
+              ? t("document.converting")
               : !checkedItems.length
-                ? "请勾选要转换的文件"
+                ? t("document.checkToConvert")
                 : !pending
-                  ? "已全部转换"
+                  ? t("document.allConverted")
                   : items.length > 1
-                    ? `转换选中的 ${pending} 个`
-                    : "转换为 PDF"
+                    ? t("document.convertSelected", { n: pending })
+                    : t("document.toPdf")
           }}
         </button>
         <button
           class="btn full"
           :class="{ primary: !canConvert }"
           :disabled="printing || selected?.ext !== 'docx'"
-          title="用系统打印功能，选择「Microsoft Print to PDF」或「另存为 PDF」"
+          :title="t('document.printTitle')"
           @click="printSelected"
         >
-          <Printer :size="14" />打印为 PDF（当前文档）
+          <Printer :size="14" />{{ t("document.printPdf") }}
         </button>
-        <p class="tip">打印方式由程序自行排版，复杂文档可能与 Word 略有差异，仅支持 .docx。</p>
+        <p class="tip">{{ t("document.printTip") }}</p>
       </section>
     </aside>
 
     <section class="card stage">
-      <div class="card-title">预览<span class="hint">{{ selected?.file.name }}</span></div>
+      <div class="card-title">{{ t("document.preview") }}<span class="hint">{{ selected?.file.name }}</span></div>
       <FileDropZone
         v-if="!items.length"
         class="drop"
         :accept="ACCEPT"
         multiple
-        title="拖入 Word 文档，或点击选择（可多选）"
-        hint="支持 .docx、.doc、.rtf、.odt、.wps；调用本机安装的 Word 或 WPS 转换，排版与原文档一致"
+        :title="t('document.dropWord')"
+        :hint="t('document.wordToPdfHint')"
         :paste="false"
         @files="addFiles"
       />
       <DocxPreview v-else :data="previewData">
-        <p class="no-preview">{{ selected && selected.ext !== "docx" ? `.${selected.ext} 格式无法预览，可以直接转换` : "" }}</p>
+        <p class="no-preview">{{ selected && selected.ext !== "docx" ? t("document.noPreviewExt", { ext: selected.ext }) : "" }}</p>
       </DocxPreview>
     </section>
   </div>

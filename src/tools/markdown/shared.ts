@@ -20,7 +20,7 @@ export function countWords(text: string): number {
 
 export const FONTS = ["宋体", "微软雅黑", "等线", "仿宋", "楷体"];
 /** 字体在英文界面显示的名称（值仍用中文名，Word 认得） */
-export const FONT_NAMES_EN: Record<string, string> = { 宋体: "SimSun", 微软雅黑: "Microsoft YaHei", 等线: "DengXian", 仿宋: "FangSong", 楷体: "KaiTi" };
+export const FONT_NAMES_EN: Record<string, string> = { 宋体: "SimSun", 微软雅黑: "Microsoft YaHei", 等线: "DengXian", 仿宋: "FangSong", 楷体: "KaiTi", 黑体: "SimHei" };
 
 /** Word 导出格式，「Markdown 编辑预览」和「Markdown 转 Word」共用 */
 export function useDocxOptions() {

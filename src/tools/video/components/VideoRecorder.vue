@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, shallowRef } from "vue";
+import { Translation, useI18n } from "vue-i18n";
 import { Circle, Download, MousePointerClick, Pause, Play, Square, Trash2, TriangleAlert, Video } from "lucide-vue-next";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { saveFile } from "@/utils/saveFile";
@@ -30,6 +31,7 @@ import {
  */
 const props = defineProps<{ source: RecordSource }>();
 const source = computed(() => props.source);
+const { t } = useI18n();
 const systemAudio = useStoredRef("screenRecorder.systemAudio", true);
 const microphone = useStoredRef(`${props.source}Recorder.microphone`, props.source === "camera");
 // 屏幕录制默认原画、60 帧；摄像头默认 1080P、30 帧（大多数摄像头不支持更高）
@@ -91,7 +93,7 @@ const start = async () => {
   error.value = warning.value = "";
   elapsed.value = 0;
   format = pickFormat();
-  if (!format) return (error.value = "当前环境不支持录制视频");
+  if (!format) return (error.value = t("video.noRecorder"));
   if (source.value === "screen" && hdrControllable && (await hdrEnabled())) {
     const choice = hdrChoice.value || (await askHdr());
     if (!choice) return;
@@ -118,8 +120,8 @@ const start = async () => {
     error.value = e instanceof Error ? e.message : String(e);
     return;
   }
-  if (capture.mirrorUnsupported) warning.value = "当前环境不支持翻转画面，录下来的是摄像头的原始画面";
-  if (capture.missingSystemAudio) warning.value = "没有录到系统声音：选择时请选「整个屏幕」或浏览器标签页，并勾选「分享系统音频」";
+  if (capture.mirrorUnsupported) warning.value = t("video.noMirror");
+  if (capture.missingSystemAudio) warning.value = t("video.noSystemAudio");
   // 在系统提示条上点「停止共享」时结束录制
   capture.video.addEventListener("ended", stop);
 
@@ -175,7 +177,7 @@ function finish() {
   const blob = new Blob(chunks, { type: recorder?.mimeType || format?.mimeType || "video/webm" });
   recorder = null;
   chunks = [];
-  if (!blob.size) return (error.value = "没有录到内容");
+  if (!blob.size) return (error.value = t("video.nothingRecorded"));
   const id = nextId++;
   recordings.value = [{ id, name: recordingName(id), blob, url: URL.createObjectURL(blob), ext: format?.ext ?? "webm", seconds }, ...recordings.value];
   selectedId.value = id;
@@ -219,13 +221,13 @@ const busy = computed(() => state.value !== "idle");
 const statusText = computed(() =>
   state.value === "starting"
     ? source.value === "screen"
-      ? "请在弹出的窗口中选择要录制的画面…"
-      : "正在打开摄像头…"
+      ? t("video.pickScreen")
+      : t("video.openingCamera")
     : state.value === "recording"
-      ? "正在录制…"
+      ? t("video.recording")
       : state.value === "paused"
-        ? "已暂停"
-        : "点击下方按钮开始录制",
+        ? t("video.paused")
+        : t("video.recordHint"),
 );
 </script>
 
@@ -233,33 +235,34 @@ const statusText = computed(() =>
   <div class="video-recorder">
     <aside class="card panel">
       <section v-if="source === 'screen' && hdr && !hdrControllable" class="section hdr">
-        <h3><TriangleAlert :size="14" />屏幕开着 HDR，录出来会发白</h3>
-        <p class="tip">
-          录制前请在 Windows <b>设置 → 系统 → 屏幕</b>中关闭<b>「使用 HDR」</b>（没有这一项就关闭「自动管理应用的颜色」），录完再打开。关闭后录出来的颜色和屏幕上一致。
-        </p>
+        <h3><TriangleAlert :size="14" />{{ t("video.hdrWarn") }}</h3>
+        <Translation keypath="video.hdrSteps" tag="p" class="tip">
+          <template #path><b>{{ t("video.hdrPath") }}</b></template>
+          <template #option><b>{{ t("video.hdrOption") }}</b></template>
+        </Translation>
       </section>
       <section class="section">
-        <h3>清晰度</h3>
+        <h3>{{ t("video.quality") }}</h3>
         <div class="seg fill">
-          <button v-for="q in QUALITY_OPTIONS" :key="q.value" :class="{ on: quality === q.value }" :disabled="busy" @click="quality = q.value">{{ q.label }}</button>
+          <button v-for="q in QUALITY_OPTIONS" :key="q.value" :class="{ on: quality === q.value }" :disabled="busy" @click="quality = q.value">{{ q.label || t("video.original") }}</button>
         </div>
-        <h3>帧率</h3>
+        <h3>{{ t("video.frameRate") }}</h3>
         <div class="seg fill">
-          <button v-for="f in FRAME_RATES" :key="f" :class="{ on: frameRate === f }" :disabled="busy" @click="frameRate = f">{{ f }} 帧</button>
+          <button v-for="f in FRAME_RATES" :key="f" :class="{ on: frameRate === f }" :disabled="busy" @click="frameRate = f">{{ t("video.fps", { n: f }) }}</button>
         </div>
-        <p class="tip">清晰度、帧率越高，画面越清楚、越流畅，文件也越大。录教程、文档选 1080P / 30 帧就够了，录游戏、动画可以选 60 帧。</p>
+        <p class="tip">{{ t("video.fpsTip") }}</p>
       </section>
       <section class="section">
-        <h3>录制声音</h3>
-        <label v-if="source === 'screen'" class="check"><input v-model="systemAudio" type="checkbox" :disabled="busy" />系统声音</label>
-        <label class="check"><input v-model="microphone" type="checkbox" :disabled="busy" />麦克风</label>
+        <h3>{{ t("video.recordAudio") }}</h3>
+        <label v-if="source === 'screen'" class="check"><input v-model="systemAudio" type="checkbox" :disabled="busy" />{{ t("video.systemAudio") }}</label>
+        <label class="check"><input v-model="microphone" type="checkbox" :disabled="busy" />{{ t("video.microphone") }}</label>
       </section>
       <section class="section">
         <p class="tip">
-          <template v-if="source === 'screen'">点「开始录制」后会弹出系统的选择窗口，选好要录的画面再点「共享」。要录系统声音，请选「整个屏幕」。</template>
-          <template v-else>开始后会请求使用摄像头和麦克风的权限，录制时在右侧显示画面。</template>
+          <template v-if="source === 'screen'">{{ t("video.screenTip") }}</template>
+          <template v-else>{{ t("video.cameraTip") }}</template>
         </p>
-        <p class="tip">录像只保存在本次打开的程序中，关闭后会丢失，需要的请及时保存。</p>
+        <p class="tip">{{ t("video.keepTip") }}</p>
       </section>
     </aside>
 
@@ -269,32 +272,37 @@ const statusText = computed(() =>
           <!-- 等待选择画面时的引导：系统的选择窗口样式改不了，在这里说明怎么选 -->
           <div v-if="state === 'starting' && source === 'screen'" class="guide">
             <MousePointerClick :size="28" />
-            <h4>请在弹出的窗口里选择要录制的画面</h4>
+            <h4>{{ t("video.guideTitle") }}</h4>
             <ol>
-              <li>点窗口上方的<b>「整个屏幕」</b>（要录系统声音必须选它），或者<b>「窗口」</b>只录某一个程序</li>
-              <li>点一下下面要录制的画面，选中后会有边框</li>
-              <li>点右下角的<b>「共享」</b>，就开始录制了</li>
+              <Translation keypath="video.guide1" tag="li">
+                <template #screen><b>{{ t("video.guideScreen") }}</b></template>
+                <template #window><b>{{ t("video.guideWindow") }}</b></template>
+              </Translation>
+              <li>{{ t("video.guide2") }}</li>
+              <Translation keypath="video.guide3" tag="li">
+                <template #share><b>{{ t("video.guideShare") }}</b></template>
+              </Translation>
             </ol>
-            <p>不要选 Open Tools 自己的窗口，否则画面会一层套一层。</p>
+            <p>{{ t("video.guideNote") }}</p>
           </div>
           <video v-else-if="busy" ref="live" autoplay muted playsinline />
           <video v-else-if="selected" :key="selected.url" :src="selected.url" controls />
           <div v-else class="placeholder">
             <Video :size="32" />
-            <span>录制时在这里显示画面</span>
+            <span>{{ t("video.liveHint") }}</span>
           </div>
         </div>
         <div class="bar">
           <span class="clock">{{ formatTime(elapsed, false) }}</span>
           <span class="status">{{ statusText }}</span>
           <div class="controls">
-            <button v-if="!busy" class="rec" title="开始录制" @click="start"><Circle :size="18" fill="currentColor" />开始录制</button>
+            <button v-if="!busy" class="rec" :title="t('video.startRecord')" @click="start"><Circle :size="18" fill="currentColor" />{{ t("video.startRecord") }}</button>
             <template v-else>
               <button class="btn" :disabled="state === 'starting'" @click="pauseOrResume">
-                <template v-if="state === 'paused'"><Play :size="14" />继续</template>
-                <template v-else><Pause :size="14" />暂停</template>
+                <template v-if="state === 'paused'"><Play :size="14" />{{ t("video.resume") }}</template>
+                <template v-else><Pause :size="14" />{{ t("video.pause") }}</template>
               </button>
-              <button class="btn primary" :disabled="state === 'starting'" @click="stop"><Square :size="13" fill="currentColor" />结束</button>
+              <button class="btn primary" :disabled="state === 'starting'" @click="stop"><Square :size="13" fill="currentColor" />{{ t("video.finish") }}</button>
             </template>
           </div>
         </div>
@@ -303,32 +311,34 @@ const statusText = computed(() =>
       </section>
 
       <section class="card list">
-        <div class="card-title">录像<span v-if="recordings.length" class="count">{{ recordings.length }} 段</span></div>
+        <div class="card-title">{{ t("video.recordings") }}<span v-if="recordings.length" class="count">{{ t("video.segments", { n: recordings.length }) }}</span></div>
         <ul v-if="recordings.length" class="rows">
           <li v-for="r in recordings" :key="r.id" class="row" :class="{ on: r.id === selectedId && !busy }" @click="selectedId = r.id">
             <Video :size="15" class="icon" />
             <span class="name">{{ r.name }}</span>
             <span class="len">{{ formatTime(r.seconds, false) }} · {{ formatBytes(r.blob.size) }} · {{ r.ext.toUpperCase() }}</span>
-            <button class="btn small" :disabled="saving === r.id" @click.stop="save(r)"><Download :size="14" />{{ saving === r.id ? "保存中…" : "保存" }}</button>
-            <button class="icon-btn" title="删除" @click.stop="remove(r)"><Trash2 :size="14" /></button>
+            <button class="btn small" :disabled="saving === r.id" @click.stop="save(r)"><Download :size="14" />{{ saving === r.id ? t("video.saving") : t("video.save") }}</button>
+            <button class="icon-btn" :title="t('video.delete')" @click.stop="remove(r)"><Trash2 :size="14" /></button>
           </li>
         </ul>
-        <p v-else class="empty">录好的视频会出现在这里，点击可以预览</p>
+        <p v-else class="empty">{{ t("video.recordingsEmpty") }}</p>
       </section>
     </div>
 
     <!-- 屏幕开着 HDR：问用户是否在录制期间临时关闭 -->
     <Transition name="modal">
       <div v-if="hdrDialog" class="overlay" @mousedown.self="answerHdr(null)" @keydown.esc="answerHdr(null)">
-        <div class="dialog" role="dialog" aria-label="屏幕开着 HDR">
-          <h2><TriangleAlert :size="18" />屏幕开着 HDR</h2>
-          <p>直接录制的话，录出来的画面会<b>整体发白</b>。可以在录制期间临时关闭 HDR，录完自动恢复。</p>
-          <p class="tip">切换 HDR 时屏幕会黑一下，属于正常现象。</p>
-          <label class="check"><input v-model="rememberHdr" type="checkbox" />记住我的选择，下次不再询问</label>
+        <div class="dialog" role="dialog" :aria-label="t('video.hdrOn')">
+          <h2><TriangleAlert :size="18" />{{ t("video.hdrOn") }}</h2>
+          <Translation keypath="video.hdrDialog" tag="p">
+          <template #whitish><b>{{ t("video.whitish") }}</b></template>
+        </Translation>
+          <p class="tip">{{ t("video.hdrFlash") }}</p>
+          <label class="check"><input v-model="rememberHdr" type="checkbox" />{{ t("video.rememberChoice") }}</label>
           <footer>
-            <button class="btn subtle" @click="answerHdr(null)">取消</button>
-            <button class="btn" @click="answerHdr('keep')">直接录制</button>
-            <button class="btn primary" @click="answerHdr('disable')">临时关闭 HDR 并录制</button>
+            <button class="btn subtle" @click="answerHdr(null)">{{ t("video.cancel") }}</button>
+            <button class="btn" @click="answerHdr('keep')">{{ t("video.recordAsIs") }}</button>
+            <button class="btn primary" @click="answerHdr('disable')">{{ t("video.disableHdr") }}</button>
           </footer>
         </div>
       </div>

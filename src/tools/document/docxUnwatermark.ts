@@ -1,4 +1,5 @@
 import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from "fflate";
+import { t } from "@/locales";
 
 /**
  * Word 去水印：找出 .docx 里的水印，按用户勾选的删除。
@@ -156,15 +157,15 @@ const WATERMARK_NAME = /WaterMark|水印/i;
 
 /** 判断一个图形是不是水印；不是候选时返回 null */
 function classify(s: Shape, where: "header" | "body"): Pick<FoundWatermark, "sure" | "checked" | "reason"> | null {
-  if (WATERMARK_NAME.test(s.name)) return { sure: true, checked: true, reason: "Word / WPS 添加的水印" };
+  if (WATERMARK_NAME.test(s.name)) return { sure: true, checked: true, reason: t("document.wordWpsWatermark") };
   if (!s.floating) return null;
-  const traits = [s.behind && "衬于文字下方", s.translucent && "半透明", s.rotated && "旋转", s.wordArt && "艺术字"].filter(Boolean) as string[];
+  const traits = [s.behind && t("document.traitBehind"), s.translucent && t("document.traitTranslucent"), s.rotated && t("document.traitRotated"), s.wordArt && t("document.traitWordArt")].filter(Boolean) as string[];
   if (where === "header") {
-    if (traits.length) return { sure: true, checked: true, reason: `页眉中的浮动图形：${traits.join("、")}` };
-    return { sure: false, checked: false, reason: "页眉中的浮动图形，可能是 Logo 或装饰" };
+    if (traits.length) return { sure: true, checked: true, reason: t("document.headerShape", { traits: traits.join(t("document.traitSep")) }) };
+    return { sure: false, checked: false, reason: t("document.headerShapeMaybe") };
   }
   // 正文里只有衬于文字下方的才列出来，默认不删
-  if (s.behind) return { sure: false, checked: false, reason: `正文中的浮动图形：${traits.join("、")}，请确认是否是水印` };
+  if (s.behind) return { sure: false, checked: false, reason: t("document.bodyShape", { traits: traits.join(t("document.traitSep")) }) };
   return null;
 }
 
@@ -173,11 +174,11 @@ export function scanDocx(docx: Uint8Array): DocxScan {
   try {
     files = unzipSync(docx);
   } catch {
-    throw new Error("不是有效的 Word 文档（.docx）");
+    throw new Error(t("document.notDocx"));
   }
   const read = (path: string) => (files[path] ? strFromU8(files[path]) : "");
   const documentXml = read("word/document.xml");
-  if (!documentXml) throw new Error("不是有效的 Word 文档（.docx），旧版 .doc 请先在 Word 中另存为 .docx");
+  if (!documentXml) throw new Error(t("document.oldDoc"));
 
   const docRels = parseRels(read("word/_rels/document.xml.rels"));
   const parts: { part: string; where: "header" | "body" }[] = [
@@ -198,7 +199,7 @@ export function scanDocx(docx: Uint8Array): DocxScan {
       const rel = shape.imageRel ? rels.find((r) => r.id === shape.imageRel && r.type === REL_IMAGE) : undefined;
       const image = rel ? partPath(rel.target, part.replace(/[^/]+$/, "")) : undefined;
       const kind: FoundWatermark["kind"] = shape.text ? "text" : image ? "image" : "shape";
-      const label = { text: shape.wordArt ? "文字水印" : "文本框", image: "图片水印", shape: "图形" }[kind];
+      const label = { text: shape.wordArt ? t("document.textWatermark") : t("document.textBox"), image: t("document.imageWatermark"), shape: t("document.shape") }[kind];
       // 同样的文字或图片算同一个水印（平铺水印有很多个形状，每个页眉里也各有一份）
       const key = `${where}:${kind}:${shape.text || image || shape.name}:${verdict.reason}`;
       const group = groups.get(key);
@@ -220,12 +221,12 @@ export function scanDocx(docx: Uint8Array): DocxScan {
     found.push({
       key: "page:background",
       kind: "background",
-      label: rel ? "页面背景图片" : "页面背景颜色",
+      label: rel ? t("document.bgImage") : t("document.bgColor"),
       image: rel ? partPath(rel.target) : undefined,
       where: "page",
       sure: !!rel,
       checked: !!rel,
-      reason: rel ? "「设计 → 页面颜色」设置的背景图片" : `「设计 → 页面颜色」设置的背景色 #${attr(bg[0], "w:color") ?? ""}`,
+      reason: rel ? t("document.bgImageReason") : t("document.bgColorReason", { color: attr(bg[0], "w:color") ?? "" }),
       count: 1,
       places: [{ part: "word/document.xml", start: bg.index!, end: bg.index! + bg[0].length }],
     });
@@ -257,4 +258,4 @@ export function removeFound(scan: DocxScan, keys: Iterable<string>): Uint8Array 
 }
 
 /** 文件名：a.docx → a_去水印.docx */
-export const unwatermarkedName = (name: string) => name.replace(/(\.docx)?$/i, "_去水印.docx");
+export const unwatermarkedName = (name: string) => name.replace(/(\.docx)?$/i, `_${t("document.unwatermarkedSuffix")}.docx`);

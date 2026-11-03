@@ -1,4 +1,5 @@
 import { isTauri } from "@tauri-apps/api/core";
+import { t } from "@/locales";
 
 /**
  * 视频录制：取得屏幕或摄像头画面，按需混入系统声音和麦克风，交给浏览器自带的 MediaRecorder 录制。
@@ -12,7 +13,7 @@ export type RecordFrameRate = 15 | 30 | 60;
 export const QUALITY_OPTIONS: { value: RecordQuality; label: string }[] = [
   { value: "720", label: "720P" },
   { value: "1080", label: "1080P" },
-  { value: "original", label: "原画" },
+  { value: "original", label: "" },
 ];
 export const FRAME_RATES: RecordFrameRate[] = [15, 30, 60];
 
@@ -64,7 +65,7 @@ export function pickFormat(isSupported: (type: string) => boolean = (t) => Media
 /** 录像 1 · 14:05 */
 export function recordingName(n: number, date = new Date()) {
   const pad = (v: number) => String(v).padStart(2, "0");
-  return `录像 ${n} · ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return t("video.recordingName", { n, time: `${pad(date.getHours())}:${pad(date.getMinutes())}` });
 }
 
 /** 文件名里不能有空格、冒号等：录像 1 · 14:05 → 录像_1_14_05.mp4 */
@@ -124,7 +125,7 @@ export async function openCapture(o: RecordOptions): Promise<Capture> {
         const video = { ...videoConstraints(o.quality, o.frameRate), displaySurface: "monitor" } as MediaTrackConstraints;
         main = await navigator.mediaDevices.getDisplayMedia({ video, audio: o.systemAudio });
       } catch (e) {
-        throw new Error(e instanceof DOMException && e.name === "NotAllowedError" ? "已取消选择要录制的屏幕" : "无法录制屏幕：当前环境不支持或没有权限");
+        throw new Error(e instanceof DOMException && e.name === "NotAllowedError" ? t("video.screenCancelled") : t("video.screenFailed"));
       }
     } else {
       try {
@@ -135,7 +136,7 @@ export async function openCapture(o: RecordOptions): Promise<Capture> {
           audio: o.microphone,
         });
       } catch {
-        throw new Error("无法使用摄像头：请检查是否连接了摄像头，以及系统设置中是否允许应用访问摄像头和麦克风");
+        throw new Error(t("video.cameraFailed"));
       }
     }
     owned.push(main);
@@ -148,7 +149,7 @@ export async function openCapture(o: RecordOptions): Promise<Capture> {
         owned.push(mic);
         audioTracks.push(...mic.getAudioTracks());
       } catch {
-        throw new Error("无法使用麦克风：请检查是否连接了麦克风，以及系统设置中是否允许应用访问麦克风");
+        throw new Error(t("video.micFailed"));
       }
     }
 

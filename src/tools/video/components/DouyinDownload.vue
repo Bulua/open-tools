@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, markRaw, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { isTauri } from "@tauri-apps/api/core";
 import { ChevronLeft, ChevronRight, CircleAlert, ClipboardPaste, Download, ExternalLink, FolderOpen, Images, LoaderCircle, Play, Search, Square, X } from "lucide-vue-next";
 import ProgressBar from "@/components/common/ProgressBar.vue";
@@ -15,6 +16,7 @@ import { douyinBaseName, downloadFirst, getDouyinItem, imageExt, type DouyinItem
  * 视频下载为 MP4，图文下载全部原图（实况照片附带视频），可以同时下载背景音乐和封面。
  * 抖音的接口需要页面脚本签名，由桌面版在看不到的窗口中打开作品页读取，所以只有桌面版可用。
  */
+const { t } = useI18n();
 const desktop = isTauri();
 
 // ---------- 设置 ----------
@@ -22,7 +24,7 @@ const want = useStoredRef("douyin.want", { media: true, music: false, cover: fal
 const folder = useStoredRef("douyin.folder", "");
 const nothingWanted = computed(() => !want.value.media && !want.value.music && !want.value.cover);
 const changeFolder = async () => {
-  const picked = await pickFolder("选择保存位置");
+  const picked = await pickFolder(t("video.chooseFolder"));
   if (picked) folder.value = picked;
   return picked;
 };
@@ -90,7 +92,7 @@ const download = async (e: Entry) => {
   const controller = new AbortController();
   const signal = controller.signal;
   // AbortController 不能被响应式代理包装（调用 abort 会出错），用 markRaw 原样保存
-  Object.assign(e, { status: "working", step: "准备下载", progress: 0, message: "", result: "", controller: markRaw(controller) });
+  Object.assign(e, { status: "working", step: t("video.preparing"), progress: 0, message: "", result: "", controller: markRaw(controller) });
   const notes: string[] = [];
   const progress = (label: string, from: number, span: number) => (loaded: number, total: number) => {
     e.step = `${label} ${formatBytes(loaded)}${total ? ` / ${formatBytes(total)}` : ""}`;
@@ -98,46 +100,46 @@ const download = async (e: Entry) => {
   };
   try {
     if (want.value.media && item.type === "video") {
-      const { data } = await downloadFirst(item.videoUrls, progress("下载视频", 0, 0.9), signal);
+      const { data } = await downloadFirst(item.videoUrls, progress(t("video.dlVideoFile"), 0, 0.9), signal);
       await save(`${base}.mp4`, data);
-      notes.push(`视频${item.resolution ? ` ${item.resolution}` : ""} · ${formatBytes(data.length)}`);
+      notes.push(t("video.videoNote", { res: item.resolution ? ` ${item.resolution}` : "", size: formatBytes(data.length) }));
     }
     if (want.value.media && item.type === "images") {
       const n = item.images.length;
       let size = 0;
       for (const [i, img] of item.images.entries()) {
-        if (signal.aborted) throw new Error("已取消");
+        if (signal.aborted) throw new Error(t("video.cancelled"));
         const name = `${base}_${String(i + 1).padStart(2, "0")}`;
-        const { data } = await downloadFirst(img.urls, progress(`下载第 ${i + 1} / ${n} 张`, (i / n) * 0.9, 0.9 / n), signal);
+        const { data } = await downloadFirst(img.urls, progress(t("video.dlImage", { i: i + 1, n }), (i / n) * 0.9, 0.9 / n), signal);
         await save(`${name}.${imageExt(data)}`, data);
         size += data.length;
         // 实况照片：附带的短视频
         if (want.value.live && img.live.length) {
           const live = await downloadFirst(img.live, undefined, signal).catch(() => null);
           if (live) {
-            await save(`${name}_实况.mp4`, live.data);
+            await save(`${name}_${t("video.liveSuffix")}.mp4`, live.data);
             size += live.data.length;
           }
         }
       }
-      notes.push(`${n} 张图片 · ${formatBytes(size)}`);
+      notes.push(t("video.imagesNote", { n, size: formatBytes(size) }));
     }
     if (want.value.music && item.music.urls.length) {
-      e.step = "下载背景音乐";
+      e.step = t("video.dlMusic");
       const { data, url } = await downloadFirst(item.music.urls, undefined, signal);
       const ext = url.match(/\.(mp3|m4a|aac)(?:\?|$)/i)?.[1] ?? "mp3";
-      await save(`${base}_音乐${item.music.title ? `_${item.music.title.slice(0, 30)}` : ""}.${ext}`.replace(/[\\/:*?"<>|]/g, "_"), data);
-      notes.push("背景音乐");
+      await save(`${base}_${t("video.musicSuffix")}${item.music.title ? `_${item.music.title.slice(0, 30)}` : ""}.${ext}`.replace(/[\\/:*?"<>|]/g, "_"), data);
+      notes.push(t("video.music"));
     }
     if (want.value.cover && item.cover) {
-      e.step = "下载封面";
+      e.step = t("video.dlCover");
       const { data } = await downloadFirst([item.cover], undefined, signal);
-      await save(`${base}_封面.${imageExt(data)}`, data);
-      notes.push("封面");
+      await save(`${base}_${t("video.coverSuffix")}.${imageExt(data)}`, data);
+      notes.push(t("video.cover"));
     }
-    Object.assign(e, { status: "done", progress: 1, result: notes.join("，") || "没有需要下载的内容" });
+    Object.assign(e, { status: "done", progress: 1, result: notes.join(t("video.sep")) || t("video.nothingToDownload") });
   } catch (err) {
-    Object.assign(e, { status: "error", message: signal.aborted ? "已取消" : err instanceof Error ? err.message : String(err) });
+    Object.assign(e, { status: "error", message: signal.aborted ? t("video.cancelled") : err instanceof Error ? err.message : String(err) });
   } finally {
     e.step = "";
     e.controller = undefined;
@@ -146,7 +148,7 @@ const download = async (e: Entry) => {
 const cancel = (e: Entry) => e.controller?.abort();
 const downloadAll = () => entries.value.filter((e) => e.status !== "working").forEach((e) => download(e));
 const date = (t: number) => (t ? new Date(t * 1000).toLocaleDateString() : "");
-const shortDesc = (d: string) => d.replace(/#\S+/g, "").trim() || "（没有描述）";
+const shortDesc = (d: string) => d.replace(/#\S+/g, "").trim() || t("video.noDesc");
 
 // ---------- 预览：视频播放、图片逐张浏览 ----------
 const viewer = ref<{ entry: Entry; index: number; failed: boolean } | null>(null);
@@ -168,90 +170,90 @@ useWindowEvent("keydown", (ev) => {
 <template>
   <div class="dy">
     <div class="card bar">
-      <input v-model="link" class="field link" placeholder="粘贴抖音分享文案或链接（v.douyin.com/…），回车解析；可以连续解析多个" spellcheck="false" @keydown.enter="parse" />
-      <button class="btn subtle" title="粘贴剪贴板中的分享链接并解析" :disabled="parsing" @click="pasteAndParse"><ClipboardPaste :size="14" />粘贴</button>
+      <input v-model="link" class="field link" :placeholder="t('video.dyPlaceholder')" spellcheck="false" @keydown.enter="parse" />
+      <button class="btn subtle" :title="t('video.dyPasteTitle')" :disabled="parsing" @click="pasteAndParse"><ClipboardPaste :size="14" />{{ t("video.paste") }}</button>
       <button class="btn primary" :disabled="!link.trim() || parsing" @click="parse">
         <LoaderCircle v-if="parsing" :size="14" class="spin" />
-        <Search v-else :size="14" />{{ parsing ? "解析中…" : "解析" }}
+        <Search v-else :size="14" />{{ parsing ? t("video.parsing") : t("video.parse") }}
       </button>
     </div>
-    <p v-if="!desktop" class="banner warn">抖音需要在程序内打开作品页读取信息，只有桌面版支持。</p>
+    <p v-if="!desktop" class="banner warn">{{ t("video.dyDesktopOnly") }}</p>
     <p v-if="parseError" class="banner error">{{ parseError }}</p>
 
     <div class="main">
       <aside class="card panel">
         <section class="section">
-          <h3>下载内容</h3>
+          <h3>{{ t("video.content") }}</h3>
           <div class="wants">
-            <label class="check"><input v-model="want.media" type="checkbox" />视频 / 图片（无水印）</label>
-            <label class="check" :class="{ disabled: !want.media }"><input v-model="want.live" type="checkbox" :disabled="!want.media" />实况照片附带的视频</label>
-            <label class="check"><input v-model="want.music" type="checkbox" />背景音乐</label>
-            <label class="check"><input v-model="want.cover" type="checkbox" />封面</label>
+            <label class="check"><input v-model="want.media" type="checkbox" />{{ t("video.wantMedia") }}</label>
+            <label class="check" :class="{ disabled: !want.media }"><input v-model="want.live" type="checkbox" :disabled="!want.media" />{{ t("video.wantLive") }}</label>
+            <label class="check"><input v-model="want.music" type="checkbox" />{{ t("video.wantMusic") }}</label>
+            <label class="check"><input v-model="want.cover" type="checkbox" />{{ t("video.wantDyCover") }}</label>
           </div>
-          <p class="tip">视频是抖音提供的无水印原片，图文是无水印原图，画质不会损失。</p>
+          <p class="tip">{{ t("video.dyTip") }}</p>
         </section>
 
         <section v-if="desktop" class="section">
-          <h3>保存位置</h3>
-          <p class="path" :title="folder">{{ folder || "第一次下载时选择" }}</p>
+          <h3>{{ t("video.saveTo") }}</h3>
+          <p class="path" :title="folder">{{ folder || t("video.firstTime") }}</p>
           <div class="row-btns">
-            <button class="btn small subtle" @click="changeFolder"><FolderOpen :size="13" />{{ folder ? "更改" : "选择" }}</button>
-            <button v-if="folder" class="btn small subtle" @click="revealFolder(folder)"><ExternalLink :size="13" />打开</button>
+            <button class="btn small subtle" @click="changeFolder"><FolderOpen :size="13" />{{ folder ? t("video.change") : t("video.choose") }}</button>
+            <button v-if="folder" class="btn small subtle" @click="revealFolder(folder)"><ExternalLink :size="13" />{{ t("video.open") }}</button>
           </div>
         </section>
 
         <section class="section">
-          <h3>说明</h3>
+          <h3>{{ t("video.about") }}</h3>
           <p class="tip">
-            解析时程序会在后台打开一次作品页面（看不到窗口），需要几秒钟。偶尔遇到抖音安全验证时，稍等一会儿再试。仅供个人保存使用，请尊重作者的版权，不要去掉水印后再发布他人的作品。
+            {{ t("video.dyAbout") }}
           </p>
         </section>
       </aside>
 
       <section class="card list">
         <div class="card-title">
-          作品<span v-if="entries.length" class="count">{{ entries.length }} 个</span>
+          {{ t("video.posts") }}<span v-if="entries.length" class="count">{{ t("video.countN", { n: entries.length }) }}</span>
           <div class="push actions">
-            <button v-if="entries.length > 1" class="btn small subtle" :disabled="nothingWanted" @click="downloadAll"><Download :size="13" />全部下载</button>
-            <button v-if="entries.length" class="btn small subtle" :disabled="entries.some((e) => e.status === 'working')" @click="entries = []">清空</button>
+            <button v-if="entries.length > 1" class="btn small subtle" :disabled="nothingWanted" @click="downloadAll"><Download :size="13" />{{ t("video.downloadAll") }}</button>
+            <button v-if="entries.length" class="btn small subtle" :disabled="entries.some((e) => e.status === 'working')" @click="entries = []">{{ t("video.clear") }}</button>
           </div>
         </div>
 
         <div v-if="!entries.length" class="empty">
-          <p v-if="parsing"><LoaderCircle :size="16" class="spin" /> 正在打开作品页读取信息…</p>
+          <p v-if="parsing"><LoaderCircle :size="16" class="spin" /> {{ t("video.openingPage") }}</p>
           <template v-else>
-            <p>在抖音里点「分享」→「复制链接」，粘贴到上方后回车</p>
-            <p class="sub">支持视频和图文作品；解析过的作品会排在这里，可以预览、逐个下载。</p>
+            <p>{{ t("video.dyEmptyHint") }}</p>
+            <p class="sub">{{ t("video.dyEmptySub") }}</p>
           </template>
         </div>
 
         <div v-else class="grid">
           <article v-for="e in entries" :key="e.key" class="video" :class="e.status">
-            <div class="thumb" :title="e.item.type === 'video' ? '播放' : '浏览图片'" @click="openViewer(e)">
+            <div class="thumb" :title="e.item.type === 'video' ? t('video.play') : t('video.browseImages')" @click="openViewer(e)">
               <img :src="e.item.cover || e.item.images[0]?.urls[0]" alt="" referrerpolicy="no-referrer" loading="lazy" />
               <span class="play-icon"><Play v-if="e.item.type === 'video'" :size="22" /><Images v-else :size="22" /></span>
               <span v-if="e.item.type === 'video'" class="badge left">{{ formatDuration(e.item.duration) }}</span>
-              <span v-else class="badge left">图文 · {{ e.item.images.length }} 张</span>
-              <button class="close" title="移除" @click.stop="removeEntry(e)"><X :size="13" /></button>
+              <span v-else class="badge left">{{ t("video.photoPost", { n: e.item.images.length }) }}</span>
+              <button class="close" :title="t('video.remove')" @click.stop="removeEntry(e)"><X :size="13" /></button>
               <ProgressBar v-if="e.status === 'working'" class="cover-progress" :value="e.progress" />
             </div>
             <div class="body">
               <h4 class="title" :title="e.item.desc">{{ shortDesc(e.item.desc) }}</h4>
               <p class="meta">{{ e.item.author }}<template v-if="date(e.item.createTime)"> · {{ date(e.item.createTime) }}</template></p>
-              <p v-if="e.item.type === 'video' && e.item.resolution" class="meta">无水印 · {{ e.item.resolution }}</p>
+              <p v-if="e.item.type === 'video' && e.item.resolution" class="meta">{{ t("video.noWatermark", { res: e.item.resolution }) }}</p>
               <p v-if="e.status === 'working'" class="status">{{ e.step }}</p>
-              <p v-else-if="e.status === 'done'" class="status ok">已保存：{{ e.result }}</p>
+              <p v-else-if="e.status === 'done'" class="status ok">{{ t("video.savedResult", { result: e.result }) }}</p>
               <p v-else-if="e.status === 'error'" class="status bad"><CircleAlert :size="12" /> {{ e.message }}</p>
               <div class="foot">
-                <button v-if="e.status === 'working'" class="btn small" @click="cancel(e)"><Square :size="12" />取消</button>
+                <button v-if="e.status === 'working'" class="btn small" @click="cancel(e)"><Square :size="12" />{{ t("video.cancel") }}</button>
                 <button v-else class="btn small primary" :disabled="nothingWanted" @click="download(e)">
-                  <Download :size="13" />{{ e.status === "done" ? "重新下载" : "下载" }}
+                  <Download :size="13" />{{ e.status === "done" ? t("video.redownload") : t("video.download") }}
                 </button>
                 <button class="btn small subtle" @click="openViewer(e)">
-                  <template v-if="e.item.type === 'video'"><Play :size="13" />播放</template>
-                  <template v-else><Images :size="13" />浏览</template>
+                  <template v-if="e.item.type === 'video'"><Play :size="13" />{{ t("video.play") }}</template>
+                  <template v-else><Images :size="13" />{{ t("video.browse") }}</template>
                 </button>
-                <button v-if="e.status === 'done' && desktop && folder" class="btn small subtle" @click="revealFolder(folder)"><ExternalLink :size="13" />打开文件夹</button>
+                <button v-if="e.status === 'done' && desktop && folder" class="btn small subtle" @click="revealFolder(folder)"><ExternalLink :size="13" />{{ t("video.openFolder") }}</button>
               </div>
             </div>
           </article>
@@ -266,17 +268,17 @@ useWindowEvent("keydown", (ev) => {
           <div class="viewer-head">
             <strong :title="viewer.entry.item.desc">{{ shortDesc(viewer.entry.item.desc) }}</strong>
             <span v-if="viewer.entry.item.type === 'images'" class="counter">{{ viewer.index + 1 }} / {{ viewer.entry.item.images.length }}</span>
-            <button class="icon-btn" title="关闭（Esc）" @click="viewer = null"><X :size="16" /></button>
+            <button class="icon-btn" :title="t('video.closeEsc')" @click="viewer = null"><X :size="16" /></button>
           </div>
           <div class="screen">
             <template v-if="viewer.entry.item.type === 'video'">
               <video v-if="!viewer.failed" :src="viewer.entry.item.videoUrls[0]" controls autoplay @error="viewer.failed = true" />
-              <span v-else class="screen-state">无法在线播放（抖音拒绝了播放请求），下载后可以正常观看</span>
+              <span v-else class="screen-state">{{ t("video.cantPlay") }}</span>
             </template>
             <template v-else>
               <img :key="viewer.index" :src="viewer.entry.item.images[viewer.index].urls[0]" alt="" referrerpolicy="no-referrer" />
-              <button class="nav prev" title="上一张（←）" @click="go(-1)"><ChevronLeft :size="22" /></button>
-              <button class="nav next" title="下一张（→）" @click="go(1)"><ChevronRight :size="22" /></button>
+              <button class="nav prev" :title="t('video.prevImage')" @click="go(-1)"><ChevronLeft :size="22" /></button>
+              <button class="nav next" :title="t('video.nextImage')" @click="go(1)"><ChevronRight :size="22" /></button>
             </template>
           </div>
         </div>

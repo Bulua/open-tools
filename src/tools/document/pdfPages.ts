@@ -1,4 +1,5 @@
 import { PDFDocument, degrees } from "pdf-lib";
+import { t } from "@/locales";
 
 /**
  * PDF 页面编辑的纯逻辑：页码范围解析、按新的页面顺序生成 PDF。
@@ -17,14 +18,14 @@ export function parsePageRanges(input: string, total: number): number[] {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  if (!parts.length) throw new Error("请输入页码，例如 1-3, 5");
+  if (!parts.length) throw new Error(t("document.needPages"));
 
   for (const part of parts) {
     const m = part.match(/^(\d*)\s*-\s*(\d*)$|^(\d+)$/);
-    if (!m) throw new Error(`无法识别「${part}」，请输入页码，例如 1-3, 5`);
+    if (!m) throw new Error(t("document.badRange", { part }));
     const from = m[3] ? Number(m[3]) : m[1] ? Number(m[1]) : 1;
     const to = m[3] ? Number(m[3]) : m[2] ? Number(m[2]) : total;
-    if (from < 1 || to > total || from > to) throw new Error(`「${part}」超出范围，共 ${total} 页`);
+    if (from < 1 || to > total || from > to) throw new Error(t("document.outOfRange", { part, total }));
     for (let p = from; p <= to; p++) {
       if (!seen.has(p - 1)) {
         seen.add(p - 1);
@@ -46,7 +47,7 @@ export interface PageRef {
 
 /** 按 pages 的顺序从各个来源 PDF 复制页面，生成新的 PDF */
 export async function buildPdf(sources: Uint8Array[], pages: PageRef[]): Promise<Uint8Array> {
-  if (!pages.length) throw new Error("没有可以保存的页面");
+  if (!pages.length) throw new Error(t("document.noPages"));
   const loaded = await Promise.all(sources.map((data) => loadPdf(data)));
   const out = await PDFDocument.create();
 
@@ -75,8 +76,8 @@ export async function loadPdf(data: Uint8Array) {
   try {
     return await PDFDocument.load(data, { updateMetadata: false });
   } catch (e) {
-    if (e instanceof Error && /encrypt/i.test(e.message)) throw new Error("这个 PDF 设置了密码或权限保护，暂不支持编辑");
-    throw new Error("无法读取这个 PDF，文件可能已损坏");
+    if (e instanceof Error && /encrypt/i.test(e.message)) throw new Error(t("document.encrypted"));
+    throw new Error(t("document.badPdf"));
   }
 }
 

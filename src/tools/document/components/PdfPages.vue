@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
+import { Translation, useI18n } from "vue-i18n";
 import { FilePlus2, RotateCcw, RotateCw, Save, Trash2, Undo2, X } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import ToolActions from "@/components/tool/ToolActions.vue";
@@ -28,6 +29,7 @@ interface Page {
   rotation: number;
 }
 
+const { t } = useI18n();
 const sources = shallowRef<Source[]>([]);
 const pages = ref<Page[]>([]);
 const selected = ref(new Set<number>());
@@ -247,8 +249,8 @@ useWindowEvent("keydown", (e) => {
 // ---------- 保存 ----------
 const saving = ref(false);
 const outputName = computed(() => {
-  const first = sources.value[0]?.name.replace(/\.pdf$/i, "") ?? "文档";
-  return `${sources.value.length > 1 ? `${first}_合并` : `${first}_编辑`}.pdf`;
+  const first = sources.value[0]?.name.replace(/\.pdf$/i, "") ?? t("document.untitled");
+  return `${first}_${sources.value.length > 1 ? t("document.mergedSuffix") : t("document.editedSuffix")}.pdf`;
 });
 const save = async () => {
   saving.value = true;
@@ -260,44 +262,45 @@ const save = async () => {
     );
     await saveFile(data, outputName.value);
   } catch (e) {
-    error.value = `保存失败：${e instanceof Error ? e.message : e}`;
+    error.value = t("document.saveFailed", { error: e instanceof Error ? e.message : String(e) });
   } finally {
     saving.value = false;
   }
 };
 
-const pageLabel = (p: Page) => (sources.value.length > 1 ? `${sources.value[p.source].name} 第 ${p.index + 1} 页` : `原第 ${p.index + 1} 页`);
+const pageLabel = (p: Page) => (sources.value.length > 1 ? t("document.pageOf", { name: sources.value[p.source].name, n: p.index + 1 }) : t("document.originalPage", { n: p.index + 1 }));
 const deleted = computed(() => sources.value.reduce((n, s) => n + s.pageCount, 0) - pages.value.length);
 </script>
 
 <template>
   <ToolActions>
-    <div class="seg" title="缩略图大小">
-      <button :class="{ on: thumbSize === 's' }" @click="thumbSize = 's'">小</button>
-      <button :class="{ on: thumbSize === 'm' }" @click="thumbSize = 'm'">中</button>
-      <button :class="{ on: thumbSize === 'l' }" @click="thumbSize = 'l'">大</button>
+    <div class="seg" :title="t('document.thumbSize')">
+      <button :class="{ on: thumbSize === 's' }" @click="thumbSize = 's'">{{ t("document.small") }}</button>
+      <button :class="{ on: thumbSize === 'm' }" @click="thumbSize = 'm'">{{ t("document.medium") }}</button>
+      <button :class="{ on: thumbSize === 'l' }" @click="thumbSize = 'l'">{{ t("document.large") }}</button>
     </div>
-    <button class="btn" title="加入其他 PDF，合并为一个文件" @click="dropZone?.open()"><FilePlus2 :size="14" />添加 PDF</button>
-    <button v-if="sources.length" class="btn subtle" @click="reset">关闭</button>
-    <button class="btn primary" :disabled="saving || !pages.length" @click="save"><Save :size="14" />{{ saving ? "保存中…" : "保存 PDF" }}</button>
+    <button class="btn" :title="t('document.addPdfTitle')" @click="dropZone?.open()"><FilePlus2 :size="14" />{{ t("document.addPdfBtn") }}</button>
+    <button v-if="sources.length" class="btn subtle" @click="reset">{{ t("document.close") }}</button>
+    <button class="btn primary" :disabled="saving || !pages.length" @click="save"><Save :size="14" />{{ saving ? t("document.saving") : t("document.savePdf") }}</button>
   </ToolActions>
 
   <section class="card pdf">
     <div class="bar">
-      <label class="check"><input type="checkbox" :checked="allSelected" :disabled="!pages.length" @change="selectAll" />全选</label>
+      <label class="check"><input type="checkbox" :checked="allSelected" :disabled="!pages.length" @change="selectAll" />{{ t("document.selectAll") }}</label>
       <form class="range" @submit.prevent="selectRange">
-        <input v-model="range" class="field" :class="{ invalid: rangeError }" placeholder="按页码选择，如 1-3, 5" />
-        <button class="btn" type="submit" :disabled="!pages.length">选择</button>
+        <input v-model="range" class="field" :class="{ invalid: rangeError }" :placeholder="t('document.rangePlaceholder')" />
+        <button class="btn" type="submit" :disabled="!pages.length">{{ t("document.select") }}</button>
       </form>
       <span class="divider" />
-      <button class="btn" :disabled="!hasSelection" title="向左旋转 90°" @click="rotate(-90)"><RotateCcw :size="14" /></button>
-      <button class="btn" :disabled="!hasSelection" title="向右旋转 90°" @click="rotate(90)"><RotateCw :size="14" /></button>
-      <button class="btn danger" :disabled="!hasSelection" title="Delete" @click="removeSelected"><Trash2 :size="14" />删除选中</button>
-      <button class="btn" :disabled="!hasSelection" @click="keepSelected">只保留选中</button>
-      <button class="btn subtle" :disabled="!history.length" title="Ctrl + Z" @click="undo"><Undo2 :size="14" />撤销</button>
+      <button class="btn" :disabled="!hasSelection" :title="t('document.rotateLeft90')" @click="rotate(-90)"><RotateCcw :size="14" /></button>
+      <button class="btn" :disabled="!hasSelection" :title="t('document.rotateRight90')" @click="rotate(90)"><RotateCw :size="14" /></button>
+      <button class="btn danger" :disabled="!hasSelection" title="Delete" @click="removeSelected"><Trash2 :size="14" />{{ t("document.deleteSelected") }}</button>
+      <button class="btn" :disabled="!hasSelection" @click="keepSelected">{{ t("document.keepSelected") }}</button>
+      <button class="btn subtle" :disabled="!history.length" title="Ctrl + Z" @click="undo"><Undo2 :size="14" />{{ t("document.undo") }}</button>
       <span class="status">
-        共 <b>{{ pages.length }}</b> 页<template v-if="selected.size">，已选 <b>{{ selected.size }}</b> 页</template>
-        <template v-if="deleted > 0">，已删除 {{ deleted }} 页</template>
+        <Translation keypath="document.pagesTotal"><template #n><b>{{ pages.length }}</b></template></Translation>
+        <Translation v-if="selected.size" keypath="document.pagesSelected"><template #n><b>{{ selected.size }}</b></template></Translation>
+        <template v-if="deleted > 0">{{ t("document.pagesDeleted", { n: deleted }) }}</template>
       </span>
     </div>
     <p v-if="rangeError || error" class="error">{{ rangeError || error }}</p>
@@ -309,8 +312,8 @@ const deleted = computed(() => sources.value.reduce((n, s) => n + s.pageCount, 0
       class="drop"
       accept=".pdf,application/pdf"
       multiple
-      :title="loading ? '正在读取…' : '拖入 PDF 文件，或点击选择'"
-      hint="可以删除、旋转、拖动调整页面顺序；一次拖入多个 PDF 会合并成一个文件"
+      :title="loading ? t('document.reading') : t('document.dropPdf')"
+      :hint="t('document.dropPdfHint')"
       @files="addFiles"
     />
     <div v-if="sources.length" class="grid" :style="{ '--thumb': `${thumbWidth}px` }" @dragover.prevent @drop="onDrop">
@@ -344,9 +347,9 @@ const deleted = computed(() => sources.value.reduce((n, s) => n + s.pageCount, 0
           <span v-else class="placeholder">{{ page.index + 1 }}</span>
           <input type="checkbox" class="pick" :checked="selected.has(page.key)" @click.stop="toggle(page)" />
           <div class="hover-actions" @click.stop>
-            <button title="向左旋转" @click="rotate(-90, page)"><RotateCcw :size="13" /></button>
-            <button title="向右旋转" @click="rotate(90, page)"><RotateCw :size="13" /></button>
-            <button title="删除这一页" @click="removeOne(page)"><X :size="13" /></button>
+            <button :title="t('document.rotateLeft')" @click="rotate(-90, page)"><RotateCcw :size="13" /></button>
+            <button :title="t('document.rotateRight')" @click="rotate(90, page)"><RotateCw :size="13" /></button>
+            <button :title="t('document.deletePage')" @click="removeOne(page)"><X :size="13" /></button>
           </div>
         </div>
         <figcaption>
@@ -357,8 +360,8 @@ const deleted = computed(() => sources.value.reduce((n, s) => n + s.pageCount, 0
     </div>
 
     <footer v-if="sources.length" class="files">
-      <span v-for="s in sources" :key="s.name">{{ s.name }} · {{ s.pageCount }} 页 · {{ formatBytes(s.size) }}</span>
-      <span class="hint">点击选择，Ctrl 多选、Shift 连选，拖动调整顺序</span>
+      <span v-for="s in sources" :key="s.name">{{ t("document.sourceInfo", { name: s.name, n: s.pageCount, size: formatBytes(s.size) }) }}</span>
+      <span class="hint">{{ t("document.pagesHint") }}</span>
     </footer>
   </section>
 </template>

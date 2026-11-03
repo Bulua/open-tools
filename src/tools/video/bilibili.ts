@@ -1,6 +1,7 @@
 import SparkMD5 from "spark-md5";
 import { BufferTarget, EncodedAudioPacketSource, EncodedPacketSink, EncodedVideoPacketSource, Mp4OutputFormat, Output } from "mediabunny";
 import { fetchBytes } from "@/tools/network/http";
+import { locale, t } from "@/locales";
 import { openInput } from "./media";
 
 /**
@@ -28,7 +29,7 @@ export interface VideoRef {
 /** 从链接或编号中找出视频：BV 号、av 号、b23.tv 短链接；番剧链接给出提示 */
 export function parseVideoRef(input: string): VideoRef {
   const text = input.trim();
-  if (!text) throw new Error("请粘贴 B 站视频链接或 BV 号");
+  if (!text) throw new Error(t("video.biliEmpty"));
   const page = Number(text.match(/[?&]p=(\d+)/)?.[1]) || undefined;
   const bv = text.match(/BV1[0-9A-Za-z]{9}/);
   if (bv) return { bvid: bv[0], page };
@@ -36,8 +37,8 @@ export function parseVideoRef(input: string): VideoRef {
   if (av) return { aid: Number(av[1]), page };
   const short = text.match(/https?:\/\/(?:b23\.tv|bili2233\.cn)\/[\w-]+/i) ?? text.match(/(?:^|\s)((?:b23\.tv|bili2233\.cn)\/[\w-]+)/i);
   if (short) return { shortUrl: short[0].trim().startsWith("http") ? short[0].trim() : `https://${short[1]}` };
-  if (/bilibili\.com\/bangumi|\b(ep|ss)\d+/i.test(text)) throw new Error("番剧、电影暂不支持，只支持普通视频（链接中有 BV 号的）");
-  throw new Error("没有找到视频编号，请粘贴视频页面的链接（含 BV 号），或 b23.tv 分享链接");
+  if (/bilibili\.com\/bangumi|\b(ep|ss)\d+/i.test(text)) throw new Error(t("video.biliBangumi"));
+  throw new Error(t("video.biliNoId"));
 }
 
 // ---------- WBI 签名（B 站接口防爬用的参数签名） ----------
@@ -79,15 +80,16 @@ const headersOf = (s: Session): [string, string][] => {
   return [["User-Agent", UA], ["Referer", "https://www.bilibili.com/"], ...(cookie ? [["Cookie", cookie] as [string, string]] : [])];
 };
 
+/** B 站接口的错误码，说明见文案 video.biliNoAccess 等 */
 const ERRORS: Record<number, string> = {
-  [-400]: "请求参数错误",
-  [-403]: "没有权限访问这个视频（可能需要登录或大会员）",
-  [-404]: "视频不存在或已被删除",
-  [-352]: "请求被 B 站拦截（风控），请稍后再试，或填写 SESSDATA 登录后再试",
-  [-412]: "请求太频繁，被 B 站拦截，请稍后再试",
-  62002: "视频不可见（可能是私密视频或已下架）",
-  62004: "视频正在审核中",
-  62012: "视频仅 UP 主自己可见",
+  [-400]: "biliBadParams",
+  [-403]: "biliNoAccess",
+  [-404]: "biliNotFound",
+  [-352]: "biliBlocked",
+  [-412]: "biliTooFrequent",
+  62002: "biliInvisible",
+  62004: "biliReviewing",
+  62012: "biliOwnerOnly",
 };
 
 async function api<T>(url: string, s: Session): Promise<{ code: number; message: string; data: T }> {
@@ -96,13 +98,13 @@ async function api<T>(url: string, s: Session): Promise<{ code: number; message:
   try {
     json = JSON.parse(new TextDecoder().decode(data));
   } catch {
-    throw new Error("B 站返回的内容无法识别，请稍后再试");
+    throw new Error(t("video.biliBadResponse"));
   }
   return json;
 }
 
 const check = <T>(r: { code: number; message: string; data: T }) => {
-  if (r.code !== 0) throw new Error(ERRORS[r.code] ?? `B 站返回错误：${r.message || r.code}`);
+  if (r.code !== 0) throw new Error(ERRORS[r.code] ? t(`video.${ERRORS[r.code]}`) : t("video.biliError", { error: r.message || r.code }));
   return r.data;
 };
 
@@ -232,6 +234,11 @@ const toStream = (d: DashStream): Stream => ({
   height: d.height,
 });
 
+/** 清晰度名称（当前界面语言），未知的显示「清晰度 N」 */
+export const qualityName = (id: number) =>
+  id in QUALITY_NAMES ? (locale.value === "zh-CN" ? QUALITY_NAMES[id] : t(`video.q${id}`)) : t("video.qualityN", { n: id });
+
+/** 清晰度的中文名（英文见文案 video.q80 等） */
 export const QUALITY_NAMES: Record<number, string> = {
   127: "8K 超高清",
   126: "杜比视界",
@@ -269,7 +276,7 @@ export async function getPlayInfo(bvid: string, cid: number, s: Session): Promis
   const audios = [...(data.dash?.audio ?? []), ...(data.dash?.flac?.audio ? [data.dash.flac.audio] : [])].map(toStream).filter((a) => a.url);
   // 能选的清晰度：DASH 里实际有的（没登录时列表里的高清晰度其实拿不到）
   const available = videos.length ? [...new Set(videos.map((v) => v.id))] : (data.accept_quality ?? []);
-  const qualities = available.sort((a, b) => b - a).map((id) => ({ id, label: QUALITY_NAMES[id] ?? `清晰度 ${id}` }));
+  const qualities = available.sort((a, b) => b - a).map((id) => ({ id, label: qualityName(id) }));
   return { videos, audios, files: (data.durl ?? []).map((d) => ({ url: d.url, size: d.size })), qualities };
 }
 
@@ -285,15 +292,17 @@ export async function getPreviewUrl(bvid: string, cid: number, s: Session): Prom
     ),
   );
   const url = data.durl?.[0]?.url;
-  if (!url) throw new Error("这个视频没有可以在线播放的地址");
-  return { url: url.replace(/^http:/, "https:"), quality: QUALITY_NAMES[data.quality] ?? "" };
+  if (!url) throw new Error(t("video.noPreviewUrl"));
+  return { url: url.replace(/^http:/, "https:"), quality: data.quality in QUALITY_NAMES ? qualityName(data.quality) : "" };
 }
 
 // ---------- 选择视频流 ----------
 
 export type CodecPreference = "avc" | "hevc" | "av1";
 const CODEC_IDS: Record<CodecPreference, number> = { avc: 7, hevc: 12, av1: 13 };
-export const CODEC_LABELS: Record<CodecPreference, string> = { avc: "H.264（兼容性最好）", hevc: "H.265（体积更小）", av1: "AV1（体积最小）" };
+/** 编码选项的名称（当前界面语言） */
+export const codecLabel = (c: CodecPreference) => t(`video.${{ avc: "codecAvc", hevc: "codecHevc", av1: "codecAv1" }[c]}`);
+export const CODEC_PREFERENCES: CodecPreference[] = ["avc", "hevc", "av1"];
 
 /** 按清晰度和编码偏好选择画面：没有所选清晰度时用比它低的最高一档；没有所选编码时依次用 H.264、H.265、AV1 */
 export function pickVideo(videos: Stream[], quality: number, codec: CodecPreference): Stream | null {
@@ -326,7 +335,7 @@ export async function downloadStream(stream: { url: string; backup?: string[] },
       last = e;
     }
   }
-  throw last instanceof Error ? last : new Error("下载失败");
+  throw last instanceof Error ? last : new Error(t("video.downloadFailed"));
 }
 
 /** 下载一般文件（封面、弹幕） */
@@ -339,8 +348,8 @@ export async function muxToMp4(video: Uint8Array | null, audio: Uint8Array | nul
   try {
     const videoTrack = inputs[0] ? await inputs[0].getPrimaryVideoTrack() : null;
     const audioTrack = inputs[1] ? await inputs[1].getPrimaryAudioTrack() : null;
-    if (video && !videoTrack) throw new Error("下载的画面文件无法识别");
-    if (audio && !audioTrack) throw new Error("下载的声音文件无法识别");
+    if (video && !videoTrack) throw new Error(t("video.badVideoFile"));
+    if (audio && !audioTrack) throw new Error(t("video.badAudioFile"));
 
     const videoSource = videoTrack ? new EncodedVideoPacketSource((await videoTrack.getCodec())!) : null;
     const audioSource = audioTrack ? new EncodedAudioPacketSource((await audioTrack.getCodec())!) : null;

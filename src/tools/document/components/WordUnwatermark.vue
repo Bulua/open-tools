@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, markRaw, onBeforeUnmount, ref, shallowRef, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { Download, FileText, Image as ImageIcon, Shapes, X } from "lucide-vue-next";
 import CheckAll from "@/components/common/CheckAll.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
@@ -23,6 +24,7 @@ interface Item {
   /** 缩略图：包内图片路径 → blob URL */
   thumbs: Record<string, string>;
 }
+const { t } = useI18n();
 const items = ref<Item[]>([]);
 const selectedId = ref<number | null>(null);
 let nextId = 1;
@@ -58,7 +60,7 @@ const addFiles = async (files: File[]) => {
   }
   items.value = [...items.value, ...added];
   if (!selectedId.value && added[0]) selectedId.value = added[0].id;
-  error.value = files.some((f) => /\.doc$/i.test(f.name)) ? "旧版 .doc 文件请先在 Word 中「另存为」.docx 再添加" : "";
+  error.value = files.some((f) => /\.doc$/i.test(f.name)) ? t("document.oldDocTip") : "";
 };
 const revoke = (item: Item) => Object.values(item.thumbs).forEach((u) => URL.revokeObjectURL(u));
 const remove = (item: Item) => {
@@ -96,18 +98,18 @@ const exportAll = async () => {
   try {
     await saveFiles(
       ready.value.map((i) => ({ name: unwatermarkedName(i.file.name), data: removeFound(i.scan!, i.checked) })),
-      "Word 去水印.zip",
+      t("document.wordUnwmZip"),
     );
   } finally {
     exporting.value = false;
   }
 };
 
-const WHERE = { header: "页眉", body: "正文", page: "页面" };
+const WHERE = { header: "whereHeader", body: "whereBody", page: "wherePage" };
 const summary = (item: Item) => {
-  if (item.error) return "无法读取";
+  if (item.error) return t("document.cantRead");
   const n = item.scan?.found.length ?? 0;
-  return n ? `${item.checked.length} / ${n} 项` : "没有水印";
+  return n ? t("document.foundCount", { n: item.checked.length, total: n }) : t("document.noWatermark");
 };
 </script>
 
@@ -116,28 +118,28 @@ const summary = (item: Item) => {
     <aside class="card panel">
       <section class="section">
         <h3>
-          <CheckAll v-if="items.length" :checked="allChecked" :partly="partlyChecked" :disabled="exporting" @toggle="toggleAll">文档</CheckAll>
-          <template v-else>文档</template>
-          <span class="push">{{ items.length > 1 ? `已选 ${checkedItems.length} / ${items.length} 个` : `${items.length} 个` }}</span>
+          <CheckAll v-if="items.length" :checked="allChecked" :partly="partlyChecked" :disabled="exporting" @toggle="toggleAll">{{ t("document.documents") }}</CheckAll>
+          <template v-else>{{ t("document.documents") }}</template>
+          <span class="push">{{ items.length > 1 ? t("files.selected", { checked: checkedItems.length, total: items.length }) : t("files.count", { n: items.length }) }}</span>
         </h3>
         <ul class="files">
           <li v-for="item in items" :key="item.id" :class="{ on: item.id === selected?.id, unchecked: !isChecked(item) }" @click="selectedId = item.id">
-            <input type="checkbox" class="file-check" title="勾选的文档才处理" :checked="isChecked(item)" :disabled="exporting" @click.stop @change="toggleFile(item)" />
+            <input type="checkbox" class="file-check" :title="t('document.checkFiles')" :checked="isChecked(item)" :disabled="exporting" @click.stop @change="toggleFile(item)" />
             <FileText :size="14" class="icon" />
             <span class="name" :title="item.file.name">{{ item.file.name }}</span>
             <span class="size" :class="{ bad: item.error }" :title="formatBytes(item.file.size)">{{ summary(item) }}</span>
-            <button class="icon-btn remove" title="移除" @click.stop="remove(item)"><X :size="13" /></button>
+            <button class="icon-btn remove" :title="t('document.remove')" @click.stop="remove(item)"><X :size="13" /></button>
           </li>
         </ul>
         <p v-if="error" class="error">{{ error }}</p>
-        <FileDropZone compact accept=".docx" multiple :paste="false" title="继续添加文档" @files="addFiles" />
+        <FileDropZone compact accept=".docx" multiple :paste="false" :title="t('document.addDocs')" @files="addFiles" />
       </section>
 
       <section v-if="selected" class="section">
-        <h3>找到的水印<span class="push">勾选的会被删除</span></h3>
+        <h3>{{ t("document.foundTitle") }}<span class="push">{{ t("document.checkedRemoved") }}</span></h3>
         <p v-if="selected.error" class="error">{{ selected.error }}</p>
         <p v-else-if="!selected.scan?.found.length" class="note">
-          没有找到水印。如果文档里看得到水印，它可能是图片的一部分（例如扫描件、截图），这种无法去除。
+          {{ t("document.wordNoWatermark") }}
         </p>
         <ul v-else class="found">
           <li v-for="f in selected.scan.found" :key="f.key" :class="{ off: !selected.checked.includes(f.key) }" @click="toggle(selected, f)">
@@ -151,10 +153,10 @@ const summary = (item: Item) => {
             </span>
             <span class="info">
               <span class="title">
-                {{ f.label }}<template v-if="f.text">「{{ f.text.length > 16 ? f.text.slice(0, 16) + "…" : f.text }}」</template>
+                {{ f.label }}<template v-if="f.text">{{ t("document.quoted", { text: f.text.length > 16 ? f.text.slice(0, 16) + "…" : f.text }) }}</template>
                 <em v-if="f.count > 1">× {{ f.count }}</em>
               </span>
-              <span class="reason" :class="{ unsure: !f.sure }">{{ WHERE[f.where] }} · {{ f.reason }}</span>
+              <span class="reason" :class="{ unsure: !f.sure }">{{ t(`document.${WHERE[f.where]}`) }} · {{ f.reason }}</span>
             </span>
           </li>
         </ul>
@@ -162,21 +164,21 @@ const summary = (item: Item) => {
 
       <section class="section">
         <button class="btn primary full" :disabled="!ready.length || exporting" @click="exportAll">
-          <Download :size="14" />{{ !checkedItems.length && items.length ? "请勾选要处理的文档" : ready.length > 1 ? `去除并下载选中的 ${ready.length} 个` : "去除水印并下载" }}
+          <Download :size="14" />{{ !checkedItems.length && items.length ? t("document.checkDocs") : ready.length > 1 ? t("document.removeSelected", { n: ready.length }) : t("document.removeOne") }}
         </button>
-        <p class="tip">只删除勾选的水印，正文和格式不变。预览中可能显示不出 Word 水印，以下载后在 Word 中打开为准。</p>
+        <p class="tip">{{ t("document.wordUnwmTip") }}</p>
       </section>
     </aside>
 
     <section class="card stage">
-      <div class="card-title">预览（去除后）<span class="hint">{{ selected?.file.name }}</span></div>
+      <div class="card-title">{{ t("document.previewAfterRemove") }}<span class="hint">{{ selected?.file.name }}</span></div>
       <FileDropZone
         v-if="!items.length"
         class="drop"
         accept=".docx"
         multiple
-        title="拖入 Word 文档，或点击选择（可多选）"
-        hint="自动找出 Word、WPS 添加的水印，以及页眉里的艺术字、半透明图片等自制水印"
+        :title="t('document.dropWord')"
+        :hint="t('document.wordUnwmHint')"
         :paste="false"
         @files="addFiles"
       />

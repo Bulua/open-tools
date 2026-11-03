@@ -1,5 +1,6 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { fetchBytes } from "@/tools/network/http";
+import { t } from "@/locales";
 import { safeFileName } from "./bilibili";
 
 /**
@@ -25,7 +26,7 @@ export interface DouyinRef {
 /** 从分享文案、链接或编号中找出作品 */
 export function parseDouyinRef(input: string): DouyinRef {
   const text = input.trim();
-  if (!text) throw new Error("请粘贴抖音分享链接或作品链接");
+  if (!text) throw new Error(t("video.dyEmpty"));
   const short = text.match(/https?:\/\/v\.douyin\.com\/[\w-]+\/?/i) ?? text.match(/(?:^|\s)(v\.douyin\.com\/[\w-]+\/?)/i);
   if (short) return { shortUrl: short[0].trim().startsWith("http") ? short[0].trim() : `https://${short[1]}` };
   const path = text.match(/(?:douyin\.com|iesdouyin\.com)\/(?:share\/)?(video|note|slides)\/(\d{10,24})/i);
@@ -34,7 +35,7 @@ export function parseDouyinRef(input: string): DouyinRef {
   if (modal) return { id: modal[1] };
   const bare = text.match(/^\d{15,24}$/);
   if (bare) return { id: bare[0] };
-  throw new Error("没有找到抖音作品，请粘贴分享链接（v.douyin.com/…）或作品页面链接");
+  throw new Error(t("video.dyNotFound"));
 }
 
 /** 页面里读到的作品信息（字段见 Rust 注入的 douyin_capture.js） */
@@ -102,7 +103,7 @@ export function toItem(a: RawAweme): DouyinItem {
 
 /** 读取作品：先解析短链接，再由桌面版读取页面里的作品信息 */
 export async function getDouyinItem(input: string): Promise<DouyinItem> {
-  if (!isTauri()) throw new Error("抖音需要在程序内打开作品页读取信息，只有桌面版支持");
+  if (!isTauri()) throw new Error(t("video.dyDesktopOnly"));
   let ref = parseDouyinRef(input);
   if (ref.shortUrl) {
     const { url } = await fetchBytes(ref.shortUrl, { headers: [["User-Agent", UA]] });
@@ -112,24 +113,24 @@ export async function getDouyinItem(input: string): Promise<DouyinItem> {
   const json = await invoke<string>("douyin_capture", { id: ref.id, kind: ref.kind ?? "video" });
   const raw = JSON.parse(json) as RawAweme;
   const item = toItem(raw);
-  if (item.type === "video" && !item.videoUrls.length) throw new Error("没有找到视频地址，可能是直播回放或已删除的作品");
+  if (item.type === "video" && !item.videoUrls.length) throw new Error(t("video.dyNoVideo"));
   return item;
 }
 
 /** 依次尝试多个地址下载 */
 export async function downloadFirst(urls: string[], onProgress?: (loaded: number, total: number) => void, signal?: AbortSignal): Promise<{ data: Uint8Array; url: string }> {
-  let last: unknown = new Error("没有可以下载的地址");
+  let last: unknown = new Error(t("video.dyNoUrl"));
   for (const url of urls) {
     try {
       const r = await fetchBytes(url, { headers: HEADERS, onProgress, signal });
-      if (!r.data.length) throw new Error("下载的内容为空");
+      if (!r.data.length) throw new Error(t("video.dyEmptyFile"));
       return { data: r.data, url: r.url };
     } catch (e) {
       if (signal?.aborted) throw e;
       last = e;
     }
   }
-  throw last instanceof Error ? last : new Error("下载失败");
+  throw last instanceof Error ? last : new Error(t("video.downloadFailed"));
 }
 
 /** 按文件内容判断图片格式（地址里的扩展名不可靠） */
@@ -144,5 +145,5 @@ export function imageExt(data: Uint8Array): string {
 /** 文件名：作品描述（去掉话题标签）或作品编号 */
 export function douyinBaseName(item: DouyinItem): string {
   const desc = item.desc.replace(/#\S+/g, "").replace(/\s+/g, " ").trim();
-  return safeFileName(desc ? desc.slice(0, 60) : `抖音_${item.id}`);
+  return safeFileName(desc ? desc.slice(0, 60) : t("video.dyFileName", { id: item.id }));
 }

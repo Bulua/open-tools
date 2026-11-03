@@ -1,5 +1,6 @@
 import { PDFArray, PDFDict, PDFHexString, PDFName, PDFNumber, PDFRawStream, PDFRef, PDFString, decodePDFRawStream, type PDFDocument, type PDFObject } from "pdf-lib";
 import { loadPdf } from "./pdfPages";
+import { t } from "@/locales";
 
 /**
  * PDF 去水印：找出 PDF 里的水印，按用户勾选的删除。
@@ -492,12 +493,12 @@ class Analyzer {
           let wm: string | undefined;
           if (prop instanceof Dict) {
             const subtype = prop.d.get("Subtype");
-            if (tag === "Artifact" && subtype instanceof Name && subtype.n === "Watermark") wm = "带有水印标记（Acrobat 等工具添加）";
+            if (tag === "Artifact" && subtype instanceof Name && subtype.n === "Watermark") wm = "wmMarked";
           } else if (prop instanceof Name) {
             const ref = this.sub(res, "Properties", prop.n);
             const d = this.dict(ref);
-            if (ref instanceof PDFRef && this.wmLayers.has(ref.toString())) wm = "位于水印图层";
-            else if (tag === "Artifact" && nameOf(d?.get(PDFName.of("Subtype"))) === "Watermark") wm = "带有水印标记（Acrobat 等工具添加）";
+            if (ref instanceof PDFRef && this.wmLayers.has(ref.toString())) wm = "wmLayer";
+            else if (tag === "Artifact" && nameOf(d?.get(PDFName.of("Subtype"))) === "Watermark") wm = "wmMarked";
           }
           marks.push({ start: o.start, wm: inWatermark() ? undefined : wm, texts: [] });
           break;
@@ -505,15 +506,15 @@ class Analyzer {
         case "EMC": {
           const m = marks.pop();
           if (m?.wm) {
-            const t = m.texts.join("").trim();
+            const text = m.texts.join("").trim();
             hits.push({
-              sig: `marked:${m.wm}:${hash(t)}`,
-              kind: m.wm.includes("图层") ? "layer" : "marked",
+              sig: `marked:${m.wm}:${hash(text)}`,
+              kind: m.wm === "wmLayer" ? "layer" : "marked",
               page,
               place: { target, start: m.start, end: o.end },
-              text: t || undefined,
+              text: text || undefined,
               traits: {},
-              sureReason: m.wm,
+              sureReason: t(`document.${m.wm}`),
             });
           }
           break;
@@ -527,7 +528,7 @@ class Analyzer {
           const oc = x.dict.get(PDFName.of("OC"));
           const refKey = ref instanceof PDFRef ? ref.toString() : `${a[0].n}@${page}`;
           if (oc instanceof PDFRef && this.wmLayers.has(oc.toString())) {
-            hits.push({ sig: `layer:${refKey}`, kind: "layer", page, place: { target, start: o.start, end: o.end }, traits: {}, sureReason: "位于水印图层" });
+            hits.push({ sig: `layer:${refKey}`, kind: "layer", page, place: { target, start: o.start, end: o.end }, traits: {}, sureReason: t("document.wmLayer") });
             break;
           }
           for (const b of blocks) b.text = true;
@@ -617,19 +618,20 @@ function annotationHits(doc: PDFDocument, index: number): Hit[] {
   annots?.asArray().forEach((ref, i) => {
     const d = doc.context.lookup(ref);
     if (d instanceof PDFDict && nameOf(d.get(PDFName.of("Subtype"))) === "Watermark") {
-      hits.push({ sig: "annot", kind: "annot", page: index, place: { target: `annot:${index}`, start: i, end: i + 1 }, traits: {}, sureReason: "水印注释" });
+      hits.push({ sig: "annot", kind: "annot", page: index, place: { target: `annot:${index}`, start: i, end: i + 1 }, traits: {}, sureReason: t("document.wmAnnot") });
     }
   });
   return hits;
 }
 
+/** 各类水印的名称，见文案 document.kindText 等 */
 const LABELS: Record<FoundPdfWatermark["kind"], string> = {
-  text: "文字水印",
-  image: "图片",
-  shape: "图形水印",
-  marked: "水印",
-  annot: "水印注释",
-  layer: "水印图层",
+  text: "kindText",
+  image: "kindImage",
+  shape: "kindShape",
+  marked: "kindMarked",
+  annot: "kindAnnot",
+  layer: "kindLayer",
 };
 
 /** 合并相同的水印，按特征判断是否默认勾选；不像水印的去掉 */
@@ -644,9 +646,9 @@ function classify(hits: Hit[], pageCount: number): FoundPdfWatermark[] {
     const seen = new Set<string>();
     const places = list.map((h) => h.place).filter((p) => !seen.has(`${p.target}:${p.start}`) && seen.add(`${p.target}:${p.start}`));
     const repeated = pageCount === 1 || (pages.length >= 2 && pages.length >= pageCount * 0.6);
-    const t = first.traits;
-    const where = pages.length === pageCount ? (pageCount > 1 ? `全部 ${pageCount} 页` : "") : `${pages.length} 页`;
-    const traitText = [t.rotated && "斜着", t.translucent && "半透明", t.light && "浅色", t.large && "大字"].filter(Boolean).join("、");
+    const tr = first.traits;
+    const where = pages.length === pageCount ? (pageCount > 1 ? t("document.allPages", { n: pageCount }) : "") : t("document.nPages", { n: pages.length });
+    const traitText = [tr.rotated && t("document.pdfRotated"), tr.translucent && t("document.traitTranslucent"), tr.light && t("document.pdfLight"), tr.large && t("document.pdfLarge")].filter(Boolean).join(t("document.traitSep"));
 
     let sure = false;
     let checked = false;
@@ -655,20 +657,20 @@ function classify(hits: Hit[], pageCount: number): FoundPdfWatermark[] {
       sure = checked = true;
       reason = first.sureReason;
     } else if (first.kind === "image") {
-      checked = !!t.translucent && repeated;
-      if (!checked && !t.translucent && !t.rotated && !(repeated && pageCount > 1)) continue;
+      checked = !!tr.translucent && repeated;
+      if (!checked && !tr.translucent && !tr.rotated && !(repeated && pageCount > 1)) continue;
       sure = checked;
-      reason = traitText ? `${traitText}的图片` : "每页都有的图片，可能是 Logo 或页眉";
+      reason = traitText ? t("document.imageWith", { traits: traitText }) : t("document.imageEveryPage");
     } else {
-      const strong = (t.rotated && (t.translucent || t.light || t.large || repeated)) || (t.translucent && (repeated || t.large)) || (t.light && t.large && repeated);
-      if (!strong && !t.rotated && !t.translucent) continue;
+      const strong = (tr.rotated && (tr.translucent || tr.light || tr.large || repeated)) || (tr.translucent && (repeated || tr.large)) || (tr.light && tr.large && repeated);
+      if (!strong && !tr.rotated && !tr.translucent) continue;
       sure = checked = !!strong;
       reason = traitText;
     }
     found.push({
       key,
       kind: first.kind,
-      label: LABELS[first.kind],
+      label: t(`document.${LABELS[first.kind]}`),
       text: list.find((h) => h.text)?.text,
       sure,
       checked,
@@ -754,4 +756,4 @@ export async function removePdfWatermarks(data: Uint8Array, scan: PdfScan, keys:
 }
 
 /** 文件名：a.pdf → a_去水印.pdf */
-export const unwatermarkedPdfName = (name: string) => name.replace(/(\.pdf)?$/i, "_去水印.pdf");
+export const unwatermarkedPdfName = (name: string) => name.replace(/(\.pdf)?$/i, `_${t("document.unwatermarkedSuffix")}.pdf`);

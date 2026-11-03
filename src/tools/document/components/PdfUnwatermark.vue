@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, markRaw, onBeforeUnmount, ref, shallowRef, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { ChevronLeft, ChevronRight, Download, FileText, Image as ImageIcon, Layers, Shapes, Stamp, X } from "lucide-vue-next";
 import CheckAll from "@/components/common/CheckAll.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
@@ -20,6 +21,7 @@ interface Item {
   error?: string;
   checked: string[];
 }
+const { t } = useI18n();
 const items = ref<Item[]>([]);
 const selectedId = ref<number | null>(null);
 let nextId = 1;
@@ -137,7 +139,7 @@ const exportAll = async () => {
   try {
     const files = [];
     for (const i of ready.value) files.push({ name: unwatermarkedPdfName(i.file.name), data: await removePdfWatermarks(i.data, i.scan!, i.checked) });
-    await saveFiles(files, "PDF 去水印.zip");
+    await saveFiles(files, t("document.pdfUnwmZip"));
   } catch (e) {
     exportError.value = e instanceof Error ? e.message : String(e);
   } finally {
@@ -147,11 +149,12 @@ const exportAll = async () => {
 
 const ICONS = { text: null, image: ImageIcon, shape: Shapes, marked: Stamp, annot: Stamp, layer: Layers };
 const summary = (item: Item) => {
-  if (item.error) return "无法读取";
+  if (item.error) return t("document.cantRead");
   const n = item.scan?.found.length ?? 0;
-  return n ? `${item.checked.length} / ${n} 项` : "没有水印";
+  return n ? t("document.foundCount", { n: item.checked.length, total: n }) : t("document.noWatermark");
 };
-const pagesText = (f: FoundPdfWatermark) => (f.pages.length > 3 ? `第 ${f.pages[0] + 1} 页等 ${f.pages.length} 页` : `第 ${f.pages.map((p) => p + 1).join("、")} 页`);
+const pagesText = (f: FoundPdfWatermark) =>
+  f.pages.length > 3 ? t("document.pagesMany", { first: f.pages[0] + 1, n: f.pages.length }) : t("document.pagesList", { list: f.pages.map((p) => p + 1).join(t("document.listSep")) });
 </script>
 
 <template>
@@ -159,28 +162,28 @@ const pagesText = (f: FoundPdfWatermark) => (f.pages.length > 3 ? `第 ${f.pages
     <aside class="card panel">
       <section class="section">
         <h3>
-          <CheckAll v-if="items.length" :checked="allChecked" :partly="partlyChecked" :disabled="exporting" @toggle="toggleAll">文件</CheckAll>
-          <template v-else>文件</template>
-          <span class="push">{{ items.length > 1 ? `已选 ${checkedItems.length} / ${items.length} 个` : `${items.length} 个` }}</span>
+          <CheckAll v-if="items.length" :checked="allChecked" :partly="partlyChecked" :disabled="exporting" @toggle="toggleAll">{{ t("document.files") }}</CheckAll>
+          <template v-else>{{ t("document.files") }}</template>
+          <span class="push">{{ items.length > 1 ? t("files.selected", { checked: checkedItems.length, total: items.length }) : t("files.count", { n: items.length }) }}</span>
         </h3>
         <ul class="files">
           <li v-for="item in items" :key="item.id" :class="{ on: item.id === selected?.id, unchecked: !isChecked(item) }" @click="selectedId = item.id">
-            <input type="checkbox" class="file-check" title="勾选的文件才处理" :checked="isChecked(item)" :disabled="exporting" @click.stop @change="toggleFile(item)" />
+            <input type="checkbox" class="file-check" :title="t('document.checkFiles')" :checked="isChecked(item)" :disabled="exporting" @click.stop @change="toggleFile(item)" />
             <FileText :size="14" class="icon" />
             <span class="name" :title="item.file.name">{{ item.file.name }}</span>
             <span class="size" :class="{ bad: item.error }">{{ summary(item) }}</span>
-            <button class="icon-btn remove" title="移除" @click.stop="remove(item)"><X :size="13" /></button>
+            <button class="icon-btn remove" :title="t('document.remove')" @click.stop="remove(item)"><X :size="13" /></button>
           </li>
         </ul>
-        <p v-if="scanning" class="tip">正在查找水印…</p>
-        <FileDropZone compact accept=".pdf" multiple :paste="false" title="继续添加 PDF" @files="addFiles" />
+        <p v-if="scanning" class="tip">{{ t("document.findingWatermarks") }}</p>
+        <FileDropZone compact accept=".pdf" multiple :paste="false" :title="t('document.addPdf')" @files="addFiles" />
       </section>
 
       <section v-if="selected" class="section">
-        <h3>找到的水印<span class="push">勾选的会被删除</span></h3>
+        <h3>{{ t("document.foundTitle") }}<span class="push">{{ t("document.checkedRemoved") }}</span></h3>
         <p v-if="selected.error" class="error">{{ selected.error }}</p>
         <p v-else-if="!selected.scan?.found.length" class="note">
-          没有找到水印。如果页面上看得到水印，它可能和内容合成在同一张图片里（例如扫描件），这种无法去除。
+          {{ t("document.pdfNoWatermark") }}
         </p>
         <ul v-else class="found">
           <li v-for="f in selected.scan.found" :key="f.key" :class="{ off: !selected.checked.includes(f.key) }" @click="toggle(selected, f)">
@@ -191,7 +194,7 @@ const pagesText = (f: FoundPdfWatermark) => (f.pages.length > 3 ? `第 ${f.pages
             </span>
             <span class="info">
               <span class="title">
-                {{ f.label }}<template v-if="f.text">「{{ f.text.length > 16 ? f.text.slice(0, 16) + "…" : f.text }}」</template>
+                {{ f.label }}<template v-if="f.text">{{ t("document.quoted", { text: f.text.length > 16 ? f.text.slice(0, 16) + "…" : f.text }) }}</template>
               </span>
               <span class="reason" :class="{ unsure: !f.sure }">{{ f.reason }}</span>
               <button class="link" @click.stop="goto(f.pages[0])">{{ pagesText(f) }}</button>
@@ -202,25 +205,25 @@ const pagesText = (f: FoundPdfWatermark) => (f.pages.length > 3 ? `第 ${f.pages
 
       <section class="section">
         <button class="btn primary full" :disabled="!ready.length || exporting" @click="exportAll">
-          <Download :size="14" />{{ exporting ? "正在处理…" : !checkedItems.length && items.length ? "请勾选要处理的文件" : ready.length > 1 ? `去除并下载选中的 ${ready.length} 个` : "去除水印并下载" }}
+          <Download :size="14" />{{ exporting ? t("document.processing") : !checkedItems.length && items.length ? t("document.checkToProcess") : ready.length > 1 ? t("document.removeSelected", { n: ready.length }) : t("document.removeOne") }}
         </button>
         <p v-if="exportError" class="error">{{ exportError }}</p>
-        <p class="tip">只删除勾选的水印，正文仍可选择、复制。请只处理自己的文件或有权修改的文件。</p>
+        <p class="tip">{{ t("document.pdfUnwmTip") }}</p>
       </section>
     </aside>
 
     <section class="card stage">
       <div class="card-title">
-        预览
+        {{ t("document.preview") }}
         <div v-if="selected?.scan" class="seg">
-          <button :class="{ on: mode === 'before' }" @click="mode = 'before'">原文件</button>
-          <button :class="{ on: mode === 'after' }" @click="mode = 'after'">去除后</button>
+          <button :class="{ on: mode === 'before' }" @click="mode = 'before'">{{ t("document.before") }}</button>
+          <button :class="{ on: mode === 'after' }" @click="mode = 'after'">{{ t("document.after") }}</button>
         </div>
-        <span v-if="busy && mode === 'after'" class="hint">正在更新…</span>
+        <span v-if="busy && mode === 'after'" class="hint">{{ t("document.updating") }}</span>
         <div v-if="pageCount" class="pager">
-          <button class="icon-btn" title="上一页" :disabled="pageIndex <= 0" @click="goto(pageIndex - 1)"><ChevronLeft :size="15" /></button>
+          <button class="icon-btn" :title="t('document.prevPage')" :disabled="pageIndex <= 0" @click="goto(pageIndex - 1)"><ChevronLeft :size="15" /></button>
           <span>{{ pageIndex + 1 }} / {{ pageCount }}</span>
-          <button class="icon-btn" title="下一页" :disabled="pageIndex >= pageCount - 1" @click="goto(pageIndex + 1)"><ChevronRight :size="15" /></button>
+          <button class="icon-btn" :title="t('document.nextPage')" :disabled="pageIndex >= pageCount - 1" @click="goto(pageIndex + 1)"><ChevronRight :size="15" /></button>
         </div>
       </div>
       <FileDropZone
@@ -228,15 +231,15 @@ const pagesText = (f: FoundPdfWatermark) => (f.pages.length > 3 ? `第 ${f.pages
         class="drop"
         accept=".pdf"
         multiple
-        title="拖入 PDF，或点击选择（可多选）"
-        hint="自动找出 Acrobat、WPS 等工具添加的水印，以及斜着、半透明、每页重复的文字和图片水印"
+        :title="t('document.dropPdfs')"
+        :hint="t('document.pdfUnwmHint')"
         :paste="false"
         @files="addFiles"
       />
       <div v-else ref="viewer" class="viewer">
         <p v-if="previewError" class="state">{{ previewError }}</p>
         <img v-else-if="imageUrl && selected?.scan" :src="imageUrl" alt="" class="page" />
-        <p v-else-if="selected?.error" class="state">无法预览</p>
+        <p v-else-if="selected?.error" class="state">{{ t("document.cantPreview") }}</p>
       </div>
     </section>
   </div>

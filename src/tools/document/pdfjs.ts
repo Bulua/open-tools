@@ -1,5 +1,6 @@
 import * as pdfjs from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { t } from "@/locales";
 
 /**
  * PDF.js：渲染 PDF 页面缩略图。
@@ -17,7 +18,7 @@ const cmapUrls = new Map(Object.entries(cmaps).map(([path, url]) => [path.split(
 class BundledCMapFactory {
   async fetch({ name }: { name: string }) {
     const url = cmapUrls.get(name);
-    if (!url) throw new Error(`缺少 CMap：${name}`);
+    if (!url) throw new Error(t("document.missingCmap", { name }));
     const data = new Uint8Array(await (await fetch(url)).arrayBuffer());
     return { cMapData: data, isCompressed: true };
   }

@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch } from "vue";
+import { useI18n } from "vue-i18n";
+import { locale } from "@/locales";
+import { FONT_NAMES_EN } from "@/tools/markdown/shared";
 import AppSelect from "@/components/common/AppSelect.vue";
 import { Download, FileText, Plus, X } from "lucide-vue-next";
 import ColorPicker from "@/components/common/ColorPicker.vue";
@@ -16,9 +19,11 @@ import { DEFAULT_WATERMARK, addWatermark, watermarkBoxes, watermarkedName, type 
  * Word 添加水印：生成 Word 原生水印（与「设计 → 水印」相同），可以在 Word 中修改或删除。
  * 多个文档使用同一水印，一起下载。
  */
+const { t } = useI18n();
 const d = DEFAULT_WATERMARK;
 const kind = useStoredRef<WatermarkOptions["kind"]>("docxWatermark.kind", d.kind);
-const text = useStoredRef("docxWatermark.text", d.text);
+// 默认水印文字跟着界面语言：中文「内部资料」，英文 CONFIDENTIAL
+const text = useStoredRef("docxWatermark.text", t("document.defaultWatermark"));
 const font = useStoredRef("docxWatermark.font", d.font);
 const color = useStoredRef("docxWatermark.color", d.color);
 const bold = useStoredRef("docxWatermark.bold", d.bold);
@@ -32,9 +37,11 @@ const replace = useStoredRef("docxWatermark.replace", d.replace);
 const image = shallowRef<(WatermarkImage & { url: string }) | null>(null);
 
 const FONTS = ["宋体", "黑体", "微软雅黑", "楷体", "仿宋", "Arial"];
-const PRESETS = ["内部资料", "机密", "严禁复制", "样本", "草稿"];
+/** 字体选项：值是 Word 认识的字体名，英文界面显示英文名 */
+const fontOptions = computed(() => FONTS.map((f) => ({ value: f, label: locale.value === "zh-CN" ? f : (FONT_NAMES_EN[f] ?? f) })));
+const PRESETS = computed(() => t("document.presets").split("/"));
 const SIZES = [
-  { label: "自动", value: 0 },
+  { label: "", value: 0 },
   { label: "36", value: 36 },
   { label: "54", value: 54 },
   { label: "72", value: 72 },
@@ -76,7 +83,7 @@ const addFiles = async (files: File[]) => {
   }
   items.value = [...items.value, ...added];
   if (!selectedId.value && added[0]) selectedId.value = added[0].id;
-  error.value = files.some((f) => /\.doc$/i.test(f.name)) ? "旧版 .doc 文件请先在 Word 中「另存为」.docx 再添加" : "";
+  error.value = files.some((f) => /\.doc$/i.test(f.name)) ? t("document.oldDocTip") : "";
 };
 const remove = (item: Item) => {
   items.value = items.value.filter((i) => i !== item);
@@ -166,7 +173,7 @@ const download = async () => {
   error.value = "";
   try {
     const files = checkedItems.value.map((item) => ({ name: watermarkedName(item.file.name), data: addWatermark(item.data, options.value) }));
-    await saveFiles(files, "水印文档.zip");
+    await saveFiles(files, t("document.watermarkZip"));
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
   } finally {
@@ -180,46 +187,46 @@ const download = async () => {
     <aside class="card panel">
       <section class="section">
         <h3>
-          <CheckAll v-if="items.length" :checked="allChecked" :partly="partlyChecked" :disabled="saving" @toggle="toggleAll">文档</CheckAll>
-          <template v-else>文档</template>
-          <span class="push">{{ items.length > 1 ? `已选 ${checkedItems.length} / ${items.length} 个` : `${items.length} 个` }}</span>
+          <CheckAll v-if="items.length" :checked="allChecked" :partly="partlyChecked" :disabled="saving" @toggle="toggleAll">{{ t("document.documents") }}</CheckAll>
+          <template v-else>{{ t("document.documents") }}</template>
+          <span class="push">{{ items.length > 1 ? t("files.selected", { checked: checkedItems.length, total: items.length }) : t("files.count", { n: items.length }) }}</span>
         </h3>
         <ul class="files">
           <li v-for="item in items" :key="item.id" :class="{ on: item.id === selected?.id, unchecked: !isChecked(item) }" @click="selectedId = item.id">
-            <input type="checkbox" class="file-check" title="勾选的文档才处理" :checked="isChecked(item)" :disabled="saving" @click.stop @change="toggleFile(item)" />
+            <input type="checkbox" class="file-check" :title="t('document.checkFiles')" :checked="isChecked(item)" :disabled="saving" @click.stop @change="toggleFile(item)" />
             <FileText :size="14" class="icon" />
             <span class="name" :title="item.file.name">{{ item.file.name }}</span>
             <span class="size">{{ formatBytes(item.file.size) }}</span>
-            <button class="icon-btn remove" title="移除" @click.stop="remove(item)"><X :size="13" /></button>
+            <button class="icon-btn remove" :title="t('document.remove')" @click.stop="remove(item)"><X :size="13" /></button>
           </li>
         </ul>
-        <FileDropZone compact accept=".docx,.doc" multiple :paste="false" title="继续添加文档" @files="addFiles" />
+        <FileDropZone compact accept=".docx,.doc" multiple :paste="false" :title="t('document.addDocs')" @files="addFiles" />
       </section>
 
       <section class="section">
         <div class="seg fill">
-          <button :class="{ on: kind === 'text' }" @click="kind = 'text'">文字水印</button>
-          <button :class="{ on: kind === 'image' }" @click="kind = 'image'">图片水印</button>
+          <button :class="{ on: kind === 'text' }" @click="kind = 'text'">{{ t("document.textWm") }}</button>
+          <button :class="{ on: kind === 'image' }" @click="kind = 'image'">{{ t("document.imageWm") }}</button>
         </div>
 
         <template v-if="kind === 'text'">
-          <input v-model="text" class="field" placeholder="水印文字" maxlength="40" />
+          <input v-model="text" class="field" :placeholder="t('document.wmText')" maxlength="40" />
           <div class="chips">
             <button v-for="p in PRESETS" :key="p" :class="{ on: text === p }" @click="text = p">{{ p }}</button>
           </div>
           <div class="row">
-            <AppSelect v-model="font" class="select" :options="FONTS.map((f) => ({ value: f, label: f }))" title="字体" />
-            <ColorPicker v-model="color" title="颜色" />
-            <label class="check"><input v-model="bold" type="checkbox" />粗体</label>
+            <AppSelect v-model="font" class="select" :options="fontOptions" :title="t('document.font')" />
+            <ColorPicker v-model="color" :title="t('document.color')" />
+            <label class="check"><input v-model="bold" type="checkbox" />{{ t("document.bold") }}</label>
           </div>
           <div class="row">
-            <span class="label">字号</span>
+            <span class="label">{{ t("document.fontSize") }}</span>
             <div class="seg">
-              <button v-for="s in SIZES" :key="s.value" :class="{ on: size === s.value }" @click="size = s.value">{{ s.label }}</button>
+              <button v-for="s in SIZES" :key="s.value" :class="{ on: size === s.value }" @click="size = s.value">{{ s.label || t("document.auto") }}</button>
             </div>
           </div>
           <label class="slider">
-            <span>透明度</span>
+            <span>{{ t("document.opacity") }}</span>
             <input v-model.number="opacity" type="range" min="10" max="100" step="5" />
             <em>{{ opacity }}%</em>
           </label>
@@ -228,28 +235,28 @@ const download = async () => {
         <template v-else>
           <label class="btn">
             <img v-if="image" :src="image.url" alt="" class="logo" />
-            <Plus v-else :size="14" />{{ image ? "更换图片" : "选择水印图片" }}
+            <Plus v-else :size="14" />{{ image ? t("document.replaceImage") : t("document.chooseImage") }}
             <input type="file" accept="image/*" hidden @change="onImage" />
           </label>
           <label class="slider">
-            <span>大小</span>
+            <span>{{ t("document.size") }}</span>
             <input v-model.number="imageScale" type="range" min="10" max="100" step="5" />
             <em>{{ imageScale }}%</em>
           </label>
-          <label class="check"><input v-model="washout" type="checkbox" />冲蚀（变淡，不影响阅读正文）</label>
+          <label class="check"><input v-model="washout" type="checkbox" />{{ t("document.washout") }}</label>
         </template>
       </section>
 
       <section class="section">
         <div class="row">
-          <span class="label">版式</span>
+          <span class="label">{{ t("document.layout") }}</span>
           <div class="seg">
-            <button :class="{ on: layout === 'diagonal' }" :disabled="kind === 'image'" @click="layout = 'diagonal'">斜式</button>
-            <button :class="{ on: layout === 'horizontal' }" :disabled="kind === 'image'" @click="layout = 'horizontal'">水平</button>
+            <button :class="{ on: layout === 'diagonal' }" :disabled="kind === 'image'" @click="layout = 'diagonal'">{{ t("document.diagonal") }}</button>
+            <button :class="{ on: layout === 'horizontal' }" :disabled="kind === 'image'" @click="layout = 'horizontal'">{{ t("document.horizontal") }}</button>
           </div>
-          <label class="check push"><input v-model="tiled" type="checkbox" />平铺</label>
+          <label class="check push"><input v-model="tiled" type="checkbox" />{{ t("document.tiled") }}</label>
         </div>
-        <label class="check"><input v-model="replace" type="checkbox" />删除文档原有的水印</label>
+        <label class="check"><input v-model="replace" type="checkbox" />{{ t("document.replaceOld") }}</label>
       </section>
 
       <section class="section">
@@ -257,26 +264,26 @@ const download = async () => {
         <button class="btn primary full" :disabled="saving || !checkedItems.length" @click="download">
           <Download :size="14" />{{
             saving
-              ? "处理中…"
+              ? t("document.processingShort")
               : !checkedItems.length
-                ? "请勾选要处理的文档"
+                ? t("document.checkDocs")
                 : items.length > 1
-                  ? `下载选中的 ${checkedItems.length} 个（ZIP）`
-                  : "下载加水印的文档"
+                  ? t("document.downloadSelectedZip", { n: checkedItems.length })
+                  : t("document.downloadWatermarked")
           }}
         </button>
       </section>
     </aside>
 
     <section class="card stage">
-      <div class="card-title">预览<span v-if="selected" class="hint">{{ selected.file.name }} · 预览排版与 Word 可能略有差异</span></div>
+      <div class="card-title">{{ t("document.preview") }}<span v-if="selected" class="hint">{{ t("document.layoutDiffers", { name: selected.file.name }) }}</span></div>
       <FileDropZone
         v-if="!items.length"
         class="drop"
         accept=".docx,.doc"
         multiple
-        title="拖入 Word 文档（.docx），或点击选择（可多选）"
-        hint="添加的是 Word 原生水印，每一页都有，之后可以在 Word 的「设计 → 水印」中修改或删除"
+        :title="t('document.dropDocx')"
+        :hint="t('document.addWmHint')"
         :paste="false"
         @files="addFiles"
       />

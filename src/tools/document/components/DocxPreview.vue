@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { renderAsync } from "docx-preview";
 
 /**
  * Word 文档预览（docx-preview 在浏览器里排版，与 Word 的分页可能略有差异）。
  * 页面按区域宽度缩放；decorate 会在每一页渲染完成后调用，用于叠加水印预览等。
  */
+const { t } = useI18n();
 const props = defineProps<{
   data: Uint8Array | null;
   decorate?: (page: HTMLElement) => void;
@@ -56,7 +58,7 @@ const render = async () => {
     applyDecorations();
   } catch {
     if (current !== token) return;
-    failed.value = "无法预览这个文档，但仍然可以处理";
+    failed.value = t("document.previewFailed");
     emit("error", failed.value);
   } finally {
     if (current === token) rendering.value = false;
@@ -78,7 +80,7 @@ onBeforeUnmount(() => observer?.disconnect());
 <template>
   <div ref="area" class="docx-area">
     <div ref="host" class="docx-host" />
-    <p v-if="rendering" class="state">正在排版预览…</p>
+    <p v-if="rendering" class="state">{{ t("document.rendering") }}</p>
     <p v-else-if="failed" class="state">{{ failed }}</p>
     <slot v-else-if="!data" />
   </div>

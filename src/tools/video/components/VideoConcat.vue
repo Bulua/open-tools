@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { Translation, useI18n } from "vue-i18n";
 import { ArrowDown, ArrowUp, Download, GripVertical, LoaderCircle, X } from "lucide-vue-next";
 import AppSelect from "@/components/common/AppSelect.vue";
 import CheckAll from "@/components/common/CheckAll.vue";
@@ -22,6 +23,7 @@ interface Clip {
   info?: VideoInfo;
   error?: string;
 }
+const { t } = useI18n();
 const clips = ref<Clip[]>([]);
 let nextId = 1;
 const { isChecked, toggle: toggleFile, checkedItems, allChecked, partlyChecked, toggleAll } = useFileChecks(clips);
@@ -35,7 +37,7 @@ const addFiles = async (files: File[]) => {
     const added = clips.value.find((c) => c.id === clip.id)!;
     try {
       added.info = await probeVideo(file);
-      if (!added.info.width) added.error = "这个文件里没有画面";
+      if (!added.info.width) added.error = t("video.noVideoTrack");
     } catch (e) {
       added.error = e instanceof Error ? e.message : String(e);
     }
@@ -71,22 +73,22 @@ const quality = useStoredRef<ConcatQuality>("videoConcat.quality", "high");
 const forceReencode = ref(false);
 const first = computed(() => usable.value[0]?.info);
 const SIZE_OPTIONS = computed(() => [
-  { value: "first", label: first.value ? `与第 1 个视频相同（${first.value.width}×${first.value.height}）` : "与第 1 个视频相同" },
-  { value: "1920x1080", label: "1920×1080（横屏 1080P）" },
-  { value: "1280x720", label: "1280×720（横屏 720P）" },
-  { value: "1080x1920", label: "1080×1920（竖屏 1080P）" },
-  { value: "720x1280", label: "720×1280（竖屏 720P）" },
+  { value: "first", label: first.value ? t("video.sameAsFirstSize", { w: first.value.width, h: first.value.height }) : t("video.sameAsFirst") },
+  { value: "1920x1080", label: t("video.landscape1080") },
+  { value: "1280x720", label: t("video.landscape720") },
+  { value: "1080x1920", label: t("video.portrait1080") },
+  { value: "720x1280", label: t("video.portrait720") },
 ]);
 const outputSize = computed(() => {
   if (size.value === "first") return { width: first.value?.width ?? 1280, height: first.value?.height ?? 720 };
   const [width, height] = size.value.split("x").map(Number);
   return { width, height };
 });
-const QUALITIES: { value: ConcatQuality; label: string }[] = [
-  { value: "medium", label: "标准" },
-  { value: "high", label: "高" },
-  { value: "very-high", label: "最高" },
-];
+const QUALITIES = computed<{ value: ConcatQuality; label: string }[]>(() => [
+  { value: "medium", label: t("video.qMedium") },
+  { value: "high", label: t("video.qHigh") },
+  { value: "very-high", label: t("video.qVeryHigh") },
+]);
 
 // 格式是否完全相同：可以直接拼接
 const canCopy = ref<boolean | null>(null);
@@ -137,60 +139,64 @@ const start = async () => {
     working.value = false;
   }
 };
-const save = () => result.value && saveFile(result.value.data, "拼接视频.mp4");
+const save = () => result.value && saveFile(result.value.data, t("video.concatName"));
 
 const describe = (info: VideoInfo) =>
-  `${formatDuration(info.duration)} · ${info.width}×${info.height} · ${codecName(info.videoCodec)}${info.audio ? ` + ${codecName(info.audio.codec)}` : " · 无声音"}`;
+  `${formatDuration(info.duration)} · ${info.width}×${info.height} · ${codecName(info.videoCodec)}${info.audio ? ` + ${codecName(info.audio.codec)}` : t("video.noSound")}`;
 </script>
 
 <template>
   <div class="concat">
     <aside class="card panel">
       <section class="section">
-        <h3>拼接方式</h3>
-        <p v-if="usable.length < 2" class="note">添加并勾选至少两个视频</p>
-        <p v-else-if="canCopy === null" class="note">正在检查视频格式…</p>
-        <p v-else-if="willCopy" class="note good">所有视频格式相同，<b>直接拼接</b>：不重新编码，速度快、画质无损。</p>
-        <p v-else-if="canCopy" class="note">将重新编码为 MP4（H.264），可以统一画面大小。</p>
-        <p v-else class="note">视频的格式或画面大小不同，将<b>重新编码</b>为 MP4（H.264），统一画面大小；大小、比例不同的视频按比例缩放居中，空白处为黑色。</p>
-        <label v-if="canCopy" class="check"><input v-model="forceReencode" type="checkbox" :disabled="working" />仍然重新编码（统一画面大小）</label>
+        <h3>{{ t("video.concatMode") }}</h3>
+        <p v-if="usable.length < 2" class="note">{{ t("video.needTwoChecked") }}</p>
+        <p v-else-if="canCopy === null" class="note">{{ t("video.checkingFormat") }}</p>
+        <Translation v-else-if="willCopy" keypath="video.willCopy" tag="p" class="note good">
+          <template #direct><b>{{ t("video.directJoin") }}</b></template>
+        </Translation>
+        <p v-else-if="canCopy" class="note">{{ t("video.canCopy") }}</p>
+        <Translation v-else keypath="video.mustReencode" tag="p" class="note">
+          <template #reencode><b>{{ t("video.reencode") }}</b></template>
+        </Translation>
+        <label v-if="canCopy" class="check"><input v-model="forceReencode" type="checkbox" :disabled="working" />{{ t("video.forceReencode") }}</label>
       </section>
 
       <section v-if="!willCopy" class="section">
-        <h3>画面大小</h3>
+        <h3>{{ t("video.frameSize") }}</h3>
         <AppSelect v-model="size" :options="SIZE_OPTIONS" :disabled="working" />
-        <h3>画质</h3>
+        <h3>{{ t("video.videoQuality") }}</h3>
         <div class="seg fill">
           <button v-for="q in QUALITIES" :key="q.value" :class="{ on: quality === q.value }" :disabled="working" @click="quality = q.value">{{ q.label }}</button>
         </div>
-        <p class="tip">重新编码使用电脑的硬件加速，速度取决于显卡，长视频需要一些时间。</p>
+        <p class="tip">{{ t("video.hwTip") }}</p>
       </section>
 
       <section class="section">
         <button class="btn primary full" :disabled="usable.length < 2 || working || canCopy === null" @click="start">
           <LoaderCircle v-if="working" :size="14" class="spin" />
           <Download v-else :size="14" />
-          {{ working ? `正在拼接 ${Math.round(progress * 100)}%` : `拼接 ${usable.length} 个视频` }}
+          {{ working ? t("video.joining", { n: Math.round(progress * 100) }) : t("video.joinN", { n: usable.length }) }}
         </button>
         <span v-if="working" class="bar"><i :style="{ width: `${Math.round(progress * 100)}%` }" /></span>
         <p v-if="error" class="error">{{ error }}</p>
-        <p v-if="usable.length" class="tip">合计 {{ formatDuration(total) }}；在本机处理，不上传文件。</p>
+        <p v-if="usable.length" class="tip">{{ t("video.totalLocal", { time: formatDuration(total) }) }}</p>
       </section>
 
       <section v-if="result" class="section">
-        <h3>拼接结果<span class="push">{{ formatBytes(result.data.length) }}{{ result.copied ? " · 直接拼接" : " · 重新编码" }}</span></h3>
+        <h3>{{ t("video.joinResult") }}<span class="push">{{ formatBytes(result.data.length) }}{{ result.copied ? t("video.copiedNote") : t("video.reencodedNote") }}</span></h3>
         <video :src="result.url" controls class="result" />
-        <button class="btn primary full" @click="save"><Download :size="14" />保存视频</button>
+        <button class="btn primary full" @click="save"><Download :size="14" />{{ t("video.saveVideo") }}</button>
       </section>
     </aside>
 
     <section class="card list">
       <div class="card-title">
-        <CheckAll v-if="clips.length" :checked="allChecked" :partly="partlyChecked" :disabled="working" @toggle="toggleAll">视频</CheckAll>
-        <template v-else>视频</template>
-        <span v-if="clips.length" class="count">{{ clips.length > 1 ? `已选 ${checkedItems.length} / ${clips.length} 个` : `${clips.length} 个` }}</span>
-        <span v-if="clips.length > 1" class="hint">拖动调整顺序</span>
-        <button v-if="clips.length && !working" class="btn small subtle push" @click="clear">清空</button>
+        <CheckAll v-if="clips.length" :checked="allChecked" :partly="partlyChecked" :disabled="working" @toggle="toggleAll">{{ t("video.videoLabel") }}</CheckAll>
+        <template v-else>{{ t("video.videoLabel") }}</template>
+        <span v-if="clips.length" class="count">{{ clips.length > 1 ? t("files.selected", { checked: checkedItems.length, total: clips.length }) : t("files.count", { n: clips.length }) }}</span>
+        <span v-if="clips.length > 1" class="hint">{{ t("video.dragToReorder") }}</span>
+        <button v-if="clips.length && !working" class="btn small subtle push" @click="clear">{{ t("video.clear") }}</button>
       </div>
       <FileDropZone
         v-if="!clips.length"
@@ -198,8 +204,8 @@ const describe = (info: VideoInfo) =>
         :accept="VIDEO_ACCEPT"
         multiple
         :paste="false"
-        title="拖入要拼接的视频，或点击选择（可多选）"
-        hint="按添加的顺序拼接，之后可以拖动调整；支持 MP4、MOV、MKV、WebM、TS"
+        :title="t('video.dropJoin')"
+        :hint="t('video.dropJoinHint')"
         @files="addFiles"
       />
       <template v-else>
@@ -216,21 +222,21 @@ const describe = (info: VideoInfo) =>
             @dragend="dragIndex = overIndex = null"
           >
             <GripVertical :size="14" class="grip" />
-            <input type="checkbox" class="file-check" title="勾选的视频才拼接" :checked="isChecked(clip)" :disabled="working" @change="toggleFile(clip)" />
+            <input type="checkbox" class="file-check" :title="t('video.checkHint')" :checked="isChecked(clip)" :disabled="working" @change="toggleFile(clip)" />
             <span class="no">{{ i + 1 }}</span>
             <video class="thumb" :src="`${clip.url}#t=0.5`" muted preload="metadata" />
             <div class="meta">
               <span class="name" :title="clip.file.name">{{ clip.file.name }}</span>
               <span v-if="clip.error" class="error">{{ clip.error }}</span>
               <span v-else-if="clip.info" class="sub">{{ describe(clip.info) }} · {{ formatBytes(clip.file.size) }}</span>
-              <span v-else class="sub">正在读取…</span>
+              <span v-else class="sub">{{ t("video.readingFile") }}</span>
             </div>
-            <button class="icon-btn" title="上移" :disabled="i === 0 || working" @click="move(i, -1)"><ArrowUp :size="13" /></button>
-            <button class="icon-btn" title="下移" :disabled="i === clips.length - 1 || working" @click="move(i, 1)"><ArrowDown :size="13" /></button>
-            <button class="icon-btn" title="移除" :disabled="working" @click="remove(clip)"><X :size="13" /></button>
+            <button class="icon-btn" :title="t('video.moveUp')" :disabled="i === 0 || working" @click="move(i, -1)"><ArrowUp :size="13" /></button>
+            <button class="icon-btn" :title="t('video.moveDown')" :disabled="i === clips.length - 1 || working" @click="move(i, 1)"><ArrowDown :size="13" /></button>
+            <button class="icon-btn" :title="t('video.remove')" :disabled="working" @click="remove(clip)"><X :size="13" /></button>
           </li>
         </ol>
-        <FileDropZone compact class="more" :accept="VIDEO_ACCEPT" multiple :paste="false" title="继续添加视频" @files="addFiles" />
+        <FileDropZone compact class="more" :accept="VIDEO_ACCEPT" multiple :paste="false" :title="t('video.addVideos')" @files="addFiles" />
       </template>
     </section>
   </div>

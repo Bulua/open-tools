@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { Download, FileVideo, LoaderCircle, Minus, Music, Plus, RefreshCw, Repeat, X } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import ProgressBar from "@/components/common/ProgressBar.vue";
@@ -31,6 +32,7 @@ interface MusicFile {
 }
 const video = shallowRef<VideoFile | null>(null);
 const music = shallowRef<MusicFile | null>(null);
+const { t } = useI18n();
 const loadingVideo = ref(false);
 const loadingMusic = ref(false);
 const error = ref("");
@@ -44,7 +46,7 @@ const onVideo = async ([file]: File[]) => {
   loadingVideo.value = true;
   try {
     const info = await probeVideo(file);
-    if (!info.width) throw new Error("这个文件里没有画面");
+    if (!info.width) throw new Error(t("video.noVideoTrack"));
     if (video.value) URL.revokeObjectURL(video.value.url);
     video.value = { file, url: URL.createObjectURL(file), duration: info.duration, hasAudio: !!info.audio };
     clearResult();
@@ -94,9 +96,9 @@ const summary = computed(() => {
   if (!video.value || !music.value) return "";
   const v = video.value.duration;
   const m = musicDuration.value;
-  if (mode.value === "loop") return m >= v ? "音乐比视频长，只播放到视频结束" : `音乐循环播放约 ${(v / m).toFixed(1)} 遍，直到视频结束`;
+  if (mode.value === "loop") return m >= v ? t("video.musicLonger") : t("video.musicLoops", { n: (v / m).toFixed(1) });
   const end = Math.min(v, times.value * m);
-  return end >= v ? `播放 ${times.value} 次，到视频结束时还没播完` : `播放 ${times.value} 次，${formatDuration(end)} 之后没有音乐`;
+  return end >= v ? t("video.timesUnfinished", { n: times.value }) : t("video.timesSilent", { n: times.value, time: formatDuration(end) });
 });
 
 // ---------- 预览：音乐跟着视频播放 ----------
@@ -180,7 +182,7 @@ const start = async () => {
     working.value = false;
   }
 };
-const save = () => result.value && video.value && saveFile(result.value.data, `${video.value.file.name.replace(/\.[^.]+$/, "")}_配乐.mp4`);
+const save = () => result.value && video.value && saveFile(result.value.data, `${video.value.file.name.replace(/\.[^.]+$/, "")}_${t("video.mixSuffix")}.mp4`);
 
 onBeforeUnmount(() => {
   cancelAnimationFrame(frame);
@@ -193,14 +195,14 @@ onBeforeUnmount(() => {
     <aside class="card panel">
       <!-- 视频 -->
       <section class="section">
-        <h3>视频</h3>
+        <h3>{{ t("video.video") }}</h3>
         <div v-if="video" class="file">
           <FileVideo :size="16" class="file-icon" />
           <span class="file-info">
             <span class="file-name" :title="video.file.name">{{ video.file.name }}</span>
-            <span class="file-meta">{{ formatDuration(video.duration) }} · {{ video.hasAudio ? "有原声" : "没有原声" }}</span>
+            <span class="file-meta">{{ formatDuration(video.duration) }} · {{ video.hasAudio ? t("video.hasSound") : t("video.noOriginalSound") }}</span>
           </span>
-          <button class="icon-btn" title="更换视频" :disabled="working" @click="videoZone?.open()"><RefreshCw :size="14" /></button>
+          <button class="icon-btn" :title="t('video.replaceVideo')" :disabled="working" @click="videoZone?.open()"><RefreshCw :size="14" /></button>
         </div>
         <FileDropZone
           v-show="!video"
@@ -208,22 +210,22 @@ onBeforeUnmount(() => {
           compact
           :accept="VIDEO_ACCEPT"
           :paste="false"
-          :title="loadingVideo ? '正在读取…' : '选择视频'"
+          :title="loadingVideo ? t('video.readingFile') : t('video.chooseVideo')"
           @files="onVideo"
         />
       </section>
 
       <!-- 音乐 -->
       <section class="section">
-        <h3>音乐</h3>
+        <h3>{{ t("video.musicLabel") }}</h3>
         <div v-if="music" class="file">
           <Music :size="16" class="file-icon" />
           <span class="file-info">
             <span class="file-name" :title="music.file.name">{{ music.file.name }}</span>
             <span class="file-meta">{{ formatDuration(musicDuration) }}</span>
           </span>
-          <button class="icon-btn" title="更换音乐" :disabled="working" @click="musicZone?.open()"><RefreshCw :size="14" /></button>
-          <button class="icon-btn" title="去掉音乐" :disabled="working" @click="removeMusic"><X :size="14" /></button>
+          <button class="icon-btn" :title="t('video.replaceMusic')" :disabled="working" @click="musicZone?.open()"><RefreshCw :size="14" /></button>
+          <button class="icon-btn" :title="t('video.removeMusic')" :disabled="working" @click="removeMusic"><X :size="14" /></button>
         </div>
         <FileDropZone
           v-show="!music"
@@ -231,63 +233,63 @@ onBeforeUnmount(() => {
           compact
           :accept="AUDIO_ACCEPT"
           :paste="false"
-          :title="loadingMusic ? '正在读取…' : '选择音乐'"
+          :title="loadingMusic ? t('video.readingFile') : t('video.chooseMusic')"
           @files="onMusic"
         />
       </section>
 
       <!-- 音量 -->
       <section class="section">
-        <h3>音量</h3>
+        <h3>{{ t("video.volume") }}</h3>
         <label class="slider">
-          <span class="label">音乐</span>
+          <span class="label">{{ t("video.musicLabel") }}</span>
           <input v-model.number="musicVolume" type="range" min="0" max="100" step="5" :disabled="working" />
           <em>{{ musicVolume }}%</em>
         </label>
         <label class="slider" :class="{ dim: video && !video.hasAudio }">
-          <span class="label">原声</span>
+          <span class="label">{{ t("video.originalSound") }}</span>
           <input v-model.number="originalVolume" type="range" min="0" max="100" step="5" :disabled="working || (!!video && !video.hasAudio)" />
-          <em>{{ originalVolume ? `${originalVolume}%` : "静音" }}</em>
+          <em>{{ originalVolume ? `${originalVolume}%` : t("video.mute") }}</em>
         </label>
       </section>
 
       <!-- 播放方式 -->
       <section class="section">
-        <h3>音乐播放</h3>
+        <h3>{{ t("video.playback") }}</h3>
         <div class="seg fill">
-          <button :class="{ on: mode === 'loop' }" :disabled="working" @click="mode = 'loop'"><Repeat :size="14" />循环播放</button>
-          <button :class="{ on: mode === 'times' }" :disabled="working" @click="mode = 'times'">播放几次</button>
+          <button :class="{ on: mode === 'loop' }" :disabled="working" @click="mode = 'loop'"><Repeat :size="14" />{{ t("video.loop") }}</button>
+          <button :class="{ on: mode === 'times' }" :disabled="working" @click="mode = 'times'">{{ t("video.playTimes") }}</button>
         </div>
         <div v-if="mode === 'times'" class="times">
-          <button class="icon-btn" title="少一次" :disabled="working || times <= 1" @click="setTimes(times - 1)"><Minus :size="14" /></button>
+          <button class="icon-btn" :title="t('video.oneLess')" :disabled="working || times <= 1" @click="setTimes(times - 1)"><Minus :size="14" /></button>
           <input class="field" type="number" min="1" max="99" :value="times" :disabled="working" @change="setTimes(Number(($event.target as HTMLInputElement).value))" />
-          <button class="icon-btn" title="多一次" :disabled="working || times >= 99" @click="setTimes(times + 1)"><Plus :size="14" /></button>
-          <span>次</span>
+          <button class="icon-btn" :title="t('video.oneMore')" :disabled="working || times >= 99" @click="setTimes(times + 1)"><Plus :size="14" /></button>
+          <span>{{ t("video.timesUnit") }}</span>
         </div>
-        <label class="check"><input v-model="fadeOut" type="checkbox" :disabled="working" />视频结束时音乐逐渐变小</label>
+        <label class="check"><input v-model="fadeOut" type="checkbox" :disabled="working" />{{ t("video.fadeOutEnd") }}</label>
       </section>
 
       <!-- 导出 -->
       <section class="section">
         <button class="btn primary full" :disabled="!video || !music || working" @click="start">
           <LoaderCircle v-if="working" :size="14" class="spin" />
-          {{ working ? `正在合成 ${Math.round(progress * 100)}%` : "合成视频" }}
+          {{ working ? t("video.mixing", { n: Math.round(progress * 100) }) : t("video.mix") }}
         </button>
         <ProgressBar v-if="working" :value="progress" />
         <p v-if="error" class="error">{{ error }}</p>
         <template v-if="result">
-          <p class="tip">合成完成 · {{ formatBytes(result.data.length) }}，画面没有重新编码</p>
-          <button class="btn full" @click="save"><Download :size="14" />保存视频</button>
+          <p class="tip">{{ t("video.mixDone", { size: formatBytes(result.data.length) }) }}</p>
+          <button class="btn full" @click="save"><Download :size="14" />{{ t("video.saveVideo") }}</button>
         </template>
-        <p v-else-if="!video || !music" class="tip">选好视频和音乐后，可以先在右侧试听效果，满意了再合成。</p>
+        <p v-else-if="!video || !music" class="tip">{{ t("video.mixTip") }}</p>
       </section>
     </aside>
 
     <section class="card stage">
       <div class="card-title">
-        <span class="grow">{{ result ? "合成结果" : "预览" }}</span>
+        <span class="grow">{{ result ? t("video.mixResult") : t("video.preview") }}</span>
         <span v-if="!result && summary" class="hint">{{ summary }}</span>
-        <button v-if="result" class="btn small subtle" @click="clearResult">返回预览</button>
+        <button v-if="result" class="btn small subtle" @click="clearResult">{{ t("video.backToPreview") }}</button>
       </div>
 
       <div class="screen">
@@ -298,19 +300,19 @@ onBeforeUnmount(() => {
         </template>
         <div v-else class="placeholder">
           <FileVideo :size="32" />
-          <span>选择视频和音乐后，在这里预览效果</span>
+          <span>{{ t("video.previewEmpty") }}</span>
         </div>
       </div>
 
       <!-- 时间轴：音乐在视频里的哪些时段播放 -->
       <div v-if="video && !result" class="timeline">
-        <div class="track" title="点击跳到这个位置" @click="seek">
+        <div class="track" :title="t('video.seekTitle')" @click="seek">
           <span
             v-for="(s, i) in segments"
             :key="i"
             class="segment"
             :style="{ left: percent(s.start), width: percent(s.end - s.start) }"
-            :title="`第 ${i + 1} 遍：${formatDuration(s.start)} – ${formatDuration(s.end)}`"
+            :title="t('video.loopN', { n: i + 1, start: formatDuration(s.start), end: formatDuration(s.end) })"
           >
             <span v-if="segments.length > 1" class="no">{{ i + 1 }}</span>
           </span>
@@ -318,7 +320,7 @@ onBeforeUnmount(() => {
         </div>
         <div class="ticks">
           <span>0:00</span>
-          <span>{{ music ? "音乐" : "还没有选择音乐" }}</span>
+          <span>{{ music ? t("video.musicLabel") : t("video.noMusicYet") }}</span>
           <span>{{ formatDuration(video.duration) }}</span>
         </div>
       </div>

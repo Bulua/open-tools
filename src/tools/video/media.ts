@@ -30,6 +30,7 @@ import {
   type OutputFormat,
   type Rotation,
 } from "mediabunny";
+import { t } from "@/locales";
 
 /**
  * 视频处理（基于 Mediabunny，使用浏览器自带的 WebCodecs 硬件编解码，不上传文件）：
@@ -41,7 +42,8 @@ import {
  */
 
 export const VIDEO_ACCEPT = "video/*,.mp4,.mov,.m4v,.mkv,.webm,.ts,.mts,.m2ts";
-const UNSUPPORTED = "无法读取这个视频，支持 MP4、MOV、MKV、WebM、TS 格式";
+/** 无法读取视频时的提示 */
+const UNSUPPORTED = () => t("video.unsupported");
 
 export const UNSUPPORTED_VIDEO = UNSUPPORTED;
 export const openInput = (file: Blob) => new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
@@ -61,11 +63,11 @@ export interface VideoInfo {
 export async function probeVideo(file: Blob): Promise<VideoInfo> {
   const input = openInput(file);
   try {
-    if (!(await input.canRead().catch(() => false))) throw new Error(UNSUPPORTED);
+    if (!(await input.canRead().catch(() => false))) throw new Error(UNSUPPORTED());
     const video = await input.getPrimaryVideoTrack();
     const audio = await input.getPrimaryAudioTrack();
     const tracks = [video, audio].filter((t): t is InputVideoTrack | InputAudioTrack => !!t);
-    if (!tracks.length) throw new Error("这个文件里没有视频或声音");
+    if (!tracks.length) throw new Error(t("video.noTracks"));
     const start = Math.max(0, await input.getFirstTimestamp(tracks));
     const end = await input.computeDuration(tracks);
     return {
@@ -83,7 +85,7 @@ export async function probeVideo(file: Blob): Promise<VideoInfo> {
 }
 
 const CODEC_NAMES: Record<string, string> = { avc: "H.264", hevc: "H.265", vp8: "VP8", vp9: "VP9", av1: "AV1", prores: "ProRes", aac: "AAC", opus: "Opus", mp3: "MP3", vorbis: "Vorbis", flac: "FLAC", ac3: "AC-3", eac3: "E-AC-3" };
-export const codecName = (codec: string | null | undefined) => (codec ? (CODEC_NAMES[codec] ?? (codec.startsWith("pcm") ? "PCM" : codec.toUpperCase())) : "未知");
+export const codecName = (codec: string | null | undefined) => (codec ? (CODEC_NAMES[codec] ?? (codec.startsWith("pcm") ? "PCM" : codec.toUpperCase())) : t("video.unknown"));
 
 // ---------- 提取音频 ----------
 
@@ -117,9 +119,9 @@ export interface ExtractResult {
 export async function extractAudio(file: Blob, target: AudioTarget, bitrate: number, onProgress?: (p: number) => void): Promise<ExtractResult> {
   const input = openInput(file);
   try {
-    if (!(await input.canRead().catch(() => false))) throw new Error(UNSUPPORTED);
+    if (!(await input.canRead().catch(() => false))) throw new Error(UNSUPPORTED());
     const track = await input.getPrimaryAudioTrack();
-    if (!track) throw new Error("这个视频里没有声音");
+    if (!track) throw new Error(t("video.noAudio"));
     const source = await track.getCodec();
 
     let format: OutputFormat;
@@ -144,7 +146,7 @@ export async function extractAudio(file: Blob, target: AudioTarget, bitrate: num
     });
     if (!conversion.isValid) {
       const reason = conversion.discardedTracks[0]?.reason;
-      throw new Error(reason === "undecodable_source_codec" ? `无法解码这个视频的声音（${codecName(source)}）` : "无法转换这个视频的声音");
+      throw new Error(reason === "undecodable_source_codec" ? t("video.cantDecodeAudio", { codec: codecName(source) }) : t("video.cantConvertAudio"));
     }
     conversion.onProgress = (p) => onProgress?.(p);
     await conversion.execute();
@@ -202,9 +204,9 @@ async function openClips(files: Blob[]): Promise<Clip[]> {
     for (const [i, file] of files.entries()) {
       const input = openInput(file);
       clips.push({ input } as Clip);
-      if (!(await input.canRead().catch(() => false))) throw new Error(`第 ${i + 1} 个视频：${UNSUPPORTED}`);
+      if (!(await input.canRead().catch(() => false))) throw new Error(t("video.nthUnsupported", { n: i + 1, error: UNSUPPORTED() }));
       const video = await input.getPrimaryVideoTrack();
-      if (!video) throw new Error(`第 ${i + 1} 个文件里没有画面`);
+      if (!video) throw new Error(t("video.nthNoVideo", { n: i + 1 }));
       const audio = await input.getPrimaryAudioTrack();
       const tracks = audio ? [video, audio] : [video];
       const start = Math.max(0, await input.getFirstTimestamp(tracks));
@@ -234,7 +236,7 @@ async function sameFormat(clips: Clip[]) {
 }
 
 export async function concatVideos(files: Blob[], options: ConcatOptions, onProgress?: (p: number) => void): Promise<ConcatResult> {
-  if (files.length < 2) throw new Error("至少需要两个视频");
+  if (files.length < 2) throw new Error(t("video.needTwo"));
   const clips = await openClips(files);
   try {
     const total = clips.reduce((s, c) => s + c.duration, 0) || 1;
@@ -295,8 +297,8 @@ async function reencodeClips(clips: Clip[], output: Output<Mp4OutputFormat, Buff
   const height = o.height - (o.height % 2);
   const videoCodec = await getFirstEncodableVideoCodec(["avc", "hevc", "vp9", "av1"], { width, height });
   const audioCodec = await getFirstEncodableAudioCodec(["aac", "opus"], { numberOfChannels: CHANNELS, sampleRate: SAMPLE_RATE });
-  if (!videoCodec) throw new Error("当前环境不支持视频编码，请使用最新版的 Chrome 或 Edge 浏览器");
-  if (!audioCodec) throw new Error("当前环境不支持音频编码，请使用最新版的 Chrome 或 Edge 浏览器");
+  if (!videoCodec) throw new Error(t("video.noVideoEncoder"));
+  if (!audioCodec) throw new Error(t("video.noAudioEncoder"));
 
   const quality = QUALITY[o.quality];
   const videoSource = new VideoSampleSource({ codec: videoCodec, quality, transform: { width, height, fit: "contain" }, sizeChangeBehavior: "contain" });

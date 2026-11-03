@@ -1,4 +1,5 @@
 import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from "fflate";
+import { t } from "@/locales";
 
 /**
  * 给 Word 文档（.docx）加水印，生成的是 Word 原生水印：
@@ -247,17 +248,17 @@ export function addWatermark(docx: Uint8Array, options: WatermarkOptions): Uint8
   try {
     files = unzipSync(docx);
   } catch {
-    throw new Error("不是有效的 Word 文档（.docx）");
+    throw new Error(t("document.notDocx"));
   }
   const read = (path: string) => (files[path] ? strFromU8(files[path]) : "");
   const write = (path: string, text: string) => (files[path] = strToU8(text));
 
   let documentXml = read("word/document.xml");
-  if (!documentXml) throw new Error("不是有效的 Word 文档（.docx），旧版 .doc 请先在 Word 中另存为 .docx");
-  if (!/<w:sectPr\b/.test(documentXml)) throw new Error("文档结构异常：找不到分节信息");
+  if (!documentXml) throw new Error(t("document.oldDoc"));
+  if (!/<w:sectPr\b/.test(documentXml)) throw new Error(t("document.noSection"));
   const o = options;
-  if (o.kind === "text" && !o.text.trim()) throw new Error("请输入水印文字");
-  if (o.kind === "image" && !o.image) throw new Error("请选择水印图片");
+  if (o.kind === "text" && !o.text.trim()) throw new Error(t("document.needText"));
+  if (o.kind === "image" && !o.image) throw new Error(t("document.needImage"));
 
   let docRels = read("word/_rels/document.xml.rels") || EMPTY_RELS;
   let contentTypes = read("[Content_Types].xml");
@@ -364,4 +365,4 @@ export function addWatermark(docx: Uint8Array, options: WatermarkOptions): Uint8
 }
 
 /** 文件名：a.docx → a_水印.docx */
-export const watermarkedName = (name: string) => name.replace(/(\.docx)?$/i, "_水印.docx");
+export const watermarkedName = (name: string) => name.replace(/(\.docx)?$/i, `_${t("document.watermarkedSuffix")}.docx`);

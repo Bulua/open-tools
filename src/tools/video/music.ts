@@ -9,6 +9,7 @@ import {
   QUALITY_HIGH,
   getFirstEncodableAudioCodec,
 } from "mediabunny";
+import { t } from "@/locales";
 import { resample } from "@/tools/audio/audio";
 import { withChannels, type Pcm } from "@/tools/audio/pcm";
 import { AudioWriter, SAMPLE_RATE, StreamResampler, UNSUPPORTED_VIDEO, openInput, stereoPlanes } from "./media";
@@ -108,9 +109,9 @@ async function prepareMusic(music: Pcm): Promise<[Float32Array, Float32Array]> {
 export async function addMusic(video: Blob, music: Pcm, o: MusicOptions, onProgress?: (p: number) => void): Promise<Uint8Array> {
   const input = openInput(video);
   try {
-    if (!(await input.canRead().catch(() => false))) throw new Error(UNSUPPORTED_VIDEO);
+    if (!(await input.canRead().catch(() => false))) throw new Error(UNSUPPORTED_VIDEO());
     const videoTrack = await input.getPrimaryVideoTrack();
-    if (!videoTrack) throw new Error("这个文件里没有画面");
+    if (!videoTrack) throw new Error(t("video.noVideoTrack"));
     const audioTrack = await input.getPrimaryAudioTrack();
     const tracks = audioTrack ? [videoTrack, audioTrack] : [videoTrack];
     const start = Math.max(0, await input.getFirstTimestamp(tracks));
@@ -118,7 +119,7 @@ export async function addMusic(video: Blob, music: Pcm, o: MusicOptions, onProgr
     const total = Math.round(duration * SAMPLE_RATE);
 
     const audioCodec = await getFirstEncodableAudioCodec(["aac", "opus"], { numberOfChannels: 2, sampleRate: SAMPLE_RATE });
-    if (!audioCodec) throw new Error("当前环境不支持音频编码，请使用最新版的 Chrome 或 Edge 浏览器");
+    if (!audioCodec) throw new Error(t("video.noAudioEncoder"));
 
     const output = new Output({ format: new Mp4OutputFormat({ fastStart: "in-memory" }), target: new BufferTarget() });
     const videoSource = new EncodedVideoPacketSource((await videoTrack.getCodec())!);
