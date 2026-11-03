@@ -3,20 +3,35 @@ import { defineModuleLocales } from "@/locales/types";
 /** 图片模块的多语言文案，写法见 docs/DEVELOPMENT.md「多语言文案」 */
 export default defineModuleLocales({
   tools: {
-    "image-compress": { name: "Image Compressor", desc: "Shrink images in bulk with adjustable quality and maximum size, and compare before and after" },
-    "image-convert": { name: "Image Format Converter", desc: "Convert between JPG, PNG and WebP; also accepts GIF, BMP and more; batch processing" },
-    "image-crop": { name: "Crop / Resize Image", desc: "Crop to a ratio or freely, and resize by pixels or percentage" },
-    "image-rotate": { name: "Rotate / Flip Image", desc: "Rotate by 90° or any angle, flip horizontally or vertically" },
-    "image-adjust": { name: "Image Color Adjust", desc: "Tune brightness, contrast, saturation and hue, or apply filters like black & white and vintage" },
-    "image-stitch": { name: "Image Stitcher", desc: "Combine several images horizontally, vertically or in a grid" },
-    "image-mosaic": { name: "Image Mosaic", desc: "Select or brush over areas to pixelate or blur private information" },
-    "image-watermark": { name: "Image Watermark", desc: "Add text or image watermarks, tiled or single, in batches" },
-    "image-removebg": {
-      name: "Background Remover",
-      desc: "AI finds the subject (people, products…) and removes the background; click leftovers to erase them; fill with white, blue, red and more",
+    en: {
+      "image-compress": { name: "Image Compressor", desc: "Shrink images in bulk with adjustable quality and maximum size, and compare before and after" },
+      "image-convert": { name: "Image Format Converter", desc: "Convert between JPG, PNG and WebP; also accepts GIF, BMP and more; batch processing" },
+      "image-crop": { name: "Crop / Resize Image", desc: "Crop to a ratio or freely, and resize by pixels or percentage" },
+      "image-rotate": { name: "Rotate / Flip Image", desc: "Rotate by 90° or any angle, flip horizontally or vertically" },
+      "image-adjust": { name: "Image Color Adjust", desc: "Tune brightness, contrast, saturation and hue, or apply filters like black & white and vintage" },
+      "image-stitch": { name: "Image Stitcher", desc: "Combine several images horizontally, vertically or in a grid" },
+      "image-mosaic": { name: "Image Mosaic", desc: "Select or brush over areas to pixelate or blur private information" },
+      "image-watermark": { name: "Image Watermark", desc: "Add text or image watermarks, tiled or single, in batches" },
+      "image-removebg": {
+        name: "Background Remover",
+        desc: "AI finds the subject (people, products…) and removes the background; click leftovers to erase them; fill with white, blue, red and more",
+      },
+      "image-color": { name: "Image Color Picker", desc: "Click an image to pick colors and extract its main palette" },
+      ico: { name: "ICO Icon Generator", desc: "Turn an image into a multi-size ICO icon (website favicon, app icon)" },
     },
-    "image-color": { name: "Image Color Picker", desc: "Click an image to pick colors and extract its main palette" },
-    ico: { name: "ICO Icon Generator", desc: "Turn an image into a multi-size ICO icon (website favicon, app icon)" },
+    ja: {
+      "image-compress": { name: "画像圧縮", desc: "画質と最大サイズを指定して画像をまとめて圧縮し、圧縮前後を比較します" },
+      "image-convert": { name: "画像形式変換", desc: "JPG・PNG・WebP を相互変換。GIF・BMP なども入力でき、まとめて処理できます" },
+      "image-crop": { name: "画像の切り抜き / サイズ変更", desc: "比率を指定または自由に切り抜き、ピクセルやパーセントでサイズを変更します" },
+      "image-rotate": { name: "画像の回転 / 反転", desc: "90° または任意の角度で回転、左右・上下に反転します" },
+      "image-adjust": { name: "画像の色調整", desc: "明るさ・コントラスト・彩度・色相を調整し、白黒やレトロなどのフィルターを適用します" },
+      "image-stitch": { name: "画像の結合", desc: "複数の画像を横・縦・グリッドで 1 枚に結合します" },
+      "image-mosaic": { name: "画像モザイク", desc: "範囲を選択または塗りつぶしてモザイクやぼかしをかけ、個人情報を隠します" },
+      "image-watermark": { name: "画像の透かし", desc: "文字や画像の透かしを追加。タイル配置やまとめて処理にも対応" },
+      "image-removebg": { name: "背景除去", desc: "AI が人物や商品などの被写体を判別して背景を除去します。残った背景はクリックで消せ、白・青・赤などの背景色にもできます" },
+      "image-color": { name: "画像の色を取得", desc: "画像をクリックして色を取得し、メインカラーを自動抽出します" },
+      ico: { name: "ICO アイコン生成", desc: "画像から複数サイズの ICO アイコン（Web サイトのファビコン、アプリのアイコン）を作成します" },
+    },
   },
   messages: {
     "zh-CN": {

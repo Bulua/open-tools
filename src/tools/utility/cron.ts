@@ -7,14 +7,18 @@
  * - Quartz：6～7 位「秒 分 时 日 月 周 [年]」，周 1～7（1 是周日），日和周其中一个写 ?
  * 支持 * ? , - /、月份和星期的英文缩写、L（最后一天 / 最后一个周几）、#（第几个周几）和 @daily 等简写。
  */
+import { locale, t, translationOf, type Locale, type Translations } from "@/locales";
 
 export type CronDialect = "unix" | "spring" | "quartz";
 
+/** fields 是各字段的顺序说明，见文案 utility.fieldsUnix 等 */
 export const DIALECTS: { value: CronDialect; label: string; fields: string }[] = [
-  { value: "unix", label: "Linux", fields: "分 时 日 月 周" },
-  { value: "spring", label: "Spring", fields: "秒 分 时 日 月 周" },
-  { value: "quartz", label: "Quartz", fields: "秒 分 时 日 月 周 [年]" },
+  { value: "unix", label: "Linux", fields: "fieldsUnix" },
+  { value: "spring", label: "Spring", fields: "fieldsSpring" },
+  { value: "quartz", label: "Quartz", fields: "fieldsQuartz" },
 ];
+/** 字段名（报错和逐项说明里用） */
+const F = (key: "Second" | "Minute" | "Hour" | "Day" | "Month" | "Week" | "Year") => t(`utility.f${key}`);
 
 export interface CronField {
   /** 原始写法 */
@@ -67,15 +71,15 @@ function parseField(text: string, min: number, max: number, label: string, toNum
   const values = new Set<number>();
   for (const part of text.split(",")) {
     const m = part.match(/^(\*|[\w]+)(?:-([\w]+))?(?:\/(\d+))?$/);
-    if (!m) throw new Error(`${label}「${part}」写法不正确`);
+    if (!m) throw new Error(t("utility.badPart", { label, part }));
     const [, a, b, stepText] = m;
     const step = stepText ? Number(stepText) : 1;
-    if (step < 1) throw new Error(`${label}「${part}」的间隔必须大于 0`);
+    if (step < 1) throw new Error(t("utility.badStep", { label, part }));
     const from = a === "*" ? min : toNumber(a);
     // 「5/10」表示从 5 开始每 10 个，一直到最大值
     const to = b !== undefined ? toNumber(b) : a === "*" || stepText ? max : from;
-    if (from < min || from > max || to < min || to > max) throw new Error(`${label}「${part}」超出范围 ${min}～${max}`);
-    if (from > to) throw new Error(`${label}「${part}」的起始值不能大于结束值`);
+    if (from < min || from > max || to < min || to > max) throw new Error(t("utility.partRange", { label, part, min, max }));
+    if (from > to) throw new Error(t("utility.partOrder", { label, part }));
     for (let v = from; v <= to; v += step) values.add(v);
   }
   return { text, values: [...values].sort((x, y) => x - y), any: false };
@@ -85,30 +89,30 @@ const numberOr = (names: string[] | null, base: number, label: string) => (s: st
   const upper = s.toUpperCase();
   const idx = names ? names.indexOf(upper) : -1;
   if (idx >= 0) return idx + base;
-  if (!/^\d+$/.test(s)) throw new Error(`${label}「${s}」不是有效的值`);
+  if (!/^\d+$/.test(s)) throw new Error(t("utility.badValue", { label, s }));
   return Number(s);
 };
 
 export function parseCron(input: string, dialect: CronDialect = detectDialect(input)): ParsedCron {
   let expr = input.trim();
-  if (!expr) throw new Error("请输入 Cron 表达式");
+  if (!expr) throw new Error(t("utility.needCron"));
   if (expr.startsWith("@")) {
     const macro = MACROS[expr.toLowerCase()];
-    if (!macro) throw new Error(`不支持「${expr}」，可以使用 @yearly @monthly @weekly @daily @hourly`);
+    if (!macro) throw new Error(t("utility.badMacro", { expr }));
     expr = dialect === "unix" ? macro : `0 ${macro}`;
   }
   const parts = expr.split(/\s+/);
   const expected = dialect === "unix" ? [5] : dialect === "spring" ? [6] : [6, 7];
   if (!expected.includes(parts.length)) {
     const info = DIALECTS.find((d) => d.value === dialect)!;
-    throw new Error(`${info.label} 格式需要 ${expected.join(" 或 ")} 位（${info.fields}），当前是 ${parts.length} 位`);
+    throw new Error(t("utility.fieldCount", { dialect: info.label, expected: expected.join(t("utility.or")), fields: t(`utility.${info.fields}`), n: parts.length }));
   }
   const [secText, minText, hourText, dayText, monthText, weekText, yearText] = dialect === "unix" ? ["0", ...parts] : parts;
 
   // 日：L、L-3（倒数第几天）；W（最近工作日）不支持
   let dayLast = false;
   let lastOffset = 0;
-  if (/W/i.test(dayText)) throw new Error("暂不支持 W（最近的工作日）");
+  if (/W/i.test(dayText)) throw new Error(t("utility.noW"));
   const dayParts = dayText.split(",").filter((p) => {
     const m = p.match(/^L(?:-(\d+))?$/i);
     if (!m) return true;
@@ -117,14 +121,14 @@ export function parseCron(input: string, dialect: CronDialect = detectDialect(in
     return false;
   });
   const dayField = dayParts.length
-    ? parseField(dayParts.join(","), 1, 31, "日", numberOr(null, 0, "日"))
+    ? parseField(dayParts.join(","), 1, 31, F("Day"), numberOr(null, 0, F("Day")))
     : { text: dayText, values: [], any: false };
 
   // 周：Quartz 1～7（1 是周日），其他 0～7（0、7 都是周日）；统一成 0～6
   const quartz = dialect === "quartz";
   const toWeekday = (s: string) => {
-    const n = numberOr(WEEKDAYS, quartz ? 1 : 0, "周")(s);
-    if (quartz ? n < 1 || n > 7 : n < 0 || n > 7) throw new Error(`周「${s}」超出范围 ${quartz ? "1～7" : "0～7"}`);
+    const n = numberOr(WEEKDAYS, quartz ? 1 : 0, F("Week"))(s);
+    if (quartz ? n < 1 || n > 7 : n < 0 || n > 7) throw new Error(t("utility.weekRange", { s, range: quartz ? "1–7" : "0–7" }));
     return quartz ? n - 1 : n % 7;
   };
   const nth: [number, number][] = [];
@@ -148,23 +152,23 @@ export function parseCron(input: string, dialect: CronDialect = detectDialect(in
     const any = weekParts.length === 1 && (weekParts[0] === "*" || weekParts[0] === "?");
     if (any) weekField = { text: weekText, values: range(0, 6), any: true };
     else {
-      const parsed = parseField(weekParts.join(","), quartz ? 1 : 0, 7, "周", (s) => numberOr(WEEKDAYS, quartz ? 1 : 0, "周")(s));
+      const parsed = parseField(weekParts.join(","), quartz ? 1 : 0, 7, F("Week"), (s) => numberOr(WEEKDAYS, quartz ? 1 : 0, F("Week"))(s));
       const values = [...new Set(parsed.values.map((v) => (quartz ? v - 1 : v % 7)))].sort((x, y) => x - y);
       weekField = { text: weekText, values, any: false };
     }
   }
 
-  if (quartz && dayText !== "?" && weekText !== "?") throw new Error("Quartz 格式中，日和周必须有一个写 ?");
+  if (quartz && dayText !== "?" && weekText !== "?") throw new Error(t("utility.quartzQ"));
 
   return {
     dialect,
-    second: parseField(secText, 0, 59, "秒", numberOr(null, 0, "秒")),
-    minute: parseField(minText, 0, 59, "分", numberOr(null, 0, "分")),
-    hour: parseField(hourText, 0, 23, "时", numberOr(null, 0, "时")),
+    second: parseField(secText, 0, 59, F("Second"), numberOr(null, 0, F("Second"))),
+    minute: parseField(minText, 0, 59, F("Minute"), numberOr(null, 0, F("Minute"))),
+    hour: parseField(hourText, 0, 23, F("Hour"), numberOr(null, 0, F("Hour"))),
     day: { ...dayField, text: dayText, any: dayText === "*" || dayText === "?", last: dayLast, lastOffset },
-    month: parseField(monthText, 1, 12, "月", numberOr(MONTHS, 1, "月")),
+    month: parseField(monthText, 1, 12, F("Month"), numberOr(MONTHS, 1, F("Month"))),
     week: { ...weekField, nth, lastOf },
-    year: yearText ? parseField(yearText, 1970, 2099, "年", numberOr(null, 0, "年")) : null,
+    year: yearText ? parseField(yearText, 1970, 2099, F("Year"), numberOr(null, 0, F("Year"))) : null,
   };
 }
 
@@ -238,7 +242,15 @@ function describeParts(text: string, unit: string, name: (v: string) => string, 
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
+/** 各语言的说明生成函数（说明要按语法拼句子，每种语言单独写）；没有的语言用英文说明 */
+const DESCRIBERS: Partial<Record<Locale, (c: ParsedCron) => string>> = { "zh-CN": describeCronZh, en: describeCronEn };
+
+/** 用当前界面语言说明 Cron 表达式 */
 export function describeCron(c: ParsedCron): string {
+  return (DESCRIBERS[locale.value] ?? describeCronEn)(c);
+}
+
+function describeCronZh(c: ParsedCron): string {
   const withSeconds = c.dialect !== "unix";
   const single = (f: CronField) => !f.any && f.values.length === 1 && /^\d+$/.test(f.text);
   const weekName = (v: string) => {
@@ -299,45 +311,132 @@ export function describeCron(c: ParsedCron): string {
   return `${date} ${time}`;
 }
 
-/** 常用表达式（Linux 格式） */
-export const PRESETS: { label: string; expr: string }[] = [
-  { label: "每分钟", expr: "* * * * *" },
-  { label: "每 5 分钟", expr: "*/5 * * * *" },
-  { label: "每小时", expr: "0 * * * *" },
-  { label: "每天 0 点", expr: "0 0 * * *" },
-  { label: "每天 9:30", expr: "30 9 * * *" },
-  { label: "工作日 9 点", expr: "0 9 * * 1-5" },
-  { label: "每周一 10 点", expr: "0 10 * * 1" },
-  { label: "每月 1 日", expr: "0 0 1 * *" },
-  { label: "每月最后一天", expr: "0 18 L * *" },
-  { label: "工作时间每 15 分钟", expr: "*/15 9-18 * * 1-5" },
+// ---------- 英文说明 ----------
+
+const MONTH_NAMES_EN = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const WEEK_NAMES_EN = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const ordinal = (n: number) => `${n}${["th", "st", "nd", "rd"][n % 100 >= 11 && n % 100 <= 13 ? 0 : n % 10 < 4 ? n % 10 : 0]}`;
+
+/** 英文版的字段说明，例如「*\/5」→「every 5 minutes」，「9-18」→「hour 9 to 18」 */
+function describePartsEn(text: string, prefix: string, name: (v: string) => string, unit: string): string {
+  return text
+    .split(",")
+    .map((part) => {
+      const m = part.match(/^(\*|\w+)(?:-(\w+))?(?:\/(\d+))?$/);
+      if (!m) return part;
+      const [, a, b, step] = m;
+      if (a === "*" && step) return `every ${step} ${unit}s`;
+      if (a === "*") return `every ${unit}`;
+      if (b && step) return `every ${step} ${unit}s from ${prefix}${name(a)} to ${name(b)}`;
+      if (b) return `${prefix}${name(a)} to ${name(b)}`;
+      if (step) return `every ${step} ${unit}s starting at ${prefix}${name(a)}`;
+      return `${prefix}${name(a)}`;
+    })
+    .join(", ");
+}
+
+function describeCronEn(c: ParsedCron): string {
+  const withSeconds = c.dialect !== "unix";
+  const single = (f: CronField) => !f.any && f.values.length === 1 && /^\d+$/.test(f.text);
+  const weekName = (v: string) => {
+    const idx = WEEKDAYS.indexOf(v.toUpperCase());
+    const n = idx >= 0 ? idx : Number(v) - (c.dialect === "quartz" ? 1 : 0);
+    return WEEK_NAMES_EN[((n % 7) + 7) % 7];
+  };
+  const monthName = (v: string) => MONTH_NAMES_EN[(MONTHS.indexOf(v.toUpperCase()) + 1 || Number(v)) - 1] ?? v;
+
+  let time: string;
+  const secFixed = !withSeconds || single(c.second);
+  const fixedTimes = !c.hour.any && !c.minute.any && secFixed && c.hour.values.length * c.minute.values.length <= 6 && !/[/-]/.test(c.hour.text + c.minute.text);
+  if (fixedTimes) {
+    const sec = withSeconds && c.second.values[0] ? `:${pad(c.second.values[0])}` : "";
+    time = `at ${c.hour.values.flatMap((h) => c.minute.values.map((m) => `${pad(h)}:${pad(m)}${sec}`)).join(", ")}`;
+  } else {
+    const parts: string[] = [];
+    const secondsRestricted = withSeconds && !c.second.any && !(single(c.second) && c.second.values[0] === 0);
+    if (withSeconds && (secondsRestricted || c.second.any)) {
+      parts.push(c.second.any ? "every second" : /\//.test(c.second.text) ? describePartsEn(c.second.text, "second ", String, "second") : `at second ${c.second.values.join(", ")}`);
+    }
+    if (c.minute.any) {
+      if (!secondsRestricted && !(withSeconds && c.second.any)) parts.push("every minute");
+    } else if (/\//.test(c.minute.text)) parts.push(describePartsEn(c.minute.text, "minute ", String, "minute"));
+    else parts.push(`at minute ${c.minute.values.join(", ")}${c.hour.any ? " of every hour" : ""}`);
+    if (!c.hour.any) parts.push(`during ${describePartsEn(c.hour.text, "hour ", String, "hour")}`);
+    time = parts.join(", ");
+  }
+
+  const dateParts: string[] = [];
+  const dayDesc: string[] = [];
+  if (!c.day.any) {
+    const normal = c.day.text.split(",").filter((p) => !/^L/i.test(p)).join(",");
+    if (normal) dayDesc.push(describePartsEn(normal, "day ", String, "day"));
+    if (c.day.last) dayDesc.push(c.day.lastOffset ? `${c.day.lastOffset} days before the last day` : "the last day");
+  }
+  const weekDesc: string[] = [];
+  if (!c.week.any) {
+    const normal = c.week.text.split(",").filter((p) => !/[#L]/i.test(p)).join(",");
+    if (normal) weekDesc.push(describePartsEn(normal, "", weekName, "day"));
+    for (const [w, n] of c.week.nth) weekDesc.push(`the ${ordinal(n)} ${WEEK_NAMES_EN[w]}`);
+    for (const w of c.week.lastOf) weekDesc.push(`the last ${WEEK_NAMES_EN[w]}`);
+  }
+  const dayText = dayDesc.length ? `on ${dayDesc.join(", ")}${c.month.any ? " of every month" : ""}` : "";
+  const weekText = weekDesc.length ? `on ${weekDesc.join(", ")}` : "";
+  if (dayText && weekText) dateParts.push(c.dialect === "unix" ? `${dayText} or ${weekText}` : `${dayText} and ${weekText}`);
+  else if (dayText || weekText) dateParts.push(dayText || weekText);
+  if (!c.month.any) dateParts.push(`in ${describePartsEn(c.month.text, "", monthName, "month")}`);
+  if (c.year) dateParts.push(`in ${describePartsEn(c.year.text, "", String, "year")}`);
+
+  const date = dateParts.join(", ");
+  const text = date ? `${time}, ${date}` : fixedTimes ? `${time} every day` : time;
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** 常用表达式（Linux 格式），i18n 是其他语言的名称 */
+export const PRESETS: { label: string; i18n: Translations<string>; expr: string }[] = [
+  { label: "每分钟", i18n: { en: "Every minute" }, expr: "* * * * *" },
+  { label: "每 5 分钟", i18n: { en: "Every 5 minutes" }, expr: "*/5 * * * *" },
+  { label: "每小时", i18n: { en: "Hourly" }, expr: "0 * * * *" },
+  { label: "每天 0 点", i18n: { en: "Daily at 0:00" }, expr: "0 0 * * *" },
+  { label: "每天 9:30", i18n: { en: "Daily at 9:30" }, expr: "30 9 * * *" },
+  { label: "工作日 9 点", i18n: { en: "Weekdays at 9:00" }, expr: "0 9 * * 1-5" },
+  { label: "每周一 10 点", i18n: { en: "Mondays at 10:00" }, expr: "0 10 * * 1" },
+  { label: "每月 1 日", i18n: { en: "1st of each month" }, expr: "0 0 1 * *" },
+  { label: "每月最后一天", i18n: { en: "Last day of month" }, expr: "0 18 L * *" },
+  { label: "工作时间每 15 分钟", i18n: { en: "Every 15 min in work hours" }, expr: "*/15 9-18 * * 1-5" },
 ];
 
 /** 各字段的名称，用于逐项说明 */
 export function fieldRows(c: ParsedCron): { name: string; text: string; values: string }[] {
-  const show = (f: CronField, fmt: (v: number) => string = String) => (f.any ? "任意" : f.values.length > 12 ? `${f.values.length} 个值` : join(f.values.map(fmt)));
+  const zh = locale.value === "zh-CN";
+  const list = (items: string[]) => items.join(t("utility.listSep"));
+  // 星期名：中文用「周一」，其他语言取系统的星期名（2023-01-01 是周日）
+  const weekLabel = (w: number) => (zh ? WEEK_LABELS[w] : new Date(2023, 0, 1 + w).toLocaleDateString(locale.value, { weekday: "long" }));
+  const show = (f: CronField, fmt: (v: number) => string = String) =>
+    f.any ? t("utility.any") : f.values.length > 12 ? t("utility.nValues", { n: f.values.length }) : list(f.values.map(fmt));
   const rows = [
-    ...(c.dialect !== "unix" ? [{ name: "秒", text: c.second.text, values: show(c.second) }] : []),
-    { name: "分", text: c.minute.text, values: show(c.minute) },
-    { name: "时", text: c.hour.text, values: show(c.hour) },
+    ...(c.dialect !== "unix" ? [{ name: F("Second"), text: c.second.text, values: show(c.second) }] : []),
+    { name: F("Minute"), text: c.minute.text, values: show(c.minute) },
+    { name: F("Hour"), text: c.hour.text, values: show(c.hour) },
     {
-      name: "日",
+      name: F("Day"),
       text: c.day.text,
-      values: c.day.any ? "任意" : join([...(c.day.values.length ? [show(c.day)] : []), ...(c.day.last ? [c.day.lastOffset ? `倒数第 ${c.day.lastOffset + 1} 天` : "最后一天"] : [])]),
+      values: c.day.any
+        ? t("utility.any")
+        : list([...(c.day.values.length ? [show(c.day)] : []), ...(c.day.last ? [c.day.lastOffset ? t("utility.nthLastDay", { n: zh ? c.day.lastOffset + 1 : c.day.lastOffset }) : t("utility.lastDay")] : [])]),
     },
-    { name: "月", text: c.month.text, values: show(c.month) },
+    { name: F("Month"), text: c.month.text, values: show(c.month) },
     {
-      name: "周",
+      name: F("Week"),
       text: c.week.text,
       values: c.week.any
-        ? "任意"
-        : join([
-            ...(c.week.values.length ? [show(c.week, (v) => WEEK_LABELS[v])] : []),
-            ...c.week.nth.map(([w, n]) => `第 ${n} 个${WEEK_LABELS[w]}`),
-            ...c.week.lastOf.map((w) => `最后一个${WEEK_LABELS[w]}`),
+        ? t("utility.any")
+        : list([
+            ...(c.week.values.length ? [show(c.week, weekLabel)] : []),
+            ...c.week.nth.map(([w, n]) => t("utility.nthWeekday", { n, w: weekLabel(w) })),
+            ...c.week.lastOf.map((w) => t("utility.lastWeekday", { w: weekLabel(w) })),
           ]),
     },
   ];
-  if (c.year) rows.push({ name: "年", text: c.year.text, values: show(c.year) });
+  if (c.year) rows.push({ name: F("Year"), text: c.year.text, values: show(c.year) });
   return rows;
 }

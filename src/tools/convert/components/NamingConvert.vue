@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { locale } from "@/locales";
+import { locale, translationIn } from "@/locales";
 import TextPane from "@/components/common/TextPane.vue";
 import CopyList from "@/components/common/CopyList.vue";
 import { NAMING_STYLES, convertLines } from "../transforms";
-import { NAMING_NAMES_EN } from "../namesEn";
+import { NAMING_NAMES } from "../names";
 
 /** 变量名命名风格转换：输入任意写法，一次显示驼峰、下划线、短横线等所有风格；多行逐行转换 */
 const { t } = useI18n();
@@ -13,7 +13,7 @@ const input = ref("");
 
 const items = computed(() =>
   NAMING_STYLES.map((s) => ({
-    label: locale.value === "zh-CN" ? s.label : NAMING_NAMES_EN[s.example] ?? s.label,
+    label: translationIn(NAMING_NAMES, locale.value, s.example) ?? s.label,
     value: input.value.trim() ? convertLines(input.value, s.convert) : "",
     placeholder: s.example,
   })),

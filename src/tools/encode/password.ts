@@ -87,27 +87,17 @@ export function passwordStrength(o: PasswordOptions): { bits: number; level: 0 |
 export function crackTime(bits: number): string {
   const seconds = 2 ** bits / 2 / 1e10;
   if (seconds < 1) return t("encode.instant");
-  // 中文按亿年、万年计，英文按 billion、million years 计；最大一档超过一万亿年时不再写具体数字
-  const units: [number, string][] =
-    locale.value === "zh-CN"
-      ? [
-          [31536000 * 1e8, "亿年"],
-          [31536000 * 1e4, "万年"],
-          [31536000, "年"],
-          [86400, "天"],
-          [3600, "小时"],
-          [60, "分钟"],
-          [1, "秒"],
-        ]
-      : [
-          [31536000 * 1e9, "billion years"],
-          [31536000 * 1e6, "million years"],
-          [31536000, "years"],
-          [86400, "days"],
-          [3600, "hours"],
-          [60, "minutes"],
-          [1, "seconds"],
-        ];
+  // 大单位：中文按亿年、万年计，其他语言按十亿年、百万年计（名称见文案 encode.uBig 等）；最大一档超过一万亿年时不再写具体数字
+  const [big, mid] = locale.value === "zh-CN" ? [1e8, 1e4] : [1e9, 1e6];
+  const units: [number, string][] = [
+    [31536000 * big, t("encode.uBig")],
+    [31536000 * mid, t("encode.uMid")],
+    [31536000, t("encode.uYear")],
+    [86400, t("encode.uDay")],
+    [3600, t("encode.uHour")],
+    [60, t("encode.uMinute")],
+    [1, t("encode.uSecond")],
+  ];
   if (seconds >= 31536000 * 1e12) return t("encode.overTrillion");
   const [size, unit] = units.find(([s]) => seconds >= s)!;
   const n = seconds / size;

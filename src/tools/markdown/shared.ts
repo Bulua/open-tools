@@ -1,4 +1,5 @@
 import DOMPurify from "dompurify";
+import { locale, translationIn, type Translations } from "@/locales";
 import { computed } from "vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { renderMarkdown } from "./render";
@@ -19,8 +20,12 @@ export function countWords(text: string): number {
 }
 
 export const FONTS = ["宋体", "微软雅黑", "等线", "仿宋", "楷体"];
-/** 字体在英文界面显示的名称（值仍用中文名，Word 认得） */
-export const FONT_NAMES_EN: Record<string, string> = { 宋体: "SimSun", 微软雅黑: "Microsoft YaHei", 等线: "DengXian", 仿宋: "FangSong", 楷体: "KaiTi", 黑体: "SimHei" };
+/** 字体在其他语言下显示的名称（值仍用中文名，Word 认得） */
+export const FONT_NAMES: Translations<Record<string, string>> = {
+  en: { 宋体: "SimSun", 微软雅黑: "Microsoft YaHei", 等线: "DengXian", 仿宋: "FangSong", 楷体: "KaiTi", 黑体: "SimHei" },
+};
+/** 字体在当前界面语言下显示的名称 */
+export const fontLabel = (font: string) => translationIn(FONT_NAMES, locale.value, font) ?? font;
 
 /** Word 导出格式，「Markdown 编辑预览」和「Markdown 转 Word」共用 */
 export function useDocxOptions() {

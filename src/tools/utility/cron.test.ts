@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { i18n } from "@/locales";
 import { describeCron, detectDialect, nextRuns, parseCron } from "./cron";
 
 const desc = (expr: string) => describeCron(parseCron(expr));
@@ -68,5 +69,20 @@ describe("错误提示", () => {
     expect(() => parseCron("0 0 12 * * *", "quartz")).toThrow("必须有一个写 ?");
     expect(() => parseCron("0 0 15W * *")).toThrow("暂不支持 W");
     expect(() => parseCron("a * * * *")).toThrow("不是有效的值");
+  });
+});
+
+describe("Cron 英文说明", () => {
+  const setLocale = (l: "zh-CN" | "en") => ((i18n.global.locale as unknown as { value: string }).value = l);
+  afterEach(() => setLocale("zh-CN"));
+
+  it("常见写法", () => {
+    setLocale("en");
+    expect(desc("*/5 * * * *")).toBe("Every 5 minutes");
+    expect(desc("30 9 * * *")).toBe("At 09:30 every day");
+    expect(desc("0 9 * * 1-5")).toBe("At 09:00, on Monday to Friday");
+    expect(desc("0 18 L * *")).toBe("At 18:00, on the last day of every month");
+    expect(desc("0 0 1 1 *")).toBe("At 00:00, on day 1, in January");
+    expect(desc("0 10 ? * MON#2")).toBe("At 10:00, on the 2nd Monday");
   });
 });

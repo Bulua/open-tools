@@ -12,7 +12,7 @@ open-tools/
 ├── scripts/                 # 发布脚本：同步版本到 Gitee
 ├── src/                     # 前端代码，界面全部在这里
 │   ├── main.ts              # 入口
-│   ├── locales/             # 多语言：vue-i18n 初始化、公共文案（zh-CN.ts / en.ts）、工具列表的翻译
+│   ├── locales/             # 多语言：vue-i18n 初始化、各语言的公共文案（zh-CN.ts、en.ts、ja.ts）、工具列表的翻译
 │   ├── App.vue              # 整体布局：顶栏 + 侧栏 + 工具区；记住上次打开的工具
 │   ├── styles/
 │   │   ├── theme.css        # 颜色、字体等设计变量（改主题只改这里）
@@ -142,25 +142,30 @@ import ToolActions from "@/components/tool/ToolActions.vue";
 - 新增工具：在模块的 `index.ts` 里定义，再把 id 加到 `categories` 的某个分类中。测试会检查每个工具都恰好出现在一个分类里。
 - 新增分类：在 `categories` 数组里加一项，数组顺序就是顶部分类的顺序。
 - 分类内的工具自动按名称排序（中文按拼音、英文按字母，按首字母混排），定义时的顺序不影响显示。英文界面下按英文名的字母排序。
-- 新增分类时，在 `src/locales/tools.ts` 的 `CATEGORY_NAMES_EN` 里写上分类的英文名。
+- 新增分类时，在 `src/locales/tools.ts` 的 `CATEGORY_NAMES` 里写上分类在各语言的名称。
 
 ## 多语言文案
 
-界面支持简体中文和英文，基于 [vue-i18n](https://vue-i18n.intlify.dev/)。语言默认跟随系统，用户可以在顶栏的语言按钮里切换，选择会被记住。
-找不到英文文案时显示中文，所以还没改成多语言的界面照常显示中文，不会报错。
+界面支持简体中文、英文和日语，基于 [vue-i18n](https://vue-i18n.intlify.dev/)。语言默认跟随系统，用户可以在顶栏的语言按钮里切换，选择会被记住。
 
-文案放在三个地方：
+- **中文是基准**：中文直接写在代码和数据里，其他语言都是它的翻译。
+- **缺的翻译会回退**：英文缺的显示中文；其他语言缺的先用英文，英文也没有再显示中文。所以只翻译了一部分也能正常使用。目前日语只翻译了公共界面、工具列表和 JSON 工具，其他工具界面显示英文。
+- **Rust 返回的报错统一用英文**，不跟着界面语言切换。托盘菜单的文字由前端按当前语言传给 Rust（`set_tray_text` 命令），以后加语言不用改 Rust。
 
-| 文案 | 中文写在 | 英文写在 |
+文案放在这些地方：
+
+| 文案 | 中文写在 | 其他语言写在 |
 |---|---|---|
-| 顶栏、侧栏、更新对话框、公共控件 | `src/locales/zh-CN.ts` | `src/locales/en.ts` |
-| 工具名称、说明、输入框提示、按钮名 | 模块的 `index.ts`（工具定义本身） | 模块的 `locales.ts` 的 `tools` |
-| 工具界面里的文字 | 模块的 `locales.ts` 的 `messages["zh-CN"]` | 模块的 `locales.ts` 的 `messages.en` |
+| 顶栏、侧栏、更新对话框、托盘菜单、公共控件 | `src/locales/zh-CN.ts` | `src/locales/en.ts`、`ja.ts`…（每种语言一个文件） |
+| 分类名 | `src/tools/index.ts` 的 `categories` | `src/locales/tools.ts` 的 `CATEGORY_NAMES` |
+| 工具名称、说明、输入框提示、按钮名 | 模块的 `index.ts`（工具定义本身） | 模块 `locales.ts` 的 `tools.en`、`tools.ja`… |
+| 工具界面里的文字 | 模块 `locales.ts` 的 `messages["zh-CN"]` | 模块 `locales.ts` 的 `messages.en`、`messages.ja`… |
+| 单位、城市、字体等按 id 区分的数据 | 数据本身 | 按语言分的翻译表，例如 `src/tools/convert/names.ts` |
 
 ### 新增工具时
 
 1. 照常在模块的 `index.ts` 里用中文写 `name`、`desc`（以及 `inputPlaceholder`、`actions` 的 `label`）。
-2. 在同一模块的 `locales.ts` 的 `tools` 里按工具 id 写英文。`actions` 按顺序一一对应：
+2. 在同一模块 `locales.ts` 的 `tools` 里按语言、再按工具 id 写翻译。`actions` 按顺序一一对应。**英文必须写**，其他语言能写就写，没写的显示英文：
 
 ```ts
 // src/tools/json/locales.ts
@@ -168,21 +173,29 @@ import { defineModuleLocales } from "@/locales/types";
 
 export default defineModuleLocales({
   tools: {
-    "json-escape": {
-      name: "JSON String Escape",
-      desc: "Restore escaped JSON from logs, or escape it the other way",
-      placeholder: 'e.g. {\\"name\\":\\"Open Tools\\"}', // 对应 inputPlaceholder
-      actions: ["Unescape", "Escape"], // 对应 actions 的 label
+    en: {
+      "json-escape": {
+        name: "JSON String Escape",
+        desc: "Restore escaped JSON from logs, or escape it the other way",
+        placeholder: 'e.g. {\\"name\\":\\"Open Tools\\"}', // 对应 inputPlaceholder
+        actions: ["Unescape", "Escape"], // 对应 actions 的 label
+      },
+    },
+    ja: {
+      "json-escape": { name: "JSON 文字列エスケープ", desc: "…", placeholder: "…", actions: ["アンエスケープ", "エスケープ"] },
     },
   },
 });
 ```
 
-测试会检查每个工具都有英文名称和说明，按钮数量、有没有输入框提示也要与工具定义一致。
+测试会检查每种语言都写了所有工具的名称和说明，按钮数量、有没有输入框提示也要与工具定义一致。
 
 ### 工具界面里的文字
 
-写在模块 `locales.ts` 的 `messages` 里，**以模块名为最外层的 key**，避免与其他模块重名。中文和英文结构必须相同，少写、多写 key 时 `npm run typecheck` 会报错：
+写在模块 `locales.ts` 的 `messages` 里，**以模块名为最外层的 key**，避免与其他模块重名。
+
+- 英文必须与中文的 key 完全相同：少写、多写时 `npm run typecheck` 会报错，测试也会检查。
+- 其他语言可以整块不写，但只要写了这个模块，结构也要与中文相同。缺的部分会回退到英文。
 
 ```ts
 export default defineModuleLocales({
@@ -190,6 +203,7 @@ export default defineModuleLocales({
   messages: {
     "zh-CN": { json: { sortKeys: "按键名排序", errorAt: "第 {line} 行有错误" } },
     en: { json: { sortKeys: "Sort keys", errorAt: "Error on line {line}" } },
+    ja: { json: { sortKeys: "キーで並べ替え", errorAt: "{line} 行目にエラー" } },
   },
 });
 ```
@@ -212,13 +226,32 @@ const { t } = useI18n();
 
 注意：
 
-- **变量用 `{name}` 插值**，不要把句子拆成几段再拼接，英文的语序常常和中文不同。
-- 文案里要显示 `{`、`}`、`@`、`|` 这几个字符时，写成 `{'{'}`、`{'}'}`、`{'@'}`、`{'|'}`（它们是 vue-i18n 的语法字符）。测试会逐条编译所有文案，写错时 `npm test` 会失败。
-- 选项名、单位名这类按 id 区分的数据（例如单位换算的单位、时区的城市），中文留在数据里，英文另写一个按 id 对应的表，参考 `src/tools/convert/namesEn.ts`。
+- **变量用 `{name}` 插值**，不要把句子拆成几段再拼接，各语言的语序常常不同。
+- 文案里要显示 `{`、`}`、`@`、`|` 这几个字符时，写成 `{'{'}`、`{'}'}`、`{'@'}`、`{'|'}`（它们是 vue-i18n 的语法字符）。邮箱里的 `@` 也要这样写。测试会逐条编译所有语言的文案，写错时 `npm test` 会失败。
+- **按 id 区分的数据**（例如单位、城市、字体、常用预设）：中文留在数据里，其他语言写进 `Translations` 类型的翻译表。用 `translationIn(表, locale, id)` 取，没有时自动回退到英文再到中文。参考 `src/tools/convert/names.ts`。
+- **不要写死"非中文就是英文"**：需要区分语言时查表，或者用 `Intl`（日期、星期、相对时间、数字）并传入当前语言（`import { locale } from "@/locales"`），参考 `utils/time.ts` 的 `relativeTime`。只有中文有特殊写法时，可以写 `locale.value === "zh-CN" ? 中文写法 : 通用写法`。
 - 句子中间要加粗等带标签的内容时，用 `<Translation keypath="…">` 组件和具名插槽，参考 `UpdateDialog.vue`。
 - 组件模板的 `v-for` 不要用 `t` 作循环变量，会遮住 `t()` 函数。
 - 需要跟着语言变化的数组（例如星期），用 `tm()` 取出后再用 `rt()` 逐项转换，参考 `DateTimePicker.vue`。
-- 日期、数字的格式可以直接用 `Intl` 并传入 `locale`（`import { locale } from "@/locales"`），参考 `utils/time.ts` 的 `relativeTime`。
+
+### 新增一种语言
+
+以下以日语（`ja`）为例：
+
+1. **登记语言**：
+   - 在 `src/locales/types.ts` 的 `Locale` 里加上语言代码。
+   - 在 `src/locales/index.ts` 的 `LOCALES` 里加一项，名称用这种语言自己的写法（如「日本語」）。
+   - 在同一文件的 `COMMON` 里引入下一步新建的公共文案文件。
+2. **公共文案**：复制 `src/locales/en.ts` 为 `ja.ts` 并翻译。它的类型是 `Messages<typeof zhCN>`，必须完整。
+3. **工具列表**：
+   - 在 `src/locales/tools.ts` 的 `CATEGORY_NAMES` 里加上这种语言的分类名。
+   - 在每个模块 `locales.ts` 的 `tools` 里加上这种语言的工具名称和说明。测试要求这两项完整。
+4. **工具界面**：在模块 `locales.ts` 的 `messages` 里加上这种语言的翻译。可以一个模块一个模块地加，没加的显示英文。
+5. **数据翻译表**（可选）：单位、城市、字体、Cron 和正则的常用预设等，在对应的翻译表里加上这种语言，没加的显示英文。
+6. **按语法生成的句子**（可选）：Cron 表达式的说明是按语法拼出来的，每种语言要单独写一个生成函数，登记在 `src/tools/utility/cron.ts` 的 `DESCRIBERS` 里；没写的用英文说明。
+7. **检查**：运行 `npm run typecheck` 和 `npm test`。它们会检查工具列表是否齐全、有没有多余的 key、所有文案能否正常编译。
+
+系统语言会自动匹配：例如系统是 `ja-JP` 时，先找完全相同的 `ja-JP`，没有再按语种找 `ja`，都没有时用英文。
 
 ## 代码约定
 

@@ -5,6 +5,8 @@
  *      函数 sqrt √ sin cos tan asin acos atan log ln abs exp、常量 π pi e
  *      省略乘号：2π、2(3+4)、(1+2)(3+4)
  */
+// 文件里 t 常用作 token 变量名，文案函数改名为 i18n
+import { t as i18n } from "@/locales";
 export type AngleUnit = "deg" | "rad";
 
 type Token =
@@ -26,7 +28,7 @@ function tokenize(input: string): Token[] {
       i++;
     } else if (/[\d.]/.test(ch)) {
       const m = /^(\d+\.?\d*|\.\d+)(e[+-]?\d+)?/i.exec(s.slice(i))!;
-      if (!m) throw new Error("数字格式不正确");
+      if (!m) throw new Error(i18n("utility.badNumber"));
       tokens.push({ type: "num", value: Number(m[0]) });
       i += m[0].length;
     } else if ("+-*/^%!".includes(ch)) {
@@ -37,18 +39,18 @@ function tokenize(input: string): Token[] {
       i++;
     } else if (/[a-zπ]/i.test(ch)) {
       const name = /^(π|[a-z]+)/i.exec(s.slice(i))![0].toLowerCase();
-      if (!FUNCTIONS.includes(name) && !(name in CONSTANTS) && name !== "mod") throw new Error(`不认识「${name}」`);
+      if (!FUNCTIONS.includes(name) && !(name in CONSTANTS) && name !== "mod") throw new Error(i18n("utility.unknownName", { name }));
       tokens.push(name === "mod" ? { type: "op", value: "mod" } : { type: "name", value: name });
       i += name.length;
     } else {
-      throw new Error(`不认识的符号「${ch}」`);
+      throw new Error(i18n("utility.unknownSymbol", { ch }));
     }
   }
   return tokens;
 }
 
 const factorial = (n: number) => {
-  if (!Number.isInteger(n) || n < 0) throw new Error("阶乘只能用于非负整数");
+  if (!Number.isInteger(n) || n < 0) throw new Error(i18n("utility.factorial"));
   if (n > 170) return Infinity;
   let r = 1;
   for (let k = 2; k <= n; k++) r *= k;
@@ -57,7 +59,7 @@ const factorial = (n: number) => {
 
 export function evaluate(input: string, angle: AngleUnit = "deg"): number {
   const tokens = tokenize(input);
-  if (!tokens.length) throw new Error("请输入算式");
+  if (!tokens.length) throw new Error(i18n("utility.needExpr"));
   let pos = 0;
   const peek = () => tokens[pos];
   const next = () => tokens[pos++];
@@ -83,7 +85,7 @@ export function evaluate(input: string, angle: AngleUnit = "deg"): number {
       if (t?.type === "op" && (t.value === "*" || t.value === "/" || t.value === "mod")) {
         next();
         const r = unary();
-        if (t.value === "/" && r === 0) throw new Error("不能除以 0");
+        if (t.value === "/" && r === 0) throw new Error(i18n("utility.divZero"));
         v = t.value === "*" ? v * r : t.value === "/" ? v / r : v % r;
       } else if (startsFactor(t)) {
         v *= unary(); // 省略乘号
@@ -122,7 +124,7 @@ export function evaluate(input: string, angle: AngleUnit = "deg"): number {
 
   const primary = (): number => {
     const t = next();
-    if (!t) throw new Error("算式不完整");
+    if (!t) throw new Error(i18n("utility.incomplete"));
     if (t.type === "num") return t.value;
     if (t.type === "paren" && t.value === "(") {
       const v = expression();
@@ -137,7 +139,7 @@ export function evaluate(input: string, angle: AngleUnit = "deg"): number {
       const x = negative ? -postfix() : postfix();
       switch (t.value) {
         case "sqrt":
-          if (x < 0) throw new Error("负数不能开平方");
+          if (x < 0) throw new Error(i18n("utility.negSqrt"));
           return Math.sqrt(x);
         case "sin":
           return Math.sin(toRad(x));
@@ -161,17 +163,17 @@ export function evaluate(input: string, angle: AngleUnit = "deg"): number {
           return Math.exp(x);
       }
     }
-    throw new Error("算式不完整");
+    throw new Error(i18n("utility.incomplete"));
   };
 
   const result = expression();
-  if (pos < tokens.length) throw new Error(peek().type === "paren" ? "括号不匹配" : "算式有多余的内容");
+  if (pos < tokens.length) throw new Error(peek().type === "paren" ? i18n("utility.parenMismatch") : i18n("utility.extraContent"));
   return result;
 }
 
 /** 显示结果：12 位有效数字，消除 0.1+0.2 这类浮点误差 */
 export function formatResult(n: number): string {
-  if (Number.isNaN(n)) return "无效结果";
+  if (Number.isNaN(n)) return i18n("utility.invalidResult");
   if (!Number.isFinite(n)) return n > 0 ? "∞" : "-∞";
   const abs = Math.abs(n);
   // 三角函数的 1e-17 这类误差视为 0（要在科学计数法判断之前）

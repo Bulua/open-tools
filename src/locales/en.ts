@@ -7,6 +7,11 @@ const en: Messages<typeof zhCN> = {
     title: "Language",
     auto: "Follow system",
   },
+  tray: {
+    show: "Show window",
+    quit: "Quit",
+    tooltip: "Open Tools",
+  },
   app: {
     comingSoonTitle: "{name} — coming soon",
     comingSoonDesc: "Tools in this category are on the way. Press Ctrl K to search tools in other categories.",

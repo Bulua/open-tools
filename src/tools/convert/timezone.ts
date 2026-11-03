@@ -1,8 +1,8 @@
 /**
  * 时区换算：基于浏览器内置的时区数据（Intl），自动处理夏令时。
  */
-import { locale, t } from "@/locales";
-import { CITY_NAMES_EN } from "./namesEn";
+import { locale, t, translationIn } from "@/locales";
+import { CITY_NAMES } from "./names";
 
 export interface City {
   name: string;
@@ -60,7 +60,7 @@ export function allZones(): string[] {
 }
 
 /** 城市在当前界面语言下的名称 */
-export const cityLabel = (c: City) => (locale.value === "zh-CN" ? c.name : CITY_NAMES_EN[c.zone] ?? c.name);
+export const cityLabel = (c: City) => translationIn(CITY_NAMES, locale.value, c.zone) ?? c.name;
 export const cityName = (zone: string) => {
   const city = CITIES.find((c) => c.zone === zone);
   return city ? cityLabel(city) : zone.split("/").pop()!.replace(/_/g, " ");
@@ -119,8 +119,8 @@ export function diffLabel(minutes: number): string {
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
-const WEEK = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
-const WEEK_EN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+/** 星期的简称（当前界面语言）：2023-01-01 是周日，往后数 n 天 */
+const weekdayName = (n: number) => new Date(2023, 0, 1 + n).toLocaleDateString(locale.value, { weekday: "short" });
 
 export interface ZonedTime {
   date: string;
@@ -137,7 +137,7 @@ export function timeIn(date: Date, zone: string, withSeconds = false): ZonedTime
     date: `${p.year}-${pad(p.month)}-${pad(p.day)}`,
     time: `${pad(p.hour)}:${pad(p.minute)}${withSeconds ? `:${pad(p.second)}` : ""}`,
     hour: p.hour,
-    weekday: (locale.value === "zh-CN" ? WEEK : WEEK_EN)[p.weekday],
+    weekday: weekdayName(p.weekday),
     dayKey: p.year * 10000 + p.month * 100 + p.day,
   };
 }

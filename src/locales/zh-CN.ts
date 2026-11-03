@@ -7,6 +7,12 @@ const zhCN = {
     title: "语言",
     auto: "跟随系统",
   },
+  /** 托盘菜单（由 Rust 显示，前端切换语言时传过去） */
+  tray: {
+    show: "显示主窗口",
+    quit: "退出",
+    tooltip: "Open Tools 工具百宝箱",
+  },
   app: {
     comingSoonTitle: "{name}，敬请期待",
     comingSoonDesc: "这个分类下的工具正在规划中。你可以按 Ctrl K 搜索其他分类的工具。",

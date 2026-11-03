@@ -3,6 +3,7 @@
  * ZIP 与 GZIP 的压缩算法用 fflate，TAR 格式很简单，直接解析。
  */
 import { gunzipSync, unzipSync, zipSync } from "fflate";
+import { t } from "@/locales";
 
 export interface ArchiveEntry {
   /** 包内路径，目录以 / 结尾 */
@@ -78,7 +79,7 @@ export function readArchive(fileName: string, bytes: Uint8Array): ArchiveEntry[]
     try {
       files = unzipSync(bytes);
     } catch (e) {
-      throw new Error(`无法解压：可能是加密的压缩包或使用了不支持的压缩方式（${e instanceof Error ? e.message : e}）`);
+      throw new Error(t("utility.unzipFailed", { error: e instanceof Error ? e.message : String(e) }));
     }
     return Object.entries(files).map(([name, data]) => {
       const path = fixZipName(name);
@@ -93,7 +94,7 @@ export function readArchive(fileName: string, bytes: Uint8Array): ArchiveEntry[]
     return [{ path: name, size: inner.length, dir: false, data: inner }];
   }
   if (isTar(bytes)) return parseTar(bytes);
-  throw new Error("不支持的格式，目前支持 ZIP、TAR、TGZ（TAR.GZ）、GZ");
+  throw new Error(t("utility.unsupportedArchive"));
 }
 
 /**

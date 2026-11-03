@@ -1,6 +1,6 @@
 /** 单位换算：温度、长度、重量等，纯计算，便于测试 */
-import { locale } from "@/locales";
-import { QUANTITY_NAMES_EN, UNIT_NAMES_EN } from "./namesEn";
+import { locale, translationIn } from "@/locales";
+import { QUANTITY_NAMES, UNIT_NAMES } from "./names";
 
 export interface Unit {
   id: string;
@@ -18,8 +18,8 @@ export interface Quantity {
 }
 
 /** 类别和单位在当前界面语言下的名称 */
-export const quantityLabel = (q: Quantity) => (locale.value === "zh-CN" ? q.label : QUANTITY_NAMES_EN[q.id] ?? q.label);
-export const unitLabel = (q: Quantity, u: Unit) => (locale.value === "zh-CN" ? u.label : UNIT_NAMES_EN[`${q.id}.${u.id}`] ?? u.label);
+export const quantityLabel = (q: Quantity) => translationIn(QUANTITY_NAMES, locale.value, q.id) ?? q.label;
+export const unitLabel = (q: Quantity, u: Unit) => translationIn(UNIT_NAMES, locale.value, `${q.id}.${u.id}`) ?? u.label;
 
 export const QUANTITIES: Quantity[] = [
   {

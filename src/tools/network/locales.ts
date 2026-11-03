@@ -3,13 +3,21 @@ import { defineModuleLocales } from "@/locales/types";
 /** 网络模块的多语言文案，写法见 docs/DEVELOPMENT.md「多语言文案」 */
 export default defineModuleLocales({
   tools: {
-    "http-client": {
-      name: "HTTP Client",
-      desc: "Send GET, POST or any request with headers, auth, JSON, forms and file uploads; preview JSON, web pages, images, audio, video and PDF responses, or save them to a file",
+    en: {
+      "http-client": {
+        name: "HTTP Client",
+        desc: "Send GET, POST or any request with headers, auth, JSON, forms and file uploads; preview JSON, web pages, images, audio, video and PDF responses, or save them to a file",
+      },
+      "ip-lookup": { name: "IP Address & Location", desc: "See your public IP, region, coordinates and ISP, or look up any IP" },
+      ping: { name: "Ping", desc: "Test latency and packet loss to an address" },
+      headers: { name: "Headers to JSON / cURL", desc: "Turn request headers copied from the browser or a cURL command into JSON, cURL, fetch or Python code" },
     },
-    "ip-lookup": { name: "IP Address & Location", desc: "See your public IP, region, coordinates and ISP, or look up any IP" },
-    ping: { name: "Ping", desc: "Test latency and packet loss to an address" },
-    headers: { name: "Headers to JSON / cURL", desc: "Turn request headers copied from the browser or a cURL command into JSON, cURL, fetch or Python code" },
+    ja: {
+      "http-client": { name: "HTTP リクエスト", desc: "GET・POST などのリクエストを送信。ヘッダー・認証・JSON・フォーム・ファイルアップロードに対応し、JSON・Web ページ・画像・音声・動画・PDF のレスポンスをプレビューまたはファイルとして保存できます" },
+      "ip-lookup": { name: "IP アドレスと位置情報", desc: "この PC のグローバル IP・地域・緯度経度・プロバイダーを確認、任意の IP も検索できます" },
+      ping: { name: "Ping テスト", desc: "指定したアドレスまでの遅延とパケットロスを測定します" },
+      headers: { name: "ヘッダー → JSON / cURL", desc: "ブラウザからコピーしたリクエストヘッダーや cURL コマンドを JSON・cURL・fetch・Python のコードに変換します" },
+    },
   },
   messages: {
     "zh-CN": {

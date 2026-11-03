@@ -3,12 +3,22 @@ import { defineModuleLocales } from "@/locales/types";
 /** 转换模块的多语言文案，写法见 docs/DEVELOPMENT.md「多语言文案」 */
 export default defineModuleLocales({
   tools: {
-    units: { name: "Unit Converter", desc: "Convert temperature, length, weight, area, volume, data, speed, time, pressure, energy, power, angle and frequency" },
-    timestamp: { name: "Timestamp Converter", desc: "Convert Unix timestamps (seconds / milliseconds) to and from dates, and see the current timestamp" },
-    timezone: { name: "Time Zones / World Clock", desc: "Convert times between any time zones and view the current time in several cities side by side over 24 hours" },
-    radix: { name: "Number Base Converter", desc: "Convert between binary, octal, decimal, hexadecimal and any other base" },
-    color: { name: "Color Converter HEX/RGB/HSL", desc: "Convert between color formats, with a color picker" },
-    naming: { name: "Naming Case Converter", desc: "Convert identifiers between camelCase, snake_case, kebab-case, CONSTANT_CASE and more" },
+    en: {
+      units: { name: "Unit Converter", desc: "Convert temperature, length, weight, area, volume, data, speed, time, pressure, energy, power, angle and frequency" },
+      timestamp: { name: "Timestamp Converter", desc: "Convert Unix timestamps (seconds / milliseconds) to and from dates, and see the current timestamp" },
+      timezone: { name: "Time Zones / World Clock", desc: "Convert times between any time zones and view the current time in several cities side by side over 24 hours" },
+      radix: { name: "Number Base Converter", desc: "Convert between binary, octal, decimal, hexadecimal and any other base" },
+      color: { name: "Color Converter HEX/RGB/HSL", desc: "Convert between color formats, with a color picker" },
+      naming: { name: "Naming Case Converter", desc: "Convert identifiers between camelCase, snake_case, kebab-case, CONSTANT_CASE and more" },
+    },
+    ja: {
+      units: { name: "単位換算", desc: "温度・長さ・重さ・面積・体積・データ量・速度・時間・圧力・エネルギー・電力・角度・周波数を換算" },
+      timestamp: { name: "タイムスタンプ変換", desc: "Unix タイムスタンプ（秒 / ミリ秒）と日時を相互変換し、現在のタイムスタンプを表示します" },
+      timezone: { name: "タイムゾーン / 世界時計", desc: "任意のタイムゾーン間で時刻を換算し、複数都市の現在時刻を 24 時間で比較します" },
+      radix: { name: "進数変換", desc: "2 進数・8 進数・10 進数・16 進数・任意の進数を相互変換" },
+      color: { name: "カラー変換 HEX/RGB/HSL", desc: "色の形式を相互変換、カラーピッカー付き" },
+      naming: { name: "命名規則変換", desc: "変数名をキャメルケース・スネークケース・ケバブケース・定数形式などに変換" },
+    },
   },
   messages: {
     "zh-CN": {

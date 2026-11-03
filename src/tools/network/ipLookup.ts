@@ -7,6 +7,10 @@
  */
 import { locale, t } from "@/locales";
 
+/** ip-api.com 支持的地名语言，其他语言用英文 */
+const IP_API_LANGS = ["en", "de", "es", "pt-BR", "fr", "ja", "zh-CN", "ru"];
+const ipApiLang = () => (IP_API_LANGS.includes(locale.value) ? locale.value : "en");
+
 /** 服务明确回答「查询失败」（比如 IP 格式不对），换别的服务也没用 */
 class QueryError extends Error {}
 const queryFailed = (detail?: string) => new QueryError(detail ? t("network.queryFailedDetail", { error: detail }) : t("network.queryFailed"));
@@ -52,7 +56,7 @@ export const PROVIDERS: Provider[] = [
     // 返回中文地名，速度快；免费版只支持 HTTP
     name: "ip-api.com",
     url: (ip) =>
-      `http://ip-api.com/json/${encodeURIComponent(ip)}?lang=${locale.value === "zh-CN" ? "zh-CN" : "en"}&fields=status,message,country,countryCode,regionName,city,zip,lat,lon,timezone,offset,isp,org,as,query`,
+      `http://ip-api.com/json/${encodeURIComponent(ip)}?lang=${ipApiLang()}&fields=status,message,country,countryCode,regionName,city,zip,lat,lon,timezone,offset,isp,org,as,query`,
     parse: (d) => {
       if (d.status !== "success") throw queryFailed(d.message);
       return {

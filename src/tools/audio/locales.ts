@@ -3,11 +3,20 @@ import { defineModuleLocales } from "@/locales/types";
 /** 音频模块的多语言文案，写法见 docs/DEVELOPMENT.md「多语言文案」 */
 export default defineModuleLocales({
   tools: {
-    "audio-convert": { name: "Audio Converter", desc: "Convert between MP3, WAV, M4A, FLAC and more, or extract audio from videos like MP4" },
-    "audio-editor": { name: "Audio Editor", desc: "Select a range on the waveform to keep or delete it; fade in/out and adjust volume" },
-    "audio-join": { name: "Audio Joiner", desc: "Join several audio clips in order, with reordering and gaps between them" },
-    recorder: { name: "Voice Recorder", desc: "Record from the microphone with pause, then preview and save as MP3 or WAV" },
-    tts: { name: "Text to Speech", desc: "Read text aloud with the voices built into Windows, and save it as an audio file" },
+    en: {
+      "audio-convert": { name: "Audio Converter", desc: "Convert between MP3, WAV, M4A, FLAC and more, or extract audio from videos like MP4" },
+      "audio-editor": { name: "Audio Editor", desc: "Select a range on the waveform to keep or delete it; fade in/out and adjust volume" },
+      "audio-join": { name: "Audio Joiner", desc: "Join several audio clips in order, with reordering and gaps between them" },
+      recorder: { name: "Voice Recorder", desc: "Record from the microphone with pause, then preview and save as MP3 or WAV" },
+      tts: { name: "Text to Speech", desc: "Read text aloud with the voices built into Windows, and save it as an audio file" },
+    },
+    ja: {
+      "audio-convert": { name: "音声形式変換", desc: "MP3・WAV・M4A・FLAC などを相互変換し、MP4 などの動画から音声も取り出せます" },
+      "audio-editor": { name: "音声編集", desc: "波形上で範囲を選んで残す / 削除し、フェードや音量を調整します" },
+      "audio-join": { name: "音声の結合", desc: "複数の音声を順番に 1 つに結合。順番の入れ替えや間隔の挿入も可能" },
+      recorder: { name: "ボイスレコーダー", desc: "マイクで録音し、一時停止も可能。録音後に試聴して MP3 または WAV で保存します" },
+      tts: { name: "テキスト読み上げ", desc: "Windows 標準の音声でテキストを読み上げ、音声ファイルとして保存できます" },
+    },
   },
   messages: {
     "zh-CN": {

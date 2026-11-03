@@ -1,15 +1,17 @@
 /**
  * 倒计时的纯计算：剩余时间拆分、重复提醒的下一次时间。
  */
+import { t } from "@/locales";
 
 export type Repeat = "none" | "daily" | "weekly" | "monthly" | "yearly";
 
+/** 重复方式，名称见文案 utility.repeatNone 等 */
 export const REPEATS: { value: Repeat; label: string }[] = [
-  { value: "none", label: "不重复" },
-  { value: "daily", label: "每天" },
-  { value: "weekly", label: "每周" },
-  { value: "monthly", label: "每月" },
-  { value: "yearly", label: "每年" },
+  { value: "none", label: "repeatNone" },
+  { value: "daily", label: "repeatDaily" },
+  { value: "weekly", label: "repeatWeekly" },
+  { value: "monthly", label: "repeatMonthly" },
+  { value: "yearly", label: "repeatYearly" },
 ];
 
 export interface CountdownItem {
@@ -47,7 +49,7 @@ const pad = (n: number) => String(n).padStart(2, "0");
 export function formatRemaining(ms: number): string {
   const r = splitRemaining(ms);
   const clock = r.hours || r.days ? `${pad(r.hours)}:${pad(r.minutes)}:${pad(r.seconds)}` : `${pad(r.minutes)}:${pad(r.seconds)}`;
-  return r.days ? `${r.days} 天 ${clock}` : clock;
+  return r.days ? t("utility.daysClock", { n: r.days, clock }) : clock;
 }
 
 /** 重复的倒计时到期后，下一次到期的时刻（晚于 now） */

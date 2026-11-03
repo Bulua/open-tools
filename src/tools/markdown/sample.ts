@@ -83,5 +83,6 @@ function greet(name: string): string {
 The last paragraph.
 `;
 
-/** 示例文档，跟着界面语言 */
-export const sampleMarkdown = (locale: string) => (locale === "zh-CN" ? SAMPLE_MARKDOWN_ZH : SAMPLE_MARKDOWN_EN);
+/** 各语言的示例文档；没有的语言用英文示例 */
+const SAMPLES: Record<string, string> = { "zh-CN": SAMPLE_MARKDOWN_ZH, en: SAMPLE_MARKDOWN_EN };
+export const sampleMarkdown = (locale: string) => SAMPLES[locale] ?? SAMPLE_MARKDOWN_EN;

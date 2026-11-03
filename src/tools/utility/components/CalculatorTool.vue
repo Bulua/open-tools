@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { Delete, Trash2 } from "lucide-vue-next";
 import ToolActions from "@/components/tool/ToolActions.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { useClipboard } from "@/composables/useClipboard";
 import { evaluate, formatResult, type AngleUnit } from "../calculator";
 
+const { t } = useI18n();
 /**
  * 计算器：可以直接用键盘输入整个算式，也可以点按键；输入时实时显示结果。
  * 回车或「=」把算式记入历史，点历史记录可以再次使用。
@@ -84,16 +86,16 @@ const KEYS: Key[] = [
   { label: "tan", insert: "tan(", kind: "fn" },
   { label: "π", insert: "π", kind: "fn" },
   { label: "ln", insert: "ln(", kind: "fn" },
-  { label: "log", insert: "log(", kind: "fn", title: "以 10 为底的对数" },
+  { label: "log", insert: "log(", kind: "fn", title: "kLog" },
   { label: "√", insert: "√", kind: "fn" },
   { label: "e", insert: "e", kind: "fn" },
   { label: "(", insert: "(", kind: "fn" },
   { label: ")", insert: ")", kind: "fn" },
-  { label: "xʸ", insert: "^", kind: "fn", title: "乘方" },
-  { label: "n!", insert: "!", kind: "fn", title: "阶乘" },
-  { label: "AC", action: clear, kind: "op", title: "清空（Esc）" },
-  { label: "⌫", action: backspace, kind: "op", title: "退格" },
-  { label: "%", insert: "%", kind: "op", title: "百分号：50% = 0.5" },
+  { label: "xʸ", insert: "^", kind: "fn", title: "kPow" },
+  { label: "n!", insert: "!", kind: "fn", title: "kFact" },
+  { label: "AC", action: clear, kind: "op", title: "kClear" },
+  { label: "⌫", action: backspace, kind: "op", title: "kBack" },
+  { label: "%", insert: "%", kind: "op", title: "kPercent" },
   { label: "÷", insert: "÷", kind: "op" },
   { label: "7", insert: "7" },
   { label: "8", insert: "8" },
@@ -107,19 +109,19 @@ const KEYS: Key[] = [
   { label: "2", insert: "2" },
   { label: "3", insert: "3" },
   { label: "+", insert: "+", kind: "op" },
-  { label: "x²", insert: "^2", kind: "op", title: "平方" },
+  { label: "x²", insert: "^2", kind: "op", title: "kSquare" },
   { label: "0", insert: "0" },
   { label: ".", insert: "." },
-  { label: "=", action: equals, kind: "eq", title: "计算（回车）" },
+  { label: "=", action: equals, kind: "eq", title: "kEquals" },
 ];
 const press = (k: Key) => (k.action ? k.action() : insert(k.insert!));
 </script>
 
 <template>
   <ToolActions>
-    <div class="seg" title="三角函数使用的角度单位">
-      <button :class="{ on: angle === 'deg' }" @click="angle = 'deg'">角度 DEG</button>
-      <button :class="{ on: angle === 'rad' }" @click="angle = 'rad'">弧度 RAD</button>
+    <div class="seg" :title="t('utility.angleUnit')">
+      <button :class="{ on: angle === 'deg' }" @click="angle = 'deg'">{{ t("utility.deg") }}</button>
+      <button :class="{ on: angle === 'rad' }" @click="angle = 'rad'">{{ t("utility.rad") }}</button>
     </div>
   </ToolActions>
 
@@ -132,7 +134,7 @@ const press = (k: Key) => (k.action ? k.action() : insert(k.insert!));
           v-model="expr"
           class="expr"
           spellcheck="false"
-          placeholder="输入算式，例如 (12+8)×3"
+          :placeholder="t('utility.exprPlaceholder')"
           @keydown.enter.prevent="equals"
           @keydown.esc="clear"
         />
@@ -142,7 +144,7 @@ const press = (k: Key) => (k.action ? k.action() : insert(k.insert!));
       </div>
 
       <div class="keys">
-        <button v-for="k in KEYS" :key="k.label" class="key" :class="k.kind" :title="k.title" @click="press(k)">
+        <button v-for="k in KEYS" :key="k.label" class="key" :class="k.kind" :title="k.title && t(`utility.${k.title}`)" @click="press(k)">
           <Delete v-if="k.label === '⌫'" :size="18" />
           <template v-else>{{ k.label }}</template>
         </button>
@@ -151,18 +153,18 @@ const press = (k: Key) => (k.action ? k.action() : insert(k.insert!));
 
     <section class="card history">
       <header class="card-title">
-        历史记录
-        <button v-if="history.length" class="icon-btn push" title="清空历史" @click="history = []"><Trash2 :size="14" /></button>
+        {{ t("utility.history") }}
+        <button v-if="history.length" class="icon-btn push" :title="t('utility.clearHistory')" @click="history = []"><Trash2 :size="14" /></button>
       </header>
       <ul v-if="history.length" class="records">
         <li v-for="(h, i) in history" :key="i" class="record">
-          <button class="record-expr" title="使用这个算式" @click="expr = h.expr; focus()">{{ h.expr }}</button>
-          <button class="record-result" title="使用这个结果（右键复制）" @click="insert(h.result)" @contextmenu.prevent="copy(h.result)">
+          <button class="record-expr" :title="t('utility.useExpr')" @click="expr = h.expr; focus()">{{ h.expr }}</button>
+          <button class="record-result" :title="t('utility.useResult')" @click="insert(h.result)" @contextmenu.prevent="copy(h.result)">
             = {{ h.result }}
           </button>
         </li>
       </ul>
-      <p v-else class="empty">按回车或「=」后，算式会记录在这里。点算式可以重新编辑，点结果可以插入到当前算式，右键结果可以复制。</p>
+      <p v-else class="empty">{{ t("utility.historyEmpty") }}</p>
     </section>
   </div>
 </template>

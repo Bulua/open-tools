@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
+import { locale, translationOf } from "@/locales";
 import { CircleAlert, Copy, Check } from "lucide-vue-next";
 import ToolActions from "@/components/tool/ToolActions.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
@@ -7,6 +9,7 @@ import { useClipboard } from "@/composables/useClipboard";
 import { formatDateTime, relativeTime } from "@/utils/time";
 import { DIALECTS, PRESETS, describeCron, detectDialect, fieldRows, nextRuns, parseCron, type CronDialect } from "../cron";
 
+const { t } = useI18n();
 /**
  * Cron 表达式：输入后实时显示中文说明、每个字段的含义和接下来的执行时间。
  * 自动识别 Linux（5 位）、Spring（6 位）、Quartz（含 ?）格式，也可以手动指定。
@@ -50,24 +53,27 @@ const usePreset = (presetExpr: string) => {
 };
 
 const { copied, copy } = useClipboard();
-const WEEK = ["日", "一", "二", "三", "四", "五", "六"];
+/** 星期的简称，跟着界面语言 */
+const weekday = (d: Date) => d.toLocaleDateString(locale.value, { weekday: "short" });
 
+/** 语法速查：符号和说明的文案 key */
 const SYNTAX = [
-  ["*", "任意值"],
-  [",", "列举，如 1,15"],
-  ["-", "范围，如 1-5"],
-  ["/", "间隔，如 */10、5/15"],
-  ["?", "不指定（Quartz 的日或周）"],
-  ["L", "最后，如日写 L、周写 5L"],
-  ["#", "第几个周几，如 MON#2"],
+  ["*", "synAny"],
+  [",", "synList"],
+  ["-", "synRange"],
+  ["/", "synStep"],
+  ["?", "synNone"],
+  ["L", "synLast"],
+  ["#", "synNth"],
 ];
+const fieldsOf = (d: CronDialect) => t(`utility.${DIALECTS.find((x) => x.value === d)?.fields}`);
 </script>
 
 <template>
   <ToolActions>
-    <div class="seg" title="表达式格式">
-      <button :class="{ on: dialectSetting === 'auto' }" @click="dialectSetting = 'auto'">自动识别</button>
-      <button v-for="d in DIALECTS" :key="d.value" :class="{ on: dialectSetting === d.value }" :title="d.fields" @click="dialectSetting = d.value">
+    <div class="seg" :title="t('utility.format')">
+      <button :class="{ on: dialectSetting === 'auto' }" @click="dialectSetting = 'auto'">{{ t("utility.auto") }}</button>
+      <button v-for="d in DIALECTS" :key="d.value" :class="{ on: dialectSetting === d.value }" :title="fieldsOf(d.value)" @click="dialectSetting = d.value">
         {{ d.label }}
       </button>
     </div>
@@ -76,39 +82,39 @@ const SYNTAX = [
   <div class="cron">
     <section class="card hero" :class="{ invalid: !result.ok }">
       <div class="input-row">
-        <input v-model="expr" class="expr" spellcheck="false" placeholder="例如 */5 * * * *" />
-        <button class="btn subtle" :class="{ ok: copied }" title="复制表达式" @click="copy(expr)">
-          <Check v-if="copied" :size="14" /><Copy v-else :size="14" />复制
+        <input v-model="expr" class="expr" spellcheck="false" :placeholder="t('utility.cronPlaceholder')" />
+        <button class="btn subtle" :class="{ ok: copied }" :title="t('utility.copyExpr')" @click="copy(expr)">
+          <Check v-if="copied" :size="14" /><Copy v-else :size="14" />{{ t("utility.copy") }}
         </button>
       </div>
       <div class="fields-hint">
-        <span>{{ DIALECTS.find((d) => d.value === dialect)?.label }} 格式：</span>
-        <span v-for="f in DIALECTS.find((d) => d.value === dialect)?.fields.split(' ')" :key="f" class="slot">{{ f }}</span>
+        <span>{{ t("utility.formatOf", { dialect: DIALECTS.find((d) => d.value === dialect)?.label }) }}</span>
+        <span v-for="f in fieldsOf(dialect).split(' ')" :key="f" class="slot">{{ f }}</span>
       </div>
       <p v-if="result.ok" class="meaning">{{ result.text }}</p>
       <p v-else class="error"><CircleAlert :size="15" />{{ result.error }}</p>
       <div class="presets">
-        <span class="label">常用</span>
-        <button v-for="p in PRESETS" :key="p.expr" :title="p.expr" @click="usePreset(p.expr)">{{ p.label }}</button>
+        <span class="label">{{ t("utility.common") }}</span>
+        <button v-for="p in PRESETS" :key="p.expr" :title="p.expr" @click="usePreset(p.expr)">{{ translationOf(p.i18n, locale) ?? p.label }}</button>
       </div>
     </section>
 
     <div class="grid">
       <section class="card">
-        <div class="card-title">接下来的执行时间</div>
+        <div class="card-title">{{ t("utility.nextRuns") }}</div>
         <ol v-if="runs.length" class="runs">
-          <li v-for="(t, i) in runs" :key="t.getTime()">
+          <li v-for="(run, i) in runs" :key="run.getTime()">
             <span class="index">{{ i + 1 }}</span>
-            <span class="time">{{ formatDateTime(t) }}</span>
-            <span class="week">周{{ WEEK[t.getDay()] }}</span>
-            <span class="relative">{{ relativeTime(t.getTime(), now) }}</span>
+            <span class="time">{{ formatDateTime(run) }}</span>
+            <span class="week">{{ weekday(run) }}</span>
+            <span class="relative">{{ relativeTime(run.getTime(), now) }}</span>
           </li>
         </ol>
-        <p v-else class="empty">{{ result.ok ? "未来 5 年内没有匹配的时间" : "表达式有误，无法计算" }}</p>
+        <p v-else class="empty">{{ result.ok ? t("utility.noRuns") : t("utility.badExpr") }}</p>
       </section>
 
       <section class="card">
-        <div class="card-title">各字段含义</div>
+        <div class="card-title">{{ t("utility.fieldMeaning") }}</div>
         <table v-if="result.ok" class="table">
           <tr v-for="r in result.rows" :key="r.name">
             <th>{{ r.name }}</th>
@@ -120,11 +126,11 @@ const SYNTAX = [
       </section>
 
       <section class="card">
-        <div class="card-title">语法速查</div>
+        <div class="card-title">{{ t("utility.syntax") }}</div>
         <table class="table">
           <tr v-for="[k, v] in SYNTAX" :key="k">
             <th class="mono">{{ k }}</th>
-            <td>{{ v }}</td>
+            <td>{{ t(`utility.${v}`) }}</td>
           </tr>
         </table>
       </section>

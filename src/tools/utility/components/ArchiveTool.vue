@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef } from "vue";
+import { useI18n } from "vue-i18n";
 import { ChevronRight, Download, File as FileIcon, Folder, FolderOpen, FolderPlus, Plus, Trash2, X } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
@@ -7,6 +8,7 @@ import { formatBytes } from "@/utils/format";
 import { canSaveToFolder, saveFile, saveToFolder } from "@/utils/saveFile";
 import { buildTree, buildZip, readArchive, safeRelativePath, type ArchiveEntry, type TreeNode } from "../archive";
 
+const { t } = useI18n();
 /**
  * 按 mode 注册为两个工具：
  * - compress：把文件或文件夹打包为 ZIP
@@ -17,18 +19,18 @@ withDefaults(defineProps<{ mode?: "compress" | "extract" }>(), { mode: "compress
 // ======================= 压缩 =======================
 
 const level = useStoredRef<0 | 1 | 6 | 9>("archive.level", 6);
-const zipName = ref("压缩文件");
+const zipName = ref(t("utility.zipName"));
 const items = shallowRef<{ file: File; path: string }[]>([]);
 const packing = ref(false);
 const packDone = ref("");
 const compressZone = ref<InstanceType<typeof FileDropZone>>();
 
-const LEVELS: { value: 0 | 1 | 6 | 9; label: string; title: string }[] = [
-  { value: 0, label: "仅打包", title: "不压缩，速度最快，适合图片、视频等本身已压缩的文件" },
-  { value: 1, label: "快速", title: "压缩快，体积稍大" },
-  { value: 6, label: "标准", title: "速度和体积的平衡" },
-  { value: 9, label: "最小", title: "体积最小，速度最慢" },
-];
+const LEVELS = computed<{ value: 0 | 1 | 6 | 9; label: string; title: string }[]>(() => [
+  { value: 0, label: t("utility.levelStore"), title: t("utility.levelStoreTip") },
+  { value: 1, label: t("utility.levelFast"), title: t("utility.levelFastTip") },
+  { value: 6, label: t("utility.levelNormal"), title: t("utility.levelNormalTip") },
+  { value: 9, label: t("utility.levelBest"), title: t("utility.levelBestTip") },
+]);
 
 const addEntries = (entries: { file: File; path: string }[]) => {
   packDone.value = "";
@@ -49,8 +51,8 @@ const pack = async () => {
   try {
     const files = await Promise.all(items.value.map(async (i) => ({ path: i.path, data: new Uint8Array(await i.file.arrayBuffer()) })));
     const zip = buildZip(files, level.value);
-    if (await saveFile(zip, `${zipName.value.trim() || "压缩文件"}.zip`)) {
-      packDone.value = `已保存，${formatBytes(totalSize.value)} → ${formatBytes(zip.length)}`;
+    if (await saveFile(zip, `${zipName.value.trim() || t("utility.zipName")}.zip`)) {
+      packDone.value = t("utility.packSaved", { before: formatBytes(totalSize.value), after: formatBytes(zip.length) });
     }
   } finally {
     packing.value = false;
@@ -112,14 +114,14 @@ const extractAll = async () => {
   try {
     if (canSaveToFolder()) {
       const folder = await saveToFolder(files.value.map((f) => ({ parts: safeRelativePath(f.path), data: f.data })));
-      if (folder) extractDone.value = `已解压 ${files.value.length} 个文件到 ${folder}`;
+      if (folder) extractDone.value = t("utility.extracted", { n: files.value.length, folder });
     } else {
       // 浏览器中无法写入文件夹，改为打包成 ZIP 下载
       const zip = buildZip(files.value.map((f) => ({ path: safeRelativePath(f.path).join("/"), data: f.data })), 0);
       await saveFile(zip, `${archiveName.value.replace(/\.(zip|tar|tgz|gz|tar\.gz)$/i, "")}.zip`);
     }
   } catch (e) {
-    readError.value = `解压失败：${e instanceof Error ? e.message : String(e)}`;
+    readError.value = t("utility.extractFailed", { error: e instanceof Error ? e.message : String(e) });
   } finally {
     extracting.value = false;
   }
@@ -137,7 +139,7 @@ const closeArchive = () => {
   <div v-if="mode === 'compress'" class="archive">
     <aside class="card panel">
       <section class="section">
-        <h3>压缩方式</h3>
+        <h3>{{ t("utility.compressMode") }}</h3>
         <div class="seg fill">
           <button v-for="l in LEVELS" :key="l.value" :class="{ on: level === l.value }" :title="l.title" @click="level = l.value">
             {{ l.label }}
@@ -146,7 +148,7 @@ const closeArchive = () => {
         <p class="tip">{{ LEVELS.find((l) => l.value === level)?.title }}</p>
       </section>
       <section class="section">
-        <h3>压缩包名称</h3>
+        <h3>{{ t("utility.archiveName") }}</h3>
         <div class="name-row">
           <input v-model="zipName" class="field" spellcheck="false" />
           <span class="ext">.zip</span>
@@ -154,7 +156,7 @@ const closeArchive = () => {
       </section>
       <section class="section">
         <button class="btn primary full" :disabled="!items.length || packing" @click="pack">
-          <Download :size="14" />{{ packing ? "压缩中…" : "压缩并保存" }}
+          <Download :size="14" />{{ packing ? t("utility.packing") : t("utility.pack") }}
         </button>
         <p v-if="packDone" class="tip ok">{{ packDone }}</p>
       </section>
@@ -162,11 +164,11 @@ const closeArchive = () => {
 
     <section class="card list-card">
       <header class="card-title">
-        <span class="grow">待压缩{{ items.length ? `（${items.length} 个文件，${formatBytes(totalSize)}）` : "" }}</span>
+        <span class="grow">{{ t("utility.toPack") }}{{ items.length ? t("utility.toPackInfo", { n: items.length, size: formatBytes(totalSize) }) : "" }}</span>
         <template v-if="items.length">
-          <button class="btn small subtle" @click="compressZone?.open()"><Plus :size="14" />文件</button>
-          <button class="btn small subtle" @click="compressZone?.openFolder()"><FolderPlus :size="14" />文件夹</button>
-          <button class="btn small subtle" @click="items = []"><Trash2 :size="14" />清空</button>
+          <button class="btn small subtle" @click="compressZone?.open()"><Plus :size="14" />{{ t("utility.fileBtn") }}</button>
+          <button class="btn small subtle" @click="compressZone?.openFolder()"><FolderPlus :size="14" />{{ t("utility.folderBtn") }}</button>
+          <button class="btn small subtle" @click="items = []"><Trash2 :size="14" />{{ t("utility.clear") }}</button>
         </template>
       </header>
 
@@ -175,7 +177,7 @@ const closeArchive = () => {
           <FileIcon :size="15" class="row-icon" />
           <span class="name" :title="i.path">{{ i.path }}</span>
           <span class="size">{{ formatBytes(i.file.size) }}</span>
-          <button class="icon-btn" title="移除" @click="removeItem(i.path)"><X :size="13" /></button>
+          <button class="icon-btn" :title="t('utility.remove')" @click="removeItem(i.path)"><X :size="13" /></button>
         </li>
       </ul>
 
@@ -186,13 +188,13 @@ const closeArchive = () => {
         multiple
         directories
         :paste="false"
-        :title="items.length ? '拖入更多文件或文件夹' : '拖入文件或文件夹，或点击选择文件'"
-        hint="文件夹会保留里面的目录结构"
+        :title="items.length ? t('utility.dropMore') : t('utility.dropFiles')"
+        :hint="t('utility.keepStructure')"
         @entries="addEntries"
       >
         <!-- 拖放区本身是按钮，里面不能再放按钮，用 span 代替 -->
         <span v-if="!items.length" class="btn small" role="button" @click.stop="compressZone?.openFolder()">
-          <FolderPlus :size="14" />选择文件夹
+          <FolderPlus :size="14" />{{ t("utility.chooseFolder") }}
         </span>
       </FileDropZone>
     </section>
@@ -202,38 +204,38 @@ const closeArchive = () => {
   <div v-else class="archive">
     <aside class="card panel">
       <section class="section">
-        <h3>内容</h3>
+        <h3>{{ t("utility.contents") }}</h3>
         <dl class="info">
-          <dt>压缩包</dt>
+          <dt>{{ t("utility.archive") }}</dt>
           <dd :title="archiveName">{{ archiveName || "—" }}</dd>
-          <dt>文件</dt>
-          <dd>{{ entries.length ? `${files.length} 个` : "—" }}</dd>
-          <dt>解压后</dt>
+          <dt>{{ t("utility.filesLabel") }}</dt>
+          <dd>{{ entries.length ? t("utility.countN", { n: files.length }) : "—" }}</dd>
+          <dt>{{ t("utility.unpacked") }}</dt>
           <dd>{{ entries.length ? formatBytes(files.reduce((s, f) => s + f.size, 0)) : "—" }}</dd>
         </dl>
       </section>
       <section class="section">
         <button class="btn primary full" :disabled="extracting || !entries.length" @click="extractAll">
-          <FolderOpen :size="14" />{{ extracting ? "解压中…" : canSaveToFolder() ? "全部解压到文件夹" : "全部下载（ZIP）" }}
+          <FolderOpen :size="14" />{{ extracting ? t("utility.extracting") : canSaveToFolder() ? t("utility.extractToFolder") : t("utility.downloadAllZip") }}
         </button>
         <p v-if="extractDone" class="tip ok">{{ extractDone }}</p>
         <p v-else-if="readError" class="tip error">{{ readError }}</p>
-        <p v-else class="tip">也可以点列表中每个文件右侧的按钮单独下载</p>
+        <p v-else class="tip">{{ t("utility.singleTip") }}</p>
       </section>
     </aside>
 
     <section class="card list-card">
       <header class="card-title">
-        <span class="grow" :title="archiveName">{{ archiveName || "压缩包内容" }}</span>
-        <button v-if="entries.length" class="btn small subtle" @click="closeArchive"><X :size="14" />关闭</button>
+        <span class="grow" :title="archiveName">{{ archiveName || t("utility.archiveContents") }}</span>
+        <button v-if="entries.length" class="btn small subtle" @click="closeArchive"><X :size="14" />{{ t("utility.close") }}</button>
       </header>
       <!-- 不限制文件类型：拖入不支持的格式时给出明确提示，而不是没有反应 -->
       <FileDropZone
         v-if="!entries.length"
         class="drop"
         :paste="false"
-        title="拖入压缩包，或点击选择"
-        hint="支持 ZIP、TAR、TGZ（TAR.GZ）、GZ；暂不支持 7z、RAR 和加密的压缩包"
+        :title="t('utility.dropArchive')"
+        :hint="t('utility.dropArchiveHint')"
         @files="openArchive"
       >
         <span v-if="readError" class="error">{{ readError }}</span>
@@ -247,7 +249,7 @@ const closeArchive = () => {
           <component :is="node.dir ? (expanded.has(node.path) ? FolderOpen : Folder) : FileIcon" :size="15" class="row-icon" :class="{ dir: node.dir }" />
           <span class="name" :title="node.path" @click="node.dir && toggle(node)">{{ node.name }}</span>
           <span class="size">{{ formatBytes(node.size) }}</span>
-          <button v-if="!node.dir" class="icon-btn" title="下载这个文件" @click="downloadEntry(node)"><Download :size="13" /></button>
+          <button v-if="!node.dir" class="icon-btn" :title="t('utility.downloadFile')" @click="downloadEntry(node)"><Download :size="13" /></button>
           <span v-else class="caret-space wide" />
         </li>
       </ul>

@@ -3,12 +3,22 @@ import { defineModuleLocales } from "@/locales/types";
 /** 编码 / 加密模块的多语言文案，写法见 docs/DEVELOPMENT.md「多语言文案」 */
 export default defineModuleLocales({
   tools: {
-    base64: { name: "Base64 Encode / Decode", desc: "Convert text, images or any file to and from Base64; download decoded results" },
-    "text-escape": { name: "URL / Unicode / HTML Encode", desc: "URL-encode parameters, convert text to \\uXXXX, escape HTML characters — live, both ways" },
-    hash: { name: "Hash (MD5 / SHA)", desc: "Compute MD5, SHA-1, SHA-256 and SHA-512 of text or files" },
-    jwt: { name: "JWT Decoder", desc: "Inspect a JWT's header, payload and expiry time" },
-    password: { name: "Password Generator", desc: "Choose character types, length and charset; uses secure randomness and can generate in bulk" },
-    "password-vault": { name: "Password Vault", desc: "Store your accounts and passwords on this device, encrypted with a master password that cannot be recovered" },
+    en: {
+      base64: { name: "Base64 Encode / Decode", desc: "Convert text, images or any file to and from Base64; download decoded results" },
+      "text-escape": { name: "URL / Unicode / HTML Encode", desc: "URL-encode parameters, convert text to \\uXXXX, escape HTML characters — live, both ways" },
+      hash: { name: "Hash (MD5 / SHA)", desc: "Compute MD5, SHA-1, SHA-256 and SHA-512 of text or files" },
+      jwt: { name: "JWT Decoder", desc: "Inspect a JWT's header, payload and expiry time" },
+      password: { name: "Password Generator", desc: "Choose character types, length and charset; uses secure randomness and can generate in bulk" },
+      "password-vault": { name: "Password Vault", desc: "Store your accounts and passwords on this device, encrypted with a master password that cannot be recovered" },
+    },
+    ja: {
+      base64: { name: "Base64 エンコード / デコード", desc: "テキスト・画像・任意のファイルと Base64 を相互変換し、デコード結果をダウンロードできます" },
+      "text-escape": { name: "URL / Unicode / HTML エンコード", desc: "URL エンコード、文字の \\uXXXX 変換、HTML 特殊文字のエスケープを双方向にリアルタイム変換" },
+      hash: { name: "ハッシュ計算（MD5 / SHA）", desc: "テキストやファイルの MD5・SHA-1・SHA-256・SHA-512 を計算します" },
+      jwt: { name: "JWT デコード", desc: "JWT のヘッダー・ペイロード・有効期限を確認します" },
+      password: { name: "パスワード生成", desc: "文字の種類・長さ・文字セットを指定し、安全な乱数で生成します。まとめて生成も可能" },
+      "password-vault": { name: "パスワード帳", desc: "自分のアカウントとパスワードをマスターパスワードで暗号化して PC に保存します。マスターパスワードを忘れると復元できません" },
+    },
   },
   messages: {
     "zh-CN": {
@@ -171,6 +181,13 @@ export default defineModuleLocales({
         original: "原文",
         originalPlaceholder: "输入原文，右侧实时编码",
         encodedPlaceholder: "或粘贴编码后的内容，左侧实时还原，例如 {example}",
+        uBig: "亿年",
+        uMid: "万年",
+        uYear: "年",
+        uDay: "天",
+        uHour: "小时",
+        uMinute: "分钟",
+        uSecond: "秒",
       },
     },
     en: {
@@ -333,6 +350,13 @@ export default defineModuleLocales({
         original: "Original",
         originalPlaceholder: "Type the original text; it's encoded on the right as you type",
         encodedPlaceholder: "Or paste encoded content to decode it on the left, e.g. {example}",
+        uBig: "billion years",
+        uMid: "million years",
+        uYear: "years",
+        uDay: "days",
+        uHour: "hours",
+        uMinute: "minutes",
+        uSecond: "seconds",
       },
     },
   },

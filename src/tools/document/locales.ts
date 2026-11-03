@@ -3,20 +3,30 @@ import { defineModuleLocales } from "@/locales/types";
 /** 文档模块的多语言文案，写法见 docs/DEVELOPMENT.md「多语言文案」 */
 export default defineModuleLocales({
   tools: {
-    "word-to-pdf": { name: "Word to PDF", desc: "Convert with the Word / WPS installed on this computer so the layout matches the original; batch conversion" },
-    "pdf-to-word": {
-      name: "PDF to Word",
-      desc: "Turn PDFs into editable Word documents — uses Microsoft Word when installed, otherwise the built-in converter; batch conversion",
+    en: {
+      "word-to-pdf": { name: "Word to PDF", desc: "Convert with the Word / WPS installed on this computer so the layout matches the original; batch conversion" },
+      "pdf-to-word": {
+        name: "PDF to Word",
+        desc: "Turn PDFs into editable Word documents — uses Microsoft Word when installed, otherwise the built-in converter; batch conversion",
+      },
+      "word-watermark": { name: "Add Watermark to Word", desc: "Add text or image watermarks to .docx files, the same as Word's own watermarks; batch processing" },
+      "word-unwatermark": {
+        name: "Remove Word Watermark",
+        desc: "Find watermarks added by Word or WPS, plus homemade ones like WordArt or translucent images in headers, and remove the ones you check; batch processing",
+      },
+      "pdf-pages": { name: "PDF Page Editor", desc: "Delete, rotate and reorder PDF pages, or merge several PDFs into one" },
+      "pdf-unwatermark": {
+        name: "Remove PDF Watermark",
+        desc: "Find watermarks added by Acrobat, WPS and others, plus diagonal, translucent or repeated text and image watermarks, and remove the ones you check; batch processing",
+      },
     },
-    "word-watermark": { name: "Add Watermark to Word", desc: "Add text or image watermarks to .docx files, the same as Word's own watermarks; batch processing" },
-    "word-unwatermark": {
-      name: "Remove Word Watermark",
-      desc: "Find watermarks added by Word or WPS, plus homemade ones like WordArt or translucent images in headers, and remove the ones you check; batch processing",
-    },
-    "pdf-pages": { name: "PDF Page Editor", desc: "Delete, rotate and reorder PDF pages, or merge several PDFs into one" },
-    "pdf-unwatermark": {
-      name: "Remove PDF Watermark",
-      desc: "Find watermarks added by Acrobat, WPS and others, plus diagonal, translucent or repeated text and image watermarks, and remove the ones you check; batch processing",
+    ja: {
+      "word-to-pdf": { name: "Word → PDF", desc: "この PC の Word / WPS で変換するため、レイアウトは元の文書と同じです。まとめて変換できます" },
+      "pdf-to-word": { name: "PDF → Word", desc: "PDF を編集可能な Word 文書に変換します。Microsoft Word があれば Word で、なければ内蔵の変換を使います。まとめて変換できます" },
+      "word-watermark": { name: "Word に透かしを追加", desc: ".docx に文字または画像の透かしを追加します（Word 標準の透かしと同じ）。まとめて処理できます" },
+      "word-unwatermark": { name: "Word の透かしを削除", desc: "Word・WPS で追加された透かしや、ヘッダー内のワードアート・半透明画像などの自作の透かしを見つけ、チェックしたものを削除します。まとめて処理できます" },
+      "pdf-pages": { name: "PDF ページ編集", desc: "PDF のページを削除・回転・並べ替え、または複数の PDF を 1 つに結合します" },
+      "pdf-unwatermark": { name: "PDF の透かしを削除", desc: "Acrobat・WPS などで追加された透かしや、斜め・半透明・全ページに繰り返される文字や画像の透かしを見つけ、チェックしたものを削除します。まとめて処理できます" },
     },
   },
   messages: {

@@ -10,7 +10,7 @@ import { saveFiles } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
 import MarkdownView from "./MarkdownView.vue";
 import { locale } from "@/locales";
-import { FONTS, FONT_NAMES_EN, renderSafe, useDocxOptions } from "../shared";
+import { FONTS, fontLabel, renderSafe, useDocxOptions } from "../shared";
 import { createImageLoader, imageSources } from "../images";
 import { FONT_SIZES, docxNameOf, markdownToDocx } from "../toDocx";
 
@@ -20,8 +20,8 @@ import { FONT_SIZES, docxNameOf, markdownToDocx } from "../toDocx";
  */
 const { t } = useI18n();
 const { font, fontSize, lineSpacing, options } = useDocxOptions();
-const fontOptions = computed(() => FONTS.map((f) => ({ value: f, label: locale.value === "zh-CN" ? f : FONT_NAMES_EN[f] ?? f })));
-/** 中文用「小四」等字号名，英文直接显示磅数 */
+const fontOptions = computed(() => FONTS.map((f) => ({ value: f, label: fontLabel(f) })));
+/** 中文用「小四」等字号名，其他语言直接显示磅数 */
 const sizeLabel = (s: { label: string; value: number }) => (locale.value === "zh-CN" ? s.label : `${s.value} pt`);
 
 interface Doc {

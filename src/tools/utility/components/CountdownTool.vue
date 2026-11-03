@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import DateTimePicker from "@/components/common/DateTimePicker.vue";
 import ProgressBar from "@/components/common/ProgressBar.vue";
 import { AlarmClock, Pause, Play, Plus, RotateCcw, Timer, Trash2 } from "lucide-vue-next";
@@ -8,6 +9,7 @@ import { formatDateTime, relativeTime } from "@/utils/time";
 import { REPEATS, formatRemaining, progressOf, remainingOf, toMs, type CountdownItem, type Repeat } from "../countdown";
 import { addCountdown, countdowns, now, removeCountdown, restart, togglePause } from "../countdownStore";
 
+const { t } = useI18n();
 /**
  * 倒计时：到指定时间（可每天 / 每周 / 每月 / 每年重复），或者计时器（几分钟后提醒，可暂停）。
  * 倒计时保存在本地，关闭程序也不会丢失，直到手动删除；到期时在任何工具里都会弹出提醒并播放提示音。
@@ -25,24 +27,25 @@ const tomorrowNine = () => {
 const targetInput = ref(tomorrowNine());
 const repeat = ref<Repeat>("none");
 
+/** label、title 是文案 key（utility.qToday 等） */
 const QUICK_DATES: { label: string; make: () => Date; title?: string }[] = [
-  { label: "今天下班", make: () => atTime(0, 18), title: "下班" },
-  { label: "明天 9 点", make: () => atTime(1, 9) },
+  { label: "qToday", make: () => atTime(0, 18), title: "qTodayTitle" },
+  { label: "qTomorrow", make: () => atTime(1, 9) },
   {
-    label: "下周一",
+    label: "qMonday",
     make: () => {
       const d = new Date();
       return new Date(d.getFullYear(), d.getMonth(), d.getDate() + (((8 - d.getDay()) % 7) || 7), 9, 0);
     },
   },
-  { label: "元旦", make: () => new Date(new Date().getFullYear() + 1, 0, 1), title: "元旦" },
+  { label: "qNewYear", make: () => new Date(new Date().getFullYear() + 1, 0, 1), title: "qNewYear" },
   {
-    label: "周末",
+    label: "qWeekend",
     make: () => {
       const d = new Date();
       return new Date(d.getFullYear(), d.getMonth(), d.getDate() + ((6 - d.getDay() + 7) % 7 || 7), 0, 0);
     },
-    title: "周末",
+    title: "qWeekend",
   },
 ];
 function atTime(days: number, hour: number) {
@@ -51,7 +54,7 @@ function atTime(days: number, hour: number) {
 }
 const useQuickDate = (q: (typeof QUICK_DATES)[number]) => {
   targetInput.value = toInput(q.make());
-  if (q.title && !title.value) title.value = q.title;
+  if (q.title && !title.value) title.value = t(`utility.${q.title}`);
 };
 
 // ---------- 计时器 ----------
@@ -71,13 +74,13 @@ const add = () => {
   error.value = "";
   if (kind.value === "date") {
     const target = new Date(targetInput.value).getTime();
-    if (!Number.isFinite(target)) return (error.value = "请选择时间");
-    if (target <= Date.now() && repeat.value === "none") return (error.value = "这个时间已经过去了");
-    addCountdown({ title: title.value.trim() || "倒计时", target, repeat: repeat.value });
+    if (!Number.isFinite(target)) return (error.value = t("utility.pickTime"));
+    if (target <= Date.now() && repeat.value === "none") return (error.value = t("utility.timePassed"));
+    addCountdown({ title: title.value.trim() || t("utility.countdown"), target, repeat: repeat.value });
   } else {
     const duration = toMs(hours.value, minutes.value, seconds.value);
-    if (duration <= 0) return (error.value = "请设置时长");
-    addCountdown({ title: title.value.trim() || `${formatRemaining(duration)} 计时`, target: Date.now() + duration, duration, repeat: "none" });
+    if (duration <= 0) return (error.value = t("utility.needDuration"));
+    addCountdown({ title: title.value.trim() || t("utility.timerName", { time: formatRemaining(duration) }), target: Date.now() + duration, duration, repeat: "none" });
   }
   title.value = "";
 };
@@ -86,7 +89,7 @@ const add = () => {
 const sorted = computed(() =>
   [...countdowns.value].sort((a, b) => Number(a.done) - Number(b.done) || remainingOf(a, now.value) - remainingOf(b, now.value)),
 );
-const repeatLabel = (r: Repeat) => REPEATS.find((x) => x.value === r)?.label ?? "";
+const repeatLabel = (r: Repeat) => t(`utility.${REPEATS.find((x) => x.value === r)?.label ?? "repeatNone"}`);
 
 /** 删除要点两次，避免误删 */
 const confirming = ref<string | null>(null);
@@ -108,48 +111,48 @@ const onDelete = (item: CountdownItem) => {
     <aside class="card panel">
       <section class="section">
         <div class="seg fill">
-          <button :class="{ on: kind === 'date' }" @click="kind = 'date'"><AlarmClock :size="14" />到指定时间</button>
-          <button :class="{ on: kind === 'timer' }" @click="kind = 'timer'"><Timer :size="14" />计时器</button>
+          <button :class="{ on: kind === 'date' }" @click="kind = 'date'"><AlarmClock :size="14" />{{ t("utility.toTime") }}</button>
+          <button :class="{ on: kind === 'timer' }" @click="kind = 'timer'"><Timer :size="14" />{{ t("utility.timer") }}</button>
         </div>
-        <input v-model="title" class="field" maxlength="40" :placeholder="kind === 'date' ? '名称，例如 项目上线、生日' : '名称，例如 番茄钟、泡面'" @keydown.enter="add" />
+        <input v-model="title" class="field" maxlength="40" :placeholder="kind === 'date' ? t('utility.namePlaceholderDate') : t('utility.namePlaceholderTimer')" @keydown.enter="add" />
       </section>
 
       <section v-if="kind === 'date'" class="section">
-        <h3>时间</h3>
+        <h3>{{ t("utility.time") }}</h3>
         <DateTimePicker v-model="targetInput" />
         <div class="chips">
-          <button v-for="q in QUICK_DATES" :key="q.label" @click="useQuickDate(q)">{{ q.label }}</button>
+          <button v-for="q in QUICK_DATES" :key="q.label" @click="useQuickDate(q)">{{ t(`utility.${q.label}`) }}</button>
         </div>
-        <h3>重复</h3>
+        <h3>{{ t("utility.repeat") }}</h3>
         <div class="seg fill">
-          <button v-for="r in REPEATS" :key="r.value" :class="{ on: repeat === r.value }" @click="repeat = r.value">{{ r.label }}</button>
+          <button v-for="r in REPEATS" :key="r.value" :class="{ on: repeat === r.value }" @click="repeat = r.value">{{ t(`utility.${r.label}`) }}</button>
         </div>
       </section>
 
       <section v-else class="section">
-        <h3>时长</h3>
+        <h3>{{ t("utility.duration") }}</h3>
         <div class="duration">
-          <label><input v-model.number="hours" class="field" type="number" min="0" max="999" /><span>时</span></label>
-          <label><input v-model.number="minutes" class="field" type="number" min="0" max="59" /><span>分</span></label>
-          <label><input v-model.number="seconds" class="field" type="number" min="0" max="59" /><span>秒</span></label>
+          <label><input v-model.number="hours" class="field" type="number" min="0" max="999" /><span>{{ t("utility.h") }}</span></label>
+          <label><input v-model.number="minutes" class="field" type="number" min="0" max="59" /><span>{{ t("utility.m") }}</span></label>
+          <label><input v-model.number="seconds" class="field" type="number" min="0" max="59" /><span>{{ t("utility.s") }}</span></label>
         </div>
         <div class="chips">
-          <button v-for="m in QUICK_TIMERS" :key="m" @click="useQuickTimer(m)">{{ m >= 60 ? `${m / 60} 小时` : `${m} 分钟` }}</button>
+          <button v-for="m in QUICK_TIMERS" :key="m" @click="useQuickTimer(m)">{{ m >= 60 ? t("utility.hours", { n: m / 60 }) : t("utility.minutes", { n: m }) }}</button>
         </div>
       </section>
 
       <section class="section">
         <p v-if="error" class="error">{{ error }}</p>
-        <button class="btn primary full" @click="add"><Plus :size="14" />添加倒计时</button>
-        <p class="tip">倒计时会一直保存，关闭程序也不会丢失；到期时弹出提醒并播放提示音。</p>
+        <button class="btn primary full" @click="add"><Plus :size="14" />{{ t("utility.addCountdown") }}</button>
+        <p class="tip">{{ t("utility.countdownTip") }}</p>
       </section>
     </aside>
 
     <section class="list">
       <div v-if="!sorted.length" class="card empty">
         <AlarmClock :size="28" />
-        <p>还没有倒计时</p>
-        <span>在左侧设置时间或时长，添加后会显示在这里</span>
+        <p>{{ t("utility.noCountdowns") }}</p>
+        <span>{{ t("utility.noCountdownsHint") }}</span>
       </div>
 
       <article
@@ -162,27 +165,27 @@ const onDelete = (item: CountdownItem) => {
           <component :is="item.duration ? Timer : AlarmClock" :size="15" class="kind" />
           <b class="name" :title="item.title">{{ item.title }}</b>
           <span v-if="item.repeat !== 'none'" class="tag">{{ repeatLabel(item.repeat) }}</span>
-          <span v-if="item.pausedRemaining !== undefined" class="tag">已暂停</span>
+          <span v-if="item.pausedRemaining !== undefined" class="tag">{{ t("utility.paused") }}</span>
         </header>
 
-        <div v-if="item.done" class="remaining over">已到期</div>
+        <div v-if="item.done" class="remaining over">{{ t("utility.expired") }}</div>
         <div v-else class="remaining">{{ formatRemaining(remainingOf(item, now)) }}</div>
 
         <ProgressBar :value="progressOf(item, now)" />
 
         <footer>
           <span class="when">
-            {{ item.done ? `${relativeTime(item.target, now)}到期` : item.pausedRemaining !== undefined ? "暂停中" : formatDateTime(new Date(item.target)) }}
+            {{ item.done ? t("utility.expiredAt", { time: relativeTime(item.target, now) }) : item.pausedRemaining !== undefined ? t("utility.pausing") : formatDateTime(new Date(item.target)) }}
           </span>
           <template v-if="item.duration">
-            <button v-if="!item.done" class="icon-btn" :title="item.pausedRemaining !== undefined ? '继续' : '暂停'" @click="togglePause(item)">
+            <button v-if="!item.done" class="icon-btn" :title="item.pausedRemaining !== undefined ? t('utility.resume') : t('utility.pause')" @click="togglePause(item)">
               <Play v-if="item.pausedRemaining !== undefined" :size="14" />
               <Pause v-else :size="14" />
             </button>
-            <button class="icon-btn" title="重新开始" @click="restart(item)"><RotateCcw :size="14" /></button>
+            <button class="icon-btn" :title="t('utility.restart')" @click="restart(item)"><RotateCcw :size="14" /></button>
           </template>
-          <button class="delete" :class="{ confirm: confirming === item.id }" :title="confirming === item.id ? '再点一次确认删除' : '删除'" @click="onDelete(item)">
-            <Trash2 :size="14" />{{ confirming === item.id ? "确认删除" : "" }}
+          <button class="delete" :class="{ confirm: confirming === item.id }" :title="confirming === item.id ? t('utility.confirmDeleteTitle') : t('utility.delete')" @click="onDelete(item)">
+            <Trash2 :size="14" />{{ confirming === item.id ? t("utility.confirmDelete") : "" }}
           </button>
         </footer>
       </article>

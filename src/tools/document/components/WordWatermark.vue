@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { locale } from "@/locales";
-import { FONT_NAMES_EN } from "@/tools/markdown/shared";
+import { fontLabel } from "@/tools/markdown/shared";
 import AppSelect from "@/components/common/AppSelect.vue";
 import { Download, FileText, Plus, X } from "lucide-vue-next";
 import ColorPicker from "@/components/common/ColorPicker.vue";
@@ -38,7 +37,7 @@ const image = shallowRef<(WatermarkImage & { url: string }) | null>(null);
 
 const FONTS = ["宋体", "黑体", "微软雅黑", "楷体", "仿宋", "Arial"];
 /** 字体选项：值是 Word 认识的字体名，英文界面显示英文名 */
-const fontOptions = computed(() => FONTS.map((f) => ({ value: f, label: locale.value === "zh-CN" ? f : (FONT_NAMES_EN[f] ?? f) })));
+const fontOptions = computed(() => FONTS.map((f) => ({ value: f, label: fontLabel(f) })));
 const PRESETS = computed(() => t("document.presets").split("/"));
 const SIZES = [
   { label: "", value: 0 },

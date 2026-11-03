@@ -3,25 +3,36 @@ import { defineModuleLocales } from "@/locales/types";
 /** 视频模块的多语言文案，写法见 docs/DEVELOPMENT.md「多语言文案」 */
 export default defineModuleLocales({
   tools: {
-    "bilibili-download": {
-      name: "Bilibili Downloader",
-      desc: "Paste a Bilibili link to download video (MP4), audio, cover and danmaku; multi-part videos, quality and codec choice, HD after signing in",
+    en: {
+      "bilibili-download": {
+        name: "Bilibili Downloader",
+        desc: "Paste a Bilibili link to download video (MP4), audio, cover and danmaku; multi-part videos, quality and codec choice, HD after signing in",
+      },
+      "douyin-download": {
+        name: "Douyin Downloader",
+        desc: "Paste a Douyin share link to download watermark-free videos, original photos, live photos, music and covers (desktop app)",
+      },
+      "video-to-audio": {
+        name: "Video to Audio",
+        desc: "Extract the sound from videos — copy the original track (fastest, lossless) or convert to MP3, M4A or WAV; batch processing",
+      },
+      "video-concat": { name: "Video Joiner", desc: "Join several videos into one MP4; same-format clips are joined without re-encoding — fast and lossless" },
+      "video-music": {
+        name: "Add Music to Video",
+        desc: "Add background music with adjustable music and original volume, looped or played a set number of times; video is not re-encoded",
+      },
+      "screen-recorder": { name: "Screen Recorder", desc: "Record the whole screen, a window or a browser tab, with system audio and microphone; preview and save afterwards" },
+      "camera-recorder": { name: "Camera Recorder", desc: "Record a video from the camera, optionally with the microphone; preview and save afterwards" },
     },
-    "douyin-download": {
-      name: "Douyin Downloader",
-      desc: "Paste a Douyin share link to download watermark-free videos, original photos, live photos, music and covers (desktop app)",
+    ja: {
+      "bilibili-download": { name: "bilibili 動画ダウンロード", desc: "bilibili の動画リンクを貼り付けて、動画（MP4）・音声・サムネイル・コメントをダウンロード。複数パート、画質とコーデックの選択に対応し、ログインすると高画質も可能" },
+      "douyin-download": { name: "Douyin ダウンロード", desc: "Douyin の共有リンクを貼り付けて、透かしなしの動画・元画像・Live Photo・BGM・カバーをダウンロード（デスクトップ版）" },
+      "video-to-audio": { name: "動画から音声へ", desc: "動画の音声を取り出します。元の音声トラックをそのままコピー（最速・無劣化）、または MP3・M4A・WAV に変換。まとめて処理できます" },
+      "video-concat": { name: "動画の結合", desc: "複数の動画を順番に 1 つの MP4 に結合。形式が同じなら再エンコードせず、高速・無劣化です" },
+      "video-music": { name: "動画に BGM を追加", desc: "動画に BGM を追加し、BGM と元の音声の音量、ループや再生回数を調整します。映像は再エンコードしません" },
+      "screen-recorder": { name: "画面録画", desc: "画面全体・ウィンドウ・ブラウザのタブを録画し、システム音とマイクも同時に録音。録画後にプレビューして保存します" },
+      "camera-recorder": { name: "カメラ録画", desc: "カメラで動画を録画し、マイクも同時に録音。録画後にプレビューして保存します" },
     },
-    "video-to-audio": {
-      name: "Video to Audio",
-      desc: "Extract the sound from videos — copy the original track (fastest, lossless) or convert to MP3, M4A or WAV; batch processing",
-    },
-    "video-concat": { name: "Video Joiner", desc: "Join several videos into one MP4; same-format clips are joined without re-encoding — fast and lossless" },
-    "video-music": {
-      name: "Add Music to Video",
-      desc: "Add background music with adjustable music and original volume, looped or played a set number of times; video is not re-encoded",
-    },
-    "screen-recorder": { name: "Screen Recorder", desc: "Record the whole screen, a window or a browser tab, with system audio and microphone; preview and save afterwards" },
-    "camera-recorder": { name: "Camera Recorder", desc: "Record a video from the camera, optionally with the microphone; preview and save afterwards" },
   },
   messages: {
     "zh-CN": {

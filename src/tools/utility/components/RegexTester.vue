@@ -1,28 +1,25 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
+import { locale, translationOf } from "@/locales";
 import { CircleAlert } from "lucide-vue-next";
 import TextPane from "@/components/common/TextPane.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { useClipboard } from "@/composables/useClipboard";
 import { PRESETS, type RegexResult } from "../regex";
 
+const { t } = useI18n();
 /**
  * 正则表达式测试：实时高亮匹配、列出分组、预览替换结果。
  * 匹配在后台线程中执行，超时（多半是灾难性回溯）会自动中止，界面不会卡死。
  */
 const pattern = useStoredRef("regex.pattern", "(?<year>\\d{4})-(?<month>\\d{2})-(?<day>\\d{2})");
 const flags = useStoredRef("regex.flags", "g");
-const text = ref("会议安排：2024-03-15 产品评审，2024-04-02 版本发布。\n联系人：tom@example.com，电话 13812345678");
+const text = ref(t("utility.sampleText"));
 const replacement = ref("");
 const useReplace = ref(false);
 
-const FLAGS = [
-  { flag: "g", title: "全局：找出所有匹配" },
-  { flag: "i", title: "忽略大小写" },
-  { flag: "m", title: "多行：^ $ 匹配每一行的开头结尾" },
-  { flag: "s", title: "点号匹配换行" },
-  { flag: "u", title: "Unicode 模式" },
-];
+const FLAGS = computed(() => ["g", "i", "m", "s", "u"].map((flag) => ({ flag, title: t(`utility.flag${flag.toUpperCase()}`) })));
 const toggleFlag = (f: string) => {
   flags.value = flags.value.includes(f) ? flags.value.replace(f, "") : "gimsuy".split("").filter((x) => x === f || flags.value.includes(x)).join("");
 };
@@ -88,9 +85,9 @@ const marks = computed(() =>
 
 const summary = computed(() => {
   const n = result.value.matches.length;
-  if (!pattern.value) return "输入正则表达式开始匹配";
-  if (!n) return "没有匹配";
-  return `${n}${result.value.truncated ? "+" : ""} 处匹配`;
+  if (!pattern.value) return t("utility.enterRegex");
+  if (!n) return t("utility.noMatch");
+  return t("utility.matches", { n: `${n}${result.value.truncated ? "+" : ""}` });
 });
 
 const applyPreset = (p: (typeof PRESETS)[number]) => {
@@ -99,7 +96,7 @@ const applyPreset = (p: (typeof PRESETS)[number]) => {
 };
 
 const { copy } = useClipboard();
-const show = (s: string | undefined) => (s === undefined ? "（未匹配）" : s === "" ? "（空）" : s);
+const show = (s: string | undefined) => (s === undefined ? t("utility.unmatched") : s === "" ? t("utility.empty") : s);
 </script>
 
 <template>
@@ -108,35 +105,35 @@ const show = (s: string | undefined) => (s === undefined ? "（未匹配）" : s
     <section class="card pattern-bar" :class="{ invalid: !result.ok || timedOut }">
       <div class="pattern-row">
         <span class="slash">/</span>
-        <input v-model="pattern" class="pattern" spellcheck="false" placeholder="在这里输入正则表达式" />
+        <input v-model="pattern" class="pattern" spellcheck="false" :placeholder="t('utility.regexPlaceholder')" />
         <span class="slash">/</span>
         <div class="flags">
           <button v-for="f in FLAGS" :key="f.flag" :class="{ on: flags.includes(f.flag) }" :title="f.title" @click="toggleFlag(f.flag)">
             {{ f.flag }}
           </button>
         </div>
-        <button class="btn small subtle" title="复制正则" @click="copy(`/${pattern}/${flags}`)">复制</button>
+        <button class="btn small subtle" :title="t('utility.copyRegex')" @click="copy(`/${pattern}/${flags}`)">{{ t("utility.copy") }}</button>
       </div>
       <div class="presets">
-        <span class="label">常用</span>
-        <button v-for="p in PRESETS" :key="p.label" class="preset" :title="p.pattern" @click="applyPreset(p)">{{ p.label }}</button>
+        <span class="label">{{ t("utility.common") }}</span>
+        <button v-for="p in PRESETS" :key="p.label" class="preset" :title="p.pattern" @click="applyPreset(p)">{{ translationOf(p.i18n, locale) ?? p.label }}</button>
       </div>
-      <p v-if="!result.ok" class="error"><CircleAlert :size="14" />语法错误：{{ result.error }}</p>
+      <p v-if="!result.ok" class="error"><CircleAlert :size="14" />{{ t("utility.syntaxError", { error: result.error }) }}</p>
       <p v-else-if="timedOut" class="error">
-        <CircleAlert :size="14" />匹配超过 {{ TIMEOUT / 1000 }} 秒已中止，这个表达式可能存在灾难性回溯（例如 (a+)+ 这类嵌套重复）
+        <CircleAlert :size="14" />{{ t("utility.timeout", { n: TIMEOUT / 1000 }) }}
       </p>
     </section>
 
     <div class="body">
-      <TextPane v-model="text" class="text" label="测试文本" language="text" :code-marks="marks" placeholder="粘贴要匹配的文本">
+      <TextPane v-model="text" class="text" :label="t('utility.testText')" language="text" :code-marks="marks" :placeholder="t('utility.testPlaceholder')">
         <template #actions>
-          <span class="count" :class="{ zero: !result.matches.length }">{{ running ? "匹配中…" : summary }}</span>
+          <span class="count" :class="{ zero: !result.matches.length }">{{ running ? t("utility.running") : summary }}</span>
         </template>
       </TextPane>
 
       <div class="side">
         <section class="card matches">
-          <div class="card-title">匹配结果</div>
+          <div class="card-title">{{ t("utility.matchResults") }}</div>
           <ol v-if="result.matches.length" class="list">
             <li
               v-for="(m, i) in result.matches"
@@ -168,14 +165,14 @@ const show = (s: string | undefined) => (s === undefined ? "（未匹配）" : s
 
         <section class="card replace">
           <header class="card-title">
-            <label class="check"><input v-model="useReplace" type="checkbox" />替换</label>
-            <span class="hint">可以用 $1、$&lt;name&gt; 引用分组</span>
+            <label class="check"><input v-model="useReplace" type="checkbox" />{{ t("utility.replace") }}</label>
+            <span class="hint">{{ t("utility.replaceHint") }}</span>
           </header>
           <template v-if="useReplace">
             <div class="replace-input">
-              <input v-model="replacement" class="field mono" spellcheck="false" placeholder="替换为，例如 $<month>/$<day>/$<year>" />
+              <input v-model="replacement" class="field mono" spellcheck="false" :placeholder="t('utility.replacePlaceholder')" />
             </div>
-            <TextPane :model-value="result.replaced ?? ''" class="replaced" label="替换结果" readonly />
+            <TextPane :model-value="result.replaced ?? ''" class="replaced" :label="t('utility.replaced')" readonly />
           </template>
         </section>
       </div>
