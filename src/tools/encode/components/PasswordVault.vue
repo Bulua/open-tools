@@ -328,7 +328,7 @@ const formatDate = (t: number) => new Date(t).toLocaleString("zh-CN", { hour12: 
       </div>
       <p v-if="error" class="error">{{ error }}</p>
 
-      <!-- 下：卡片，每项一行，过长的截断；点击打开编辑弹窗 -->
+      <!-- 下：卡片，显示账号、密码、网址，过长的截断；点击打开编辑弹窗（备注在弹窗里看） -->
       <div ref="grid" class="grid">
         <article
           v-for="e in filtered"
@@ -371,10 +371,6 @@ const formatDate = (t: number) => new Date(t).toLocaleString("zh-CN", { hour12: 
               <button v-if="isUrl(e.url)" class="icon-btn" title="在浏览器中打开" @click.stop="openExternal(e.url)">
                 <ExternalLink :size="13" />
               </button>
-            </dd>
-            <dt>备注</dt>
-            <dd>
-              <span class="value note-line">{{ e.note || "—" }}</span>
             </dd>
           </dl>
         </article>
@@ -561,6 +557,8 @@ const formatDate = (t: number) => new Date(t).toLocaleString("zh-CN", { hour12: 
   min-height: 0;
   overflow: auto;
   display: grid;
+  /* 卡片设了 overflow: hidden，行高要按内容算，否则卡片多时会被压扁、底部被裁掉 */
+  grid-auto-rows: max-content;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   align-content: start;
   gap: 12px;
@@ -594,7 +592,7 @@ const formatDate = (t: number) => new Date(t).toLocaleString("zh-CN", { hour12: 
   font-size: 13px;
   font-weight: 600;
 }
-/* 右上角的勾选框：鼠标移到卡片上或已经有勾选时才显示 */
+/* 右上角的勾选框 */
 .pick {
   flex-shrink: 0;
   margin-left: auto;
@@ -606,12 +604,6 @@ const formatDate = (t: number) => new Date(t).toLocaleString("zh-CN", { hour12: 
   border-radius: 6px;
   background: none;
   color: var(--text-3);
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-.item:hover .pick,
-.item.picking .pick {
-  opacity: 1;
 }
 .pick:hover {
   background: var(--hover);
@@ -669,9 +661,6 @@ const formatDate = (t: number) => new Date(t).toLocaleString("zh-CN", { hour12: 
 }
 .value.mono {
   font-family: var(--font-mono);
-}
-.note-line {
-  color: var(--text-3);
 }
 .blank {
   grid-column: 1 / -1;
