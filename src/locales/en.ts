@@ -55,6 +55,8 @@ const en: Messages<typeof zhCN> = {
     notes: "What's new",
     noNotes: "No release notes for this version",
     downloading: "Downloading v{version}… {progress}%",
+    downloadSizeTotal: "Downloaded {received} / {total} total",
+    downloadSizeUnknown: "Downloaded {received}",
     installing: "Downloaded. Installing — the app will restart automatically",
     skipTitle: "Don't remind me about this version again. You can still update manually from the top right.",
     skip: "Skip this version",

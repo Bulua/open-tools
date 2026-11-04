@@ -18,6 +18,8 @@ const newVersion = ref("");
 const notesRaw = ref("");
 const notes = computed(() => pickNotes(notesRaw.value, locale.value));
 const progress = ref(0);
+const receivedBytes = ref(0);
+const totalBytes = ref<number | null>(null);
 const error = ref("");
 /** 当前版本的更新说明（已是最新版本时显示） */
 const currentNotesRaw = ref("");
@@ -119,14 +121,14 @@ async function installUpdate() {
   if (!pending) return;
   status.value = "downloading";
   progress.value = 0;
-  let total = 0;
-  let received = 0;
+  receivedBytes.value = 0;
+  totalBytes.value = null;
   try {
     await pending.downloadAndInstall((event) => {
-      if (event.event === "Started") total = event.data.contentLength ?? 0;
+      if (event.event === "Started") totalBytes.value = event.data.contentLength || null;
       else if (event.event === "Progress") {
-        received += event.data.chunkLength;
-        progress.value = total ? Math.min(100, Math.round((received / total) * 100)) : 0;
+        receivedBytes.value += event.data.chunkLength;
+        progress.value = totalBytes.value ? Math.min(100, Math.round((receivedBytes.value / totalBytes.value) * 100)) : 0;
       } else if (event.event === "Finished") status.value = "installing";
     });
     // Windows 上安装程序会自动关闭当前程序，其他情况手动重启
@@ -176,6 +178,8 @@ export function useUpdater() {
     currentNotes,
     dialogOpen,
     progress,
+    receivedBytes,
+    totalBytes,
     error,
     lastChecked,
     checkForUpdate,

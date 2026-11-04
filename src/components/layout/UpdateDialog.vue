@@ -4,6 +4,7 @@ import { CircleAlert, CircleCheck, LoaderCircle, RefreshCw, X } from "lucide-vue
 import { Translation, useI18n } from "vue-i18n";
 import { useUpdater } from "@/composables/useUpdater";
 import { locale } from "@/locales";
+import { formatBytes } from "@/utils/format";
 
 /**
  * 更新对话框：显示当前版本、新版本的更新内容、下载进度。
@@ -19,6 +20,8 @@ const {
   notes,
   currentNotes,
   progress,
+  receivedBytes,
+  totalBytes,
   error,
   lastChecked,
   checkForUpdate,
@@ -87,6 +90,11 @@ const close = () => !busy() && emit("close");
             {{ status === "downloading" ? t("update.downloading", { version: newVersion, progress }) : t("update.installing") }}
           </p>
           <div class="bar"><i :style="{ width: `${status === 'installing' ? 100 : progress}%` }" /></div>
+          <p v-if="status === 'downloading'" class="download-size">
+            {{ totalBytes !== null
+              ? t("update.downloadSizeTotal", { received: formatBytes(receivedBytes), total: formatBytes(totalBytes) })
+              : t("update.downloadSizeUnknown", { received: formatBytes(receivedBytes) }) }}
+          </p>
         </template>
 
         <p v-else-if="status === 'error'" class="state bad"><CircleAlert :size="16" />{{ error }}</p>
@@ -219,6 +227,11 @@ h3 {
   height: 100%;
   background: var(--accent);
   transition: width 0.2s;
+}
+.download-size {
+  margin: -4px 0 0;
+  color: var(--text-3);
+  font-size: 12px;
 }
 .foot {
   display: flex;

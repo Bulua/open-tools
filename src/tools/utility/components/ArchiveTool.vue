@@ -282,10 +282,11 @@ const closeArchive = () => {
   margin: 0 12px 12px;
 }
 .rows {
+  flex: 1;
+  min-height: 0;
   list-style: none;
   margin: 0;
   padding: 6px;
-  max-height: 480px;
   overflow-y: auto;
 }
 .row {

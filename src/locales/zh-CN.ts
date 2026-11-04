@@ -56,6 +56,8 @@ const zhCN = {
     notes: "更新内容",
     noNotes: "这个版本没有填写更新说明",
     downloading: "正在下载 v{version}… {progress}%",
+    downloadSizeTotal: "已下载 {received} / 总计 {total}",
+    downloadSizeUnknown: "已下载 {received}",
     installing: "下载完成，正在安装，程序会自动重启",
     skipTitle: "自动检查到这个版本时不再提醒，之后仍可以在右上角手动更新",
     skip: "跳过此版本",

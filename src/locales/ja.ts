@@ -55,6 +55,8 @@ const ja: Messages<typeof zhCN> = {
     notes: "更新内容",
     noNotes: "このバージョンには更新内容の説明がありません",
     downloading: "v{version} をダウンロード中… {progress}%",
+    downloadSizeTotal: "ダウンロード済み {received} / 合計 {total}",
+    downloadSizeUnknown: "ダウンロード済み {received}",
     installing: "ダウンロード完了。インストール中です（アプリは自動的に再起動します）",
     skipTitle: "自動確認でこのバージョンを通知しません。右上から手動で更新することはできます。",
     skip: "このバージョンをスキップ",
