@@ -1,16 +1,15 @@
-mod ai_models;
-mod branding;
-mod countdown;
-mod document;
-mod douyin;
-mod hdr;
-mod inference;
-mod network;
-mod paths;
-mod script;
-mod tray;
-mod tts;
-mod vault;
+mod core;
+mod tools;
+
+use crate::core::{branding, paths, tray};
+use crate::tools::{
+    audio, document,
+    image::{ai_models, inference},
+    network,
+    text::vault,
+    time::countdown,
+    video::{douyin, hdr},
+};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -35,8 +34,8 @@ pub fn run() {
             document::office_to_pdf,
             document::pdf_to_word,
             douyin::douyin_capture,
-            tts::tts_voices,
-            tts::tts_synthesize,
+            audio::tts_voices,
+            audio::tts_synthesize,
             ai_models::ai_status,
             ai_models::ai_model_download,
             ai_models::ai_model_progress,

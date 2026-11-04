@@ -12,7 +12,7 @@ use tauri::{AppHandle, Manager, Runtime};
 const MAX_SIZE: usize = 2 * 1024 * 1024;
 
 fn branding_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
-    crate::paths::sub_dir(app, "branding")
+    crate::core::paths::sub_dir(app, "branding")
 }
 
 /// 图标 id 会拼进文件名，只允许小写字母、数字和连字符
@@ -119,7 +119,7 @@ fn remove_unused(dir: &std::path::Path, keep: Option<&str>) {
 /// 让桌面、开始菜单、固定到任务栏的快捷方式使用 ico 这个图标；为空时用程序自带的图标
 #[cfg(windows)]
 fn update_shortcuts(ico: Option<PathBuf>) {
-    use crate::script::{run_powershell, TempDir};
+    use crate::core::script::{run_powershell, TempDir};
     const SCRIPT: &str = include_str!("shortcut_icon.ps1");
 
     let Ok(exe) = std::env::current_exe() else { return };

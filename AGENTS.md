@@ -28,7 +28,7 @@ npm run build      # 前端构建
 - **本机没有 Rust 工具链**：`src-tauri/` 下的改动只能推送后靠 GitHub Actions 编译验证。改 Rust 前先跟用户说明改法；Rust 改动尽量单独一个提交，编译出错时容易单独修。
 - **换行符**：仓库统一 LF（见 `.gitattributes`），在 Windows 上编辑时不要引入 CRLF 差异。
 - **动效风格**：过渡要平滑（ease-out），不要回弹；内容不要淡入淡出或闪烁，不要拉伸文字。动效变量在 `src/styles/motion.css`，滑动高亮用 `src/utils/motion.ts`。
-- **数据和 AI 模型**：程序数据的位置统一用 `src-tauri/src/paths.rs`（Windows 上是安装目录下的 `data`）；AI 模型在 Rust 里推理，模型和运行环境由用户选择下载，不打包，详见 `docs/DEVELOPMENT.md`「数据存放与 AI 模型」。
+- **数据和 AI 模型**：程序数据的位置统一用 `src-tauri/src/core/paths.rs`（Windows 上是安装目录下的 `data`）；AI 模型在 Rust 里推理，模型和运行环境由用户选择下载，不打包，详见 `docs/DEVELOPMENT.md`「数据存放与 AI 模型」。
 - **样式**：颜色只用 `src/styles/theme.css` 里的 CSS 变量（深色模式自动适配）；按钮、分段选择、复选框等用 `src/styles/controls.css` 里的公共类。
 
 ## 多语言（改界面时必看）

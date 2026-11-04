@@ -1,5 +1,5 @@
 //! AI 模型与运行环境（ONNX Runtime）的下载和管理。
-//! 用户选择下载后保存在数据文件夹（见 paths.rs）的 models、runtime 里，之后离线使用。
+//! 用户选择下载后保存在数据文件夹（见 core/paths.rs）的 models、runtime 里，之后离线使用。
 //! 只允许下载下面列出的文件，地址、大小、校验值写在这里，前端只传模型 id，不能借此下载其他文件。
 //! 每个文件在国内（魔搭 ModelScope）和国外（Hugging Face）各放一份，一个下载失败时自动换另一个。
 //! 运行环境不单独安装：下载模型时，运行环境缺少的文件一起下载。
@@ -16,7 +16,7 @@ use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_http::reqwest;
 
-use crate::paths;
+use crate::core::paths;
 
 /// 一个可下载的文件
 struct RemoteFile {
@@ -332,7 +332,7 @@ pub fn ai_model_progress(id: String) -> Progress {
 pub fn ai_model_delete(app: AppHandle, id: String) -> Result<(), String> {
     let file = model_file(&id)?;
     // 先释放已加载的模型，否则文件可能被占用删不掉
-    crate::inference::unload(&id);
+    super::inference::unload(&id);
     let path = models_dir(&app)?.join(file.name());
     let _ = std::fs::remove_file(path.with_file_name(format!("{}.part", file.name())));
     if path.exists() {

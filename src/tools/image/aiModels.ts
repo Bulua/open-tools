@@ -56,7 +56,7 @@ export function toMask(output: Float32Array): Uint8ClampedArray {
   return mask;
 }
 
-// ---------- 模型文件与运行：都在桌面版的 Rust 里（见 src-tauri/src/ai_models.rs、inference.rs） ----------
+// ---------- 模型文件与运行：都在桌面版的 Rust 里（见 src-tauri/src/tools/image/ai_models.rs、inference.rs） ----------
 
 /** 下载源：auto 先试国内的魔搭，失败时换 Hugging Face；选了其中一个时优先用它 */
 export type AiSource = "auto" | "modelscope" | "huggingface";

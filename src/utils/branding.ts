@@ -5,7 +5,7 @@ import { isTauri } from "@tauri-apps/api/core";
  *
  * 仓库的 branding/icon.json 列出所有用过的图标（历史都保留），current 指定现在用哪一个。
  * 程序启动后读取这个文件，图标变了就下载 PNG 和 ICO、核对校验值，再交给 Rust 端
- * 换上窗口、托盘和快捷方式的图标（见 src-tauri/src/branding.rs）。
+ * 换上窗口、托盘和快捷方式的图标（见 src-tauri/src/core/branding.rs）。
  * 发布、切换图标用 scripts/branding.mjs，说明见 branding/README.md。
  */
 

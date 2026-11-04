@@ -1,4 +1,4 @@
-//! 密码本：加密后的内容保存在数据文件夹（见 paths.rs，Windows 上是安装目录下的 data）里的 vault.dat。
+//! 密码本：加密后的内容保存在数据文件夹（见 core/paths.rs，Windows 上是安装目录下的 data）里的 vault.dat。
 //! 加密、解密都在前端用主密码完成，这里只负责读写文件，接触不到明文和主密码。
 
 use std::path::PathBuf;
@@ -7,7 +7,7 @@ use serde::Serialize;
 use tauri::AppHandle;
 
 fn vault_path(app: &AppHandle) -> Result<PathBuf, String> {
-    Ok(crate::paths::data_dir(app)?.join("vault.dat"))
+    Ok(crate::core::paths::data_dir(app)?.join("vault.dat"))
 }
 
 #[derive(Serialize)]

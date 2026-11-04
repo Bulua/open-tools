@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use tauri::ipc::{InvokeBody, Request, Response};
 
-use crate::script::{hide_window, run_powershell, TempDir};
+use crate::core::script::{hide_window, run_powershell, TempDir};
 
 const SCRIPT: &str = include_str!("office_to_pdf.ps1");
 const PDF_TO_WORD_SCRIPT: &str = include_str!("pdf_to_word.ps1");

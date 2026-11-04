@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use tauri::ipc::Response;
 
-use crate::script::{run_powershell, TempDir};
+use crate::core::script::{run_powershell, TempDir};
 
 const SCRIPT: &str = include_str!("tts.ps1");
 /// 一次最多朗读的字数，避免生成时间过长

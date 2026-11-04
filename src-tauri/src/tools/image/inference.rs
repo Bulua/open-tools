@@ -13,7 +13,7 @@ use ort::value::{DynTensor, Tensor};
 use tauri::ipc::{InvokeBody, Request, Response};
 use tauri::AppHandle;
 
-use crate::ai_models;
+use super::ai_models;
 
 static ENV: OnceLock<Environment> = OnceLock::new();
 /// 加载运行库时加锁，避免两次识别同时初始化

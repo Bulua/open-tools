@@ -82,7 +82,7 @@ pub fn run_powershell(
     }
     let output = child.wait_with_output().map_err(|e| e.to_string())?;
     Ok(ScriptOutput {
-        stdout: crate::network::decode_output(&output.stdout),
-        stderr: crate::network::decode_output(&output.stderr),
+        stdout: crate::tools::network::decode_output(&output.stdout),
+        stderr: crate::tools::network::decode_output(&output.stderr),
     })
 }

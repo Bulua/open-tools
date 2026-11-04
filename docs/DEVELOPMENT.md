@@ -64,6 +64,15 @@ open-tools/
 │   ├── capabilities/        # 前端可调用的系统能力（权限白名单）
 │   ├── icons/               # 应用图标（由 app-icon.png 生成）
 │   └── src/                 # Rust 入口与插件注册
+│       ├── core/            # 数据路径、脚本执行、托盘与应用图标
+│       └── tools/           # 需要 Rust 能力的工具，按领域分类
+│           ├── audio/       # 语音合成与脚本
+│           ├── document/    # Office/PDF 转换与脚本
+│           ├── image/       # AI 模型下载与推理
+│           ├── network/     # Ping、本机 IP
+│           ├── text/        # 密码本
+│           ├── time/        # 倒计时
+│           └── video/       # 抖音获取、录屏 HDR
 ├── branding/                # 远程图标：不发新版本也能换图标，历史图标都在这里
 └── app-icon.png             # 图标源文件（1024×1024，四角透明）
 ```
@@ -265,10 +274,10 @@ const { t } = useI18n();
 
 ## 数据存放与 AI 模型
 
-- **数据文件夹**：程序自己保存的数据（密码本、倒计时、AI 模型与运行环境、远程图标）统一通过 `src-tauri/src/paths.rs` 的 `data_dir()` / `sub_dir()` 取位置，不要再直接用 `app_local_data_dir()` 或安装目录。Windows 上是安装目录下的 `data`，安装目录不能写时退回 `%LOCALAPPDATA%\com.opentools.app`；以后支持手机时只改这一个函数。旧版本的数据在启动时由 `paths::migrate()` 搬过来；倒计时以前存在 localStorage，由前端第一次读取时写进 `countdowns.json`（见 `countdownStore.ts`）。界面设置仍由 WebView2 存在 localStorage 里，不在这个文件夹。
-- **AI 推理在 Rust 里**：`inference.rs` 用 `ort` 动态加载 ONNX Runtime，只用 CPU 多线程计算（DirectML 显卡加速跑不了 LaMa 等模型，已不再使用）。前端只做预处理、后处理，通过 `ai_run` 命令传入输入张量（请求体，多个输入依次拼接）、形状（请求头 `x-shape`，多个输入用分号隔开）和数据类型（请求头 `x-dtype`，`f32` 或 `u8`），见 `src/tools/image/aiModels.ts` 的 `runModel()`、`runModelRaw()`。网页版不支持 AI 功能。
-- **模型和运行环境都不打包**：用户选择下载，第一次下载模型时自动带上运行环境。可下载的文件、大小、SHA-256 写在 `ai_models.rs`，每个文件在魔搭（[sebponk/open-tools-models](https://www.modelscope.cn/models/sebponk/open-tools-models)）和 Hugging Face（[penghui002/open-tools-models](https://huggingface.co/penghui002/open-tools-models)）各放一份，路径相同。
-- **新增模型或升级运行环境**：用 `scripts/prepare-ai-files.ps1` 下载、整理文件并输出大小和校验值，把文件上传到两个仓库（两个仓库的 README.md、LICENSE.md 在 `scripts/ai-files/`，脚本会一起放进去，新增文件时记得在里面补上来源和许可证），再把输出填进 `ai_models.rs`。升级 ONNX Runtime 时同时改 `RUNTIME_VERSION` 和 `Cargo.toml` 里 `ort` 的 `api-NN` 特性。注意带 DirectML 的 ONNX Runtime 最后一个版本是 1.24.4，之后微软不再单独发布这个包。
+- **数据文件夹**：程序自己保存的数据（密码本、倒计时、AI 模型与运行环境、远程图标）统一通过 `src-tauri/src/core/paths.rs` 的 `data_dir()` / `sub_dir()` 取位置，不要再直接用 `app_local_data_dir()` 或安装目录。Windows 上是安装目录下的 `data`，安装目录不能写时退回 `%LOCALAPPDATA%\com.opentools.app`；以后支持手机时只改这一个函数。旧版本的数据在启动时由 `paths::migrate()` 搬过来；倒计时以前存在 localStorage，由前端第一次读取时写进 `countdowns.json`（见 `countdownStore.ts`）。界面设置仍由 WebView2 存在 localStorage 里，不在这个文件夹。
+- **AI 推理在 Rust 里**：`src-tauri/src/tools/image/inference.rs` 用 `ort` 动态加载 ONNX Runtime，只用 CPU 多线程计算（DirectML 显卡加速跑不了 LaMa 等模型，已不再使用）。前端只做预处理、后处理，通过 `ai_run` 命令传入输入张量（请求体，多个输入依次拼接）、形状（请求头 `x-shape`，多个输入用分号隔开）和数据类型（请求头 `x-dtype`，`f32` 或 `u8`），见 `src/tools/image/aiModels.ts` 的 `runModel()`、`runModelRaw()`。网页版不支持 AI 功能。
+- **模型和运行环境都不打包**：用户选择下载，第一次下载模型时自动带上运行环境。可下载的文件、大小、SHA-256 写在 `src-tauri/src/tools/image/ai_models.rs`，每个文件在魔搭（[sebponk/open-tools-models](https://www.modelscope.cn/models/sebponk/open-tools-models)）和 Hugging Face（[penghui002/open-tools-models](https://huggingface.co/penghui002/open-tools-models)）各放一份，路径相同。
+- **新增模型或升级运行环境**：用 `scripts/prepare-ai-files.ps1` 下载、整理文件并输出大小和校验值，把文件上传到两个仓库（两个仓库的 README.md、LICENSE.md 在 `scripts/ai-files/`，脚本会一起放进去，新增文件时记得在里面补上来源和许可证），再把输出填进 `src-tauri/src/tools/image/ai_models.rs`。升级 ONNX Runtime 时同时改 `RUNTIME_VERSION` 和 `Cargo.toml` 里 `ort` 的 `api-NN` 特性。注意带 DirectML 的 ONNX Runtime 最后一个版本是 1.24.4，之后微软不再单独发布这个包。
 
 ## 修改应用图标
 

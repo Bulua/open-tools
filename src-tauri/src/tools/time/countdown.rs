@@ -1,4 +1,4 @@
-//! 倒计时：列表以 JSON 保存在数据文件夹（见 paths.rs，Windows 上是安装目录下的 data）里的 countdowns.json。
+//! 倒计时：列表以 JSON 保存在数据文件夹（见 core/paths.rs，Windows 上是安装目录下的 data）里的 countdowns.json。
 //! 内容由前端整理好，这里只负责读写文件。
 
 use std::path::PathBuf;
@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use tauri::AppHandle;
 
 fn countdown_path(app: &AppHandle) -> Result<PathBuf, String> {
-    Ok(crate::paths::data_dir(app)?.join("countdowns.json"))
+    Ok(crate::core::paths::data_dir(app)?.join("countdowns.json"))
 }
 
 /// 读取倒计时文件；还没有保存过时返回空
