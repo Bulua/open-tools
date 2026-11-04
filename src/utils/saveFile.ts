@@ -42,7 +42,7 @@ export async function saveToFolder(files: { parts: string[]; data: Uint8Array }[
   const { mkdir, writeFile } = await import("@tauri-apps/plugin-fs");
   const { join } = await import("@tauri-apps/api/path");
 
-  const folder = await open({ directory: true, title: t("common.pickFolder") });
+  const folder = await open({ directory: true, recursive: true, title: t("common.pickFolder") });
   if (typeof folder !== "string") return null;
 
   for (const file of files) {
