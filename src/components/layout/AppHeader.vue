@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { Check, ChevronLeft, ChevronRight, Github, Languages, Moon, Search, Sun } from "lucide-vue-next";
+import { Bug, Check, ChevronLeft, ChevronRight, Github, Languages, Moon, Search, Sun } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
 import type { Category } from "@/tools";
 import { usePopover } from "@/composables/usePopover";
@@ -29,6 +29,26 @@ const localeOptions = computed<{ value: LocalePref; label: string }[]>(() => [{ 
 const pickLocale = (value: LocalePref) => {
   localePref.value = value;
   closeLang();
+};
+
+const issueBtn = ref<HTMLElement>();
+const issueMenu = ref<HTMLElement>();
+const { open: issueOpen, style: issueStyle, toggle: toggleIssue, close: closeIssue } = usePopover(issueBtn, issueMenu, { minWidth: 160 });
+const issueLinks = [
+  { label: "header.githubIssues", url: "https://github.com/Bulua/open-tools/issues/new" },
+  { label: "header.giteeIssues", url: "https://gitee.com/bulua/open-tools/issues/new" },
+];
+const openIssue = (url: string) => {
+  closeIssue();
+  openExternal(url);
+};
+const showIssueMenu = () => {
+  closeLang();
+  toggleIssue();
+};
+const showLangMenu = () => {
+  closeIssue();
+  toggleLang();
 };
 
 // 分类多了以后横向滚动，两侧出现箭头
@@ -124,7 +144,7 @@ watch(
         <span>{{ t("header.search") }}</span>
         <kbd>Ctrl K</kbd>
       </button>
-      <button ref="langBtn" class="theme-btn" :class="{ active: langOpen }" :title="t('locale.title')" @click="toggleLang">
+      <button ref="langBtn" class="theme-btn" :class="{ active: langOpen }" :title="t('locale.title')" @click="showLangMenu">
         <Languages :size="16" />
       </button>
       <button class="theme-btn" :title="theme === 'dark' ? t('header.lightMode') : t('header.darkMode')" @click="$emit('toggleTheme')">
@@ -133,6 +153,9 @@ watch(
       </button>
       <button class="theme-btn" :title="t('header.github', { url: REPO_URL })" @click="openExternal(REPO_URL)">
         <Github :size="16" />
+      </button>
+      <button ref="issueBtn" class="theme-btn" :class="{ active: issueOpen }" :title="t('header.reportBug')" :aria-label="t('header.reportBug')" :aria-expanded="issueOpen" aria-haspopup="menu" @click="showIssueMenu">
+        <Bug :size="16" />
       </button>
     </div>
 
@@ -151,6 +174,13 @@ watch(
             <span>{{ o.label }}</span>
             <Check v-if="o.value === localePref" :size="13" />
           </div>
+        </div>
+      </Transition>
+      <Transition name="pop">
+        <div v-if="issueOpen" ref="issueMenu" class="lang-menu" role="menu" :style="issueStyle">
+          <button v-for="link in issueLinks" :key="link.url" class="lang-option issue-option" role="menuitem" @click="openIssue(link.url)">
+            {{ t(link.label) }}
+          </button>
         </div>
       </Transition>
     </Teleport>
@@ -362,5 +392,11 @@ watch(
 .lang-option.selected {
   color: var(--accent);
   font-weight: 500;
+}
+.issue-option {
+  width: 100%;
+  border: none;
+  background: none;
+  text-align: left;
 }
 </style>

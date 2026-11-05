@@ -25,6 +25,9 @@ const ja: Messages<typeof zhCN> = {
     lightMode: "ライトモード",
     darkMode: "ダークモード",
     github: "GitHub リポジトリ：{url}",
+    reportBug: "不具合を報告",
+    githubIssues: "GitHub で報告",
+    giteeIssues: "Gitee で報告",
   },
   sidebar: {
     search: "{name}を検索",

@@ -25,6 +25,9 @@ const en: Messages<typeof zhCN> = {
     lightMode: "Light mode",
     darkMode: "Dark mode",
     github: "GitHub repository: {url}",
+    reportBug: "Report a bug",
+    githubIssues: "Report on GitHub",
+    giteeIssues: "Report on Gitee",
   },
   sidebar: {
     search: "Search {name}",

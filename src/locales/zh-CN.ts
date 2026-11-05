@@ -26,6 +26,9 @@ const zhCN = {
     lightMode: "浅色模式",
     darkMode: "深色模式",
     github: "GitHub 仓库：{url}",
+    reportBug: "反馈问题",
+    githubIssues: "GitHub 提交问题",
+    giteeIssues: "Gitee 提交问题",
   },
   sidebar: {
     search: "搜索 {name}",
