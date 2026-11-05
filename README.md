@@ -34,7 +34,7 @@ Formatting JSON, decoding Base64, converting timestamps, or compressing images o
 
 ## Features
 
-9 categories and 58 tools:
+9 categories and 59 tools:
 
 | Category | Tools |
 | --- | --- |
@@ -44,7 +44,7 @@ Formatting JSON, decoding Base64, converting timestamps, or compressing images o
 | Calculators & converters | Calculator, unit conversion, number bases, color conversion |
 | Images | Compression, format conversion, cropping, rotation, color adjustment, stitching, mosaic, watermarks, background removal (including AI subject detection), watermark removal (AI inpainting), color picker, ICO generation |
 | Audio | Format conversion (including extracting audio from video), trimming, joining, recording, text to speech |
-| Video | Bilibili video download (with in-app playback), Douyin download without watermark, video to audio (copy the original track or convert to MP3/M4A/WAV), video concatenation, background music, screen recording, camera recording |
+| Video | Bilibili video download (with in-app playback), Douyin download without watermark, video to audio (copy the original track or convert to MP3/M4A/WAV), video to GIF, video concatenation, background music, screen recording, camera recording |
 | Documents & files | Word to PDF, PDF to Word, Word watermarks and watermark removal, PDF page editing, PDF watermark removal, Markdown editing/preview and Word export, archiving and extraction |
 | Network | HTTP request client, IP address and location lookup, ping, HTTP headers to JSON/cURL |
 
@@ -99,7 +99,7 @@ Processing is local unless a feature explicitly needs network access:
 | Code editor | CodeMirror 6 |
 | Documents | PDF.js, pdf-lib, docx, docx-preview, marked |
 | Audio | Web Audio, wasm-media-encoders (MP3), Windows speech |
-| Video | Mediabunny (WebCodecs) |
+| Video | Mediabunny (WebCodecs), gifenc (GIF encoding) |
 | AI background & watermark removal | ONNX Runtime, rembg models (U²-Net, IS-Net), LaMa, MI-GAN |
 | Icons | Lucide |
 | Tests | Vitest |

@@ -1,5 +1,5 @@
 import { defineAsyncComponent } from "vue";
-import { Clapperboard, FileMusic, MonitorPlay, Music2, Music4, Tv, Webcam } from "lucide-vue-next";
+import { Clapperboard, FileImage, FileMusic, MonitorPlay, Music2, Music4, Tv, Webcam } from "lucide-vue-next";
 import type { Category } from "../types";
 
 const video: Category = {
@@ -26,6 +26,13 @@ const video: Category = {
       desc: "提取视频里的声音，可直接复制原始音轨（最快、无损），或转成 MP3、M4A、WAV；可批量处理",
       icon: FileMusic,
       component: defineAsyncComponent(() => import("./components/VideoToAudio.vue")),
+    },
+    {
+      id: "video-to-gif",
+      name: "视频转 GIF",
+      desc: "把整段视频转成 GIF 动图，可设置帧率、宽度、颜色数和是否循环，在本机处理不上传",
+      icon: FileImage,
+      component: defineAsyncComponent(() => import("./components/VideoToGif.vue")),
     },
     {
       id: "video-concat",

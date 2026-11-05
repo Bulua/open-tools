@@ -5,7 +5,7 @@
 ## 项目概况
 
 - Windows 桌面工具箱：Vue 3 + TypeScript + Vite 写界面，Tauri 2（Rust + WebView2）做桌面壳，只打包 Windows（NSIS 安装包）。
-- 9 个分类、58 个工具。工具定义在 `src/tools/<模块>/index.ts`，分类在 `src/tools/index.ts` 的 `categories` 里按工具 id 挑选。
+- 9 个分类、59 个工具。工具定义在 `src/tools/<模块>/index.ts`，分类在 `src/tools/index.ts` 的 `categories` 里按工具 id 挑选。
 - 界面支持简体中文、English、日本語（vue-i18n），默认跟随系统语言。
 - 自动更新：GitHub Releases 和 Gitee（`updater` 分支）各放一份 `latest.json`，程序优先读 Gitee。
 

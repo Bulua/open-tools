@@ -34,7 +34,7 @@ JSON の整形、Base64 のデコード、タイムスタンプの変換、画�
 
 ## 機能
 
-9 カテゴリ、58 ツール：
+9 カテゴリ、59 ツール：
 
 | カテゴリ | ツール |
 | --- | --- |
@@ -44,7 +44,7 @@ JSON の整形、Base64 のデコード、タイムスタンプの変換、画�
 | 計算・換算 | 電卓、単位換算、進数変換、カラー変換 |
 | 画像 | 圧縮、形式変換、切り抜き、回転、色調整、結合、モザイク、透かし、背景除去（AI による被写体認識）、透かし除去（AI による補完）、色の取得、ICO アイコン生成 |
 | 音声 | 形式変換（動画からの音声抽出を含む）、編集、結合、ボイスレコーダー、テキスト読み上げ |
-| 動画 | bilibili 動画ダウンロード（アプリ内再生対応）、Douyin の透かしなしダウンロード、動画から音声へ（元の音声トラックのコピー、または MP3・M4A・WAV に変換）、動画の結合、BGM の追加、画面録画、カメラ録画 |
+| 動画 | bilibili 動画ダウンロード（アプリ内再生対応）、Douyin の透かしなしダウンロード、動画から音声へ（元の音声トラックのコピー、または MP3・M4A・WAV に変換）、動画から GIF へ、動画の結合、BGM の追加、画面録画、カメラ録画 |
 | 文書 | Word → PDF、PDF → Word、Word の透かし追加と削除、PDF ページ編集、PDF の透かし削除、Markdown の編集・プレビューと Word 書き出し、ファイルの圧縮と展開 |
 | ネットワーク | HTTP リクエスト、IP アドレスと位置情報、Ping テスト、リクエストヘッダー → JSON / cURL |
 
@@ -99,7 +99,7 @@ JSON の整形、Base64 のデコード、タイムスタンプの変換、画�
 | コードエディター | CodeMirror 6 |
 | 文書 | PDF.js、pdf-lib、docx、docx-preview、marked |
 | 音声 | Web Audio、wasm-media-encoders（MP3）、Windows の音声合成 |
-| 動画 | Mediabunny（WebCodecs） |
+| 動画 | Mediabunny（WebCodecs）、gifenc（GIF エンコード） |
 | AI 背景除去・透かし除去 | ONNX Runtime、rembg モデル（U²-Net、IS-Net）、LaMa、MI-GAN |
 | アイコン | Lucide |
 | テスト | Vitest |
