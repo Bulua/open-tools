@@ -29,10 +29,9 @@ const image: Category = {
     {
       id: "image-crop",
       name: "图片裁剪 / 改尺寸",
-      desc: "按比例或自由裁剪，按像素或百分比调整图片尺寸",
+      desc: "按比例或自由裁剪，按像素或百分比调整图片尺寸，可以多张一起处理",
       icon: Crop,
-      component: edit,
-      props: { mode: "crop" },
+      component: defineAsyncComponent(() => import("./components/ImageCrop.vue")),
     },
     {
       id: "image-rotate",

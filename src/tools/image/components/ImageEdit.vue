@@ -1,23 +1,21 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { Crop, Download, FlipHorizontal2, FlipVertical2, Lock, LockOpen, RefreshCw, RotateCcw, RotateCw, Undo2 } from "lucide-vue-next";
+import { Download, FlipHorizontal2, FlipVertical2, RefreshCw, RotateCcw, RotateCw, Undo2 } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { useFitFrame } from "@/composables/useFitFrame";
 import { saveFile } from "@/utils/saveFile";
 import { IMAGE_FORMATS, canvasToBytes, createCanvas, formatInfo, loadImage, outputFormatOf, type ImageFormat } from "../utils";
-import { initialCrop, updateCrop, type CropHandle, type Rect } from "../crop";
 import { rotatedSize } from "../effects";
 
 /**
- * 单张图片编辑，按 mode 注册为三个工具：
- * - crop：裁剪、调整尺寸
+ * 单张图片编辑，按 mode 注册为两个工具（裁剪 / 改尺寸在 ImageCrop.vue）：
  * - rotate：旋转 90°、任意角度、翻转
  * - adjust：亮度、对比度、饱和度、色相与滤镜预设（预览用 CSS 滤镜，导出时应用到像素）
- * 裁剪、旋转等操作记入历史，可以撤销。没有图片时操作面板也显示，只是不能点。
+ * 旋转、翻转等操作记入历史，可以撤销。没有图片时操作面板也显示，只是不能点。
  */
-const props = withDefaults(defineProps<{ mode?: "crop" | "rotate" | "adjust" }>(), { mode: "crop" });
+const props = withDefaults(defineProps<{ mode?: "rotate" | "adjust" }>(), { mode: "rotate" });
 const { t } = useI18n();
 
 // ---------- 图片与历史 ----------
@@ -39,7 +37,6 @@ const onFiles = async ([file]: File[]) => {
     history.value = [canvas];
     resetAdjust();
     angle.value = 0;
-    cropping.value = false;
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : String(e);
   }
@@ -51,7 +48,6 @@ const reset = () => {
   history.value = history.value.slice(0, 1);
   resetAdjust();
   angle.value = 0;
-  cropping.value = false;
 };
 
 // ---------- 任意角度旋转 ----------
@@ -87,12 +83,6 @@ watch(displayed, async (src) => {
   view.value.height = src.height;
   view.value.getContext("2d")!.drawImage(src, 0, 0);
 });
-watch(current, (src) => {
-  if (!src) return;
-  resizeW.value = src.width;
-  resizeH.value = src.height;
-  if (cropping.value) crop.value = initialCrop(src.width, src.height, ratio.value);
-});
 
 // ---------- 旋转 90° / 翻转 ----------
 const rotate = (deg: 90 | -90) => {
@@ -117,102 +107,6 @@ const applyAngle = () => {
   if (!current.value || !angle.value) return;
   push(rotateBy(current.value, angle.value));
   angle.value = 0;
-};
-
-// ---------- 尺寸 ----------
-const resizeW = ref(0);
-const resizeH = ref(0);
-const keepRatio = ref(true);
-const onResizeW = (e: Event) => {
-  resizeW.value = Math.max(1, Math.round(Number((e.target as HTMLInputElement).value) || 1));
-  if (keepRatio.value && current.value) resizeH.value = Math.max(1, Math.round((resizeW.value * current.value.height) / current.value.width));
-};
-const onResizeH = (e: Event) => {
-  resizeH.value = Math.max(1, Math.round(Number((e.target as HTMLInputElement).value) || 1));
-  if (keepRatio.value && current.value) resizeW.value = Math.max(1, Math.round((resizeH.value * current.value.width) / current.value.height));
-};
-const applyResize = () => {
-  const src = current.value;
-  if (!src || (resizeW.value === src.width && resizeH.value === src.height)) return;
-  const { canvas, ctx } = createCanvas(resizeW.value, resizeH.value);
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
-  push(canvas);
-};
-const scaleTo = (percent: number) => {
-  const src = current.value;
-  if (!src) return;
-  resizeW.value = Math.max(1, Math.round((src.width * percent) / 100));
-  resizeH.value = Math.max(1, Math.round((src.height * percent) / 100));
-};
-
-// ---------- 裁剪 ----------
-const RATIOS: { label: string; value: number | null }[] = [
-  { label: "", value: null },
-  { label: "1:1", value: 1 },
-  { label: "4:3", value: 4 / 3 },
-  { label: "3:4", value: 3 / 4 },
-  { label: "16:9", value: 16 / 9 },
-  { label: "9:16", value: 9 / 16 },
-];
-const cropping = ref(false);
-const ratio = ref<number | null>(null);
-const crop = ref<Rect>({ x: 0, y: 0, w: 0, h: 0 });
-
-const startCrop = () => {
-  const src = current.value;
-  if (!src) return;
-  crop.value = initialCrop(src.width, src.height, ratio.value);
-  cropping.value = true;
-};
-const setRatio = (r: number | null) => {
-  ratio.value = r;
-  if (cropping.value) startCrop();
-};
-const applyCrop = () => {
-  const src = current.value;
-  if (!src) return;
-  const { x, y, w, h } = crop.value;
-  const { canvas, ctx } = createCanvas(w, h);
-  ctx.drawImage(src, x, y, w, h, 0, 0, w, h);
-  cropping.value = false;
-  push(canvas);
-};
-// 打开裁剪工具、放入图片后直接显示裁剪框
-watch(current, (src, old) => {
-  if (props.mode === "crop" && src && !old) startCrop();
-});
-
-/** 裁剪框在预览图上的位置（百分比，跟随预览缩放） */
-const cropStyle = computed(() => {
-  const src = current.value;
-  if (!src) return {};
-  const { x, y, w, h } = crop.value;
-  return {
-    left: `${(x / src.width) * 100}%`,
-    top: `${(y / src.height) * 100}%`,
-    width: `${(w / src.width) * 100}%`,
-    height: `${(h / src.height) * 100}%`,
-  };
-});
-
-// 拖动：屏幕像素换算成图片像素
-const onCropPointerDown = (e: PointerEvent, handle: CropHandle) => {
-  const src = current.value;
-  if (!src || !view.value) return;
-  e.preventDefault();
-  const scale = src.width / view.value.getBoundingClientRect().width;
-  const start = { ...crop.value };
-  const [sx, sy] = [e.clientX, e.clientY];
-  const move = (ev: PointerEvent) => {
-    crop.value = updateCrop(start, handle, (ev.clientX - sx) * scale, (ev.clientY - sy) * scale, src.width, src.height, ratio.value);
-  };
-  const up = () => {
-    window.removeEventListener("pointermove", move);
-    window.removeEventListener("pointerup", up);
-  };
-  window.addEventListener("pointermove", move);
-  window.addEventListener("pointerup", up);
 };
 
 // ---------- 调色 ----------
@@ -250,7 +144,7 @@ const exportFormat = useStoredRef<ImageFormat>("image-edit.format", "image/png")
 const exportQuality = useStoredRef("image-edit.quality", 90);
 const saved = ref(false);
 
-const SUFFIX = { crop: "suffixCrop", rotate: "suffixRotate", adjust: "suffixAdjust" };
+const SUFFIX = { rotate: "suffixRotate", adjust: "suffixAdjust" };
 const download = async () => {
   const src = displayed.value;
   if (!src) return;
@@ -265,51 +159,14 @@ const download = async () => {
   }
 };
 
-const HINTS = { crop: "hintCrop", rotate: "hintRotate", adjust: "hintAdjust" };
+const HINTS = { rotate: "hintRotate", adjust: "hintAdjust" };
 </script>
 
 <template>
   <div class="editor">
     <!-- 操作面板始终显示，没有图片时不能操作 -->
     <aside class="panel card" :class="{ idle: !current }">
-      <template v-if="mode === 'crop'">
-        <section class="section">
-          <header class="section-head">
-            <h3>{{ t("image.crop") }}</h3>
-            <template v-if="cropping">
-              <button class="btn small primary" @click="applyCrop">{{ t("image.applyCrop") }}</button>
-              <button class="btn small subtle" @click="cropping = false">{{ t("image.cancel") }}</button>
-            </template>
-            <button v-else class="btn small" :disabled="!current" @click="startCrop"><Crop :size="13" />{{ t("image.startCrop") }}</button>
-          </header>
-          <div class="seg fill">
-            <button v-for="r in RATIOS" :key="r.label" :class="{ on: ratio === r.value }" @click="setRatio(r.value)">{{ r.value === null ? t("image.free") : r.label }}</button>
-          </div>
-        </section>
-
-        <section class="section">
-          <h3>{{ t("image.resize") }}</h3>
-          <div class="size-row">
-            <input class="field size" type="number" min="1" :title="t('image.width')" :disabled="!current" :value="resizeW || ''" :placeholder="t('image.width')" @change="onResizeW" />
-            <button
-              class="lock"
-              :class="{ on: keepRatio }"
-              :title="keepRatio ? t('image.ratioLocked') : t('image.ratioUnlocked')"
-              @click="keepRatio = !keepRatio"
-            >
-              <Lock v-if="keepRatio" :size="13" />
-              <LockOpen v-else :size="13" />
-            </button>
-            <input class="field size" type="number" min="1" :title="t('image.height')" :disabled="!current" :value="resizeH || ''" :placeholder="t('image.height')" @change="onResizeH" />
-            <button class="btn small" :disabled="!current" @click="applyResize">{{ t("image.apply") }}</button>
-          </div>
-          <div class="chips">
-            <button v-for="p in [25, 50, 75, 150, 200]" :key="p" :disabled="!current" @click="scaleTo(p)">{{ p }}%</button>
-          </div>
-        </section>
-      </template>
-
-      <template v-else-if="mode === 'rotate'">
+      <template v-if="mode === 'rotate'">
         <section class="section">
           <h3>{{ t("image.rotate90") }}</h3>
           <div class="big-row">
@@ -409,10 +266,6 @@ const HINTS = { crop: "hintCrop", rotate: "hintRotate", adjust: "hintAdjust" };
       <div v-if="current" :ref="observeArea" class="canvas-area checker">
         <div class="frame" :style="frameStyle">
           <canvas ref="view" :style="{ filter }" />
-          <div v-if="cropping" class="crop" :style="cropStyle" @pointerdown="onCropPointerDown($event, 'move')">
-            <span v-for="h in ['nw', 'ne', 'sw', 'se'] as const" :key="h" class="handle" :class="h" @pointerdown.stop="onCropPointerDown($event, h)" />
-            <span class="crop-size">{{ crop.w }} × {{ crop.h }}</span>
-          </div>
         </div>
       </div>
     </section>
@@ -470,10 +323,9 @@ const HINTS = { crop: "hintCrop", rotate: "hintRotate", adjust: "hintAdjust" };
   min-height: 200px;
   margin: 12px;
   border-radius: 8px;
-  /* 裁剪框外的暗色遮罩不要盖到标题栏 */
   overflow: hidden;
 }
-/* frame 的大小由脚本按预览区计算，裁剪框按百分比定位在它上面 */
+/* frame 的大小由脚本按预览区计算 */
 .frame {
   position: absolute;
   inset: 0;
@@ -483,53 +335,6 @@ const HINTS = { crop: "hintCrop", rotate: "hintRotate", adjust: "hintAdjust" };
   display: block;
   width: 100%;
   height: 100%;
-}
-
-.crop {
-  position: absolute;
-  border: 1.5px solid #fff;
-  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
-  cursor: move;
-  touch-action: none;
-}
-.handle {
-  position: absolute;
-  width: 12px;
-  height: 12px;
-  border: 2px solid #fff;
-  background: var(--accent);
-  border-radius: 3px;
-}
-.handle.nw {
-  left: -7px;
-  top: -7px;
-  cursor: nwse-resize;
-}
-.handle.ne {
-  right: -7px;
-  top: -7px;
-  cursor: nesw-resize;
-}
-.handle.sw {
-  left: -7px;
-  bottom: -7px;
-  cursor: nesw-resize;
-}
-.handle.se {
-  right: -7px;
-  bottom: -7px;
-  cursor: nwse-resize;
-}
-.crop-size {
-  position: absolute;
-  left: 4px;
-  top: 4px;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
-  font-size: 11px;
-  pointer-events: none;
 }
 
 /* 右侧操作面板：一张卡片，各部分用细线分隔，尽量紧凑 */
@@ -573,7 +378,6 @@ h3 {
 
 .btn:disabled,
 .seg button:disabled,
-.chips button:disabled,
 .presets button:disabled {
   opacity: 0.45;
   cursor: default;
@@ -594,23 +398,6 @@ h3 {
 .seg.fill button {
   padding: 0 4px;
 }
-.chips {
-  display: flex;
-  gap: 6px;
-}
-.chips button {
-  flex: 1;
-  height: 24px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: none;
-  font-size: 12px;
-  color: var(--text-2);
-}
-.chips button:not(:disabled):hover {
-  border-color: var(--border-strong);
-  color: var(--text);
-}
 .presets {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -627,39 +414,6 @@ h3 {
 .presets button:not(:disabled):hover {
   border-color: var(--accent);
   color: var(--accent);
-}
-
-.size-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.field.size {
-  flex: 1;
-  width: 0;
-  height: 28px;
-  padding: 0 8px;
-  font-size: 12px;
-}
-.size-row .btn {
-  margin-left: 4px;
-}
-.lock {
-  width: 24px;
-  height: 24px;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  border: none;
-  border-radius: 6px;
-  background: none;
-  color: var(--text-3);
-}
-.lock.on {
-  color: var(--accent);
-}
-.lock:hover {
-  background: var(--hover);
 }
 
 .slider span {
