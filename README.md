@@ -87,7 +87,7 @@ Processing is local unless a feature explicitly needs network access:
 - **Update checks:** Read release metadata from Gitee or GitHub without sending your files.
 - **IP lookup:** Query public services (ip-api.com, ipwho.is, then ipapi.co). The queried IP is sent to the provider; ip-api.com uses unencrypted HTTP.
 - **Ping:** Send a ping to the host you enter.
-- **AI background-removal model downloads:** Download a model and the AI runtime (ONNX Runtime) only when you request it, from ModelScope first and Hugging Face if that fails. Your images are processed locally.
+- **AI background-removal model downloads:** Download a model only when you request it (the AI runtime, ONNX Runtime, ships with the installer), from ModelScope first and Hugging Face if that fails. Your images are processed locally.
 - **Remote images in Markdown:** When exporting Markdown that references an HTTP(S) image to Word, the app fetches that image from its URL.
 
 ## Tech stack
