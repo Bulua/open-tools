@@ -1,4 +1,4 @@
-//! 在本机运行 AI 模型（ONNX Runtime）。运行库是和模型一起下载的（见 ai_models.rs），第一次用到时加载。
+//! 在本机运行 AI 模型（ONNX Runtime）。运行库随安装包自带（没有时和模型一起下载，见 ai_models.rs），第一次用到时加载。
 //! 只用 CPU 多线程计算：DirectML（显卡）跑不了部分模型（如 LaMa 里的矩阵乘法会报错），各个模型统一用 CPU，结果稳定。
 //! 前端负责预处理和后处理，这里只把输入张量（一个或多个，float32 或 uint8）交给模型，返回第一个输出。
 
@@ -44,7 +44,7 @@ fn environment(app: &AppHandle) -> Result<&'static Environment, String> {
     Ok(ENV.get_or_init(|| env))
 }
 
-/// 下载的 onnxruntime.dll 是带 DirectML 的版本，启动时要加载同一文件夹里的 DirectML.dll，而不是系统自带的旧版本
+/// onnxruntime.dll 是带 DirectML 的版本，启动时要加载同一文件夹里的 DirectML.dll，而不是系统自带的旧版本
 #[cfg(windows)]
 fn allow_dlls_from(dir: &Path) {
     use std::os::windows::ffi::OsStrExt;

@@ -2,7 +2,8 @@
 //! 用户选择下载后保存在数据文件夹（见 core/paths.rs）的 models、runtime 里，之后离线使用。
 //! 只允许下载下面列出的文件，地址、大小、校验值写在这里，前端只传模型 id，不能借此下载其他文件。
 //! 每个文件在国内（魔搭 ModelScope）和国外（Hugging Face）各放一份，一个下载失败时自动换另一个。
-//! 运行环境不单独安装：下载模型时，运行环境缺少的文件一起下载。
+//! 运行环境随安装包带在安装目录的 ai-runtime 里（文件在仓库的 src-tauri/ai-runtime），用户只需下载模型；
+//! 安装目录里没有或不完整时，下载模型时把运行环境缺少的文件一起下载到数据文件夹，作为兜底。
 //! 托管仓库里的文件和下面的大小、校验值用 scripts/prepare-ai-files.ps1 准备。
 
 use std::collections::HashMap;
@@ -13,7 +14,7 @@ use std::time::Duration;
 
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use tauri::{AppHandle, Runtime};
+use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_http::reqwest;
 
 use crate::core::paths;
@@ -81,8 +82,17 @@ fn models_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
     paths::sub_dir(app, "models")
 }
 
-/// 运行环境所在的文件夹
+/// 安装包自带的运行环境（安装目录下的 ai-runtime，见 tauri.conf.json 的 bundle.resources）；文件不完整时返回 None
+fn bundled_runtime_dir<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
+    let dir = app.path().resource_dir().ok()?.join("ai-runtime");
+    (!RUNTIME_FILES.is_empty() && RUNTIME_FILES.iter().all(|f| complete(&dir.join(f.name()), f))).then_some(dir)
+}
+
+/// 运行环境所在的文件夹：优先用安装包自带的；没有或不完整（如版本不同）时用数据文件夹里下载的那份
 pub fn runtime_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+    if let Some(dir) = bundled_runtime_dir(app) {
+        return Ok(dir);
+    }
     let dir = paths::sub_dir(app, "runtime")?.join(RUNTIME_VERSION);
     std::fs::create_dir_all(&dir).map_err(|e| format!("Can't create the runtime folder: {e}"))?;
     Ok(dir)
