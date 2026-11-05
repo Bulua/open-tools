@@ -8,6 +8,7 @@ import { useStoredRef } from "@/composables/useStoredRef";
 import { useWindowEvent } from "@/composables/useWindowEvent";
 import { saveFile } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
+import { errorMessage, showError } from "@/utils/errorToast";
 import { buildPdf, loadPdf, movePages, parsePageRanges } from "../pdfPages";
 import { openPdf, renderPage, type PdfDocument } from "../pdfjs";
 
@@ -35,7 +36,6 @@ const pages = ref<Page[]>([]);
 const selected = ref(new Set<number>());
 const history = ref<Page[][]>([]);
 const loading = ref(false);
-const error = ref("");
 let nextKey = 1;
 
 const thumbSize = useStoredRef<"s" | "m" | "l">("pdfPages.size", "m");
@@ -45,7 +45,6 @@ const thumbWidth = computed(() => WIDTHS[thumbSize.value]);
 // ---------- 打开文件 ----------
 const addFiles = async (files: File[]) => {
   loading.value = true;
-  error.value = "";
   try {
     for (const file of files) {
       const data = new Uint8Array(await file.arrayBuffer());
@@ -58,7 +57,7 @@ const addFiles = async (files: File[]) => {
         if (pages.value.length) pushHistory();
         pages.value = [...pages.value, ...added];
       } catch (e) {
-        error.value = `${file.name}：${e instanceof Error ? e.message : e}`;
+        showError(`${file.name}：${errorMessage(e)}`);
       }
     }
   } finally {
@@ -77,7 +76,6 @@ const reset = () => {
   pages.value = [];
   selected.value = new Set();
   history.value = [];
-  error.value = "";
 };
 onBeforeUnmount(reset);
 
@@ -254,7 +252,6 @@ const outputName = computed(() => {
 });
 const save = async () => {
   saving.value = true;
-  error.value = "";
   try {
     const data = await buildPdf(
       sources.value.map((s) => s.data),
@@ -262,7 +259,7 @@ const save = async () => {
     );
     await saveFile(data, outputName.value);
   } catch (e) {
-    error.value = t("document.saveFailed", { error: e instanceof Error ? e.message : String(e) });
+    showError(t("document.saveFailed", { error: errorMessage(e) }));
   } finally {
     saving.value = false;
   }
@@ -303,7 +300,7 @@ const deleted = computed(() => sources.value.reduce((n, s) => n + s.pageCount, 0
         <template v-if="deleted > 0">{{ t("document.pagesDeleted", { n: deleted }) }}</template>
       </span>
     </div>
-    <p v-if="rangeError || error" class="error">{{ rangeError || error }}</p>
+    <p v-if="rangeError" class="error">{{ rangeError }}</p>
 
     <!-- 加载后隐藏但保留：「添加 PDF」和 Ctrl+V 粘贴仍由它处理 -->
     <FileDropZone

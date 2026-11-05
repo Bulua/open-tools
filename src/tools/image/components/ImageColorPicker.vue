@@ -8,6 +8,7 @@ import CopyList from "@/components/common/CopyList.vue";
 import { toHex, toHsl, toRgb, type Rgba } from "@/utils/color";
 import { createCanvas, extractPalette, loadImage, type PaletteColor } from "../utils";
 import { useZoomPan } from "@/composables/useZoomPan";
+import { showError } from "@/utils/errorToast";
 
 const { t } = useI18n();
 
@@ -15,7 +16,6 @@ const { t } = useI18n();
 const loaded = ref(false);
 const dropZone = ref<InstanceType<typeof FileDropZone>>();
 const fileName = ref("");
-const loadError = ref("");
 const view = ref<HTMLCanvasElement>();
 let ctx: CanvasRenderingContext2D | null = null;
 
@@ -25,7 +25,6 @@ const selected = ref<Rgba | null>(null);
 const hover = ref<{ color: Rgba; x: number; y: number } | null>(null);
 
 const onFiles = async ([file]: File[]) => {
-  loadError.value = "";
   try {
     const img = await loadImage(file);
     fileName.value = file.name;
@@ -46,7 +45,7 @@ const onFiles = async ([file]: File[]) => {
     palette.value = extractPalette(small.ctx.getImageData(0, 0, small.canvas.width, small.canvas.height).data);
     selected.value = palette.value[0] ? { ...palette.value[0], a: 1 } : null;
   } catch (e) {
-    loadError.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   }
 };
 
@@ -167,9 +166,7 @@ const css = (c: Rgba | PaletteColor) => toRgb({ a: 1, ...c });
         :title="t('image.dropImage')"
         :hint="t('image.pickDropHint')"
         @files="onFiles"
-      >
-        <span v-if="loadError" class="load-error">{{ loadError }}</span>
-      </FileDropZone>
+      />
       <div v-if="loaded" class="canvas-area">
         <div
           class="canvas-wrap"
@@ -341,10 +338,6 @@ h3 {
   margin: 0;
   font-size: 12px;
   color: var(--text-3);
-}
-.load-error {
-  margin-top: 8px;
-  color: var(--danger);
 }
 /* 窗口较窄时面板收窄，仍保持左右排列 */
 @media (max-width: 1100px) {

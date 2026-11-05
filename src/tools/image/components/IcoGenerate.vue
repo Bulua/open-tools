@@ -6,6 +6,7 @@ import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { saveFile, saveFiles } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
+import { showError } from "@/utils/errorToast";
 import { canvasToBytes, createCanvas, loadImage, writeIco } from "../utils";
 
 /**
@@ -20,15 +21,13 @@ const fit = useStoredRef<"contain" | "cover">("ico.fit", "contain");
 const dropZone = ref<InstanceType<typeof FileDropZone>>();
 const img = shallowRef<HTMLImageElement | null>(null);
 const fileName = ref("");
-const loadError = ref("");
 
 const onFiles = async ([file]: File[]) => {
-  loadError.value = "";
   try {
     img.value = await loadImage(file);
     fileName.value = file.name;
   } catch (e) {
-    loadError.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   }
 };
 
@@ -117,9 +116,7 @@ const downloadPngs = () =>
         :title="t('image.dropImage')"
         :hint="t('image.icoHint')"
         @files="onFiles"
-      >
-        <span v-if="loadError" class="load-error">{{ loadError }}</span>
-      </FileDropZone>
+      />
       <div v-if="img && outputs.length" class="grid">
         <figure v-for="o in outputs" :key="o.size">
           <div class="tile checker">
@@ -242,9 +239,5 @@ figcaption {
   margin-right: auto;
   font-size: 12px;
   color: var(--text-3);
-}
-.load-error {
-  margin-top: 8px;
-  color: var(--danger);
 }
 </style>

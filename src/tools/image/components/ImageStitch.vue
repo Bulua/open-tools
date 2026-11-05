@@ -10,6 +10,7 @@ import { useFitFrame } from "@/composables/useFitFrame";
 import { useZoomPan } from "@/composables/useZoomPan";
 import { useWindowEvent } from "@/composables/useWindowEvent";
 import { saveFile } from "@/utils/saveFile";
+import { showError } from "@/utils/errorToast";
 import { IMAGE_FORMATS, canvasToBytes, formatInfo, loadImage, type ImageFormat } from "../utils";
 import { contentBounds, stitchLayout, type Box, type StitchDirection } from "../effects";
 import { snapBox, type Guides } from "../snap";
@@ -127,6 +128,11 @@ const longLayout = computed(() => {
 });
 /** 没找到重叠、直接接在后面的图片序号（从 1 开始） */
 const unmatched = computed(() => (longLayout.value?.matched ?? []).flatMap((m, i) => (m ? [] : [i + 1])));
+// 没对上的图片有变化时在窗口上方提示一次；只改背景、边距等不影响结果时不会重复提示
+watch(
+  () => unmatched.value.join(", "),
+  (n) => n && showError(t("image.longUnmatched", { n }), t("image.longUnmatchedTitle")),
+);
 
 // ---------- 自由摆放 ----------
 
@@ -537,7 +543,6 @@ const toNumber = (e: Event, max: number) => Math.min(max, Math.max(0, Math.round
         </label>
         <template v-if="direction === 'long'">
           <p class="tip">{{ t("image.longTip") }}</p>
-          <p v-if="unmatched.length" class="tip warn">{{ t("image.longUnmatched", { n: unmatched.join(", ") }) }}</p>
         </template>
         <label v-else-if="direction !== 'free'" class="check">
           <input v-model="unify" type="checkbox" />{{ direction === "horizontal" ? t("image.unifyHeight") : t("image.unifyWidth") }}
@@ -737,9 +742,6 @@ h3 {
 /* 五种排列方式放在一行，按钮收窄一些 */
 .modes button {
   padding: 0 4px;
-}
-.tip.warn {
-  color: var(--warning);
 }
 .tip {
   line-height: 1.6;

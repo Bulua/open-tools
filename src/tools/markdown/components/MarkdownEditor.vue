@@ -8,6 +8,7 @@ import { useStoredRef } from "@/composables/useStoredRef";
 import { saveFile } from "@/utils/saveFile";
 import MarkdownView from "./MarkdownView.vue";
 import { locale } from "@/locales";
+import { errorMessage, showError } from "@/utils/errorToast";
 import { sampleMarkdown } from "../sample";
 import { countWords, renderSafe, useDocxOptions } from "../shared";
 import { standaloneHtml } from "../markdownStyle";
@@ -51,17 +52,15 @@ const openFile = async (e: Event) => {
 // ---------- 导出 ----------
 const { options } = useDocxOptions();
 const exporting = ref(false);
-const exportError = ref("");
 
 const exportWord = async () => {
   exporting.value = true;
-  exportError.value = "";
   try {
     const loader = createImageLoader();
     const data = await markdownToDocx(source.value, { ...options.value, loadImage: (src) => loader.load(src) });
     await saveFile(data, `${baseName.value}.docx`);
   } catch (e) {
-    exportError.value = t("markdown.exportFailed", { error: e instanceof Error ? e.message : String(e) });
+    showError(t("markdown.exportFailed", { error: errorMessage(e) }));
   } finally {
     exporting.value = false;
   }
@@ -106,7 +105,6 @@ const jump = (id: string) => view.value?.root?.querySelector(`[id="${CSS.escape(
     <section v-show="layout !== 'edit'" class="card preview">
       <div class="card-title">
         {{ t("markdown.preview") }}
-        <span v-if="exportError" class="error">{{ exportError }}</span>
         <button
           v-if="rendered.headings.length"
           class="icon-btn push"
@@ -160,10 +158,6 @@ const jump = (id: string) => view.value?.root?.querySelector(`[id="${CSS.escape(
 }
 .preview {
   min-height: 0;
-}
-.card-title .error {
-  font-weight: 400;
-  color: var(--danger);
 }
 .push {
   margin-left: auto;

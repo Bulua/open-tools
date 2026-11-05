@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, Download, GripVertical, X } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { saveFile } from "@/utils/saveFile";
+import { errorMessage, showError } from "@/utils/errorToast";
 import OutputFormat from "./OutputFormat.vue";
 import AudioTrack, { type TrackSource } from "./AudioTrack.vue";
 import PlayButton from "./PlayButton.vue";
@@ -25,7 +26,6 @@ interface Item {
 }
 const items = shallowRef<Item[]>([]);
 const loading = ref(false);
-const error = ref("");
 let nextId = 1;
 
 const GAPS = computed(() => [0, 0.5, 1, 2].map((value) => ({ value, label: value ? t("audio.gapSeconds", { n: value }) : t("audio.gapNone") })));
@@ -33,12 +33,11 @@ const gap = useStoredRef("audio.joinGap", 0);
 
 const addFiles = async (files: File[]) => {
   loading.value = true;
-  error.value = "";
   for (const file of files) {
     try {
       items.value = [...items.value, { id: nextId++, name: file.name, pcm: await decodeFile(file) }];
     } catch (e) {
-      error.value = `${file.name}：${e instanceof Error ? e.message : e}`;
+      showError(`${file.name}：${errorMessage(e)}`);
     }
   }
   loading.value = false;
@@ -102,12 +101,11 @@ const { format, quality } = useOutputFormat();
 const saving = ref(false);
 const save = async () => {
   saving.value = true;
-  error.value = "";
   try {
     const data = await encodeAudio(joined.value ?? (await joinAll(items.value)), format.value, quality.value);
     await saveFile(data, `${t("audio.joinedName")}.${format.value}`);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   } finally {
     saving.value = false;
   }
@@ -130,7 +128,6 @@ const save = async () => {
           <Download :size="14" />{{ saving ? t("audio.joining") : t("audio.join") }}
         </button>
         <p class="tip">{{ items.length < 2 ? t("audio.needTwo") : t("audio.joinSummary", { n: items.length, time: formatTime(total, false) }) }}</p>
-        <p v-if="error" class="error">{{ error }}</p>
       </section>
     </aside>
 

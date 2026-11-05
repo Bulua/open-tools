@@ -7,6 +7,7 @@ import { locale } from "@/locales";
 import AppSelect from "@/components/common/AppSelect.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { saveFile } from "@/utils/saveFile";
+import { showError } from "@/utils/errorToast";
 import OutputFormat from "./OutputFormat.vue";
 import { decodeFile, encodeAudio, usePlayer } from "../audio";
 import type { Pcm } from "../pcm";
@@ -72,7 +73,6 @@ const RATE_LABEL = computed(() => (rate.value === 0 ? t("audio.rateNormal") : ra
 const player = usePlayer();
 const busy = ref(false);
 const speaking = ref(false);
-const error = ref("");
 /** 最近生成的语音，文字和设置没变时直接复用 */
 const cache = shallowRef<{ key: string; pcm: Pcm } | null>(null);
 const cacheKey = computed(() => `${voice.value}|${rate.value}|${text.value}`);
@@ -87,7 +87,6 @@ const synthesize = async (): Promise<Pcm> => {
 };
 
 const speak = async () => {
-  error.value = "";
   if (!text.value.trim()) return;
   if (!desktop) {
     const u = new SpeechSynthesisUtterance(text.value);
@@ -104,7 +103,7 @@ const speak = async () => {
   try {
     player.play(await synthesize());
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   } finally {
     busy.value = false;
   }
@@ -123,13 +122,12 @@ const { format, quality } = useOutputFormat();
 const saving = ref(false);
 const save = async () => {
   saving.value = true;
-  error.value = "";
   try {
     const pcm = await synthesize();
     const name = text.value.trim().slice(0, 12).replace(/[\\/:*?"<>|\s]+/g, "_") || t("audio.speechName");
     await saveFile(await encodeAudio(pcm, format.value, quality.value), `${name}.${format.value}`);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   } finally {
     saving.value = false;
   }
@@ -165,7 +163,6 @@ const save = async () => {
           </button>
         </template>
         <p v-else class="tip">{{ t("audio.browserOnly") }}</p>
-        <p v-if="error" class="error">{{ error }}</p>
       </section>
     </aside>
 

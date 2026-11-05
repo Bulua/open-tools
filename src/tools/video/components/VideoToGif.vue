@@ -6,6 +6,7 @@ import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { saveFile } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
+import { showError } from "@/utils/errorToast";
 import { VIDEO_ACCEPT, formatDuration, probeVideo, type VideoInfo } from "../media";
 import { COLOR_OPTIONS, FPS_OPTIONS, WIDTH_OPTIONS, effectiveFps, frameCount, outputSize } from "../gif";
 import type { GifRequest, GifResponse } from "../gif.worker";
@@ -18,7 +19,6 @@ const { t } = useI18n();
 
 const file = ref<File | null>(null);
 const info = ref<VideoInfo | null>(null);
-const loadError = ref("");
 const videoUrl = ref("");
 const videoEl = ref<HTMLVideoElement>();
 const dropZone = ref<InstanceType<typeof FileDropZone>>();
@@ -30,7 +30,6 @@ const loop = useStoredRef("videoToGif.loop", true);
 
 const loadFile = async (f: File) => {
   reset();
-  loadError.value = "";
   try {
     const probed = await probeVideo(f);
     if (!probed.width) throw new Error(t("video.gifNoVideo"));
@@ -38,12 +37,11 @@ const loadFile = async (f: File) => {
     info.value = probed;
     videoUrl.value = URL.createObjectURL(f);
   } catch (e) {
-    loadError.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   }
 };
 const clear = () => {
   reset();
-  loadError.value = "";
 };
 function reset() {
   cancel();
@@ -66,7 +64,6 @@ const WIDTHS = computed(() => WIDTH_OPTIONS.map((value) => ({ value, label: valu
 // ---------- 转换 ----------
 const working = ref(false);
 const progress = ref(0);
-const error = ref("");
 const result = ref<{ data: Uint8Array; url: string } | null>(null);
 const view = ref<"video" | "gif">("video");
 let worker: Worker | null = null;
@@ -74,7 +71,6 @@ let worker: Worker | null = null;
 function clearResult() {
   if (result.value) URL.revokeObjectURL(result.value.url);
   result.value = null;
-  error.value = "";
   view.value = "video";
 }
 // 换了设置后，之前的结果作废
@@ -106,12 +102,12 @@ const convert = () => {
       view.value = "gif";
       finish();
     } else {
-      error.value = msg.message ? t("video.gifFailedWith", { error: msg.message }) : t(ERRORS[msg.code]);
+      showError(msg.message ? t("video.gifFailedWith", { error: msg.message }) : t(ERRORS[msg.code]));
       finish();
     }
   };
   w.onerror = (e) => {
-    error.value = t("video.gifFailedWith", { error: e.message });
+    showError(t("video.gifFailedWith", { error: e.message }));
     finish();
   };
   const req: GifRequest = {
@@ -179,7 +175,6 @@ onBeforeUnmount(reset);
         <button v-if="!working" class="btn primary full" :disabled="!info" @click="convert"><Download :size="14" />{{ t("video.gifConvert") }}</button>
         <button v-else class="btn full" @click="cancel"><Square :size="13" />{{ t("video.gifCancel", { percent: Math.round(progress * 100) }) }}</button>
         <span v-if="working" class="progress"><i :style="{ width: `${Math.round(progress * 100)}%` }" /></span>
-        <p v-if="error" class="error">{{ error }}</p>
         <p class="tip">{{ t("video.gifLocalTip") }}</p>
       </section>
     </aside>
@@ -209,9 +204,7 @@ onBeforeUnmount(reset);
         :title="t('video.gifDrop')"
         :hint="t('video.gifDropHint')"
         @files="loadFile($event[0])"
-      >
-        <span v-if="loadError" class="error">{{ loadError }}</span>
-      </FileDropZone>
+      />
 
       <div v-if="file" class="stage">
         <video v-show="view === 'video'" ref="videoEl" :src="videoUrl" controls preload="metadata" />

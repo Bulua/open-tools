@@ -6,6 +6,7 @@ import { useStoredRef } from "@/composables/useStoredRef";
 import { saveFile } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
 import { formatTime } from "@/tools/audio/pcm";
+import { showError } from "@/utils/errorToast";
 import {
   FRAME_RATES,
   QUALITY_OPTIONS,
@@ -41,7 +42,6 @@ const frameRate = useStoredRef<RecordFrameRate>(`${props.source}Recorder.frameRa
 type State = "idle" | "starting" | "recording" | "paused";
 const state = ref<State>("idle");
 const elapsed = ref(0);
-const error = ref("");
 const warning = ref("");
 
 interface Recording {
@@ -90,10 +90,10 @@ const restoreIfNeeded = () => {
 
 // ---------- 录制 ----------
 const start = async () => {
-  error.value = warning.value = "";
+  warning.value = "";
   elapsed.value = 0;
   format = pickFormat();
-  if (!format) return (error.value = t("video.noRecorder"));
+  if (!format) return showError(t("video.noRecorder"));
   if (source.value === "screen" && hdrControllable && (await hdrEnabled())) {
     const choice = hdrChoice.value || (await askHdr());
     if (!choice) return;
@@ -117,7 +117,7 @@ const start = async () => {
   } catch (e) {
     state.value = "idle";
     restoreIfNeeded();
-    error.value = e instanceof Error ? e.message : String(e);
+    showError(e);
     return;
   }
   if (capture.mirrorUnsupported) warning.value = t("video.noMirror");
@@ -177,7 +177,7 @@ function finish() {
   const blob = new Blob(chunks, { type: recorder?.mimeType || format?.mimeType || "video/webm" });
   recorder = null;
   chunks = [];
-  if (!blob.size) return (error.value = t("video.nothingRecorded"));
+  if (!blob.size) return showError(t("video.nothingRecorded"));
   const id = nextId++;
   recordings.value = [{ id, name: recordingName(id), blob, url: URL.createObjectURL(blob), ext: format?.ext ?? "webm", seconds }, ...recordings.value];
   selectedId.value = id;
@@ -204,7 +204,7 @@ const save = async (r: Recording) => {
   try {
     await saveFile(new Uint8Array(await r.blob.arrayBuffer()), recordingFileName(r.name, r.ext));
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   } finally {
     saving.value = null;
   }
@@ -324,8 +324,7 @@ const statusText = computed(() =>
             </template>
           </div>
         </div>
-        <p v-if="error" class="error">{{ error }}</p>
-        <p v-else-if="warning" class="tip warn">{{ warning }}</p>
+        <p v-if="warning" class="tip warn">{{ warning }}</p>
       </section>
     </div>
 
@@ -541,7 +540,6 @@ const statusText = computed(() =>
 .rec:hover {
   background: var(--accent-hover);
 }
-.deck > .error,
 .deck > .warn {
   padding: 0 14px 12px;
 }

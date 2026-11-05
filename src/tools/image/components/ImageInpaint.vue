@@ -10,6 +10,7 @@ import { useFitFrame } from "@/composables/useFitFrame";
 import { useZoomPan } from "@/composables/useZoomPan";
 import { saveFile } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
+import { showError } from "@/utils/errorToast";
 import { canvasToBytes, createCanvas, formatInfo, loadImage, outputFormatOf, type ImageFormat } from "../utils";
 import { AI_SOURCES, aiStatus, canDownload, deleteModel, downloadModel, type AiSource, type AiStatus } from "../aiModels";
 import { INPAINT_MODELS, inpaint, type InpaintModel } from "../inpaint";
@@ -34,7 +35,6 @@ const sourceTitle = (s: AiSource) => t(`image.source${s[0].toUpperCase()}${s.sli
 // ---------- 模型 ----------
 const status = ref<AiStatus>({ models: [], runtimeReady: false, runtimeSize: 0, dir: "" });
 const progress = ref<Record<string, number>>({});
-const error = ref("");
 const refreshStatus = async () => (status.value = await aiStatus());
 onMounted(refreshStatus);
 
@@ -47,14 +47,13 @@ const currentModel = computed(() => {
 const selectModel = (m: InpaintModel) => isReady(m) && (modelId.value = m.id);
 
 const download = async (m: InpaintModel) => {
-  error.value = "";
   progress.value = { ...progress.value, [m.id]: 0 };
   try {
     await downloadModel(m, downloadSource.value, (ratio) => (progress.value = { ...progress.value, [m.id]: ratio }));
     await refreshStatus();
     modelId.value = m.id;
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   } finally {
     const { [m.id]: _, ...rest } = progress.value;
     progress.value = rest;
@@ -69,7 +68,6 @@ const remove = async (m: InpaintModel) => {
 // ---------- 图片与历史 ----------
 const fileName = ref("");
 const fileType = ref<ImageFormat>("image/png");
-const loadError = ref("");
 const dropZone = ref<InstanceType<typeof FileDropZone>>();
 const history = shallowRef<HTMLCanvasElement[]>([]);
 const current = computed(() => history.value[history.value.length - 1] ?? null);
@@ -78,18 +76,16 @@ const working = ref(false);
 const comparing = ref(false);
 
 const onFiles = async ([file]: File[]) => {
-  loadError.value = "";
   try {
     const img = await loadImage(file);
     const { canvas, ctx } = createCanvas(img.naturalWidth, img.naturalHeight);
     ctx.drawImage(img, 0, 0);
     fileName.value = file.name;
     fileType.value = outputFormatOf(file.type);
-    error.value = "";
     resetView();
     history.value = [canvas];
   } catch (e) {
-    loadError.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   }
 };
 
@@ -170,7 +166,6 @@ const onPointerDown = (e: PointerEvent) => {
   if (e.button !== 0) return onDown(e);
   if (!canPaint.value || !view.value) return;
   (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  error.value = "";
   const p = toImage(e);
   stroke = { start: p, last: p };
   if (tool.value === "brush") {
@@ -207,7 +202,7 @@ const run = async () => {
     const next = await inpaint(src, maskView.value, model);
     if (next) history.value = [...history.value, next];
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   } finally {
     clearMask();
     working.value = false;
@@ -269,8 +264,7 @@ const save = async () => {
             </button>
           </div>
         </div>
-        <p v-if="error" class="error">{{ error }}</p>
-        <template v-else-if="canDownload()">
+        <template v-if="canDownload()">
           <p v-if="!status.runtimeReady" class="tip">
             {{ status.runtimeSize ? t("image.runtimeTip", { size: formatBytes(status.runtimeSize) }) : t("image.runtimeTipNoSize") }}
           </p>
@@ -331,9 +325,7 @@ const save = async () => {
         :title="t('image.dropImage')"
         :hint="t('image.inpaintDropHint')"
         @files="onFiles"
-      >
-        <span v-if="loadError" class="load-error">{{ loadError }}</span>
-      </FileDropZone>
+      />
       <div
         v-if="current"
         :ref="observeArea"
@@ -572,9 +564,5 @@ h3 svg {
   box-shadow: var(--shadow);
   font-size: 13px;
   color: var(--text);
-}
-.load-error {
-  margin-top: 8px;
-  color: var(--danger);
 }
 </style>

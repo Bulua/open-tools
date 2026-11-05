@@ -11,6 +11,7 @@ import { useFileChecks } from "@/composables/useFileChecks";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { saveFiles } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
+import { showError } from "@/utils/errorToast";
 import DocxPreview from "./DocxPreview.vue";
 import { DEFAULT_WATERMARK, addWatermark, watermarkBoxes, watermarkedName, type PageGeometry, type WatermarkImage, type WatermarkOptions } from "../docxWatermark";
 
@@ -164,6 +165,7 @@ const decorate = computed(() => {
 
 // ---------- 导出 ----------
 const saving = ref(false);
+/** 拖入了旧版 .doc 时的提示；导出失败在窗口上方提示 */
 const error = ref("");
 watch(options, () => (error.value = ""));
 
@@ -174,7 +176,7 @@ const download = async () => {
     const files = checkedItems.value.map((item) => ({ name: watermarkedName(item.file.name), data: addWatermark(item.data, options.value) }));
     await saveFiles(files, t("document.watermarkZip"));
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   } finally {
     saving.value = false;
   }

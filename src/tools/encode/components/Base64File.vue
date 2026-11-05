@@ -8,6 +8,7 @@ import { useStoredRef } from "@/composables/useStoredRef";
 import ToolActions from "@/components/tool/ToolActions.vue";
 import { saveFile } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
+import { showError } from "@/utils/errorToast";
 import { FILE_OUTPUT_FORMATS, decodeFile, formatFileOutput, type FileOutputFormat } from "../base64";
 
 /** 文件 / 图片 ↔ Base64。任何文件都可以编码；解码时自动识别类型，图片可预览，均可下载 */
@@ -25,7 +26,6 @@ interface LoadedFile {
 }
 
 const file = ref<LoadedFile | null>(null);
-const loadError = ref("");
 const dropZone = ref<InstanceType<typeof FileDropZone>>();
 
 const isImage = computed(() => !!file.value?.mime.startsWith("image/"));
@@ -40,7 +40,6 @@ watch(formats, (list) => {
 const output = computed(() => (file.value ? formatFileOutput(file.value.dataUri, format.value) : ""));
 
 const loadFile = (f: File) => {
-  loadError.value = "";
   const reader = new FileReader();
   reader.onload = () => {
     let dataUri = String(reader.result);
@@ -48,7 +47,7 @@ const loadFile = (f: File) => {
     if (dataUri.startsWith("data:;")) dataUri = dataUri.replace("data:;", "data:application/octet-stream;");
     file.value = { name: f.name, size: f.size, mime: f.type || "application/octet-stream", dataUri };
   };
-  reader.onerror = () => (loadError.value = t("encode.readFailed"));
+  reader.onerror = () => showError(t("encode.readFailed"));
   reader.readAsDataURL(f);
 };
 
@@ -161,9 +160,7 @@ const decodeInfo = computed(() => {
         :title="t('encode.dropFile')"
         :hint="t('encode.dropFileHint')"
         @files="loadFile($event[0])"
-      >
-        <span v-if="loadError" class="error">{{ loadError }}</span>
-      </FileDropZone>
+      />
 
       <TextPane :model-value="output" class="result" label="Base64" readonly :placeholder="t('encode.encodePlaceholder')">
         <template #actions>

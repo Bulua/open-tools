@@ -6,6 +6,7 @@ import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { useFitFrame } from "@/composables/useFitFrame";
 import { saveFile } from "@/utils/saveFile";
+import { showError } from "@/utils/errorToast";
 import { canvasToBytes, createCanvas, formatInfo, loadImage, outputFormatOf, type ImageFormat } from "../utils";
 import { pixelate, type Box } from "../effects";
 
@@ -21,13 +22,11 @@ const brushSize = useStoredRef("mosaic.brush", 40);
 
 const fileName = ref("");
 const fileType = ref<ImageFormat>("image/png");
-const loadError = ref("");
 const history = shallowRef<HTMLCanvasElement[]>([]);
 const dropZone = ref<InstanceType<typeof FileDropZone>>();
 const current = computed(() => history.value[history.value.length - 1] ?? null);
 
 const onFiles = async ([file]: File[]) => {
-  loadError.value = "";
   try {
     const img = await loadImage(file);
     const { canvas, ctx } = createCanvas(img.naturalWidth, img.naturalHeight);
@@ -36,7 +35,7 @@ const onFiles = async ([file]: File[]) => {
     fileType.value = outputFormatOf(file.type);
     history.value = [canvas];
   } catch (e) {
-    loadError.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   }
 };
 
@@ -247,9 +246,7 @@ const download = async () => {
         :title="t('image.dropImage')"
         :hint="t('image.mosaicDropHint')"
         @files="onFiles"
-      >
-        <span v-if="loadError" class="load-error">{{ loadError }}</span>
-      </FileDropZone>
+      />
       <div v-if="current" :ref="observeArea" class="area">
         <div class="frame" :style="frameStyle">
           <canvas
@@ -360,9 +357,5 @@ h3 {
   align-items: center;
   justify-content: center;
   gap: 5px;
-}
-.load-error {
-  margin-top: 8px;
-  color: var(--danger);
 }
 </style>

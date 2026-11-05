@@ -6,6 +6,7 @@ import CheckAll from "@/components/common/CheckAll.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useFileChecks } from "@/composables/useFileChecks";
 import { saveFiles } from "@/utils/saveFile";
+import { showError } from "@/utils/errorToast";
 import { openPdf, renderPage, type PdfDocument } from "../pdfjs";
 import { removePdfWatermarks, scanPdf, unwatermarkedPdfName, type FoundPdfWatermark, type PdfScan } from "../pdfUnwatermark";
 
@@ -132,16 +133,14 @@ const goto = (i: number) => (pageIndex.value = Math.max(0, Math.min(pageCount.va
 // ---------- 导出 ----------
 const ready = computed(() => checkedItems.value.filter((i) => i.scan));
 const exporting = ref(false);
-const exportError = ref("");
 const exportAll = async () => {
   exporting.value = true;
-  exportError.value = "";
   try {
     const files = [];
     for (const i of ready.value) files.push({ name: unwatermarkedPdfName(i.file.name), data: await removePdfWatermarks(i.data, i.scan!, i.checked) });
     await saveFiles(files, t("document.pdfUnwmZip"));
   } catch (e) {
-    exportError.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   } finally {
     exporting.value = false;
   }
@@ -207,7 +206,6 @@ const pagesText = (f: FoundPdfWatermark) =>
         <button class="btn primary full" :disabled="!ready.length || exporting" @click="exportAll">
           <Download :size="14" />{{ exporting ? t("document.processing") : !checkedItems.length && items.length ? t("document.checkToProcess") : ready.length > 1 ? t("document.removeSelected", { n: ready.length }) : t("document.removeOne") }}
         </button>
-        <p v-if="exportError" class="error">{{ exportError }}</p>
         <p class="tip">{{ t("document.pdfUnwmTip") }}</p>
       </section>
     </aside>

@@ -5,6 +5,7 @@ import { isTauri } from "@tauri-apps/api/core";
 import { Check, Copy, MapPin, RefreshCw, Search } from "lucide-vue-next";
 import CopyList from "@/components/common/CopyList.vue";
 import { useClipboard } from "@/composables/useClipboard";
+import { showError } from "@/utils/errorToast";
 import { SERVICE_NAMES, formatCoordinates, lookupIp, type IpInfo } from "../ipLookup";
 
 const { t } = useI18n();
@@ -12,7 +13,6 @@ const { t } = useI18n();
 /** 查询本机公网 IP 及归属地、经纬度；也可以查询任意 IP */
 const info = ref<IpInfo | null>(null);
 const loading = ref(false);
-const error = ref("");
 const query = ref("");
 /** 当前显示的是不是本机 */
 const isSelf = ref(true);
@@ -20,12 +20,11 @@ const localIp = ref("");
 
 const run = async (ip = "") => {
   loading.value = true;
-  error.value = "";
   try {
     info.value = await lookupIp(ip);
     isSelf.value = !ip;
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   } finally {
     loading.value = false;
   }
@@ -79,7 +78,6 @@ const { copied, copy } = useClipboard();
           </button>
         </div>
         <p v-if="info" class="where"><MapPin :size="14" />{{ location }}</p>
-        <p v-if="error" class="error">{{ error }}</p>
       </div>
 
       <div class="search">
@@ -143,10 +141,6 @@ const { copied, copy } = useClipboard();
   margin: 8px 0 0;
   font-size: 14px;
   color: var(--text-2);
-}
-.error {
-  margin: 8px 0 0;
-  font-size: 13px;
 }
 .search {
   display: flex;

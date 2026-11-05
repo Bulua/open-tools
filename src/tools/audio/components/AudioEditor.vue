@@ -5,6 +5,7 @@ import { Download, Pause, Play, RefreshCw, Scissors, SquareX, Undo2, Volume2, Tr
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useWindowEvent } from "@/composables/useWindowEvent";
 import { saveFile } from "@/utils/saveFile";
+import { showError } from "@/utils/errorToast";
 import Waveform from "./Waveform.vue";
 import OutputFormat from "./OutputFormat.vue";
 import { decodeFile, encodeAudio, outputName, usePlayer } from "../audio";
@@ -25,12 +26,10 @@ const selection = ref<[number, number] | null>(null);
 const position = ref(0);
 const volume = ref(100);
 const loading = ref(false);
-const error = ref("");
 
 const onFiles = async ([file]: File[]) => {
   if (!file) return;
   loading.value = true;
-  error.value = "";
   player.stop();
   try {
     history.value = [await decodeFile(file)];
@@ -39,7 +38,7 @@ const onFiles = async ([file]: File[]) => {
     position.value = 0;
     volume.value = 100;
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   } finally {
     loading.value = false;
   }
@@ -110,7 +109,7 @@ const download = async () => {
     const data = await encodeAudio(applyGain(pcm.value, volume.value / 100), format.value, quality.value);
     await saveFile(data, outputName(fileName.value, format.value, t("audio.editSuffix")));
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   } finally {
     saving.value = false;
   }
@@ -152,7 +151,6 @@ const download = async () => {
         <button class="btn primary full" :disabled="!pcm || saving" @click="download">
           <Download :size="14" />{{ saving ? t("audio.exporting") : t("audio.saveAudio") }}
         </button>
-        <p v-if="error" class="error">{{ error }}</p>
       </section>
     </aside>
 
@@ -175,9 +173,7 @@ const download = async () => {
         :title="loading ? t('audio.reading') : t('audio.dropAudio')"
         :hint="t('audio.dropAudioHint')"
         @files="onFiles"
-      >
-        <span v-if="error" class="error">{{ error }}</span>
-      </FileDropZone>
+      />
 
       <!-- 音轨：没有文件时显示一条空的音轨 -->
       <Waveform v-model:selection="selection" class="wave" :class="{ empty: !pcm }" :pcm="pcm" :position="pcm ? position : null" @seek="seek" />

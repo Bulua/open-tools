@@ -12,6 +12,7 @@ import CommandPalette from "@/components/common/CommandPalette.vue";
 import UpdateDialog from "@/components/layout/UpdateDialog.vue";
 import { useUpdater } from "@/composables/useUpdater";
 import CountdownAlerts from "@/components/layout/CountdownAlerts.vue";
+import ErrorToast from "@/components/layout/ErrorToast.vue";
 import { startCountdownTicker } from "@/tools/utility/countdownStore";
 import { startBrandingSync } from "@/utils/branding";
 
@@ -107,6 +108,8 @@ onMounted(startBrandingSync);
       <UpdateDialog v-if="updateOpen" @close="updateOpen = false" />
     </Transition>
     <CountdownAlerts @open="selectTool('time', 'countdown')" />
+    <!-- 各工具的报错统一在窗口上方提示，见 utils/errorToast.ts -->
+    <ErrorToast />
   </div>
 </template>
 

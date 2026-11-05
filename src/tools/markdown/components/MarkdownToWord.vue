@@ -10,6 +10,7 @@ import { saveFiles } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
 import MarkdownView from "./MarkdownView.vue";
 import { locale } from "@/locales";
+import { errorMessage, showError } from "@/utils/errorToast";
 import { FONTS, fontLabel, renderSafe, useDocxOptions } from "../shared";
 import { createImageLoader, imageSources } from "../images";
 import { FONT_SIZES, docxNameOf, markdownToDocx } from "../toDocx";
@@ -66,10 +67,8 @@ watch(selected, (doc) => (preview.value = doc ? renderSafe(doc.text).html : ""),
 
 // ---------- 转换 ----------
 const converting = ref(false);
-const error = ref("");
 const convert = async () => {
   converting.value = true;
-  error.value = "";
   try {
     const files = [];
     for (const doc of checkedItems.value) {
@@ -78,7 +77,7 @@ const convert = async () => {
     }
     await saveFiles(files, t("markdown.zipName"));
   } catch (e) {
-    error.value = t("markdown.convertFailed", { error: e instanceof Error ? e.message : String(e) });
+    showError(t("markdown.convertFailed", { error: errorMessage(e) }));
   } finally {
     converting.value = false;
   }
@@ -151,7 +150,6 @@ const previewStyle = computed(() => ({
       </section>
 
       <section class="section">
-        <p v-if="error" class="error">{{ error }}</p>
         <button class="btn primary full" :disabled="converting || !checkedItems.length" @click="convert">
           <Download :size="14" />{{
             converting

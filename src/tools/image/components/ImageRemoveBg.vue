@@ -16,6 +16,7 @@ import type { Rgb } from "../effects";
 import { AI_MODELS, AI_SOURCES, aiStatus, canDownload, deleteModel, downloadModel, modelById, type AiModel, type AiSource, type AiStatus } from "../aiModels";
 import { segment } from "../segment";
 import { formatBytes } from "@/utils/format";
+import { showError } from "@/utils/errorToast";
 
 /**
  * 图片去背景：上传后先用 AI 模型找出主体（人物、商品、动物等）去掉背景，
@@ -45,7 +46,6 @@ const modelName = (m: AiModel) => (MODEL_TEXT[m.id] ? t(`image.${MODEL_TEXT[m.id
 const modelDesc = (m: AiModel) => (MODEL_TEXT[m.id] ? t(`image.${MODEL_TEXT[m.id]}Desc`) : m.desc);
 
 const fileName = ref("");
-const loadError = ref("");
 const dropZone = ref<InstanceType<typeof FileDropZone>>();
 const source = shallowRef<{ data: ImageData; width: number; height: number } | null>(null);
 
@@ -105,7 +105,6 @@ worker.onmessage = (e: MessageEvent<{ id: number; pixels: Uint8ClampedArray<Arra
 };
 
 const onFiles = async ([file]: File[]) => {
-  loadError.value = "";
   try {
     const img = await loadImage(file);
     const { canvas, ctx } = createCanvas(img.naturalWidth, img.naturalHeight);
@@ -123,7 +122,7 @@ const onFiles = async ([file]: File[]) => {
     imageReq = reqId;
     source.value = { data, width: canvas.width, height: canvas.height };
   } catch (e) {
-    loadError.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   }
 };
 
@@ -160,7 +159,6 @@ let sourceCanvas: HTMLCanvasElement | null = null;
 const masks = new Map<string, Uint8ClampedArray>();
 const status = ref<AiStatus>({ models: [], runtimeReady: false, runtimeSize: 0, dir: "" });
 const recognizing = ref(false);
-const aiError = ref("");
 const progress = ref<Record<string, number>>({});
 const refreshStatus = async () => (status.value = await aiStatus());
 onMounted(refreshStatus);
@@ -180,7 +178,6 @@ async function updateMask() {
   const s = source.value;
   if (!s || !sourceCanvas) return;
   const id = ++run;
-  aiError.value = "";
   recognizing.value = false;
   let mask: Uint8ClampedArray | null = null;
   const model = currentModel.value;
@@ -195,7 +192,7 @@ async function updateMask() {
         mask = await segment(sourceCanvas, s.width, s.height, model);
         masks.set(model.id, mask);
       } catch (e) {
-        if (id === run) aiError.value = e instanceof Error ? e.message : String(e);
+        if (id === run) showError(e);
         return;
       } finally {
         if (id === run) recognizing.value = false;
@@ -212,14 +209,13 @@ watch([picks, tolerance, feather, contiguous], render);
 const selectModel = (m: AiModel) => isReady(m) && (modelId.value = m.id);
 
 const download = async (m: AiModel) => {
-  aiError.value = "";
   progress.value = { ...progress.value, [m.id]: 0 };
   try {
     await downloadModel(m, downloadSource.value, (ratio) => (progress.value = { ...progress.value, [m.id]: ratio }));
     await refreshStatus();
     modelId.value = m.id;
   } catch (e) {
-    aiError.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   } finally {
     const { [m.id]: _, ...rest } = progress.value;
     progress.value = rest;
@@ -329,8 +325,7 @@ const save = async () => {
               </button>
             </div>
           </div>
-          <p v-if="aiError" class="error">{{ aiError }}</p>
-          <template v-else-if="canDownload()">
+          <template v-if="canDownload()">
             <p v-if="!status.runtimeReady" class="tip">
               {{ status.runtimeSize ? t("image.runtimeTip", { size: formatBytes(status.runtimeSize) }) : t("image.runtimeTipNoSize") }}
             </p>
@@ -415,9 +410,7 @@ const save = async () => {
         :title="t('image.dropImage')"
         :hint="t('image.removebgDropHint')"
         @files="onFiles"
-      >
-        <span v-if="loadError" class="load-error">{{ loadError }}</span>
-      </FileDropZone>
+      />
       <div
         v-if="source"
         :ref="observeArea"
@@ -706,9 +699,5 @@ h3 {
 .fill.custom {
   overflow: hidden;
   background: conic-gradient(#f87171, #fbbf24, #34d399, #60a5fa, #a78bfa, #f87171);
-}
-.load-error {
-  margin-top: 8px;
-  color: var(--danger);
 }
 </style>

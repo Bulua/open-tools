@@ -8,6 +8,7 @@ import { useStoredRef } from "@/composables/useStoredRef";
 import { saveFile } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
 import { initialCrop, updateCrop, type CropHandle, type Rect } from "@/tools/image/crop";
+import { errorMessage, showError } from "@/utils/errorToast";
 import { VIDEO_ACCEPT, formatDuration, probeVideo, trimVideo, type ConcatQuality, type VideoInfo } from "../media";
 import { CROP_RATIOS, clampTrim, encodeCrop, formatTime, isFullFrame, parseTime } from "../trim";
 
@@ -19,7 +20,6 @@ const { t } = useI18n();
 
 const file = ref<File | null>(null);
 const info = ref<VideoInfo | null>(null);
-const loadError = ref("");
 const videoUrl = ref("");
 const videoEl = ref<HTMLVideoElement>();
 const dropZone = ref<InstanceType<typeof FileDropZone>>();
@@ -40,7 +40,6 @@ const QUALITIES = computed<{ value: ConcatQuality; label: string }[]>(() => [
 
 const loadFile = async (f: File) => {
   reset();
-  loadError.value = "";
   try {
     const probed = await probeVideo(f);
     if (!probed.width) throw new Error(t("video.trimNoVideo"));
@@ -51,12 +50,11 @@ const loadFile = async (f: File) => {
     crop.value = { x: 0, y: 0, w: probed.width, h: probed.height };
     videoUrl.value = URL.createObjectURL(f);
   } catch (e) {
-    loadError.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   }
 };
 const clear = () => {
   reset();
-  loadError.value = "";
 };
 function reset() {
   cancel();
@@ -214,13 +212,11 @@ const reencode = computed(() => !!encodedCrop.value || precise.value);
 // ---------- 导出 ----------
 const working = ref(false);
 const progress = ref(0);
-const error = ref("");
 const result = ref<{ data: Uint8Array; copied: boolean } | null>(null);
 let controller: AbortController | null = null;
 
 function clearResult() {
   result.value = null;
-  error.value = "";
 }
 // 改了时间段或设置后，之前的结果作废
 watch([start, end, encodedCrop, precise, quality], () => {
@@ -246,7 +242,7 @@ const exportVideo = async () => {
     );
     await save();
   } catch (e) {
-    if (!c.signal.aborted) error.value = t("video.trimFailedWith", { error: e instanceof Error ? e.message : String(e) });
+    if (!c.signal.aborted) showError(t("video.trimFailedWith", { error: errorMessage(e) }));
   } finally {
     if (controller === c) controller = null;
     working.value = false;
@@ -315,7 +311,6 @@ onBeforeUnmount(() => {
         <button v-if="!working" class="btn primary full" :disabled="!info" @click="exportVideo"><Download :size="14" />{{ t("video.trimExport") }}</button>
         <button v-else class="btn full" @click="cancel"><Square :size="13" />{{ t("video.trimStop", { percent: Math.round(progress * 100) }) }}</button>
         <span v-if="working" class="progress"><i :style="{ width: `${Math.round(progress * 100)}%` }" /></span>
-        <p v-if="error" class="error">{{ error }}</p>
         <p v-if="result" class="tip done">
           {{ t("video.trimResult", { size: formatBytes(result.data.length) }) }}{{ result.copied ? t("video.trimCopied") : t("video.reencodedNote") }}
           <button class="link" @click="save">{{ t("video.trimSaveAgain") }}</button>
@@ -345,9 +340,7 @@ onBeforeUnmount(() => {
         :title="t('video.trimDrop')"
         :hint="t('video.trimDropHint')"
         @files="loadFile($event[0])"
-      >
-        <span v-if="loadError" class="error">{{ loadError }}</span>
-      </FileDropZone>
+      />
 
       <template v-if="file">
         <div :ref="observeArea" class="stage">

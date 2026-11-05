@@ -11,6 +11,7 @@ import { useStoredRef } from "@/composables/useStoredRef";
 import { useWindowEvent } from "@/composables/useWindowEvent";
 import { saveFile } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
+import { showError } from "@/utils/errorToast";
 import KeyValueEditor from "./KeyValueEditor.vue";
 import { parseInput } from "../headers";
 import {
@@ -128,14 +129,12 @@ const mode = sendMode();
 // ---------- 发送 ----------
 const response = shallowRef<HttpResponse | null>(null);
 const sending = ref(false);
-const error = ref("");
 let controller: AbortController | null = null;
 
 const history = useStoredRef<HistoryEntry[]>("http.history", []);
 const send = async () => {
   if (sending.value) return;
   sending.value = true;
-  error.value = "";
   controller = new AbortController();
   const entry: HistoryEntry = { id: Date.now(), time: Date.now(), status: null, request: forHistory(req.value) };
   try {
@@ -143,7 +142,7 @@ const send = async () => {
     entry.status = response.value.status;
   } catch (e) {
     response.value = null;
-    error.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   } finally {
     sending.value = false;
     controller = null;
@@ -203,7 +202,7 @@ const copyCurl = () => {
   try {
     copy(toCurlCommand(req.value));
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   }
 };
 
@@ -403,7 +402,6 @@ const KIND_LABEL = computed(() => ({
           </div>
 
           <div v-if="sending" class="state"><LoaderCircle :size="18" class="spin" />{{ t("network.requesting") }}</div>
-          <div v-else-if="error" class="state error">{{ error }}</div>
           <div v-else-if="!response" class="state">
             <p>{{ t("network.emptyHint") }}</p>
             <p class="sub">{{ t("network.emptySub") }}</p>
@@ -704,10 +702,6 @@ const KIND_LABEL = computed(() => ({
 }
 .state .sub {
   font-size: 12px;
-}
-.state.error {
-  color: var(--danger);
-  word-break: break-all;
 }
 .redirect {
   margin: 0;

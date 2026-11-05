@@ -9,6 +9,7 @@ import { saveFile } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
 import { decodeFile } from "@/tools/audio/audio";
 import { duration as pcmDuration, type Pcm } from "@/tools/audio/pcm";
+import { showError } from "@/utils/errorToast";
 import { VIDEO_ACCEPT, formatDuration, probeVideo } from "../media";
 import { FADE_SECONDS, addMusic, musicSegments, musicTimeAt, type MusicRepeat } from "../music";
 
@@ -35,14 +36,12 @@ const music = shallowRef<MusicFile | null>(null);
 const { t } = useI18n();
 const loadingVideo = ref(false);
 const loadingMusic = ref(false);
-const error = ref("");
 
 const videoZone = ref<InstanceType<typeof FileDropZone>>();
 const musicZone = ref<InstanceType<typeof FileDropZone>>();
 
 const onVideo = async ([file]: File[]) => {
   if (!file) return;
-  error.value = "";
   loadingVideo.value = true;
   try {
     const info = await probeVideo(file);
@@ -51,7 +50,7 @@ const onVideo = async ([file]: File[]) => {
     video.value = { file, url: URL.createObjectURL(file), duration: info.duration, hasAudio: !!info.audio };
     clearResult();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   } finally {
     loadingVideo.value = false;
   }
@@ -59,7 +58,6 @@ const onVideo = async ([file]: File[]) => {
 
 const onMusic = async ([file]: File[]) => {
   if (!file) return;
-  error.value = "";
   loadingMusic.value = true;
   try {
     const pcm = await decodeFile(file);
@@ -67,7 +65,7 @@ const onMusic = async ([file]: File[]) => {
     music.value = { file, url: URL.createObjectURL(file), pcm };
     clearResult();
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   } finally {
     loadingMusic.value = false;
   }
@@ -164,7 +162,6 @@ watch([musicVolume, originalVolume, repeat, fadeOut], clearResult);
 const start = async () => {
   if (!video.value || !music.value) return;
   player.value?.pause();
-  error.value = "";
   clearResult();
   working.value = true;
   progress.value = 0;
@@ -177,7 +174,7 @@ const start = async () => {
     );
     result.value = { data, url: URL.createObjectURL(new Blob([data as Uint8Array<ArrayBuffer>], { type: "video/mp4" })) };
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   } finally {
     working.value = false;
   }
@@ -276,7 +273,6 @@ onBeforeUnmount(() => {
           {{ working ? t("video.mixing", { n: Math.round(progress * 100) }) : t("video.mix") }}
         </button>
         <ProgressBar v-if="working" :value="progress" />
-        <p v-if="error" class="error">{{ error }}</p>
         <template v-if="result">
           <p class="tip">{{ t("video.mixDone", { size: formatBytes(result.data.length) }) }}</p>
           <button class="btn full" @click="save"><Download :size="14" />{{ t("video.saveVideo") }}</button>

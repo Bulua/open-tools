@@ -8,6 +8,7 @@ import { useStoredRef } from "@/composables/useStoredRef";
 import { useWindowEvent } from "@/composables/useWindowEvent";
 import { pickFolder, saveFile, saveIntoFolder } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
+import { showError } from "@/utils/errorToast";
 import { formatDuration } from "../media";
 import { douyinBaseName, downloadFirst, getDouyinItem, imageExt, type DouyinItem } from "../douyin";
 
@@ -47,12 +48,10 @@ interface Entry {
 const entries = ref<Entry[]>([]);
 const link = ref("");
 const parsing = ref(false);
-const parseError = ref("");
 
 const parse = async () => {
   if (parsing.value || !link.value.trim()) return;
   parsing.value = true;
-  parseError.value = "";
   try {
     const item = await getDouyinItem(link.value);
     const entry: Entry = { key: item.id, item, status: "idle", step: "", progress: 0, message: "", result: "" };
@@ -60,7 +59,7 @@ const parse = async () => {
     entries.value = [old?.status === "working" ? old : entry, ...entries.value.filter((e) => e.key !== entry.key)];
     link.value = "";
   } catch (e) {
-    parseError.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   } finally {
     parsing.value = false;
   }
@@ -178,7 +177,6 @@ useWindowEvent("keydown", (ev) => {
       </button>
     </div>
     <p v-if="!desktop" class="banner warn">{{ t("video.dyDesktopOnly") }}</p>
-    <p v-if="parseError" class="banner error">{{ parseError }}</p>
 
     <div class="main">
       <aside class="card panel">
@@ -315,10 +313,6 @@ useWindowEvent("keydown", (ev) => {
 .banner.warn {
   background: var(--warning-soft);
   color: var(--warning);
-}
-.banner.error {
-  background: var(--danger-soft);
-  color: var(--danger);
 }
 .main {
   flex: 1;

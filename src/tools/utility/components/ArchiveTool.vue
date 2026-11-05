@@ -6,6 +6,7 @@ import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { formatBytes } from "@/utils/format";
 import { canSaveToFolder, saveFile, saveToFolder } from "@/utils/saveFile";
+import { errorMessage, showError } from "@/utils/errorToast";
 import { buildTree, buildZip, readArchive, safeRelativePath, type ArchiveEntry, type TreeNode } from "../archive";
 
 const { t } = useI18n();
@@ -63,12 +64,10 @@ const pack = async () => {
 
 const archiveName = ref("");
 const entries = shallowRef<ArchiveEntry[]>([]);
-const readError = ref("");
 const extracting = ref(false);
 const extractDone = ref("");
 
 const openArchive = async ([file]: File[]) => {
-  readError.value = "";
   extractDone.value = "";
   try {
     entries.value = readArchive(file.name, new Uint8Array(await file.arrayBuffer()));
@@ -76,7 +75,7 @@ const openArchive = async ([file]: File[]) => {
     expanded.value = new Set(tree.value.filter((n) => n.dir).map((n) => n.path)); // 默认展开第一层
   } catch (e) {
     entries.value = [];
-    readError.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   }
 };
 
@@ -121,7 +120,7 @@ const extractAll = async () => {
       await saveFile(zip, `${archiveName.value.replace(/\.(zip|tar|tgz|gz|tar\.gz)$/i, "")}.zip`);
     }
   } catch (e) {
-    readError.value = t("utility.extractFailed", { error: e instanceof Error ? e.message : String(e) });
+    showError(t("utility.extractFailed", { error: errorMessage(e) }));
   } finally {
     extracting.value = false;
   }
@@ -219,7 +218,6 @@ const closeArchive = () => {
           <FolderOpen :size="14" />{{ extracting ? t("utility.extracting") : canSaveToFolder() ? t("utility.extractToFolder") : t("utility.downloadAllZip") }}
         </button>
         <p v-if="extractDone" class="tip ok">{{ extractDone }}</p>
-        <p v-else-if="readError" class="tip error">{{ readError }}</p>
         <p v-else class="tip">{{ t("utility.singleTip") }}</p>
       </section>
     </aside>
@@ -237,9 +235,7 @@ const closeArchive = () => {
         :title="t('utility.dropArchive')"
         :hint="t('utility.dropArchiveHint')"
         @files="openArchive"
-      >
-        <span v-if="readError" class="error">{{ readError }}</span>
-      </FileDropZone>
+      />
       <ul v-else class="rows tree">
         <li v-for="{ node, depth } in rows" :key="node.path" class="row" :style="{ paddingLeft: `${10 + depth * 18}px` }">
           <button v-if="node.dir" class="caret" :class="{ open: expanded.has(node.path) }" @click="toggle(node)">
@@ -365,13 +361,6 @@ h3 {
 }
 .tip.ok {
   color: var(--success);
-}
-.tip.error,
-.error {
-  color: var(--danger);
-}
-.error {
-  margin-top: 8px;
 }
 .name-row {
   display: flex;

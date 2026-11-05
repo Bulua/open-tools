@@ -9,6 +9,7 @@ import { useFileChecks } from "@/composables/useFileChecks";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { saveFile } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
+import { showError } from "@/utils/errorToast";
 import { VIDEO_ACCEPT, canCopyConcat, codecName, concatVideos, formatDuration, probeVideo, type ConcatQuality, type VideoInfo } from "../media";
 
 /**
@@ -108,7 +109,6 @@ const willCopy = computed(() => !!canCopy.value && !forceReencode.value);
 // ---------- 拼接 ----------
 const working = ref(false);
 const progress = ref(0);
-const error = ref("");
 const result = ref<{ data: Uint8Array; url: string; copied: boolean } | null>(null);
 const clearResult = () => {
   if (result.value) URL.revokeObjectURL(result.value.url);
@@ -124,7 +124,6 @@ onBeforeUnmount(() => {
 const start = async () => {
   working.value = true;
   progress.value = 0;
-  error.value = "";
   clearResult();
   try {
     const { data, copied } = await concatVideos(
@@ -134,7 +133,7 @@ const start = async () => {
     );
     result.value = { data, copied, url: URL.createObjectURL(new Blob([data as Uint8Array<ArrayBuffer>], { type: "video/mp4" })) };
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   } finally {
     working.value = false;
   }
@@ -179,7 +178,6 @@ const describe = (info: VideoInfo) =>
           {{ working ? t("video.joining", { n: Math.round(progress * 100) }) : t("video.joinN", { n: usable.length }) }}
         </button>
         <span v-if="working" class="bar"><i :style="{ width: `${Math.round(progress * 100)}%` }" /></span>
-        <p v-if="error" class="error">{{ error }}</p>
         <p v-if="usable.length" class="tip">{{ t("video.totalLocal", { time: formatDuration(total) }) }}</p>
       </section>
 

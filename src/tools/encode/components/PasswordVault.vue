@@ -5,6 +5,7 @@ import { locale } from "@/locales";
 import { Check, Copy, ExternalLink, Eye, EyeOff, KeyRound, Lock, Plus, RefreshCw, Search, Square, SquareCheck, Trash2, X } from "lucide-vue-next";
 import { useClipboard } from "@/composables/useClipboard";
 import { openExternal } from "@/utils/openExternal";
+import { showError } from "@/utils/errorToast";
 import { DEFAULT_PASSWORD, generatePassword } from "../password";
 import { createSession, decryptVault, encryptVault, loadVaultFile, matchEntry, newEntry, saveVaultFile, type VaultEntry, type VaultSession } from "../vault";
 
@@ -21,6 +22,7 @@ const loading = ref(true);
 const master = ref("");
 const confirm = ref("");
 const unlocking = ref(false);
+/** 解锁表单里的提示（没填密码、两次不一致、密码错误），显示在表单里；读写文件失败在窗口上方提示 */
 const error = ref("");
 const session = shallowRef<VaultSession | null>(null);
 const entries = ref<VaultEntry[]>([]);
@@ -30,7 +32,7 @@ onMounted(async () => {
     const file = await loadVaultFile();
     exists.value = file.data !== null;
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   } finally {
     loading.value = false;
   }
@@ -113,13 +115,12 @@ const toggleReveal = (id: string) => {
 const persist = async (next: VaultEntry[]) => {
   if (!session.value) return false;
   saving.value = true;
-  error.value = "";
   try {
     await saveVaultFile(await encryptVault(session.value, next));
     entries.value = next;
     return true;
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
+    showError(e);
     return false;
   } finally {
     saving.value = false;
@@ -210,9 +211,8 @@ const save = async () => {
   if (!d.title.trim()) return (dialogError.value = t("encode.needTitle"));
   const updated = { ...d, title: d.title.trim(), updatedAt: Date.now() };
   const ok = await persist(e.isNew ? [...entries.value, updated] : entries.value.map((x) => (x.id === d.id ? updated : x)));
-  // 保存失败的提示显示在弹窗里，不显示在工具栏下面
-  dialogError.value = error.value;
-  error.value = "";
+  // 保存失败时会在窗口上方提示，这里只清掉之前「没填标题」的提示
+  dialogError.value = "";
   if (!ok) return;
   // 新增的条目可能被搜索过滤掉，清空搜索让它能看到
   if (e.isNew && !matchEntry(updated, query.value)) query.value = "";
@@ -226,8 +226,7 @@ const removeEditing = async () => {
   if (e.isNew) return cancel(true);
   if (!confirmRemove.value) return (confirmRemove.value = true);
   const ok = await persist(entries.value.filter((x) => x.id !== e.draft.id));
-  dialogError.value = error.value;
-  error.value = "";
+  dialogError.value = "";
   if (ok) closeDialog(null);
 };
 
@@ -326,7 +325,6 @@ const formatDate = (ms: number) => new Date(ms).toLocaleString(locale.value, { h
         <span class="count">{{ t("encode.accountCount", { n: entries.length }) }}</span>
         <button class="btn subtle" :title="t('encode.lockTitle')" @click="lock"><Lock :size="14" />{{ t("encode.lock") }}</button>
       </div>
-      <p v-if="error" class="error">{{ error }}</p>
 
       <!-- 下：卡片，显示账号、密码、网址，过长的截断；点击打开编辑弹窗（备注在弹窗里看） -->
       <div ref="grid" class="grid">

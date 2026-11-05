@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import { Download, Mic, Pause, Play, Square, Trash2 } from "lucide-vue-next";
 import PlayButton from "./PlayButton.vue";
 import { saveFile } from "@/utils/saveFile";
+import { showError } from "@/utils/errorToast";
 import OutputFormat from "./OutputFormat.vue";
 import { audioContext, decodeFile, encodeAudio, usePlayer } from "../audio";
 import { duration, formatTime, type Pcm } from "../pcm";
@@ -18,7 +19,6 @@ const { t } = useI18n();
 type State = "idle" | "recording" | "paused";
 const state = ref<State>("idle");
 const elapsed = ref(0);
-const error = ref("");
 
 interface Recording {
   id: number;
@@ -69,11 +69,10 @@ const drawLevels = () => {
 
 // ---------- 录音 ----------
 const start = async () => {
-  error.value = "";
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch {
-    error.value = t("audio.micFailed");
+    showError(t("audio.micFailed"));
     return;
   }
   chunks = [];
@@ -133,7 +132,7 @@ async function finish() {
     const name = t("audio.recordingName", { n: nextId, time: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}` });
     recordings.value = [{ id: nextId++, name, pcm }, ...recordings.value];
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   }
 }
 onBeforeUnmount(() => {
@@ -159,7 +158,7 @@ const save = async (r: Recording) => {
     const name = r.name.replace(/[ ·:]+/g, "_");
     await saveFile(await encodeAudio(r.pcm, format.value, quality.value), `${name}.${format.value}`);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   } finally {
     saving.value = null;
   }
@@ -195,7 +194,6 @@ const save = async (r: Recording) => {
             <button class="rec stop" :title="t('audio.stopRecord')" @click="stop"><Square :size="22" /></button>
           </template>
         </div>
-        <p v-if="error" class="error">{{ error }}</p>
       </section>
 
       <section class="card list">
@@ -300,10 +298,6 @@ h3 {
 }
 .round:hover {
   background: var(--hover);
-}
-.error {
-  margin: 8px 0 0;
-  text-align: center;
 }
 .list {
   flex: 1;

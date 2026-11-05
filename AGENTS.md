@@ -52,6 +52,7 @@ npm run build      # 前端构建
 3. 处理数据的逻辑写成纯函数，放在模块目录下，旁边写 `*.test.ts`。
 4. 优先复用 `src/components/common/` 里的组件（`TextPane`、`FileDropZone`、`CopyList`、`AppSelect` 等）。
 5. 需要多会话时在工具定义里加 `sessions: true`；工具栏选项用 `ToolActions`，监听 `window` 事件用 `useWindowEvent`。
+   读取、处理、保存、网络等真正的错误用 `src/utils/errorToast.ts` 的 `showError(e)` 在窗口上方提示；输入格式不对这类即时提示留在输入框旁边。
 6. 跑 `npm run typecheck` 和 `npm test`；测试会检查每个工具都在某个分类里，并且每种语言都写了名称和说明。
 
 ## 发版

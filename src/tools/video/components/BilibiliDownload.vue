@@ -27,6 +27,7 @@ import { useWindowEvent } from "@/composables/useWindowEvent";
 import { pickFolder, saveFile, saveIntoFolder } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
 import { sendMode } from "@/tools/network/http";
+import { showError } from "@/utils/errorToast";
 import { formatDuration } from "../media";
 import {
   CODEC_PREFERENCES,
@@ -139,11 +140,9 @@ const actualQuality = (e: Entry) => e.qualities.find((q) => q.id <= quality.valu
 
 const link = ref("");
 const parsing = ref(false);
-const parseError = ref("");
 const parse = async () => {
   if (parsing.value || !link.value.trim()) return;
   parsing.value = true;
-  parseError.value = "";
   try {
     const { info, page } = await getVideoInfo(link.value, session.value);
     // 用第一 P 查询当前账号能下载的清晰度
@@ -168,7 +167,7 @@ const parse = async () => {
     entries.value = [old?.status === "working" ? old : entry, ...entries.value.filter((e) => e.key !== entry.key)];
     link.value = "";
   } catch (e) {
-    parseError.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   } finally {
     parsing.value = false;
   }
@@ -343,7 +342,6 @@ useWindowEvent("keydown", (ev) => {
       </button>
     </div>
     <p v-if="mode === 'browser'" class="banner warn">{{ t("video.biliBrowser") }}</p>
-    <p v-if="parseError" class="banner error">{{ parseError }}</p>
 
     <div class="main">
       <!-- 左：设置 -->
@@ -545,10 +543,6 @@ useWindowEvent("keydown", (ev) => {
 .banner.warn {
   background: var(--warning-soft);
   color: var(--warning);
-}
-.banner.error {
-  background: var(--danger-soft);
-  color: var(--danger);
 }
 .main {
   flex: 1;
