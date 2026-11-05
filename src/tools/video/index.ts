@@ -1,5 +1,5 @@
 import { defineAsyncComponent } from "vue";
-import { Clapperboard, FileImage, FileMusic, MonitorPlay, Music2, Music4, Tv, Webcam } from "lucide-vue-next";
+import { Clapperboard, FileImage, FileMusic, MonitorPlay, Music2, Music4, Scissors, Tv, Webcam } from "lucide-vue-next";
 import type { Category } from "../types";
 
 const video: Category = {
@@ -26,6 +26,13 @@ const video: Category = {
       desc: "提取视频里的声音，可直接复制原始音轨（最快、无损），或转成 MP3、M4A、WAV；可批量处理",
       icon: FileMusic,
       component: defineAsyncComponent(() => import("./components/VideoToAudio.vue")),
+    },
+    {
+      id: "video-trim",
+      name: "视频裁剪",
+      desc: "拖动时间轴保留需要的一段，也可以框选画面区域、改成 16:9、9:16 等比例；只裁时长时不重新编码，快且无损",
+      icon: Scissors,
+      component: defineAsyncComponent(() => import("./components/VideoTrim.vue")),
     },
     {
       id: "video-to-gif",

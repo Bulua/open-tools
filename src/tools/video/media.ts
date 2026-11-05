@@ -426,6 +426,70 @@ export class AudioWriter {
   }
 }
 
+// ---------- 裁剪 ----------
+
+export interface TrimOptions {
+  /** 保留的时间段（秒，相对视频开头） */
+  start: number;
+  end: number;
+  /** 保留的画面区域（显示像素，宽高为偶数）；不裁画面时为 null */
+  crop: { left: number; top: number; width: number; height: number } | null;
+  /** 精确到帧：重新编码；否则直接复制，从开始时间前最近的关键帧开始 */
+  precise: boolean;
+  quality: ConcatQuality;
+}
+
+export interface TrimResult {
+  data: Uint8Array;
+  /** 直接复制，没有重新编码 */
+  copied: boolean;
+}
+
+/**
+ * 裁剪视频，输出 MP4。只裁时长且不要求精确时直接复制音视频数据（快、无损），
+ * 开头会对齐到最近的关键帧，可能比所选时间多一点；裁画面或要求精确时重新编码。
+ * 传入 signal 可以中途取消。
+ */
+export async function trimVideo(file: Blob, o: TrimOptions, onProgress?: (p: number) => void, signal?: AbortSignal): Promise<TrimResult> {
+  const input = openInput(file);
+  try {
+    if (!(await input.canRead().catch(() => false))) throw new Error(UNSUPPORTED());
+    const video = await input.getPrimaryVideoTrack();
+    if (!video) throw new Error(t("video.trimNoVideo"));
+    const audio = await input.getPrimaryAudioTrack();
+    const first = Math.max(0, await input.getFirstTimestamp(audio ? [video, audio] : [video]));
+    const copy = !o.crop && !o.precise;
+    const output = new Output({ format: new Mp4OutputFormat({ fastStart: "in-memory" }), target: new BufferTarget() });
+    const conversion = await Conversion.init({
+      input,
+      output,
+      tracks: "primary",
+      trim: { start: first + o.start, end: first + o.end },
+      video: { crop: o.crop ?? undefined, bitrate: QUALITY[o.quality], forceTranscode: !copy },
+      audio: { bitrate: QUALITY[o.quality], forceTranscode: !copy },
+      copy: copy ? {} : false,
+      showWarnings: false,
+    });
+    if (!conversion.isValid) {
+      const reason = conversion.discardedTracks.find((d) => d.track.isVideoTrack())?.reason;
+      throw new Error(reason === "undecodable_source_codec" ? t("video.trimCantDecode", { codec: codecName(await video.getCodec()) }) : t("video.trimFailed"));
+    }
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const abort = () => void conversion.cancel();
+    signal?.addEventListener("abort", abort);
+    conversion.onProgress = (p) => onProgress?.(p);
+    try {
+      await conversion.execute();
+    } finally {
+      signal?.removeEventListener("abort", abort);
+    }
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    return { data: new Uint8Array(output.target.buffer!), copied: copy };
+  } finally {
+    input.dispose();
+  }
+}
+
 /** 时长显示：1:05、1:02:03 */
 export function formatDuration(seconds: number) {
   const s = Math.max(0, Math.round(seconds));
