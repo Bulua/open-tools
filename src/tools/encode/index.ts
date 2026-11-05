@@ -1,5 +1,5 @@
 import { defineAsyncComponent } from "vue";
-import { Binary, BookLock, Fingerprint, KeyRound, KeySquare, Link2 } from "lucide-vue-next";
+import { Binary, BookLock, Fingerprint, IdCard, KeyRound, KeySquare, Link2 } from "lucide-vue-next";
 import type { Category } from "../types";
 
 const encode: Category = {
@@ -47,6 +47,13 @@ const encode: Category = {
       desc: "保存自己的账号和密码，用主密码加密后存放在本机，忘记主密码无法找回",
       icon: BookLock,
       component: defineAsyncComponent(() => import("./components/PasswordVault.vue")),
+    },
+    {
+      id: "id-card",
+      name: "身份证号解析",
+      desc: "校验身份证号，列出地区、出生日期、年龄、性别、生肖、星座等信息；15 位老号码可升级为 18 位",
+      icon: IdCard,
+      component: defineAsyncComponent(() => import("./components/IdCardParser.vue")),
     },
   ],
 };

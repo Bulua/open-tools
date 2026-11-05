@@ -34,12 +34,12 @@ Formatting JSON, decoding Base64, converting timestamps, or compressing images o
 
 ## Features
 
-9 categories and 60 tools:
+9 categories and 61 tools:
 
 | Category | Tools |
 | --- | --- |
 | JSON | Format and validate (code/tree views), compare JSON, escape strings, convert to YAML, generate TypeScript types |
-| Text & encoding | Base64, URL/Unicode/HTML encoding, hashes, JWT decoding, password generation, password vault, regex testing, naming convention conversion |
+| Text & encoding | Base64, URL/Unicode/HTML encoding, hashes, JWT decoding, password generation, password vault, ID number parsing, regex testing, naming convention conversion |
 | Time | Timestamp conversion, time zones and world clocks, cron expressions, countdown reminders |
 | Calculators & converters | Calculator, unit conversion, number bases, color conversion |
 | Images | Compression, format conversion, cropping, rotation, color adjustment, stitching, mosaic, watermarks, background removal (including AI subject detection), watermark removal (AI inpainting), color picker, ICO generation |
