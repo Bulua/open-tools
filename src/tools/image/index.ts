@@ -1,5 +1,5 @@
 import { defineAsyncComponent } from "vue";
-import { AppWindow, Crop, Eraser, Grid3x3, LayoutGrid, Minimize2, Pipette, Replace, RotateCw, SlidersHorizontal, Stamp, WandSparkles } from "lucide-vue-next";
+import { AppWindow, Crop, Eraser, Grid3x3, LayoutGrid, Minimize2, Pipette, Printer, Replace, RotateCw, SlidersHorizontal, Stamp, WandSparkles } from "lucide-vue-next";
 import type { Category } from "../types";
 
 // 同一个界面组件按用途注册成多个工具
@@ -91,6 +91,13 @@ const image: Category = {
       desc: "点击图片取色，自动提取主色调",
       icon: Pipette,
       component: defineAsyncComponent(() => import("./components/ImageColorPicker.vue")),
+    },
+    {
+      id: "image-dpi",
+      name: "修改图片 DPI",
+      desc: "批量修改 JPG、PNG 记录的 DPI（如 72、300），像素和画质不变，可查看原图 DPI 和打印尺寸",
+      icon: Printer,
+      component: defineAsyncComponent(() => import("./components/ImageDpi.vue")),
     },
     {
       id: "ico",
