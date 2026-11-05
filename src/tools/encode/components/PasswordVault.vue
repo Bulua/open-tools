@@ -16,7 +16,6 @@ const AUTO_LOCK_MS = 5 * 60 * 1000;
 const { t } = useI18n();
 
 // ---------- 解锁 ----------
-const filePath = ref("");
 const exists = ref(false);
 const loading = ref(true);
 const master = ref("");
@@ -29,7 +28,6 @@ const entries = ref<VaultEntry[]>([]);
 onMounted(async () => {
   try {
     const file = await loadVaultFile();
-    filePath.value = file.path;
     exists.value = file.data !== null;
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);
@@ -299,7 +297,6 @@ const formatDate = (ms: number) => new Date(ms).toLocaleString(locale.value, { h
         <p v-if="error" class="error">{{ error }}</p>
         <button class="btn primary full" type="submit" :disabled="unlocking">{{ unlocking ? t("encode.wait") : exists ? t("encode.unlock") : t("encode.createVault") }}</button>
         <p v-if="!exists" class="tip warn">{{ t("encode.masterWarn") }}</p>
-        <p v-if="filePath" class="tip path" :title="filePath">{{ t("encode.savedAt", { path: filePath }) }}</p>
       </form>
     </section>
 
@@ -381,7 +378,6 @@ const formatDate = (ms: number) => new Date(ms).toLocaleString(locale.value, { h
         <div v-if="!filtered.length" class="blank">
           <KeyRound :size="28" />
           <p>{{ entries.length ? t("encode.noMatch") : t("encode.empty") }}</p>
-          <span class="tip path" :title="filePath">{{ t("encode.encryptedAt", { path: filePath }) }}</span>
         </div>
       </div>
 
@@ -500,11 +496,6 @@ const formatDate = (ms: number) => new Date(ms).toLocaleString(locale.value, { h
 .warn {
   line-height: 1.6;
   color: var(--warning);
-}
-.path {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* 工具栏 */
@@ -679,9 +670,6 @@ const formatDate = (ms: number) => new Date(ms).toLocaleString(locale.value, { h
   margin: 0;
   font-size: 13px;
   color: var(--text-2);
-}
-.blank .path {
-  max-width: 100%;
 }
 
 /* 新增 / 编辑弹窗 */
