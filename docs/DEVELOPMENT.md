@@ -61,6 +61,7 @@ open-tools/
 ├── src-tauri/               # 桌面端（Rust），一般不需要改
 │   ├── tauri.conf.json      # 窗口、应用名、更新配置（版本号读取 package.json）
 │   ├── tauri.release.conf.json  # 发布版本时额外启用的配置（生成更新文件）
+│   ├── tauri.vcredist.conf.json # 云端打包时把 VC++ 运行库放进安装包（见「数据存放与 AI 模型」）
 │   ├── capabilities/        # 前端可调用的系统能力（权限白名单）
 │   ├── icons/               # 应用图标（由 app-icon.png 生成）
 │   └── src/                 # Rust 入口与插件注册
@@ -278,6 +279,7 @@ const { t } = useI18n();
 - **AI 推理在 Rust 里**：`src-tauri/src/tools/image/inference.rs` 用 `ort` 动态加载 ONNX Runtime，只用 CPU 多线程计算（DirectML 显卡加速跑不了 LaMa 等模型，已不再使用）。前端只做预处理、后处理，通过 `ai_run` 命令传入输入张量（请求体，多个输入依次拼接）、形状（请求头 `x-shape`，多个输入用分号隔开）和数据类型（请求头 `x-dtype`，`f32` 或 `u8`），见 `src/tools/image/aiModels.ts` 的 `runModel()`、`runModelRaw()`。网页版不支持 AI 功能。
 - **模型和运行环境都不打包**：用户选择下载，第一次下载模型时自动带上运行环境。可下载的文件、大小、SHA-256 写在 `src-tauri/src/tools/image/ai_models.rs`，每个文件在魔搭（[sebponk/open-tools-models](https://www.modelscope.cn/models/sebponk/open-tools-models)）和 Hugging Face（[penghui002/open-tools-models](https://huggingface.co/penghui002/open-tools-models)）各放一份，路径相同。
 - **新增模型或升级运行环境**：用 `scripts/prepare-ai-files.ps1` 下载、整理文件并输出大小和校验值，把文件上传到两个仓库（两个仓库的 README.md、LICENSE.md 在 `scripts/ai-files/`，脚本会一起放进去，新增文件时记得在里面补上来源和许可证），再把输出填进 `src-tauri/src/tools/image/ai_models.rs`。升级 ONNX Runtime 时同时改 `RUNTIME_VERSION` 和 `Cargo.toml` 里 `ort` 的 `api-NN` 特性。注意带 DirectML 的 ONNX Runtime 最后一个版本是 1.24.4，之后微软不再单独发布这个包。
+- **VC++ 运行库随安装包带上**：`onnxruntime.dll` 依赖 `msvcp140.dll`、`msvcp140_1.dll`、`vcruntime140.dll`、`vcruntime140_1.dll`，没装过 VC++ 运行库的电脑会加载失败（主程序自己是静态链接的，不受影响）。GitHub Actions 打包前从 Visual Studio 的可再发行目录（`VC\Redist\MSVC\<版本>\x64\Microsoft.VC*.CRT`）取出这几个文件放到 `src-tauri/vcredist/`（不提交），再通过 `tauri.vcredist.conf.json` 装到安装目录、和 `open-tools.exe` 放在一起；Windows 给 `onnxruntime.dll` 找依赖时会先找程序所在的文件夹。本机打包要带上它们时，自己把文件放进 `src-tauri/vcredist/` 并加 `--config src-tauri/tauri.vcredist.conf.json`。升级 ONNX Runtime 后如果依赖的运行库文件变了，同时改 `build.yml` 里的文件列表和 `tauri.vcredist.conf.json`。
 
 ## 修改应用图标
 

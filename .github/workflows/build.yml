@@ -83,6 +83,24 @@ jobs:
           git fetch --tags --force
           git push "https://bulua:${GITEE_TOKEN}@gitee.com/bulua/open-tools.git" "$GITHUB_REF"
 
+      # AI 工具加载的 onnxruntime.dll 依赖 VC++ 运行库，没装过 VC++ 运行库的电脑会加载失败。
+      # 从 Visual Studio 自带的可再发行目录取出这几个文件，由 tauri.vcredist.conf.json 打包到安装目录（和 open-tools.exe 放在一起）
+      - name: 准备 VC++ 运行库
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          # 可能装了多个版本（文件夹名如 14.44.35112），取最新的
+          $crt = Get-ChildItem "$vs\VC\Redist\MSVC\*\x64\Microsoft.VC*.CRT" -Directory |
+            Where-Object { $_.Parent.Parent.Name -match '^\d+(\.\d+)+$' } |
+            Sort-Object { [version]$_.Parent.Parent.Name } | Select-Object -Last 1
+          if (-not $crt) { throw "没有找到 VC++ 可再发行目录" }
+          Write-Host "VC++ 运行库来源：$($crt.FullName)"
+          New-Item -ItemType Directory -Force src-tauri/vcredist | Out-Null
+          foreach ($name in 'msvcp140.dll', 'msvcp140_1.dll', 'vcruntime140.dll', 'vcruntime140_1.dll') {
+            Copy-Item (Join-Path $crt.FullName $name) src-tauri/vcredist -ErrorAction Stop
+          }
+          Get-ChildItem src-tauri/vcredist | Select-Object Name, Length, @{ n = 'Version'; e = { $_.VersionInfo.FileVersion } }
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -92,7 +110,8 @@ jobs:
         with:
           # 仅在推送标签时创建 Release 并生成签名的更新文件，其余情况只编译
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
-          args: ${{ startsWith(github.ref, 'refs/tags/') && '--config src-tauri/tauri.release.conf.json' || '' }}
+          # 始终带上 VC++ 运行库；发布版本时再加上生成更新文件的配置
+          args: ${{ startsWith(github.ref, 'refs/tags/') && '--config src-tauri/tauri.vcredist.conf.json --config src-tauri/tauri.release.conf.json' || '--config src-tauri/tauri.vcredist.conf.json' }}
           releaseName: "Open Tools ${{ github.ref_name }}"
           releaseBody: ${{ steps.notes.outputs.body || '下载 *-setup.exe 安装即可使用。' }}
           releaseDraft: false
