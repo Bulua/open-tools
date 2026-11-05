@@ -13,14 +13,16 @@ import { saveFile } from "@/utils/saveFile";
 import { IMAGE_FORMATS, canvasToBytes, formatInfo, loadImage, type ImageFormat } from "../utils";
 import { contentBounds, stitchLayout, type Box, type StitchDirection } from "../effects";
 import { snapBox, type Guides } from "../snap";
+import { longScreenshotLayout, toRowImage, type RowImage } from "../longshot";
 
 /**
  * 图片拼接：多张图片横向、纵向、按宫格拼成一张，或自由摆放。
  * 在预览上拖动图片调整位置（自动排列时拖动会切换到自由摆放），拖动右下角缩放（保持比例）。
  * 拖动时对齐其他图片和画布的边缘、中线，显示参考线（按住 Alt 不吸附）；选中后方向键微调。
  * 滚轮放大预览、拖动空白处平移，方便精细调整。
+ * 长截图：手机上连续截的多张图自动去掉重叠部分，状态栏、导航栏只保留一份（见 longshot.ts）。
  */
-type Mode = StitchDirection | "free";
+type Mode = StitchDirection | "free" | "long";
 const { t } = useI18n();
 const direction = useStoredRef<Mode>("stitch.direction", "vertical");
 const columns = useStoredRef("stitch.columns", 2);
@@ -56,6 +58,7 @@ const addFiles = async (files: File[]) => {
 };
 const remove = (item: Item) => {
   URL.revokeObjectURL(item.url);
+  for (const key of rowCache.keys()) if (key.startsWith(`${item.id}:`)) rowCache.delete(key);
   items.value = items.value.filter((i) => i !== item);
   delete freeBoxes.value[item.id];
   selected.value = selected.value.filter((id) => id !== item.id);
@@ -81,7 +84,7 @@ const autoLayout = computed(() => {
   const l = stitchLayout(
     items.value.map((i) => ({ width: i.img.naturalWidth, height: i.img.naturalHeight })),
     {
-      direction: direction.value === "free" ? lastAuto.value : direction.value,
+      direction: direction.value === "free" || direction.value === "long" ? lastAuto.value : direction.value,
       columns: columns.value,
       gap: gap.value,
       padding: padding.value,
@@ -91,6 +94,39 @@ const autoLayout = computed(() => {
   const scale = l.width ? Math.min(1, MAX_SIDE / l.width, MAX_SIDE / l.height, Math.sqrt(MAX_AREA / (l.width * l.height))) : 1;
   return { ...l, scale, outWidth: Math.round(l.width * scale), outHeight: Math.round(l.height * scale) };
 });
+
+// ---------- 长截图 ----------
+
+/** 算行特征时把图缩到的宽度（分段数） */
+const ROW_BINS = 64;
+/** 每张图的行特征，按「图片 id:统一宽度」缓存 */
+const rowCache = new Map<string, RowImage>();
+/** 宽度不一样的截图按第一张的宽度等比缩放；返回缩放后的行特征 */
+const rowImageOf = (item: Item, width: number): RowImage => {
+  const key = `${item.id}:${width}`;
+  let rows = rowCache.get(key);
+  if (!rows) {
+    const { naturalWidth: w, naturalHeight: h } = item.img;
+    const height = Math.max(1, Math.round((h * width) / w));
+    const c = document.createElement("canvas");
+    c.width = ROW_BINS;
+    c.height = height;
+    const ctx = c.getContext("2d", { willReadFrequently: true })!;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(item.img, 0, 0, ROW_BINS, height);
+    rows = toRowImage(ctx.getImageData(0, 0, ROW_BINS, height).data, ROW_BINS, height);
+    rowCache.set(key, rows);
+  }
+  return rows;
+};
+/** 长截图的拼法（按第一张图的宽度换算的像素），只在长截图模式下计算 */
+const longLayout = computed(() => {
+  if (direction.value !== "long" || !items.value.length) return null;
+  const width = items.value[0].img.naturalWidth;
+  return { width, ...longScreenshotLayout(items.value.map((i) => rowImageOf(i, width))) };
+});
+/** 没找到重叠、直接接在后面的图片序号（从 1 开始） */
+const unmatched = computed(() => (longLayout.value?.matched ?? []).flatMap((m, i) => (m ? [] : [i + 1])));
 
 // ---------- 自由摆放 ----------
 
@@ -157,7 +193,7 @@ const placeMissing = () => {
   if (added) fitView();
 };
 
-watch(direction, (mode) => mode !== "free" && (lastAuto.value = mode), { immediate: true });
+watch(direction, (mode) => mode !== "free" && mode !== "long" && (lastAuto.value = mode), { immediate: true });
 
 /** 点击排列方式；切换到自由摆放时沿用之前摆好的位置，第一次时从自动排列开始 */
 const setMode = (mode: Mode) => {
@@ -184,17 +220,17 @@ const SNAP_PX = 6;
 
 /** 自动排列时开始拖动：以当前排列为起点切换到自由摆放 */
 const toFree = () => {
-  if (direction.value === "free") return;
+  if (direction.value === "free" || direction.value === "long") return;
   lastAuto.value = direction.value;
   direction.value = "free";
   initFree();
 };
 
 /** 图片当前显示的位置（画布坐标）：自由摆放时取摆放位置，自动排列时取排列结果 */
-const shownBox = (id: number, index: number): Box | undefined => (direction.value === "free" ? freeBoxes.value[id] : autoLayout.value.boxes[index]);
+const shownBox = (id: number, index: number): Box | undefined => (direction.value === "free" ? freeBoxes.value[id] : layout.value.boxes[index]);
 
 /** 预览框对应的范围（画布坐标）：自由摆放时是 view，自动排列时就是整张拼图 */
-const viewBox = computed<Box>(() => (direction.value === "free" ? view.value : { x: 0, y: 0, w: autoLayout.value.width, h: autoLayout.value.height }));
+const viewBox = computed<Box>(() => (direction.value === "free" ? view.value : { x: 0, y: 0, w: layout.value.width, h: layout.value.height }));
 
 const frameEl = ref<HTMLElement>();
 /** 屏幕坐标换算成画布坐标 */
@@ -324,7 +360,8 @@ let marqueeDrag: { x: number; y: number; sx: number; sy: number; moved: boolean 
 
 const onAreaDown = (e: PointerEvent) => {
   if (e.button !== 0 || !frameEl.value) return;
-  if (spaceDown.value) return onDown(e);
+  // 长截图不能单独选中、移动某张图，拖动直接平移预览
+  if (spaceDown.value || direction.value === "long") return onDown(e);
   const p = toCanvas(e.clientX, e.clientY);
   marqueeDrag = { ...p, sx: e.clientX, sy: e.clientY, moved: false };
   (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -376,11 +413,27 @@ const guideStyle = (axis: "x" | "y", value: number) => {
 const marqueeStyle = (m: Box) => ({ ...place(m), borderWidth: `${1 / zoom.value}px` });
 
 // ---------- 最终布局 ----------
+/** 按画布尺寸上限算出的缩放比例 */
+const fitScale = (w: number, h: number) => (w > 0 && h > 0 ? Math.min(1, MAX_SIDE / w, MAX_SIDE / h, Math.sqrt(MAX_AREA / (w * h))) : 1);
+
 const layout = computed(() => {
+  const long = longLayout.value;
+  if (long) {
+    const scale = fitScale(long.width, long.height);
+    return {
+      width: long.width,
+      height: long.height,
+      origin: { x: 0, y: 0 },
+      boxes: [] as Box[],
+      scale,
+      outWidth: Math.max(1, Math.round(long.width * scale)),
+      outHeight: Math.max(1, Math.round(long.height * scale)),
+    };
+  }
   if (direction.value !== "free") return { ...autoLayout.value, origin: { x: 0, y: 0 } };
   // 导出范围跟随内容；太大时和自动排列一样整体等比缩小
   const r = freeRegion();
-  const scale = r.w > 0 && r.h > 0 ? Math.min(1, MAX_SIDE / r.w, MAX_SIDE / r.h, Math.sqrt(MAX_AREA / (r.w * r.h))) : 1;
+  const scale = fitScale(r.w, r.h);
   return {
     width: r.w,
     height: r.h,
@@ -421,6 +474,16 @@ const draw = async () => {
     ctx.fillRect(0, 0, c.width, c.height);
   }
   ctx.imageSmoothingQuality = "high";
+  const long = longLayout.value;
+  if (long) {
+    // 每段从原图裁出对应的行；行号是按第一张的宽度换算的，画的时候换回原图像素
+    for (const s of long.segments) {
+      const img = items.value[s.index].img;
+      const k = img.naturalWidth / long.width;
+      ctx.drawImage(img, 0, s.sy * k, img.naturalWidth, s.sh * k, 0, s.dy * l.scale, l.outWidth, s.sh * l.scale);
+    }
+    return;
+  }
   // 自由模式按 z 从下到上画，其他模式按列表顺序
   const order = items.value.map((item, i) => ({ item, box: l.boxes[i], z: freeBoxes.value[item.id]?.z ?? i }));
   if (direction.value === "free") order.sort((a, b) => a.z - b.z);
@@ -444,11 +507,12 @@ const download = async () => {
   }
 };
 
-const DIRECTIONS = computed<{ value: Mode; label: string }[]>(() => [
+const DIRECTIONS = computed<{ value: Mode; label: string; title?: string }[]>(() => [
   { value: "vertical", label: t("image.vertical") },
   { value: "horizontal", label: t("image.horizontal") },
   { value: "grid", label: t("image.grid") },
   { value: "free", label: t("image.free") },
+  { value: "long", label: t("image.longShot"), title: t("image.longShotTitle") },
 ]);
 const toNumber = (e: Event, max: number) => Math.min(max, Math.max(0, Math.round(Number((e.target as HTMLInputElement).value) || 0)));
 </script>
@@ -461,8 +525,8 @@ const toNumber = (e: Event, max: number) => Math.min(max, Math.max(0, Math.round
 
       <section class="section">
         <h3>{{ t("image.layout") }}</h3>
-        <div class="seg fill">
-          <button v-for="d in DIRECTIONS" :key="d.value" :class="{ on: direction === d.value }" @click="setMode(d.value)">
+        <div class="seg fill modes">
+          <button v-for="d in DIRECTIONS" :key="d.value" :class="{ on: direction === d.value }" :title="d.title" @click="setMode(d.value)">
             {{ d.label }}
           </button>
         </div>
@@ -471,7 +535,11 @@ const toNumber = (e: Event, max: number) => Math.min(max, Math.max(0, Math.round
           <input class="field small" type="number" min="1" max="10" :value="columns" @change="columns = Math.max(1, toNumber($event, 10))" />
           <span>{{ t("image.perRowUnit") }}</span>
         </label>
-        <label v-if="direction !== 'free'" class="check">
+        <template v-if="direction === 'long'">
+          <p class="tip">{{ t("image.longTip") }}</p>
+          <p v-if="unmatched.length" class="tip warn">{{ t("image.longUnmatched", { n: unmatched.join(", ") }) }}</p>
+        </template>
+        <label v-else-if="direction !== 'free'" class="check">
           <input v-model="unify" type="checkbox" />{{ direction === "horizontal" ? t("image.unifyHeight") : t("image.unifyWidth") }}
         </label>
         <template v-else>
@@ -482,7 +550,7 @@ const toNumber = (e: Event, max: number) => Math.min(max, Math.max(0, Math.round
         </template>
       </section>
 
-      <section class="section">
+      <section v-if="direction !== 'long'" class="section">
         <h3>{{ t("image.spacing") }}</h3>
         <div class="row">
           <template v-if="direction !== 'free'">
@@ -494,7 +562,7 @@ const toNumber = (e: Event, max: number) => Math.min(max, Math.max(0, Math.round
         </div>
       </section>
 
-      <section class="section">
+      <section v-if="direction !== 'long'" class="section">
         <h3>{{ t("image.background") }}</h3>
         <div class="row">
           <ColorPicker v-model="background" :disabled="transparent" />
@@ -542,7 +610,7 @@ const toNumber = (e: Event, max: number) => Math.min(max, Math.max(0, Math.round
       <template v-else>
         <div class="card-title">
           {{ t("image.preview") }}
-          <span class="hint">{{ direction === "free" ? t("image.freeHint") : t("image.dragToFree") }}</span>
+          <span class="hint">{{ direction === "free" ? t("image.freeHint") : direction === "long" ? t("image.longHint") : t("image.dragToFree") }}</span>
           <button class="btn small subtle" :title="t('image.showAllTitle')" @click="showAll"><Focus :size="14" />{{ t("image.showAll") }}</button>
           <ZoomControls :zoom="zoom" :min="MIN_ZOOM" :max="MAX_ZOOM" @zoom="zoomAt" @reset="showAll" />
         </div>
@@ -560,7 +628,7 @@ const toNumber = (e: Event, max: number) => Math.min(max, Math.max(0, Math.round
             <canvas ref="canvas" :class="{ region: direction === 'free' }" :style="canvasStyle" />
             <!-- 每张图片上覆盖一个可拖动的框；自动排列时拖动会切换到自由摆放 -->
             <div
-              v-for="(item, i) in items"
+              v-for="(item, i) in direction === 'long' ? [] : items"
               :key="item.id"
               class="free-box"
               :class="{ selected: isSelected(item.id) }"
@@ -665,6 +733,13 @@ h3 {
 }
 .push {
   margin-left: auto;
+}
+/* 五种排列方式放在一行，按钮收窄一些 */
+.modes button {
+  padding: 0 4px;
+}
+.tip.warn {
+  color: var(--warning);
 }
 .tip {
   line-height: 1.6;
