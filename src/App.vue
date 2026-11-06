@@ -6,6 +6,7 @@ import { useStoredRef } from "@/composables/useStoredRef";
 import { useTheme } from "@/composables/useTheme";
 import AppHeader from "@/components/layout/AppHeader.vue";
 import AppSidebar from "@/components/layout/AppSidebar.vue";
+import LaunchIntro from "@/components/layout/LaunchIntro.vue";
 import ToolView from "@/components/tool/ToolView.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import CommandPalette from "@/components/common/CommandPalette.vue";
@@ -39,10 +40,30 @@ const selectTool = (categoryId: string, toolId: string) => {
   activeToolByCategory.value[categoryId] = toolId;
 };
 
+// 主窗口隐藏到托盘时不会卸载；完全退出后再次启动才会重新播放。
+const introPhase = ref<"playing" | "leaving" | "done">("playing");
+let introFrame = 0;
+let playTimer = 0;
+let finishTimer = 0;
+onMounted(() => {
+  introFrame = requestAnimationFrame(() => {
+    playTimer = window.setTimeout(() => {
+      introPhase.value = "leaving";
+      finishTimer = window.setTimeout(() => (introPhase.value = "done"), 1500);
+    }, 2000);
+  });
+});
+onBeforeUnmount(() => {
+  cancelAnimationFrame(introFrame);
+  clearTimeout(playTimer);
+  clearTimeout(finishTimer);
+});
+
 // ---------- 全局搜索（Ctrl + K） ----------
 const searchOpen = ref(false);
 
 const onKeydown = (e: KeyboardEvent) => {
+  if (introPhase.value !== "done") return;
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
     e.preventDefault();
     searchOpen.value = !searchOpen.value;
@@ -65,6 +86,7 @@ onMounted(startBrandingSync);
 <template>
   <div class="app">
     <AppHeader
+      :inert="introPhase !== 'done'"
       :categories="categories"
       :active-id="activeCategory.id"
       :theme="theme"
@@ -73,7 +95,7 @@ onMounted(startBrandingSync);
       @toggle-theme="toggleTheme"
       @open-search="searchOpen = true"
     />
-    <div class="body">
+    <div class="body" :inert="introPhase !== 'done'">
       <AppSidebar
         :category="activeCategory"
         :active-id="activeTool?.id"
@@ -110,6 +132,7 @@ onMounted(startBrandingSync);
     <CountdownAlerts @open="selectTool('time', 'countdown')" />
     <!-- 各工具的报错统一在窗口上方提示，见 utils/errorToast.ts -->
     <ErrorToast />
+    <LaunchIntro v-if="introPhase !== 'done'" :leaving="introPhase === 'leaving'" />
   </div>
 </template>
 
