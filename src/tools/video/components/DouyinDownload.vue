@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import { isTauri } from "@tauri-apps/api/core";
 import { ChevronLeft, ChevronRight, CircleAlert, ClipboardPaste, Download, ExternalLink, FolderOpen, Images, LoaderCircle, Play, Search, Square, X } from "lucide-vue-next";
 import ProgressBar from "@/components/common/ProgressBar.vue";
+import ProcessingMascot from "@/components/common/ProcessingMascot.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { useWindowEvent } from "@/composables/useWindowEvent";
 import { pickFolder, saveFile, saveIntoFolder } from "@/utils/saveFile";
@@ -46,6 +47,7 @@ interface Entry {
   controller?: AbortController;
 }
 const entries = ref<Entry[]>([]);
+const activeDownload = computed(() => entries.value.find((e) => e.status === "working"));
 const link = ref("");
 const parsing = ref(false);
 
@@ -217,44 +219,50 @@ useWindowEvent("keydown", (ev) => {
           </div>
         </div>
 
-        <div v-if="!entries.length" class="empty">
-          <p v-if="parsing"><LoaderCircle :size="16" class="spin" /> {{ t("video.openingPage") }}</p>
-          <template v-else>
+        <div class="results">
+          <ProcessingMascot
+            v-if="activeDownload || parsing"
+            class="results-overlay"
+            :title="activeDownload ? shortDesc(activeDownload.item.desc) : t('video.parse')"
+            :detail="activeDownload?.step || (parsing ? t('video.openingPage') : t('video.preparing'))"
+          />
+
+          <div v-if="!entries.length && !parsing" class="empty">
             <p>{{ t("video.dyEmptyHint") }}</p>
             <p class="sub">{{ t("video.dyEmptySub") }}</p>
-          </template>
-        </div>
+          </div>
 
-        <div v-else class="grid">
-          <article v-for="e in entries" :key="e.key" class="video" :class="e.status">
-            <div class="thumb" :title="e.item.type === 'video' ? t('video.play') : t('video.browseImages')" @click="openViewer(e)">
-              <img :src="e.item.cover || e.item.images[0]?.urls[0]" alt="" referrerpolicy="no-referrer" loading="lazy" />
-              <span class="play-icon"><Play v-if="e.item.type === 'video'" :size="22" /><Images v-else :size="22" /></span>
-              <span v-if="e.item.type === 'video'" class="badge left">{{ formatDuration(e.item.duration) }}</span>
-              <span v-else class="badge left">{{ t("video.photoPost", { n: e.item.images.length }) }}</span>
-              <button class="close" :title="t('video.remove')" @click.stop="removeEntry(e)"><X :size="13" /></button>
-              <ProgressBar v-if="e.status === 'working'" class="cover-progress" :value="e.progress" />
-            </div>
-            <div class="body">
-              <h4 class="title" :title="e.item.desc">{{ shortDesc(e.item.desc) }}</h4>
-              <p class="meta">{{ e.item.author }}<template v-if="date(e.item.createTime)"> · {{ date(e.item.createTime) }}</template></p>
-              <p v-if="e.item.type === 'video' && e.item.resolution" class="meta">{{ t("video.noWatermark", { res: e.item.resolution }) }}</p>
-              <p v-if="e.status === 'working'" class="status">{{ e.step }}</p>
-              <p v-else-if="e.status === 'done'" class="status ok">{{ t("video.savedResult", { result: e.result }) }}</p>
-              <p v-else-if="e.status === 'error'" class="status bad"><CircleAlert :size="12" /> {{ e.message }}</p>
-              <div class="foot">
-                <button v-if="e.status === 'working'" class="btn small" @click="cancel(e)"><Square :size="12" />{{ t("video.cancel") }}</button>
-                <button v-else class="btn small primary" :disabled="nothingWanted" @click="download(e)">
-                  <Download :size="13" />{{ e.status === "done" ? t("video.redownload") : t("video.download") }}
-                </button>
-                <button class="btn small subtle" @click="openViewer(e)">
-                  <template v-if="e.item.type === 'video'"><Play :size="13" />{{ t("video.play") }}</template>
-                  <template v-else><Images :size="13" />{{ t("video.browse") }}</template>
-                </button>
-                <button v-if="e.status === 'done' && desktop && folder" class="btn small subtle" @click="revealFolder(folder)"><ExternalLink :size="13" />{{ t("video.openFolder") }}</button>
+          <div v-else-if="entries.length" class="grid">
+            <article v-for="e in entries" :key="e.key" class="video" :class="e.status">
+              <div class="thumb" :title="e.item.type === 'video' ? t('video.play') : t('video.browseImages')" @click="openViewer(e)">
+                <img :src="e.item.cover || e.item.images[0]?.urls[0]" alt="" referrerpolicy="no-referrer" loading="lazy" />
+                <span class="play-icon"><Play v-if="e.item.type === 'video'" :size="22" /><Images v-else :size="22" /></span>
+                <span v-if="e.item.type === 'video'" class="badge left">{{ formatDuration(e.item.duration) }}</span>
+                <span v-else class="badge left">{{ t("video.photoPost", { n: e.item.images.length }) }}</span>
+                <button class="close" :title="t('video.remove')" @click.stop="removeEntry(e)"><X :size="13" /></button>
+                <ProgressBar v-if="e.status === 'working'" class="cover-progress" :value="e.progress" />
               </div>
-            </div>
-          </article>
+              <div class="body">
+                <h4 class="title" :title="e.item.desc">{{ shortDesc(e.item.desc) }}</h4>
+                <p class="meta">{{ e.item.author }}<template v-if="date(e.item.createTime)"> · {{ date(e.item.createTime) }}</template></p>
+                <p v-if="e.item.type === 'video' && e.item.resolution" class="meta">{{ t("video.noWatermark", { res: e.item.resolution }) }}</p>
+                <p v-if="e.status === 'working'" class="status">{{ e.step }}</p>
+                <p v-else-if="e.status === 'done'" class="status ok">{{ t("video.savedResult", { result: e.result }) }}</p>
+                <p v-else-if="e.status === 'error'" class="status bad"><CircleAlert :size="12" /> {{ e.message }}</p>
+                <div class="foot">
+                  <button v-if="e.status === 'working'" class="btn small" @click="cancel(e)"><Square :size="12" />{{ t("video.cancel") }}</button>
+                  <button v-else class="btn small primary" :disabled="nothingWanted" @click="download(e)">
+                    <Download :size="13" />{{ e.status === "done" ? t("video.redownload") : t("video.download") }}
+                  </button>
+                  <button class="btn small subtle" @click="openViewer(e)">
+                    <template v-if="e.item.type === 'video'"><Play :size="13" />{{ t("video.play") }}</template>
+                    <template v-else><Images :size="13" />{{ t("video.browse") }}</template>
+                  </button>
+                  <button v-if="e.status === 'done' && desktop && folder" class="btn small subtle" @click="revealFolder(folder)"><ExternalLink :size="13" />{{ t("video.openFolder") }}</button>
+                </div>
+              </div>
+            </article>
+          </div>
         </div>
       </section>
     </div>
@@ -357,6 +365,20 @@ h3 {
   flex: 1;
   min-width: 0;
   min-height: 0;
+}
+.results {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.results-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: color-mix(in srgb, var(--bg-sunken) 72%, transparent);
+  pointer-events: none;
 }
 .count {
   margin-left: 8px;

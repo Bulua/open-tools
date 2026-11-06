@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-vue-next";
 import AppSelect from "@/components/common/AppSelect.vue";
+import ProcessingMascot from "@/components/common/ProcessingMascot.vue";
 import ProgressBar from "@/components/common/ProgressBar.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { useWindowEvent } from "@/composables/useWindowEvent";
@@ -128,6 +129,7 @@ interface Entry {
   controller?: AbortController;
 }
 const entries = ref<Entry[]>([]);
+const activeDownload = computed(() => entries.value.find((e) => e.status === "working"));
 
 const qualityOptions = computed(() => {
   // 清晰度选项：所有解析过的视频里出现过的；还没有解析时列出全部
@@ -402,81 +404,90 @@ useWindowEvent("keydown", (ev) => {
           </div>
         </div>
 
-        <div v-if="!entries.length" class="empty">
-          <p>{{ t("video.biliEmptyHint") }}</p>
-          <p class="sub">{{ t("video.biliEmptySub") }}</p>
-        </div>
+        <div class="results">
+          <ProcessingMascot
+            v-if="activeDownload || parsing"
+            class="results-overlay"
+            :title="activeDownload?.info.title ?? t('video.parse')"
+            :detail="activeDownload?.step || (parsing ? t('video.parsing') : t('video.preparing'))"
+          />
 
-        <div v-else class="grid">
-          <article v-for="e in entries" :key="e.key" class="video" :class="e.status">
-            <div class="thumb" :title="t('video.playOnline')" @click="openPlayer(e)">
-              <img :src="e.info.cover" alt="" referrerpolicy="no-referrer" loading="lazy" />
-              <span class="play-icon"><Play :size="22" /></span>
-              <span class="badge left">{{ formatDuration(e.info.duration) }}</span>
-              <span v-if="e.info.pages.length > 1" class="badge right">{{ e.info.pages.length }} P</span>
-              <button class="close" :title="t('video.remove')" @click.stop="removeEntry(e)"><X :size="13" /></button>
-              <!-- 下载进度盖在画面底部 -->
-              <ProgressBar v-if="e.status === 'working'" class="cover-progress" :value="e.progress" />
-            </div>
+          <div v-if="!entries.length && !parsing" class="empty">
+            <p>{{ t("video.biliEmptyHint") }}</p>
+            <p class="sub">{{ t("video.biliEmptySub") }}</p>
+          </div>
 
-            <div class="body">
-              <h4 class="title" :title="e.info.title">{{ e.info.title }}</h4>
-              <p class="meta">{{ e.info.owner }} · {{ pubdate(e.info.pubdate) }}</p>
-              <p class="meta">
-                <template v-if="e.qualities.length">{{ t("video.bestAvailable", { q: e.qualities[0].label }) }}<template v-if="want.video && actualQuality(e)">{{ t("video.willDownload", { q: actualQuality(e)!.label }) }}</template></template>
-                <template v-else>{{ t("video.qualityUnknown") }}</template>
-              </p>
-
-              <!-- 多 P：展开勾选 -->
-              <template v-if="e.parts.length > 1">
-                <button class="parts-toggle" @click="e.expanded = !e.expanded">
-                  {{ t("video.partsSelected", { n: e.selected.length, total: e.parts.length }) }}
-                  <ChevronUp v-if="e.expanded" :size="13" />
-                  <ChevronDown v-else :size="13" />
-                </button>
-                <div v-if="e.expanded" class="parts">
-                  <label class="part all">
-                    <input
-                      type="checkbox"
-                      class="file-check"
-                      :checked="e.selected.length === e.parts.length"
-                      :indeterminate="e.selected.length > 0 && e.selected.length < e.parts.length"
-                      :disabled="e.status === 'working'"
-                      @change="toggleAllParts(e)"
-                    />{{ t("video.selectAll") }}
-                  </label>
-                  <label v-for="p in e.parts" :key="p.cid" class="part" :title="p.message || p.part">
-                    <input type="checkbox" class="file-check" :checked="e.selected.includes(p.cid)" :disabled="e.status === 'working'" @change="togglePart(e, p)" />
-                    <span class="no">P{{ p.page }}</span>
-                    <span class="name">{{ p.part }}</span>
-                    <LoaderCircle v-if="p.status === 'working'" :size="12" class="spin accent" />
-                    <CircleCheck v-else-if="p.status === 'done'" :size="12" class="ok" />
-                    <CircleAlert v-else-if="p.status === 'error'" :size="12" class="bad" />
-                    <span v-else class="dur">{{ formatDuration(p.duration) }}</span>
-                  </label>
-                </div>
-              </template>
-
-              <p v-if="e.status === 'working'" class="status">{{ e.step }}</p>
-              <p v-else-if="e.status === 'done'" class="status ok">{{ t("video.savedResult", { result: e.result }) }}<template v-if="e.message">{{ t("video.paren", { text: e.message }) }}</template></p>
-              <p v-else-if="e.status === 'error'" class="status bad">{{ e.message }}</p>
-
-              <div class="foot">
-                <button v-if="e.status === 'working'" class="btn small" @click="cancel(e)"><Square :size="12" />{{ t("video.cancel") }}</button>
-                <button
-                  v-else
-                  class="btn small primary"
-                  :disabled="!e.selected.length || nothingWanted || mode === 'browser'"
-                  :title="nothingWanted ? t('video.checkContent') : ''"
-                  @click="download(e)"
-                >
-                  <Download :size="13" />{{ e.status === "done" ? t("video.redownload") : e.parts.length > 1 ? t("video.downloadParts", { n: e.selected.length }) : t("video.download") }}
-                </button>
-                <button class="btn small subtle" :title="t('video.play720Title')" @click="openPlayer(e)"><Play :size="13" />{{ t("video.play") }}</button>
-                <button v-if="e.status === 'done' && desktop && folder" class="btn small subtle" @click="revealFolder(folder)"><ExternalLink :size="13" />{{ t("video.openFolder") }}</button>
+          <div v-else-if="entries.length" class="grid">
+            <article v-for="e in entries" :key="e.key" class="video" :class="e.status">
+              <div class="thumb" :title="t('video.playOnline')" @click="openPlayer(e)">
+                <img :src="e.info.cover" alt="" referrerpolicy="no-referrer" loading="lazy" />
+                <span class="play-icon"><Play :size="22" /></span>
+                <span class="badge left">{{ formatDuration(e.info.duration) }}</span>
+                <span v-if="e.info.pages.length > 1" class="badge right">{{ e.info.pages.length }} P</span>
+                <button class="close" :title="t('video.remove')" @click.stop="removeEntry(e)"><X :size="13" /></button>
+                <!-- 下载进度盖在画面底部 -->
+                <ProgressBar v-if="e.status === 'working'" class="cover-progress" :value="e.progress" />
               </div>
-            </div>
-          </article>
+
+              <div class="body">
+                <h4 class="title" :title="e.info.title">{{ e.info.title }}</h4>
+                <p class="meta">{{ e.info.owner }} · {{ pubdate(e.info.pubdate) }}</p>
+                <p class="meta">
+                  <template v-if="e.qualities.length">{{ t("video.bestAvailable", { q: e.qualities[0].label }) }}<template v-if="want.video && actualQuality(e)">{{ t("video.willDownload", { q: actualQuality(e)!.label }) }}</template></template>
+                  <template v-else>{{ t("video.qualityUnknown") }}</template>
+                </p>
+
+                <!-- 多 P：展开勾选 -->
+                <template v-if="e.parts.length > 1">
+                  <button class="parts-toggle" @click="e.expanded = !e.expanded">
+                    {{ t("video.partsSelected", { n: e.selected.length, total: e.parts.length }) }}
+                    <ChevronUp v-if="e.expanded" :size="13" />
+                    <ChevronDown v-else :size="13" />
+                  </button>
+                  <div v-if="e.expanded" class="parts">
+                    <label class="part all">
+                      <input
+                        type="checkbox"
+                        class="file-check"
+                        :checked="e.selected.length === e.parts.length"
+                        :indeterminate="e.selected.length > 0 && e.selected.length < e.parts.length"
+                        :disabled="e.status === 'working'"
+                        @change="toggleAllParts(e)"
+                      />{{ t("video.selectAll") }}
+                    </label>
+                    <label v-for="p in e.parts" :key="p.cid" class="part" :title="p.message || p.part">
+                      <input type="checkbox" class="file-check" :checked="e.selected.includes(p.cid)" :disabled="e.status === 'working'" @change="togglePart(e, p)" />
+                      <span class="no">P{{ p.page }}</span>
+                      <span class="name">{{ p.part }}</span>
+                      <LoaderCircle v-if="p.status === 'working'" :size="12" class="spin accent" />
+                      <CircleCheck v-else-if="p.status === 'done'" :size="12" class="ok" />
+                      <CircleAlert v-else-if="p.status === 'error'" :size="12" class="bad" />
+                      <span v-else class="dur">{{ formatDuration(p.duration) }}</span>
+                    </label>
+                  </div>
+                </template>
+
+                <p v-if="e.status === 'working'" class="status">{{ e.step }}</p>
+                <p v-else-if="e.status === 'done'" class="status ok">{{ t("video.savedResult", { result: e.result }) }}<template v-if="e.message">{{ t("video.paren", { text: e.message }) }}</template></p>
+                <p v-else-if="e.status === 'error'" class="status bad">{{ e.message }}</p>
+
+                <div class="foot">
+                  <button v-if="e.status === 'working'" class="btn small" @click="cancel(e)"><Square :size="12" />{{ t("video.cancel") }}</button>
+                  <button
+                    v-else
+                    class="btn small primary"
+                    :disabled="!e.selected.length || nothingWanted || mode === 'browser'"
+                    :title="nothingWanted ? t('video.checkContent') : ''"
+                    @click="download(e)"
+                  >
+                    <Download :size="13" />{{ e.status === "done" ? t("video.redownload") : e.parts.length > 1 ? t("video.downloadParts", { n: e.selected.length }) : t("video.download") }}
+                  </button>
+                  <button class="btn small subtle" :title="t('video.play720Title')" @click="openPlayer(e)"><Play :size="13" />{{ t("video.play") }}</button>
+                  <button v-if="e.status === 'done' && desktop && folder" class="btn small subtle" @click="revealFolder(folder)"><ExternalLink :size="13" />{{ t("video.openFolder") }}</button>
+                </div>
+              </div>
+            </article>
+          </div>
         </div>
       </section>
     </div>
@@ -600,6 +611,20 @@ h3 {
   flex: 1;
   min-width: 0;
   min-height: 0;
+}
+.results {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.results-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: color-mix(in srgb, var(--bg-sunken) 72%, transparent);
+  pointer-events: none;
 }
 .count {
   margin-left: 8px;

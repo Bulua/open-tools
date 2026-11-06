@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Download, RefreshCw, Square, X } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
+import ProcessingMascot from "@/components/common/ProcessingMascot.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { saveFile } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
@@ -207,7 +208,8 @@ onBeforeUnmount(reset);
       />
 
       <div v-if="file" class="stage">
-        <video v-show="view === 'video'" ref="videoEl" :src="videoUrl" controls preload="metadata" />
+        <ProcessingMascot v-if="working" :title="file.name" :detail="t('video.gifProcessing', { percent: Math.round(progress * 100) })" />
+        <video v-show="!working && view === 'video'" ref="videoEl" :src="videoUrl" controls preload="metadata" />
         <div v-if="result && view === 'gif'" class="gif">
           <img :src="result.url" alt="GIF" />
         </div>

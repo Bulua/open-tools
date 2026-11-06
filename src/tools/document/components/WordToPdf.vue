@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { Translation, useI18n } from "vue-i18n";
 import { isTauri } from "@tauri-apps/api/core";
 import { CircleAlert, CircleCheck, Download, FileText, LoaderCircle, Printer, X } from "lucide-vue-next";
 import CheckAll from "@/components/common/CheckAll.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
+import ProcessingMascot from "@/components/common/ProcessingMascot.vue";
 import { useFileChecks } from "@/composables/useFileChecks";
 import { saveFile, saveFiles } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
@@ -29,6 +30,7 @@ interface Item {
 const items = ref<Item[]>([]);
 const selectedId = ref<number | null>(null);
 let nextId = 1;
+const autoQueue: number[] = [];
 
 const extOf = (name: string) => name.split(".").pop()?.toLowerCase() ?? "";
 const addFiles = (files: File[]) => {
@@ -37,6 +39,8 @@ const addFiles = (files: File[]) => {
     .map((file) => ({ id: nextId++, file, ext: extOf(file.name), status: "idle" as const }));
   items.value = [...items.value, ...added];
   if (!selectedId.value && added[0]) selectedId.value = added[0].id;
+  autoQueue.push(...added.map((item) => item.id));
+  void startAuto();
 };
 const remove = (item: Item) => {
   items.value = items.value.filter((i) => i !== item);
@@ -60,6 +64,7 @@ onMounted(async () => {
   if (!desktop) return;
   const { invoke } = await import("@tauri-apps/api/core");
   engines.value = await invoke<string[]>("office_engines").catch(() => []);
+  void startAuto();
 });
 const canConvert = computed(() => desktop && !!engines.value?.length);
 
@@ -67,28 +72,49 @@ const canConvert = computed(() => desktop && !!engines.value?.length);
 const converting = ref(false);
 const pdfName = (item: Item) => item.file.name.replace(/\.[^.]+$/, "") + ".pdf";
 
+const convertItem = async (item: Item) => {
+  item.status = "working";
+  item.message = "";
+  await nextTick();
+  try {
+    const data = new Uint8Array(await item.file.arrayBuffer());
+    const { invoke } = await import("@tauri-apps/api/core");
+    const result = await invoke<ArrayBuffer>("office_to_pdf", data, { headers: { "x-file-ext": item.ext } });
+    item.pdf = new Uint8Array(result);
+    item.status = "done";
+  } catch (e) {
+    item.status = "error";
+    item.message = e instanceof Error ? e.message : String(e);
+  }
+};
+
+const startAuto = async () => {
+  if (converting.value || !canConvert.value || !autoQueue.length) return;
+  converting.value = true;
+  try {
+    while (autoQueue.length) {
+      const id = autoQueue.shift()!;
+      const item = items.value.find((i) => i.id === id);
+      if (item?.status === "idle") await convertItem(item);
+    }
+  } finally {
+    converting.value = false;
+  }
+};
+
 const convertAll = async () => {
-  const { invoke } = await import("@tauri-apps/api/core");
+  if (converting.value) return;
   converting.value = true;
   try {
     for (const item of checkedItems.value) {
       if (item.status === "done") continue;
-      item.status = "working";
-      item.message = "";
-      try {
-        const data = new Uint8Array(await item.file.arrayBuffer());
-        const result = await invoke<ArrayBuffer>("office_to_pdf", data, { headers: { "x-file-ext": item.ext } });
-        item.pdf = new Uint8Array(result);
-        item.status = "done";
-      } catch (e) {
-        item.status = "error";
-        item.message = e instanceof Error ? e.message : String(e);
-      }
+      await convertItem(item);
     }
     const done = checkedItems.value.filter((i) => i.pdf);
     if (done.length) await saveFiles(done.map((i) => ({ name: pdfName(i), data: i.pdf! })), t("document.wordToPdfZip"));
   } finally {
     converting.value = false;
+    void startAuto();
   }
 };
 
@@ -107,6 +133,9 @@ const printSelected = async () => {
 };
 
 const pending = computed(() => checkedItems.value.filter((i) => i.status !== "done").length);
+const done = computed(() => checkedItems.value.filter((i) => i.pdf));
+const workingItem = computed(() => items.value.find((i) => i.status === "working"));
+const downloadSelected = () => saveFiles(done.value.map((i) => ({ name: pdfName(i), data: i.pdf! })), t("document.wordToPdfZip"));
 </script>
 
 <template>
@@ -159,6 +188,9 @@ const pending = computed(() => checkedItems.value.filter((i) => i.status !== "do
                     : t("document.toPdf")
           }}
         </button>
+        <button v-if="canConvert" class="btn full" :disabled="converting || !done.length" @click="downloadSelected">
+          <Download :size="14" />{{ done.length === 1 ? t("document.downloadPdf") : t("document.downloadSelectedZip", { n: done.length }) }}
+        </button>
         <button
           class="btn full"
           :class="{ primary: !canConvert }"
@@ -173,7 +205,7 @@ const pending = computed(() => checkedItems.value.filter((i) => i.status !== "do
     </aside>
 
     <section class="card stage">
-      <div class="card-title">{{ t("document.preview") }}<span class="hint">{{ selected?.file.name }}</span></div>
+      <div class="card-title">{{ t("document.preview") }}<span class="hint">{{ workingItem?.file.name ?? selected?.file.name }}</span></div>
       <FileDropZone
         v-if="!items.length"
         class="drop"
@@ -184,6 +216,7 @@ const pending = computed(() => checkedItems.value.filter((i) => i.status !== "do
         :paste="false"
         @files="addFiles"
       />
+      <ProcessingMascot v-else-if="workingItem" :title="workingItem.file.name" :detail="t('document.converting')" />
       <DocxPreview v-else :data="previewData">
         <p class="no-preview">{{ selected && selected.ext !== "docx" ? t("document.noPreviewExt", { ext: selected.ext }) : "" }}</p>
       </DocxPreview>
