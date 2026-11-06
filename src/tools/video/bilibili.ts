@@ -77,7 +77,8 @@ let wbiKey: { key: string; time: number } | null = null;
 const cookieOf = (s: Session) => [buvid3 && `buvid3=${buvid3}`, s.sessdata.trim() && `SESSDATA=${s.sessdata.trim().replace(/^SESSDATA=/i, "").replace(/;$/, "")}`].filter(Boolean).join("; ");
 const headersOf = (s: Session): [string, string][] => {
   const cookie = cookieOf(s);
-  return [["User-Agent", UA], ["Referer", "https://www.bilibili.com/"], ...(cookie ? [["Cookie", cookie] as [string, string]] : [])];
+  // Tauri HTTP 插件会补上窗口 Origin；B 站拒绝 tauri.localhost，空值让插件移除该头。
+  return [["User-Agent", UA], ["Referer", "https://www.bilibili.com/"], ["Origin", ""], ...(cookie ? [["Cookie", cookie] as [string, string]] : [])];
 };
 
 /** B 站接口的错误码，说明见文案 video.biliNoAccess 等 */
