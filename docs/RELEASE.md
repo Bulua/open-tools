@@ -7,6 +7,8 @@
 | 推送到 `master` | 云端编译，在 [Actions](https://github.com/Bulua/open-tools/actions) 页面的 Artifacts 中下载 exe 与安装包，供测试使用 |
 | 推送 `v` 开头的标签 | 发布到 [Releases](https://github.com/Bulua/open-tools/releases)，并生成在线更新文件，已安装的程序会收到更新 |
 
+Android 流程也会在推送标签时构建，并在 Windows 流程创建 Release 后附加 ARM64 测试 APK。两个平台独立运行，APK 可能稍晚出现；APK 当前使用调试签名，尚不是正式签名版本。推送 `master` 或手动运行 Android 流程时，APK 只上传到 Actions 的 Artifacts。
+
 配置了 `GITEE_TOKEN` 后，每次推送都会把代码同步到 [Gitee](https://gitee.com/bulua/open-tools)，发布版本时安装包也会发到 Gitee Releases，日常只推送 GitHub 即可。
 
 ## 发布新版本
@@ -53,6 +55,7 @@
    - `Open Tools_0.2.0_x64-setup.exe`：安装包
    - `Open Tools_0.2.0_x64-setup.exe.sig`：更新包签名
    - `latest.json`：在线更新信息
+   - `OpenTools-v0.2.0-Android-ARM64.apk`：Android ARM64 测试安装包（由 Android 流程附加）
 
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)：修复问题升第三位（0.2.1），新增功能升第二位（0.3.0）。
 

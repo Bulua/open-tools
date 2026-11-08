@@ -1,5 +1,6 @@
 # 云端构建 Android 测试安装包
 # - 推送到 master 或手动触发后，在 Actions 页面的 Artifacts 中下载 APK
+# - 推送 v 开头的标签后，等待 Windows 流程创建 Release，再附加测试 APK
 # - 只构建真机常用的 arm64-v8a，避免四种架构打进同一个超大安装包
 # - 当前生成的是可直接安装的测试 APK，不需要额外配置发布签名密钥
 name: Build Android APK
@@ -7,6 +8,7 @@ name: Build Android APK
 on:
   push:
     branches: [master]
+    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
@@ -14,7 +16,7 @@ permissions:
 
 concurrency:
   group: android-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
   build-android:
@@ -110,3 +112,36 @@ jobs:
           path: dist-android/*.apk
           if-no-files-found: error
           retention-days: 14
+
+  publish-android:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-android
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: write
+    steps:
+      - name: 下载 APK
+        uses: actions/download-artifact@v4
+        with:
+          name: Open-Tools-Android-ARM64
+          path: dist-android
+
+      # 两个平台并行构建，不抢先创建 Release，以免覆盖 Windows 的说明与更新设置。
+      - name: 等待 Release 并上传 APK
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          for attempt in $(seq 1 60); do
+            if gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft == false' | grep -qx true; then
+              gh release upload "$RELEASE_TAG" dist-android/*.apk --clobber
+              exit 0
+            fi
+            echo "等待 Release 创建（$attempt/60）"
+            sleep 30
+          done
+          echo "::error::等待 Release 超时，请先确认 Windows 发布流程成功，再重新运行此任务。"
+          exit 1
