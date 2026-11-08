@@ -42,6 +42,11 @@ jobs:
         with:
           workspaces: "./src-tauri -> target"
 
+      # 使用随仓库保存并校验过的官方工具，首次构建也不依赖上游 Release 下载。
+      - name: 从仓库准备 Windows 打包工具
+        shell: pwsh
+        run: ./scripts/prepare-windows-tools.ps1
+
       - run: npm ci
 
       - name: 类型检查与单元测试
@@ -101,7 +106,8 @@ jobs:
           }
           Get-ChildItem src-tauri/vcredist | Select-Object Name, Length, @{ n = 'Version'; e = { $_.VersionInfo.FileVersion } }
 
-      - uses: tauri-apps/tauri-action@v0
+      - name: 构建 Windows 程序
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # 更新包签名私钥，只在发布版本时用到
