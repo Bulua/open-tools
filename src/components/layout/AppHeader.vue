@@ -144,9 +144,6 @@ watch(
         <span>{{ t("header.search") }}</span>
         <kbd>Ctrl K</kbd>
       </button>
-      <button class="theme-btn mobile-github" :title="t('header.github', { url: REPO_URL })" :aria-label="t('header.github', { url: REPO_URL })" @click="openExternal(REPO_URL)">
-        <Github :size="16" />
-      </button>
       <button ref="langBtn" class="theme-btn" :class="{ active: langOpen }" :title="t('locale.title')" @click="showLangMenu">
         <Languages :size="16" />
       </button>
@@ -154,7 +151,7 @@ watch(
         <Sun v-if="theme === 'dark'" :size="16" />
         <Moon v-else :size="16" />
       </button>
-      <button class="theme-btn desktop-extra" :title="t('header.github', { url: REPO_URL })" @click="openExternal(REPO_URL)">
+      <button class="theme-btn" :title="t('header.github', { url: REPO_URL })" :aria-label="t('header.github', { url: REPO_URL })" @click="openExternal(REPO_URL)">
         <Github :size="16" />
       </button>
       <button ref="issueBtn" class="theme-btn desktop-extra" :class="{ active: issueOpen }" :title="t('header.reportBug')" :aria-label="t('header.reportBug')" :aria-expanded="issueOpen" aria-haspopup="menu" @click="showIssueMenu">
@@ -321,9 +318,6 @@ watch(
   gap: 8px;
   flex-shrink: 0;
 }
-.mobile-github {
-  display: none;
-}
 .search {
   height: 32px;
   display: flex;
@@ -471,9 +465,6 @@ watch(
   }
   .search {
     display: none;
-  }
-  .mobile-github {
-    display: grid;
   }
   .search span,
   .search kbd,
