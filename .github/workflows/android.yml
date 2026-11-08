@@ -68,6 +68,27 @@ jobs:
       - name: 初始化 Android 工程
         run: npm run tauri -- android init --ci --skip-targets-install
 
+      # 每次初始化都会重新生成 Wrapper 配置，在这里统一设置下载容错。
+      - name: 配置 Gradle 下载超时与重试
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("src-tauri/gen/android/gradle/wrapper/gradle-wrapper.properties")
+          settings = {
+              "networkTimeout": "120000",
+              "retries": "3",
+              "retryBackOffMs": "2000",
+          }
+          lines = [
+              line for line in path.read_text(encoding="utf-8").splitlines()
+              if line.split("=", 1)[0].strip() not in settings
+          ]
+          lines.extend(f"{key}={value}" for key, value in settings.items())
+          path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+          PY
+
       - name: 配置 Gradle 缓存
         uses: gradle/actions/setup-gradle@v6
 
