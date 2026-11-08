@@ -103,7 +103,7 @@ jobs:
           VERSION="$(node -p "require('./package.json').version")"
           APK_PATH="$(find src-tauri/gen/android/app/build/outputs/apk -type f -name '*.apk' -print -quit)"
           mkdir -p dist-android
-          cp "$APK_PATH" "dist-android/OpenTools-v${VERSION}-Android-ARM64.apk"
+          cp "$APK_PATH" "dist-android/OpenTools_${VERSION}_arm64-v8a.apk"
 
       - name: 上传 APK
         uses: actions/upload-artifact@v4

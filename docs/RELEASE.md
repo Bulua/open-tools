@@ -57,7 +57,7 @@ Android 流程也会在推送标签时构建，并在 Windows 流程创建 Relea
    - `Open Tools_0.2.0_x64-setup.exe`：安装包
    - `Open Tools_0.2.0_x64-setup.exe.sig`：更新包签名
    - `latest.json`：在线更新信息
-   - `OpenTools-v0.2.0-Android-ARM64.apk`：Android ARM64 测试安装包（由 Android 流程附加）
+   - `OpenTools_0.2.0_arm64-v8a.apk`：Android ARM64 测试安装包（由 Android 流程附加）
 
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)：修复问题升第三位（0.2.1），新增功能升第二位（0.3.0）。
 

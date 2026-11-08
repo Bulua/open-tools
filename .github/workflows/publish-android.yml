@@ -41,6 +41,10 @@ jobs:
         shell: bash
         run: |
           gh run download "$RUN_ID" --name Open-Tools-Android-ARM64 --dir dist-android
-          APK_PATH="dist-android/OpenTools-${RELEASE_TAG}-Android-ARM64.apk"
+          APK_PATH="dist-android/OpenTools_${RELEASE_TAG#v}_arm64-v8a.apk"
+          # 兼容改名前已经生成的构建产物，上传时统一使用新名称。
+          if [ ! -f "$APK_PATH" ]; then
+            cp "dist-android/OpenTools-${RELEASE_TAG}-Android-ARM64.apk" "$APK_PATH"
+          fi
           test -s "$APK_PATH"
           gh release upload "$RELEASE_TAG" "$APK_PATH#Android ARM64 测试版（调试签名）"
