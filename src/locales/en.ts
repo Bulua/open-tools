@@ -38,6 +38,16 @@ const en: Messages<typeof zhCN> = {
     expand: "Expand sidebar",
     collapse: "Collapse sidebar",
   },
+  mobile: {
+    tools: "Tools",
+    about: "About",
+    navigation: "Main navigation",
+    searchPlaceholder: "Search all tools",
+    allCategories: "All categories",
+    toolCount: "{n} tools",
+    noResults: "No matching tools",
+    back: "Back",
+  },
   palette: {
     placeholder: "Search all tools…",
     none: "No tools found for “{keyword}”",

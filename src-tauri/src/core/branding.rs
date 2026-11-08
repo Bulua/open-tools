@@ -6,7 +6,9 @@ use std::path::PathBuf;
 
 use tauri::image::Image;
 use tauri::ipc::Response;
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Runtime};
+#[cfg(desktop)]
+use tauri::Manager;
 
 /// 单个图标文件的大小上限
 const MAX_SIZE: usize = 2 * 1024 * 1024;
@@ -28,6 +30,7 @@ fn current_id<R: Runtime>(app: &AppHandle<R>) -> Option<String> {
 }
 
 /// 换上窗口（标题栏、任务栏、Alt+Tab）和托盘的图标
+#[cfg(desktop)]
 fn set_icon<R: Runtime>(app: &AppHandle<R>, icon: Image<'_>) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.set_icon(icon.clone());
@@ -36,6 +39,10 @@ fn set_icon<R: Runtime>(app: &AppHandle<R>, icon: Image<'_>) {
         let _ = tray.set_icon(Some(icon));
     }
 }
+
+/// Android/iOS 的应用图标由安装包管理，运行时不修改系统图标。
+#[cfg(mobile)]
+fn set_icon<R: Runtime>(_: &AppHandle<R>, _: Image<'_>) {}
 
 /// 启动时换上上次保存的图标，并确认快捷方式也指向它（重新安装程序会把快捷方式的图标改回去）
 pub fn apply_cached<R: Runtime>(app: &AppHandle<R>) {

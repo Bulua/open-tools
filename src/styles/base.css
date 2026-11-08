@@ -76,3 +76,14 @@ kbd {
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
+@media (max-width: 720px) {
+  button {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+}

@@ -1,6 +1,12 @@
-node_modules
-dist
-src-tauri/target
-src-tauri/gen
+# 依赖与构建产物
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+src-tauri/vcredist/
+
+# IDE 本机配置
+.idea/
+
+# 日志
 *.log
-src-tauri/vcredist

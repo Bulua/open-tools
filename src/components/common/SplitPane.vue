@@ -137,6 +137,32 @@ const onKey = (e: KeyboardEvent) => {
 .dragging {
   cursor: col-resize;
 }
+
+@media (max-width: 720px) {
+  .split {
+    flex: none;
+    width: 100%;
+    flex-direction: column;
+    gap: 12px;
+    overflow: visible;
+    border: none;
+    background: none;
+  }
+  .side,
+  .left,
+  .right {
+    flex: none;
+    width: 100%;
+    min-height: 280px;
+  }
+  .side > :deep(.pane) {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .divider {
+    display: none;
+  }
+}
 </style>
 
 <style>

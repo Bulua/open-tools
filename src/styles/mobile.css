@@ -1,0 +1,191 @@
+/* 手机端工具布局：主操作区纵向排列，小型表单和控制项仍保留紧凑横排。 */
+@media (max-width: 720px) {
+  .tool-view :is(.workspace, .session) > :is(.bili, .dy, .json-format) {
+    flex: none;
+    min-height: auto;
+  }
+
+  /* 这些组件的根节点在桌面端是“左侧设置 + 右侧内容”。 */
+  .tool-view :is(.workspace, .session)
+    > :is(
+      .convert,
+      .editor,
+      .join,
+      .recorder,
+      .tts,
+      .pdf2word,
+      .word2pdf,
+      .unwatermark,
+      .docx-wm,
+      .id-card,
+      .password,
+      .picker,
+      .inpaint,
+      .mosaic,
+      .removebg,
+      .watermark,
+      .markdown,
+      .md2word,
+      .countdown,
+      .concat,
+      .video-music,
+      .video-recorder,
+      .v2a,
+      .v2g,
+      .trim
+    ) {
+    flex: none;
+    min-height: auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  /* 桌面端固定宽度的设置栏在手机端占满整行。 */
+  .tool-view :is(.workspace, .session)
+    > :is(
+      .convert,
+      .editor,
+      .join,
+      .recorder,
+      .tts,
+      .pdf2word,
+      .word2pdf,
+      .unwatermark,
+      .docx-wm,
+      .id-card,
+      .password,
+      .picker,
+      .inpaint,
+      .mosaic,
+      .removebg,
+      .watermark,
+      .md2word,
+      .countdown,
+      .concat,
+      .video-music,
+      .video-recorder,
+      .v2a,
+      .v2g,
+      .trim
+    )
+    > :is(.panel, .side) {
+    width: 100%;
+    max-width: none;
+    max-height: none;
+    flex-basis: auto;
+    align-self: stretch;
+  }
+
+  /* 固定列宽的主要工具界面。 */
+  .tool-view :is(.workspace, .session)
+    > :is(.archive, .compress, .dpi-tool, .stitch, .ico) {
+    flex: none;
+    min-height: auto;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  /* 下载工具的输入面板和结果区位于第二层。 */
+  .tool-view :is(.bili, .dy) > .main {
+    flex: none;
+    min-height: auto;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .tool-view :is(.bili, .dy) > .bar {
+    flex-wrap: wrap;
+  }
+  .tool-view :is(.bili, .dy) > .bar > .link {
+    flex: 1 1 220px;
+  }
+  .tool-view :is(.bili, .dy) > .main > .panel {
+    width: 100%;
+    max-width: none;
+    max-height: none;
+    flex-basis: auto;
+    align-self: stretch;
+  }
+  .tool-view :is(.bili, .dy) > .main > .list {
+    flex: none;
+    width: 100%;
+    min-height: 420px;
+  }
+  .tool-view :is(.bili, .dy) > .main > .list .results,
+  .tool-view :is(.bili, .dy) > .main > .list .grid {
+    min-height: 360px;
+  }
+
+  /* 纵向排列后，预览和列表仍保留可操作的高度。 */
+  .tool-view :is(.workspace, .session)
+    > :is(
+      .convert,
+      .editor,
+      .join,
+      .recorder,
+      .tts,
+      .pdf2word,
+      .word2pdf,
+      .unwatermark,
+      .docx-wm,
+      .id-card,
+      .password,
+      .picker,
+      .inpaint,
+      .mosaic,
+      .removebg,
+      .watermark,
+      .markdown,
+      .md2word,
+      .countdown,
+      .concat,
+      .video-music,
+      .video-recorder,
+      .v2a,
+      .v2g,
+      .trim
+    )
+    > :is(.stage, .main, .list, .result, .preview, .preview-card) {
+    width: 100%;
+    min-height: 300px;
+  }
+
+  /* 世界时钟：大块设置上下排，城市信息压成两列，24 小时条可横向滚动。 */
+  .tool-view .tz .hero {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+  .tool-view .tz .hero-side {
+    flex-basis: auto;
+    width: 100%;
+  }
+  .tool-view .tz .row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+  }
+  .tool-view .tz .row > .when {
+    grid-column: 2;
+    grid-row: 1;
+    align-items: flex-end;
+  }
+  .tool-view .tz .row > .strip {
+    grid-column: 1 / -1;
+    min-width: 520px;
+  }
+  .tool-view .tz .row > .actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+  .tool-view .tz .rows {
+    overflow-x: auto;
+  }
+  .tool-view .tz .add {
+    flex-wrap: wrap;
+  }
+  .tool-view .tz .add .field {
+    max-width: none;
+    flex: 1 1 200px;
+  }
+}

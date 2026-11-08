@@ -158,4 +158,12 @@ const locate = () => {
   font-size: 13px;
   line-height: 1.6;
 }
+
+@media (max-width: 720px) {
+  .json-format {
+    flex: none;
+    width: 100%;
+    min-width: 0;
+  }
+}
 </style>

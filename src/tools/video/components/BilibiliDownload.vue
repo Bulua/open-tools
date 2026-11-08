@@ -29,6 +29,7 @@ import { pickFolder, saveFile, saveIntoFolder } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
 import { sendMode } from "@/tools/network/http";
 import { showError } from "@/utils/errorToast";
+import { isAndroidApp } from "@/utils/platform";
 import { formatDuration } from "../media";
 import {
   CODEC_PREFERENCES,
@@ -60,7 +61,7 @@ import {
  * 点封面可以在工具里在线播放（最高 720P），多 P 可以切换。
  */
 const mode = sendMode();
-const desktop = isTauri();
+const desktop = isTauri() && !isAndroidApp();
 
 // ---------- 登录（可选） ----------
 const sessdata = useStoredRef("bilibili.sessdata", "");

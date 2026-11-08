@@ -144,6 +144,9 @@ watch(
         <span>{{ t("header.search") }}</span>
         <kbd>Ctrl K</kbd>
       </button>
+      <button class="theme-btn mobile-github" :title="t('header.github', { url: REPO_URL })" :aria-label="t('header.github', { url: REPO_URL })" @click="openExternal(REPO_URL)">
+        <Github :size="16" />
+      </button>
       <button ref="langBtn" class="theme-btn" :class="{ active: langOpen }" :title="t('locale.title')" @click="showLangMenu">
         <Languages :size="16" />
       </button>
@@ -151,10 +154,10 @@ watch(
         <Sun v-if="theme === 'dark'" :size="16" />
         <Moon v-else :size="16" />
       </button>
-      <button class="theme-btn" :title="t('header.github', { url: REPO_URL })" @click="openExternal(REPO_URL)">
+      <button class="theme-btn desktop-extra" :title="t('header.github', { url: REPO_URL })" @click="openExternal(REPO_URL)">
         <Github :size="16" />
       </button>
-      <button ref="issueBtn" class="theme-btn" :class="{ active: issueOpen }" :title="t('header.reportBug')" :aria-label="t('header.reportBug')" :aria-expanded="issueOpen" aria-haspopup="menu" @click="showIssueMenu">
+      <button ref="issueBtn" class="theme-btn desktop-extra" :class="{ active: issueOpen }" :title="t('header.reportBug')" :aria-label="t('header.reportBug')" :aria-expanded="issueOpen" aria-haspopup="menu" @click="showIssueMenu">
         <Bug :size="16" />
       </button>
     </div>
@@ -318,6 +321,9 @@ watch(
   gap: 8px;
   flex-shrink: 0;
 }
+.mobile-github {
+  display: none;
+}
 .search {
   height: 32px;
   display: flex;
@@ -398,5 +404,81 @@ watch(
   border: none;
   background: none;
   text-align: left;
+}
+
+@media (max-width: 720px) {
+  .topbar {
+    height: auto;
+    min-height: calc(48px + env(safe-area-inset-top));
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: 48px;
+    align-items: stretch;
+    padding: env(safe-area-inset-top) 8px 0;
+  }
+
+  .brand,
+  .brand.compact {
+    grid-column: 1;
+    grid-row: 1;
+    width: 44px;
+    flex-basis: auto;
+    justify-content: center;
+    border-right: none;
+  }
+  .brand .name {
+    display: none;
+  }
+
+  .tabs-wrap {
+    display: none;
+  }
+  .tabs {
+    gap: 2px;
+    padding: 0 8px;
+    scroll-snap-type: x proximity;
+  }
+  .tab {
+    min-height: 48px;
+    padding: 0 14px;
+    scroll-snap-align: center;
+  }
+  .tab sup {
+    display: none;
+  }
+  .tab.active::after {
+    left: 14px;
+    right: 14px;
+  }
+  .arrow {
+    display: none;
+  }
+
+  .actions {
+    grid-column: 3;
+    grid-row: 1;
+    gap: 2px;
+    align-self: center;
+  }
+  .search,
+  .theme-btn {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    justify-content: center;
+    border: none;
+    background: none;
+  }
+  .search {
+    display: none;
+  }
+  .mobile-github {
+    display: grid;
+  }
+  .search span,
+  .search kbd,
+  .desktop-extra {
+    display: none;
+  }
 }
 </style>

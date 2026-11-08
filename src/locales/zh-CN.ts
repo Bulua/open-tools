@@ -39,6 +39,16 @@ const zhCN = {
     expand: "展开侧栏",
     collapse: "收起侧栏",
   },
+  mobile: {
+    tools: "工具",
+    about: "关于",
+    navigation: "主导航",
+    searchPlaceholder: "搜索所有工具",
+    allCategories: "全部类别",
+    toolCount: "{n} 个工具",
+    noResults: "没有找到匹配的工具",
+    back: "返回",
+  },
   palette: {
     placeholder: "搜索所有工具…",
     none: "没有找到「{keyword}」相关的工具",

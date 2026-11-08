@@ -28,16 +28,17 @@ pub async fn douyin_capture(app: AppHandle, id: String, kind: String) -> Result<
 
     let (tx, rx) = mpsc::channel::<Result<String, String>>();
     let label = format!("douyin-capture-{}", COUNTER.fetch_add(1, Ordering::Relaxed));
-    let window = WebviewWindowBuilder::new(&app, &label, WebviewUrl::External(url))
+    let builder = WebviewWindowBuilder::new(&app, &label, WebviewUrl::External(url))
         .title("douyin")
         .user_agent(UA)
         .initialization_script(SCRIPT)
         // 完全隐藏（放在屏幕外不可靠：Windows 可能把窗口移回屏幕内）。
         // 隐藏的页面会被当作在后台，注入的脚本让页面认为自己可见，以免有的内容不加载
         .visible(false)
-        .inner_size(1280.0, 800.0)
-        .skip_taskbar(true)
-        .focused(false)
+        .inner_size(1280.0, 800.0);
+    #[cfg(desktop)]
+    let builder = builder.skip_taskbar(true).focused(false);
+    let window = builder
         .on_navigation(move |u: &Url| {
             if u.host_str() != Some("open-tools.capture") {
                 return true;

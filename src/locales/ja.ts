@@ -38,6 +38,16 @@ const ja: Messages<typeof zhCN> = {
     expand: "サイドバーを開く",
     collapse: "サイドバーを閉じる",
   },
+  mobile: {
+    tools: "ツール",
+    about: "情報",
+    navigation: "メインナビゲーション",
+    searchPlaceholder: "すべてのツールを検索",
+    allCategories: "すべてのカテゴリ",
+    toolCount: "{n} 個のツール",
+    noResults: "一致するツールがありません",
+    back: "戻る",
+  },
   palette: {
     placeholder: "すべてのツールを検索…",
     none: "「{keyword}」に一致するツールはありません",

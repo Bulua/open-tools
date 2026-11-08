@@ -57,8 +57,8 @@ const filtered = computed(() => {
           @click="$emit('select', tool.id)"
         >
           <component :is="tool.icon" :size="16" :stroke-width="1.75" class="icon" />
-          <span v-if="!collapsed" class="label">{{ tool.name }}</span>
-          <span v-if="!collapsed && !isAvailable(tool)" class="soon">{{ t("sidebar.soon") }}</span>
+          <span class="label">{{ tool.name }}</span>
+          <span v-if="!isAvailable(tool)" class="soon">{{ t("sidebar.soon") }}</span>
         </button>
       </li>
     </ul>
@@ -187,6 +187,10 @@ const filtered = computed(() => {
   justify-content: center;
   padding: 0;
 }
+.collapsed .label,
+.collapsed .soon {
+  display: none;
+}
 .item:hover {
   background: var(--hover);
   color: var(--text);
@@ -284,5 +288,57 @@ const filtered = computed(() => {
 .update.available:hover {
   background: var(--accent-hover);
   color: #fff;
+}
+
+@media (max-width: 720px) {
+  .sidebar,
+  .sidebar.collapsed {
+    width: 100%;
+    height: 56px;
+    flex-direction: row;
+    padding: 7px 8px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    transition: none;
+  }
+  .filter,
+  .footer,
+  .empty {
+    display: none;
+  }
+  .list {
+    width: 100%;
+    flex-direction: row;
+    gap: 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+  }
+  .list::-webkit-scrollbar {
+    display: none;
+  }
+  .list li {
+    flex-shrink: 0;
+    scroll-snap-align: center;
+  }
+  .item,
+  .collapsed .item {
+    width: auto;
+    height: 40px;
+    justify-content: flex-start;
+    gap: 7px;
+    padding: 0 12px;
+    border-radius: 10px;
+    font-size: 13px;
+  }
+  .collapsed .label,
+  .collapsed .soon {
+    display: inline;
+  }
+  .label {
+    flex: none;
+    max-width: 132px;
+  }
 }
 </style>

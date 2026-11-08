@@ -192,4 +192,43 @@ const count = (kind: DiffKind) => diffs.value?.filter((d) => d.kind === kind).le
 .arrow {
   color: var(--text-3);
 }
+
+@media (max-width: 720px) {
+  .json-diff {
+    flex: none;
+    width: 100%;
+    min-height: auto;
+    gap: 12px;
+  }
+  .panes {
+    flex: none;
+    width: 100%;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .panes > :deep(.pane) {
+    flex: none;
+    min-height: 240px;
+  }
+  .result {
+    flex: none;
+    min-height: 220px;
+  }
+  .card-title {
+    flex-wrap: wrap;
+  }
+  .item {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 5px 8px;
+    padding: 7px 8px;
+  }
+  .path {
+    max-width: calc(100% - 64px);
+  }
+  .values {
+    flex-basis: 100%;
+    padding-left: 0;
+  }
+}
 </style>

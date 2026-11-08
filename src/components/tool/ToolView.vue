@@ -13,7 +13,7 @@ import SessionTabs, { type Session } from "./SessionTabs.vue";
  * 工具定义了 sessions: true 时，工作区上方显示会话标签栏。
  * 每个会话是一个独立的工具实例，切换时只是隐藏，内容都会保留；关闭会话才会销毁。
  */
-const props = defineProps<{ tool: Tool }>();
+const props = withDefaults(defineProps<{ tool: Tool; mobile?: boolean }>(), { mobile: false });
 
 const MAX_SESSIONS = 10;
 let nextId = 1;
@@ -60,7 +60,7 @@ const renameSession = (id: number, name: string) => {
 </script>
 
 <template>
-  <div class="tool-view">
+  <div class="tool-view" :class="{ mobile }">
     <header class="bar">
       <span class="icon"><component :is="props.tool.icon" :size="16" :stroke-width="1.75" /></span>
       <div class="title">
@@ -182,5 +182,58 @@ h1 {
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+@media (max-width: 720px) {
+  .bar {
+    min-height: 52px;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+  .icon {
+    width: 32px;
+    height: 32px;
+  }
+  .title {
+    flex-basis: calc(100% - 44px);
+  }
+  h1 {
+    font-size: 17px;
+  }
+  .title p {
+    display: none;
+  }
+  .actions {
+    width: 100%;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: 8px;
+    margin-left: 0;
+    padding-bottom: 2px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .actions::-webkit-scrollbar {
+    display: none;
+  }
+  .session-bar {
+    padding: 6px 12px 0;
+  }
+  .workspace {
+    padding: 12px 12px calc(16px + env(safe-area-inset-bottom));
+  }
+  .tool-view.mobile .bar {
+    min-height: 0;
+    padding: 0 12px 8px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-sunken);
+  }
+  .tool-view.mobile .bar:has(.actions:empty) {
+    display: none;
+  }
+  .tool-view.mobile .bar > .icon,
+  .tool-view.mobile .bar > .title {
+    display: none;
+  }
 }
 </style>

@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { localizedCategories as categories } from "@/locales/tools";
+import { localizedCategories } from "@/locales/tools";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { useTheme } from "@/composables/useTheme";
 import AppHeader from "@/components/layout/AppHeader.vue";
 import AppSidebar from "@/components/layout/AppSidebar.vue";
+import MobileNavigation, { type MobilePage } from "@/components/layout/MobileNavigation.vue";
 import LaunchIntro from "@/components/layout/LaunchIntro.vue";
 import ToolView from "@/components/tool/ToolView.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
@@ -16,9 +17,39 @@ import CountdownAlerts from "@/components/layout/CountdownAlerts.vue";
 import ErrorToast from "@/components/layout/ErrorToast.vue";
 import { startCountdownTicker } from "@/tools/utility/countdownStore";
 import { startBrandingSync } from "@/utils/branding";
+import { isAndroidApp } from "@/utils/platform";
 
 const { t } = useI18n();
 const { theme, toggleTheme } = useTheme();
+
+// 这些工具依赖 Windows 原生能力，Android 版暂时隐藏；桌面版仍完整显示。
+const ANDROID_HIDDEN_TOOLS = new Set([
+  "douyin-download",
+  "word-to-pdf",
+  "image-removebg",
+  "image-inpaint",
+  "screen-recorder",
+  "camera-recorder",
+  "recorder",
+  "tts",
+]);
+const androidApp = isAndroidApp();
+const categories = computed(() =>
+  androidApp
+    ? localizedCategories.value.map((category) => ({
+        ...category,
+        tools: category.tools.filter((tool) => !ANDROID_HIDDEN_TOOLS.has(tool.id)),
+      }))
+    : localizedCategories.value,
+);
+
+// 手机端使用独立的页面式导航，桌面端继续使用顶部分类 + 左侧工具栏。
+const mobileMedia = window.matchMedia("(max-width: 720px)");
+const isMobile = ref(mobileMedia.matches);
+const mobilePage = ref<MobilePage>("home");
+const onMobileChange = (event: MediaQueryListEvent) => (isMobile.value = event.matches);
+onMounted(() => mobileMedia.addEventListener("change", onMobileChange));
+onBeforeUnmount(() => mobileMedia.removeEventListener("change", onMobileChange));
 
 // ---------- 当前分类与工具（会被记住，下次打开时恢复） ----------
 const activeCategoryId = useStoredRef("category", categories.value[0].id);
@@ -38,6 +69,17 @@ const activeTool = computed(() => {
 const selectTool = (categoryId: string, toolId: string) => {
   activeCategoryId.value = categoryId;
   activeToolByCategory.value[categoryId] = toolId;
+};
+
+const pickSearchTool = (categoryId: string, toolId: string) => {
+  selectTool(categoryId, toolId);
+  if (isMobile.value) mobilePage.value = "tool";
+  searchOpen.value = false;
+};
+
+const openCountdown = () => {
+  selectTool("time", "countdown");
+  if (isMobile.value) mobilePage.value = "tool";
 };
 
 // 主窗口隐藏到托盘时不会卸载；完全退出后再次启动才会重新播放。
@@ -95,7 +137,7 @@ onMounted(startBrandingSync);
       @toggle-theme="toggleTheme"
       @open-search="searchOpen = true"
     />
-    <div class="body" :inert="introPhase !== 'done'">
+    <div v-if="!isMobile" class="body" :inert="introPhase !== 'done'">
       <AppSidebar
         :category="activeCategory"
         :active-id="activeTool?.id"
@@ -116,12 +158,22 @@ onMounted(startBrandingSync);
         />
       </main>
     </div>
+    <MobileNavigation
+      v-else
+      v-model:page="mobilePage"
+      :inert="introPhase !== 'done'"
+      :categories="categories"
+      :active-category-id="activeCategory.id"
+      :active-tool="activeTool"
+      @select-category="activeCategoryId = $event"
+      @select-tool="selectTool"
+    />
 
     <Transition name="modal">
       <CommandPalette
         v-if="searchOpen"
         :categories="categories"
-        @pick="(c, t) => (selectTool(c, t), (searchOpen = false))"
+        @pick="pickSearchTool"
         @close="searchOpen = false"
       />
     </Transition>
@@ -129,7 +181,7 @@ onMounted(startBrandingSync);
     <Transition name="modal">
       <UpdateDialog v-if="updateOpen" @close="updateOpen = false" />
     </Transition>
-    <CountdownAlerts @open="selectTool('time', 'countdown')" />
+    <CountdownAlerts @open="openCountdown" />
     <!-- 各工具的报错统一在窗口上方提示，见 utils/errorToast.ts -->
     <ErrorToast />
     <LaunchIntro v-if="introPhase !== 'done'" :leaving="introPhase === 'leaving'" />
@@ -155,4 +207,5 @@ onMounted(startBrandingSync);
   flex-direction: column;
   overflow: hidden;
 }
+
 </style>
