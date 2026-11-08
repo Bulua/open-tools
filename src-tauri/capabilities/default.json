@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "主窗口默认权限",
-  "windows": ["main"],
+  "windows": ["main", "screenshot-*"],
   "permissions": [
     "core:default",
     "dialog:allow-save",
@@ -18,6 +18,14 @@
     },
     "core:window:allow-show",
     "core:window:allow-unminimize",
-    "core:window:allow-set-focus"
+    "core:window:allow-set-focus",
+    "core:webview:allow-create-webview-window",
+    "core:window:allow-close",
+    "core:window:allow-minimize",
+    "core:window:allow-start-dragging",
+    "core:window:allow-set-size",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister",
+    "global-shortcut:allow-is-registered"
   ]
 }

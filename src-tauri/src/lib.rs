@@ -4,7 +4,7 @@ mod tools;
 use crate::core::{branding, paths, tray};
 use crate::tools::{
     audio, document,
-    image::{ai_models, inference},
+    image::{ai_models, inference, screenshot},
     network,
     text::vault,
     time::countdown,
@@ -35,6 +35,9 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init());
 
+    #[cfg(windows)]
+    let builder = builder.plugin(tauri_plugin_global_shortcut::Builder::new().build());
+
     let builder = builder
         // 前端可以调用的命令
         .invoke_handler(tauri::generate_handler![
@@ -61,7 +64,20 @@ pub fn run() {
             branding::branding_current,
             branding::branding_logo,
             branding::branding_activate,
-            tray::set_tray_text
+            tray::set_tray_text,
+            screenshot::screenshot_begin,
+            screenshot::screenshot_prepare,
+            screenshot::screenshot_active,
+            screenshot::screenshot_show,
+            screenshot::screenshot_capture,
+            screenshot::screenshot_targets,
+            screenshot::screenshot_finish,
+            screenshot::screenshot_cancel,
+            screenshot::screenshot_list,
+            screenshot::screenshot_read,
+            screenshot::screenshot_delete,
+            screenshot::screenshot_pin,
+            screenshot::screenshot_reveal
         ])
         // 关闭窗口时隐藏到托盘，从托盘菜单退出
         .setup(|app| {
@@ -75,7 +91,10 @@ pub fn run() {
         });
 
     #[cfg(desktop)]
-    let builder = builder.on_window_event(tray::on_window_event);
+    let builder = builder.on_window_event(|window, event| {
+        tray::on_window_event(window, event);
+        screenshot::on_window_event(window, event);
+    });
 
     builder
         .build(tauri::generate_context!())

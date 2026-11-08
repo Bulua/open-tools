@@ -27,6 +27,7 @@ tauri-plugin-single-instance = "2"
 tauri-plugin-http = { version = "2", features = ["unsafe-headers", "dangerous-settings"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+base64 = "0.22"
 # 中文 Windows 命令行输出是 GBK 编码，ping 结果需要转成 UTF-8
 encoding_rs = "0.8"
 # 校验下载的 AI 模型和运行环境
@@ -37,4 +38,6 @@ ort = { version = "=2.0.0-rc.15", default-features = false, features = ["std", "
 
 # 录屏前临时关闭屏幕 HDR（Windows 显示设置接口）；指定 AI 运行库所在的文件夹（LibraryLoader）
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Devices_Display", "Win32_Foundation", "Win32_Graphics_Gdi", "Win32_System_LibraryLoader"] }
+tauri-plugin-global-shortcut = "2"
+png = "0.17"
+windows-sys = { version = "0.61", features = ["Win32_Devices_Display", "Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Graphics_Dwm", "Win32_System_LibraryLoader", "Win32_System_SystemInformation", "Win32_UI_HiDpi", "Win32_UI_WindowsAndMessaging"] }
