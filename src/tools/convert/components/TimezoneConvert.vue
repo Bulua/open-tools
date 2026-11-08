@@ -77,23 +77,17 @@ const rows = computed(() =>
 );
 
 const zoneOptions = allZones();
+const commonZoneIds = new Set(CITIES.map((c) => c.zone));
 const ZONE_OPTIONS = computed(() => [
   ...CITIES.map((c) => ({ value: c.zone, label: cityLabel(c), hint: c.zone, group: t("convert.commonCities") })),
-  ...zoneOptions.map((z) => ({ value: z, label: z, group: t("convert.allZones") })),
+  ...zoneOptions.filter((z) => !commonZoneIds.has(z)).map((z) => ({ value: z, label: z, group: t("convert.allZones") })),
 ]);
-const query = ref("");
-const addError = ref("");
+const selectedZone = ref("");
+const ADD_ZONE_OPTIONS = computed(() => ZONE_OPTIONS.value.filter((o) => o.value !== baseZone.value && !zones.value.includes(o.value)));
 const addZone = () => {
-  const q = query.value.trim();
-  if (!q) return;
-  const zone = CITIES.find((c) => c.name === q || cityLabel(c).toLowerCase() === q.toLowerCase())?.zone ?? zoneOptions.find((z) => z.toLowerCase() === q.toLowerCase()) ?? zoneOptions.find((z) => z.toLowerCase().includes(q.toLowerCase()));
-  if (!zone) {
-    addError.value = t("convert.zoneNotFound", { q });
-    return;
-  }
-  if (!zones.value.includes(zone)) zones.value = [...zones.value, zone];
-  query.value = "";
-  addError.value = "";
+  if (!selectedZone.value) return;
+  zones.value = [...zones.value, selectedZone.value];
+  selectedZone.value = "";
 };
 const removeZone = (zone: string) => (zones.value = zones.value.filter((z) => z !== zone));
 const setBase = (zone: string) => {
@@ -196,13 +190,15 @@ const fmtHour = (hour: number) => {
       </div>
 
       <form class="add" @submit.prevent="addZone">
-        <input v-model="query" class="field" list="tz-options" :placeholder="t('convert.addPlaceholder')" />
-        <datalist id="tz-options">
-          <option v-for="c in CITIES" :key="c.zone" :value="cityLabel(c)">{{ c.zone }}</option>
-          <option v-for="z in zoneOptions" :key="z" :value="z" />
-        </datalist>
-        <button class="btn" type="submit"><Plus :size="14" />{{ t("convert.add") }}</button>
-        <span v-if="addError" class="error">{{ addError }}</span>
+        <AppSelect
+          v-model="selectedZone"
+          class="add-zone-select"
+          :options="ADD_ZONE_OPTIONS"
+          :placeholder="t('convert.addPlaceholder')"
+          :menu-width="360"
+          searchable
+        />
+        <button class="btn" type="submit" :disabled="!selectedZone"><Plus :size="14" />{{ t("convert.add") }}</button>
       </form>
     </section>
   </div>
@@ -397,9 +393,7 @@ const fmtHour = (hour: number) => {
   padding: 12px 14px;
   border-top: 1px solid var(--border);
 }
-.add .field {
+.add :deep(.add-zone-select) {
   max-width: 360px;
-  height: 32px;
-  font-size: 13px;
 }
 </style>

@@ -38,7 +38,8 @@ jobs:
       - name: 配置 Android SDK
         uses: android-actions/setup-android@v4
         with:
-          packages: "platform-tools platforms;android-37 build-tools;36.0.0 ndk;30.0.16248370"
+          # API 36 是当前稳定 SDK；API 37 尚未作为稳定平台包提供给 sdkmanager。
+          packages: "platform-tools platforms;android-36 build-tools;36.0.0 ndk;30.0.16248370"
 
       - name: 配置 Android NDK
         shell: bash
