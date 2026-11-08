@@ -13,6 +13,8 @@ Android 流程也会在推送标签时构建，并在 Windows 流程创建 Relea
 
 配置了 `GITEE_TOKEN` 后，每次推送都会把代码同步到 [Gitee](https://gitee.com/bulua/open-tools)，发布版本时安装包也会发到 Gitee Releases，日常只推送 GitHub 即可。
 
+Android APK 上传到 GitHub Release 后，也会同步到 Gitee 的同版本 Release，文件名相同。仅需补传 Gitee 时，在 Actions 中手动运行 `Sync Android APK to Gitee` 并填写版本标签；流程复用 GitHub Release 的 APK，不重新构建，也不改写 Windows 在线更新信息。
+
 ## 发布新版本
 
 版本号只在 `package.json` 中维护，程序版本会自动读取它。

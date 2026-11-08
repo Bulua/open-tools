@@ -1,0 +1,52 @@
+# 复用 GitHub Release 中的 APK，同步到 Gitee 的同版本 Release。
+name: Sync Android APK to Gitee
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+    secrets:
+      GITEE_TOKEN:
+        required: false
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 已存在的 Release 标签（例如 v0.11.0）
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gitee-apk-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  sync-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 同步 APK 到 Gitee
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          if [ -z "$GITEE_TOKEN" ]; then
+            echo "::notice::未配置 GITEE_TOKEN，跳过 APK 同步。"
+            exit 0
+          fi
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          gh release download "$RELEASE_TAG" --dir dist-android --pattern "OpenTools_${RELEASE_TAG#v}_arm64-v8a.apk"
+          node scripts/publish-gitee.mjs "$RELEASE_TAG" dist-android --apk-only

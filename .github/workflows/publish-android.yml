@@ -48,3 +48,11 @@ jobs:
           fi
           test -s "$APK_PATH"
           gh release upload "$RELEASE_TAG" "$APK_PATH#Android ARM64 测试版（调试签名）"
+
+  sync-android-gitee:
+    needs: attach-apk
+    uses: ./.github/workflows/sync-android-gitee.yml
+    with:
+      tag: ${{ inputs.tag }}
+    secrets:
+      GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}

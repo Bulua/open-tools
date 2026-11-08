@@ -145,3 +145,11 @@ jobs:
           done
           echo "::error::等待 Release 超时，请先确认 Windows 发布流程成功，再重新运行此任务。"
           exit 1
+
+  sync-android-gitee:
+    needs: publish-android
+    uses: ./.github/workflows/sync-android-gitee.yml
+    with:
+      tag: ${{ github.ref_name }}
+    secrets:
+      GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
