@@ -20,6 +20,14 @@ body {
   overflow: hidden;
 }
 
+/* 透明截图层显示实时桌面，不用一张整屏截图作为背景。 */
+html.screenshot-overlay-page,
+.screenshot-overlay-page body,
+.screenshot-overlay-page #app {
+  background: transparent;
+  color-scheme: normal;
+}
+
 /*
  * 页面上的文字（结果、说明、文件名等）可以选中复制；
  * 按钮、复选框标签、可拖动的行等操作元素不参与选择，避免点击、拖动时误选中文字

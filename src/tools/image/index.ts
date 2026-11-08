@@ -1,5 +1,5 @@
 import { defineAsyncComponent } from "vue";
-import { AppWindow, Crop, Eraser, Grid3x3, LayoutGrid, Minimize2, Pipette, Printer, Replace, RotateCw, SlidersHorizontal, Stamp, WandSparkles } from "lucide-vue-next";
+import { AppWindow, Crop, Eraser, Grid3x3, History, LayoutGrid, Minimize2, Pipette, Printer, Replace, RotateCw, SlidersHorizontal, Stamp, WandSparkles } from "lucide-vue-next";
 import type { Category } from "../types";
 
 // 同一个界面组件按用途注册成多个工具
@@ -10,6 +10,13 @@ const image: Category = {
   id: "image",
   name: "图片",
   tools: [
+    {
+      id: "screenshot-history",
+      name: "截图与贴图",
+      desc: "快捷键区域截图，支持标注、复制、固定到桌面，并按日期和小时查看历史截图",
+      icon: History,
+      component: defineAsyncComponent(() => import("./components/ScreenshotHistory.vue")),
+    },
     {
       id: "image-compress",
       name: "图片压缩",

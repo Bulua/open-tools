@@ -18,6 +18,7 @@ import ErrorToast from "@/components/layout/ErrorToast.vue";
 import { startCountdownTicker } from "@/tools/utility/countdownStore";
 import { startBrandingSync } from "@/utils/branding";
 import { isAndroidApp } from "@/utils/platform";
+import { registerScreenshotShortcut } from "@/tools/image/screenshot";
 
 const { t } = useI18n();
 const { theme, toggleTheme } = useTheme();
@@ -32,6 +33,7 @@ const ANDROID_HIDDEN_TOOLS = new Set([
   "camera-recorder",
   "recorder",
   "tts",
+  "screenshot-history",
 ]);
 const androidApp = isAndroidApp();
 const categories = computed(() =>
@@ -123,6 +125,9 @@ onMounted(startCountdownTicker);
 
 // ---------- 远程图标：不发新版本也能换图标，见 utils/branding.ts ----------
 onMounted(startBrandingSync);
+
+// ---------- Windows 全局截图快捷键 ----------
+onMounted(() => void registerScreenshotShortcut().catch(() => undefined));
 </script>
 
 <template>
