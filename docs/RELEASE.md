@@ -9,6 +9,8 @@
 
 Android 流程也会在推送标签时构建，并在 Windows 流程创建 Release 后附加 ARM64 测试 APK。两个平台独立运行，APK 可能稍晚出现；APK 当前使用调试签名，尚不是正式签名版本。推送 `master` 或手动运行 Android 流程时，APK 只上传到 Actions 的 Artifacts。
 
+需要补传已有 APK 时，在 Actions 中手动运行 `Attach Android APK`，填写 Release 标签和成功的 Android 构建运行编号。流程会核对提交与标签一致后上传，且不会覆盖已有的同名附件；源 Artifact 必须尚未过期。
+
 配置了 `GITEE_TOKEN` 后，每次推送都会把代码同步到 [Gitee](https://gitee.com/bulua/open-tools)，发布版本时安装包也会发到 Gitee Releases，日常只推送 GitHub 即可。
 
 ## 发布新版本
