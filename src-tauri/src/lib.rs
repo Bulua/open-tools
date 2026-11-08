@@ -4,12 +4,14 @@ mod tools;
 use crate::core::{branding, paths, tray};
 use crate::tools::{
     audio, document,
-    image::{ai_models, inference, screenshot},
+    image::{ai_models, inference},
     network,
     text::vault,
     time::countdown,
     video::{douyin, hdr},
 };
+#[cfg(windows)]
+use crate::tools::image::screenshot;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -65,19 +67,19 @@ pub fn run() {
             branding::branding_logo,
             branding::branding_activate,
             tray::set_tray_text,
-            screenshot::screenshot_begin,
-            screenshot::screenshot_prepare,
-            screenshot::screenshot_active,
-            screenshot::screenshot_show,
-            screenshot::screenshot_capture,
-            screenshot::screenshot_targets,
-            screenshot::screenshot_finish,
-            screenshot::screenshot_cancel,
-            screenshot::screenshot_list,
-            screenshot::screenshot_read,
-            screenshot::screenshot_delete,
-            screenshot::screenshot_pin,
-            screenshot::screenshot_reveal
+            #[cfg(windows)] screenshot::screenshot_begin,
+            #[cfg(windows)] screenshot::screenshot_prepare,
+            #[cfg(windows)] screenshot::screenshot_active,
+            #[cfg(windows)] screenshot::screenshot_show,
+            #[cfg(windows)] screenshot::screenshot_capture,
+            #[cfg(windows)] screenshot::screenshot_targets,
+            #[cfg(windows)] screenshot::screenshot_finish,
+            #[cfg(windows)] screenshot::screenshot_cancel,
+            #[cfg(windows)] screenshot::screenshot_list,
+            #[cfg(windows)] screenshot::screenshot_read,
+            #[cfg(windows)] screenshot::screenshot_delete,
+            #[cfg(windows)] screenshot::screenshot_pin,
+            #[cfg(windows)] screenshot::screenshot_reveal
         ])
         // 关闭窗口时隐藏到托盘，从托盘菜单退出
         .setup(|app| {
@@ -93,6 +95,7 @@ pub fn run() {
     #[cfg(desktop)]
     let builder = builder.on_window_event(|window, event| {
         tray::on_window_event(window, event);
+        #[cfg(windows)]
         screenshot::on_window_event(window, event);
     });
 
