@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { request } from "node:https";
 
-vi.mock("node:fs/promises", () => ({ readFile: vi.fn() }));
+vi.mock("node:fs/promises", () => ({ readFile: vi.fn(), stat: vi.fn() }));
 vi.mock("node:https", () => ({ request: vi.fn() }));
 
 const originalArgv = process.argv;
@@ -23,6 +23,7 @@ beforeEach(() => {
   vi.spyOn(console, "log").mockImplementation(() => {});
   process.argv = ["node", "publish-gitee.mjs", "v0.11.0", "assets", "--apk-only"];
   readFile.mockResolvedValue(Buffer.from("apk"));
+  stat.mockResolvedValue({ size: 3 });
 });
 
 afterEach(() => {
@@ -49,6 +50,22 @@ describe("Gitee APK 同步", () => {
     fetchMock.mockResolvedValueOnce(response({ message: "Forbidden" }, 403));
     await expect(import("./publish-gitee.mjs")).rejects.toThrow("读取 Gitee Release 失败（403）");
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it("APK 超过上限时上传 ZIP，保留原 APK 的文件内容", async () => {
+    stat.mockResolvedValueOnce({ size: 236337855 }).mockResolvedValue({ size: 77017550 });
+    fetchMock.mockResolvedValueOnce(response({ id: 123 }));
+    fetchMock.mockImplementation(async () => response([{ name: apkName + ".zip", size: 3, browser_download_url: assetUrl + ".zip" }]));
+    await import("./publish-gitee.mjs");
+    expect(readFile).toHaveBeenCalledWith(expect.stringContaining(apkName + ".zip"));
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it("压缩包仍超限时停止上传", async () => {
+    stat.mockResolvedValue({ size: 236337855 });
+    await expect(import("./publish-gitee.mjs")).rejects.toThrow("APK 附件超过 Gitee 单附件上限");
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(request).not.toHaveBeenCalled();
   });
 

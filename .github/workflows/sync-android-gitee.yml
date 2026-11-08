@@ -49,4 +49,18 @@ jobs:
           fi
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
           gh release download "$RELEASE_TAG" --dir dist-android --pattern "OpenTools_${RELEASE_TAG#v}_arm64-v8a.apk"
+          # Gitee 普通仓库单附件上限为 100 MB；超限时无损压缩，解压后即可安装。
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile, ZIP_DEFLATED
+
+          apk, = Path("dist-android").glob("*.apk")
+          if apk.stat().st_size > 100_000_000:
+              archive = apk.with_suffix(".apk.zip")
+              with ZipFile(archive, "w", compression=ZIP_DEFLATED, compresslevel=9) as output:
+                  output.write(apk, arcname=apk.name)
+              if archive.stat().st_size > 100_000_000:
+                  raise RuntimeError("压缩后的 APK 仍超过 Gitee 单附件上限，无法同步")
+              print(f"APK 超过 Gitee 上限，改为上传 {archive.name}，解压后即可安装")
+          PY
           node scripts/publish-gitee.mjs "$RELEASE_TAG" dist-android --apk-only

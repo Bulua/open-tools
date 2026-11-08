@@ -4,7 +4,7 @@
 // 素材目录中需要有从 GitHub Release 下载的 latest.json 和安装包；需要环境变量 GITEE_TOKEN
 // 全程只走 Gitee 的 HTTPS 接口：GitHub 的机器 git push 到 Gitee 经常连接超时
 import { request } from "node:https";
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
 
 const REPO = "bulua/open-tools";
@@ -123,9 +123,11 @@ async function ensureAsset(releaseId, file) {
 
 async function syncApk() {
   if (!/^v\d+\.\d+\.\d+$/.test(tag)) throw new Error("APK 标签必须采用 v主版本.次版本.修订版本 格式");
-  const name = `OpenTools_${tag.slice(1)}_arm64-v8a.apk`;
+  let name = `OpenTools_${tag.slice(1)}_arm64-v8a.apk`;
   // 提前确认素材存在；不抢先创建 Release，避免与 Windows 发布并发时写入错误标签。
-  await readFile(join(assetDir, name));
+  const limit = 100_000_000;
+  if ((await stat(join(assetDir, name))).size > limit) name += ".zip";
+  if ((await stat(join(assetDir, name))).size > limit) throw new Error("APK 附件超过 Gitee 单附件上限（100 MB）");
   for (let attempt = 1; attempt <= 30; attempt++) {
     const found = await api(`/releases/tags/${encodeURIComponent(tag)}`);
     if (found.ok && found.data?.id) {
