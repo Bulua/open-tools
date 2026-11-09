@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allTools, categories, compareNames, initialOf } from "./index";
+import { allTools, categories, categoriesForPlatform, compareNames, initialOf } from "./index";
 
 describe("工具排序", () => {
   it("中文取拼音首字母", () => {
@@ -27,5 +27,29 @@ describe("分类", () => {
     const shown = categories.flatMap((c) => c.tools.map((t) => t.id));
     expect(new Set(shown).size).toBe(shown.length);
     expect([...shown].sort()).toEqual(allTools.map((t) => t.id).sort());
+  });
+});
+
+describe("平台可用性", () => {
+  it.each(["desktop", "web"] as const)("%s 保留完整工具列表", (platform) => {
+    expect(categoriesForPlatform(categories, platform)).toEqual(categories);
+  });
+
+  it("Android 保留全部分类，并隐藏尚未适配的工具", () => {
+    const androidCategories = categoriesForPlatform(categories, "android");
+    const shown = new Set(androidCategories.flatMap((category) => category.tools.map((tool) => tool.id)));
+
+    expect(androidCategories.map((category) => category.id)).toEqual(categories.map((category) => category.id));
+    expect(allTools.filter((tool) => !shown.has(tool.id)).map((tool) => tool.id).sort()).toEqual([
+      "camera-recorder",
+      "douyin-download",
+      "image-inpaint",
+      "image-removebg",
+      "recorder",
+      "screen-recorder",
+      "screenshot-history",
+      "tts",
+      "word-to-pdf",
+    ]);
   });
 });

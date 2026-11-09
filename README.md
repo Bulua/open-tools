@@ -6,7 +6,7 @@
 
 English | [简体中文](README.zh-CN.md) | [日本語](README.ja.md)
 
-**A developer toolbox for Windows**
+**A developer toolbox for Windows, with an Android test build**
 
 JSON, encoding, conversion, image, audio, and document utilities in one lightweight desktop app. Most processing happens locally, without uploading your files.
 
@@ -50,6 +50,8 @@ Formatting JSON, decoding Base64, converting timestamps, or compressing images o
 
 ## Download and install
 
+### Windows
+
 1. Open the [latest GitHub release](https://github.com/Bulua/open-tools/releases/latest), or the [Gitee mirror](https://gitee.com/bulua/open-tools/releases).
 2. Download `Open Tools_x.x.x_x64-setup.exe`.
 3. Run the installer and launch Open Tools from the Start menu or desktop shortcut.
@@ -58,13 +60,13 @@ Formatting JSON, decoding Base64, converting timestamps, or compressing images o
 
 > **Windows SmartScreen warning on first launch?** The installer is not currently code-signed. If you trust the downloaded release, select **More info** and then **Run anyway**.
 
-### Updates
+#### Windows Updates
 
 The app checks for updates shortly after startup. When a new version is available, use the notification in the upper-right corner to download and install it. You can also check manually with the update button in the header.
 
 ### Android test build
 
-Download `OpenTools_<version>_arm64-v8a.apk` for ARM64 devices from [GitHub Releases](https://github.com/Bulua/open-tools/releases/latest). The APK uses a debug signature.
+Download `OpenTools_<version>_arm64-v8a.apk` for ARM64 devices from [GitHub Releases](https://github.com/Bulua/open-tools/releases/latest). The APK uses a debug signature. Some Windows tools are unavailable on Android. Download and install a newer APK manually to update.
 
 ## Tips
 

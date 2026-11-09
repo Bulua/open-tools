@@ -6,7 +6,7 @@
 
 [English](README.md) | 简体中文 | [日本語](README.ja.md)
 
-**开发者工具百宝箱 · Windows 桌面应用**
+**开发者工具百宝箱 · Windows 桌面版与 Android 测试版**
 
 JSON、编码、转换、图片、文档处理等常用小工具，集中在一个轻量、离线、开箱即用的桌面程序里。
 
@@ -52,6 +52,8 @@ Open Tools 把这些常用工具放进一个桌面程序：
 
 ## 下载与安装
 
+### Windows
+
 1. 打开 [Releases](https://github.com/Bulua/open-tools/releases/latest) 页面（国内可用 [Gitee 镜像](https://gitee.com/bulua/open-tools/releases)）。
 2. 下载 `Open Tools_x.x.x_x64-setup.exe`。
 3. 双击安装，完成后从开始菜单或桌面快捷方式打开。
@@ -61,13 +63,13 @@ Open Tools 把这些常用工具放进一个桌面程序：
 > **首次运行提示「Windows 已保护你的电脑」？**
 > 这是因为程序暂未购买代码签名证书，并非安全问题。点击「更多信息」→「仍要运行」即可，之后不会再提示。
 
-### 更新
+#### Windows 更新
 
 程序启动时会自动检查新版本，有更新时右上角会出现「新版本」提示，点击即可下载安装并自动重启。也可以随时点击右上角的 <kbd>↑</kbd> 图标手动检查。
 
 ### Android 测试版
 
-ARM64 设备可从 [GitHub Releases](https://github.com/Bulua/open-tools/releases/latest) 下载 `OpenTools_<版本>_arm64-v8a.apk`，安装包使用调试签名。
+ARM64 设备可从 [GitHub Releases](https://github.com/Bulua/open-tools/releases/latest) 下载 `OpenTools_<版本>_arm64-v8a.apk`，安装包使用调试签名。部分 Windows 工具暂未在 Android 开放。更新时请手动下载安装新版 APK。
 
 ## 使用技巧
 

@@ -12,6 +12,7 @@ const image: Category = {
   tools: [
     {
       id: "screenshot-history",
+      platforms: ["desktop", "web"],
       name: "截图与贴图",
       desc: "快捷键区域截图，支持标注、复制、固定到桌面，并按日期和小时查看历史截图",
       icon: History,
@@ -79,6 +80,7 @@ const image: Category = {
     },
     {
       id: "image-removebg",
+      platforms: ["desktop", "web"],
       name: "图片去背景",
       desc: "AI 自动识别人物、商品等主体去除背景，残留的背景点一下即可去掉；可换成白、蓝、红等底色",
       icon: Eraser,
@@ -86,6 +88,7 @@ const image: Category = {
     },
     {
       id: "image-inpaint",
+      platforms: ["desktop", "web"],
       name: "图片去水印",
       desc: "涂抹或框选水印、文字、杂物，AI 自动补全背景，大图也清晰",
       icon: WandSparkles,

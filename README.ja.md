@@ -6,7 +6,7 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md) | 日本語
 
-**Windows 向け開発者ツールボックス**
+**Windows 向け開発者ツールボックス・Android テスト版あり**
 
 JSON・エンコード・変換・画像・音声・文書などのよく使うツールを、軽量なデスクトップアプリ 1 つにまとめました。ほとんどの処理は PC 上で行い、ファイルをアップロードしません。
 
@@ -50,6 +50,8 @@ JSON の整形、Base64 のデコード、タイムスタンプの変換、画�
 
 ## ダウンロードとインストール
 
+### Windows
+
 1. [GitHub の最新リリース](https://github.com/Bulua/open-tools/releases/latest)、または [Gitee のミラー](https://gitee.com/bulua/open-tools/releases)を開きます。
 2. `Open Tools_x.x.x_x64-setup.exe` をダウンロードします。
 3. インストーラーを実行し、スタートメニューまたはデスクトップのショートカットから Open Tools を起動します。
@@ -58,13 +60,13 @@ JSON の整形、Base64 のデコード、タイムスタンプの変換、画�
 
 > **初回起動時に Windows SmartScreen の警告が出る場合**：現在、インストーラーにはコード署名がありません。ダウンロードしたリリースを信頼できる場合は、**詳細情報** → **実行** を選んでください。
 
-### アップデート
+#### Windows アップデート
 
 アプリは起動後しばらくしてアップデートを確認します。新しいバージョンがあると右上に通知が出るので、そこからダウンロードしてインストールできます。上部のアップデートボタンから手動で確認することもできます。
 
 ### Android テスト版
 
-ARM64 端末向けの `OpenTools_<バージョン>_arm64-v8a.apk` は [GitHub Releases](https://github.com/Bulua/open-tools/releases/latest) からダウンロードできます。APK はデバッグ署名されています。
+ARM64 端末向けの `OpenTools_<バージョン>_arm64-v8a.apk` は [GitHub Releases](https://github.com/Bulua/open-tools/releases/latest) からダウンロードできます。APK はデバッグ署名されています。一部の Windows 用ツールは Android では利用できません。更新するには新しい APK を手動でダウンロードしてインストールしてください。
 
 ## 使い方のヒント
 

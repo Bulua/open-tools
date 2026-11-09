@@ -1,4 +1,5 @@
 import type { Component } from "vue";
+import type { AppPlatform } from "@/utils/platform";
 
 /** 文本转换工具的一个操作按钮，例如「编码」「解码」 */
 export interface ToolAction {
@@ -29,6 +30,8 @@ export interface Tool {
   inputPlaceholder?: string;
   /** 支持多会话：同一个工具可以开多个标签，各自独立输入和处理 */
   sessions?: boolean;
+  /** 可显示的平台，省略时在所有平台显示。 */
+  platforms?: readonly AppPlatform[];
 }
 
 /** 顶部的一个分类 */

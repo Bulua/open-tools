@@ -17,33 +17,15 @@ import CountdownAlerts from "@/components/layout/CountdownAlerts.vue";
 import ErrorToast from "@/components/layout/ErrorToast.vue";
 import { startCountdownTicker } from "@/tools/utility/countdownStore";
 import { startBrandingSync } from "@/utils/branding";
-import { isAndroidApp } from "@/utils/platform";
+import { categoriesForPlatform } from "@/tools";
+import { getAppPlatform } from "@/utils/platform";
 import { registerScreenshotShortcut } from "@/tools/image/screenshot";
 
 const { t } = useI18n();
 const { theme, toggleTheme } = useTheme();
 
-// 这些工具依赖 Windows 原生能力，Android 版暂时隐藏；桌面版仍完整显示。
-const ANDROID_HIDDEN_TOOLS = new Set([
-  "douyin-download",
-  "word-to-pdf",
-  "image-removebg",
-  "image-inpaint",
-  "screen-recorder",
-  "camera-recorder",
-  "recorder",
-  "tts",
-  "screenshot-history",
-]);
-const androidApp = isAndroidApp();
-const categories = computed(() =>
-  androidApp
-    ? localizedCategories.value.map((category) => ({
-        ...category,
-        tools: category.tools.filter((tool) => !ANDROID_HIDDEN_TOOLS.has(tool.id)),
-      }))
-    : localizedCategories.value,
-);
+const platform = getAppPlatform();
+const categories = computed(() => categoriesForPlatform(localizedCategories.value, platform));
 
 // 手机端使用独立的页面式导航，桌面端继续使用顶部分类 + 左侧工具栏。
 const mobileMedia = window.matchMedia("(max-width: 720px)");

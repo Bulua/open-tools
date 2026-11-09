@@ -15,6 +15,7 @@ const video: Category = {
     },
     {
       id: "douyin-download",
+      platforms: ["desktop", "web"],
       name: "抖音下载",
       desc: "粘贴抖音分享链接，下载无水印视频、图文原图、实况照片、背景音乐和封面（桌面版）",
       icon: Music2,
@@ -57,6 +58,7 @@ const video: Category = {
     },
     {
       id: "screen-recorder",
+      platforms: ["desktop", "web"],
       name: "屏幕录制",
       desc: "录制整个屏幕、某个窗口或浏览器标签页，可同时录系统声音和麦克风，录完预览并保存",
       icon: MonitorPlay,
@@ -65,6 +67,7 @@ const video: Category = {
     },
     {
       id: "camera-recorder",
+      platforms: ["desktop", "web"],
       name: "摄像头录制",
       desc: "用摄像头录一段视频，可同时录麦克风，录完预览并保存",
       icon: Webcam,

@@ -6,6 +6,7 @@
  * 测试会检查每个工具都恰好出现在一个分类中。
  */
 import type { Category, Tool } from "./types";
+import type { AppPlatform } from "@/utils/platform";
 import json from "./json";
 import encode from "./encode";
 import convert from "./convert";
@@ -61,5 +62,13 @@ export const categories: Category[] = [
   },
   { id: "network", name: "网络", tools: network.tools },
 ].map(sortTools);
+
+/** 按工具定义筛选平台可用项，保留分类及工具的显示顺序。 */
+export function categoriesForPlatform(list: Category[], platform: AppPlatform): Category[] {
+  return list.map((category) => ({
+    ...category,
+    tools: category.tools.filter((tool) => !tool.platforms || tool.platforms.includes(platform)),
+  }));
+}
 
 export * from "./types";

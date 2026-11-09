@@ -29,6 +29,7 @@ const audio: Category = {
     },
     {
       id: "recorder",
+      platforms: ["desktop", "web"],
       name: "录音机",
       desc: "用麦克风录音，可以暂停，录完试听并保存为 MP3 或 WAV",
       icon: Mic,
@@ -36,6 +37,7 @@ const audio: Category = {
     },
     {
       id: "tts",
+      platforms: ["desktop", "web"],
       name: "文字转语音",
       desc: "用 Windows 自带的语音朗读文字，可以保存成音频文件",
       icon: Speech,

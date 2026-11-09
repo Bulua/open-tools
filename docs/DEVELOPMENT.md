@@ -1,6 +1,19 @@
 # 开发指南
 
-本文介绍项目结构、如何新增工具和分类，以及代码约定。环境准备与常用命令见 [README](../README.md#参与开发)。
+本文介绍项目结构、如何新增工具和分类，以及代码约定。发布流程见[发布指南](RELEASE.md)。
+
+## 本地开发
+
+使用 Node.js 22（与 CI 一致）。安装依赖后可在浏览器预览大多数工具。
+
+```bash
+npm ci
+npm run dev
+npm run typecheck
+npm test
+```
+
+需要验证 Windows 原生能力时，在已配置 Rust、WebView2 和 Windows 构建工具的环境中运行 `npm run tauri dev`。Android ARM64 测试 APK 由 [Android 工作流](../.github/workflows/android.yml)构建，工作流会生成 `src-tauri/gen/android/`，该目录由构建流程维护。
 
 ## 项目结构
 
@@ -58,7 +71,7 @@ open-tools/
 │       ├── encode/
 │       ├── convert/
 │       └── image/
-├── src-tauri/               # 桌面端（Rust），一般不需要改
+├── src-tauri/               # Tauri 原生端（Rust），供 Windows 和 Android 共用
 │   ├── tauri.conf.json      # 窗口、应用名、更新配置（版本号读取 package.json）
 │   ├── tauri.release.conf.json  # 发布版本时额外启用的配置（生成更新文件）
 │   ├── tauri.vcredist.conf.json # 云端打包时把 VC++ 运行库放进安装包（见「数据存放与 AI 模型」）
@@ -80,7 +93,9 @@ open-tools/
 
 ## 新增一个工具
 
-工具定义在 `src/tools/<分类>/index.ts` 中，有两种写法。
+工具定义放在 `src/tools/<模块>/index.ts`，界面分类由 `src/tools/index.ts` 统一注册。工具默认在所有平台显示。需要限制时，在工具定义上声明 `platforms`，可选值为 `desktop`（当前桌面发行版为 Windows）、`android`、`web`（浏览器开发预览）。目前 Android 尚未适配的工具使用 `platforms: ["desktop", "web"]`，保留原有浏览器预览入口。
+
+工具界面有两种写法。
 
 ### 简单的文本转换
 
@@ -100,7 +115,7 @@ open-tools/
 
 ### 自定义界面
 
-在分类的 `components/` 下写一个 Vue 组件，然后：
+在工具所属模块的 `components/` 下写一个 Vue 组件，然后：
 
 ```ts
 {
@@ -275,7 +290,7 @@ const { t } = useI18n();
 
 ## 数据存放与 AI 模型
 
-- **数据文件夹**：程序自己保存的数据（密码本、倒计时、AI 模型与运行环境、远程图标）统一通过 `src-tauri/src/core/paths.rs` 的 `data_dir()` / `sub_dir()` 取位置，不要再直接用 `app_local_data_dir()` 或安装目录。Windows 上是安装目录下的 `data`，安装目录不能写时退回 `%LOCALAPPDATA%\com.opentools.app`；以后支持手机时只改这一个函数。旧版本的数据在启动时由 `paths::migrate()` 搬过来；倒计时以前存在 localStorage，由前端第一次读取时写进 `countdowns.json`（见 `countdownStore.ts`）。界面设置仍由 WebView2 存在 localStorage 里，不在这个文件夹。
+- **数据文件夹**：程序自己保存的数据（密码本、倒计时、AI 模型与运行环境、远程图标）统一通过 `src-tauri/src/core/paths.rs` 的 `data_dir()` / `sub_dir()` 取位置，不要再直接用 `app_local_data_dir()` 或安装目录。Windows 上是安装目录下的 `data`，安装目录不能写时退回 `%LOCALAPPDATA%\com.opentools.app`；Android 使用系统提供的应用数据目录。旧版本的数据在启动时由 `paths::migrate()` 搬过来；倒计时以前存在 localStorage，由前端第一次读取时写进 `countdowns.json`（见 `countdownStore.ts`）。界面设置仍由各平台的 WebView 存在 localStorage 里，不在这个文件夹。
 - **AI 推理在 Rust 里**：`src-tauri/src/tools/image/inference.rs` 用 `ort` 动态加载 ONNX Runtime，只用 CPU 多线程计算（DirectML 显卡加速跑不了 LaMa 等模型，已不再使用）。前端只做预处理、后处理，通过 `ai_run` 命令传入输入张量（请求体，多个输入依次拼接）、形状（请求头 `x-shape`，多个输入用分号隔开）和数据类型（请求头 `x-dtype`，`f32` 或 `u8`），见 `src/tools/image/aiModels.ts` 的 `runModel()`、`runModelRaw()`。网页版不支持 AI 功能。
 - **运行环境随安装包带上，模型不打包**：`onnxruntime.dll`、`DirectML.dll` 直接提交在 `src-tauri/ai-runtime/`，由 `tauri.conf.json` 的 `bundle.resources` 装到安装目录的 `ai-runtime` 里，程序优先用这一份（`ai_models.rs` 的 `runtime_dir()`）；没有或文件大小对不上时，第一次下载模型时自动把运行环境下载到数据文件夹，作为兜底。模型由用户选择下载。可下载的文件、大小、SHA-256 写在 `src-tauri/src/tools/image/ai_models.rs`，每个文件在魔搭（[sebponk/open-tools-models](https://www.modelscope.cn/models/sebponk/open-tools-models)）和 Hugging Face（[penghui002/open-tools-models](https://huggingface.co/penghui002/open-tools-models)）各放一份，路径相同。
 - **新增模型或升级运行环境**：用 `scripts/prepare-ai-files.ps1` 下载、整理文件并输出大小和校验值，把文件上传到两个仓库（两个仓库的 README.md、LICENSE.md 在 `scripts/ai-files/`，脚本会一起放进去，新增文件时记得在里面补上来源和许可证），再把输出填进 `src-tauri/src/tools/image/ai_models.rs`。升级 ONNX Runtime 时同时改 `RUNTIME_VERSION`、`Cargo.toml` 里 `ort` 的 `api-NN` 特性，并替换 `src-tauri/ai-runtime/` 里的文件。注意带 DirectML 的 ONNX Runtime 最后一个版本是 1.24.4，之后微软不再单独发布这个包。
