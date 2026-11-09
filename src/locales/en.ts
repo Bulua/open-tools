@@ -138,6 +138,7 @@ const en: Messages<typeof zhCN> = {
     month: "{month}/{year}",
     hour: "H",
     minute: "M",
+    second: "S",
     now: "Now",
     none: "Not set",
     ok: "OK",

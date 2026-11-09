@@ -138,6 +138,7 @@ const ja: Messages<typeof zhCN> = {
     month: "{year}年{month}月",
     hour: "時",
     minute: "分",
+    second: "秒",
     now: "現在",
     none: "未選択",
     ok: "OK",

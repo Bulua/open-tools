@@ -140,6 +140,7 @@ const zhCN = {
     month: "{year} 年 {month} 月",
     hour: "时",
     minute: "分",
+    second: "秒",
     now: "现在",
     none: "未选择",
     ok: "确定",

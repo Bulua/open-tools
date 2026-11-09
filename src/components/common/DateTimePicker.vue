@@ -11,16 +11,21 @@ defineOptions({ inheritAttrs: false });
  * 日期时间选择器：替代系统自带的 datetime-local，样式与程序一致。
  * 值的格式与 datetime-local 相同：「2026-11-01T09:30」，空字符串表示未选择。
  * 左边选日期（周一开头），右边选小时和分钟，修改立即生效。
+ * 传入 fixedDate 时仅选择该日的时间，值包含秒。
  */
-defineProps<{ placeholder?: string }>();
+const props = defineProps<{ placeholder?: string; fixedDate?: string; clearLabel?: string }>();
+const events = defineEmits<{ openChange: [open: boolean] }>();
 const { t, tm, rt } = useI18n();
 const model = defineModel<string>({ default: "" });
 
 const trigger = ref<HTMLButtonElement>();
 const panel = ref<HTMLDivElement>();
 const { open, style, toggle, close } = usePopover(trigger, panel, { maxHeight: 340 });
+watch(open, (value) => events("openChange", value), { flush: "sync" });
 
 const pad = (n: number) => String(n).padStart(2, "0");
+const formatTime = (h: number, mi: number, s: number) =>
+  `${pad(h)}:${pad(mi)}${props.fixedDate ? `:${pad(s)}` : ""}`;
 /** 日历表头（周一开头）和显示用的星期（周日开头，与 Date.getDay() 对应） */
 const WEEK = computed(() => (tm("datetime.week") as string[]).map((w) => rt(w)));
 const WEEK_FULL = computed(() => (tm("datetime.weekFull") as string[]).map((w) => rt(w)));
@@ -30,20 +35,26 @@ const local = ref(model.value);
 watch(model, (v) => (local.value = v));
 
 const parsed = computed(() => {
-  const m = local.value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-  return m ? { y: +m[1], mo: +m[2], d: +m[3], h: +m[4], mi: +m[5] } : null;
+  const m = local.value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/);
+  return m ? { y: +m[1], mo: +m[2], d: +m[3], h: +m[4], mi: +m[5], s: +(m[6] ?? 0) } : null;
 });
-const emit = (y: number, mo: number, d: number, h: number, mi: number) => {
+const emit = (y: number, mo: number, d: number, h: number, mi: number, s = 0) => {
+  if (props.fixedDate) {
+    local.value = `${props.fixedDate}T${formatTime(h, mi, s)}`;
+    model.value = local.value;
+    return;
+  }
   // 规范化（例如 2 月 31 日 → 3 月 3 日）
   const date = new Date(y, mo - 1, d, h, mi);
-  local.value = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  local.value = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${formatTime(date.getHours(), date.getMinutes(), 0)}`;
   model.value = local.value;
 };
 
 const display = computed(() => {
   const p = parsed.value;
   if (!p) return "";
-  return `${p.y}-${pad(p.mo)}-${pad(p.d)}  ${pad(p.h)}:${pad(p.mi)}  ${WEEK_FULL.value[new Date(p.y, p.mo - 1, p.d).getDay()]}`;
+  const time = formatTime(p.h, p.mi, p.s);
+  return `${p.y}-${pad(p.mo)}-${pad(p.d)}  ${time}  ${WEEK_FULL.value[new Date(p.y, p.mo - 1, p.d).getDay()]}`;
 });
 
 // ---------- 日历 ----------
@@ -86,26 +97,29 @@ const pickDay = (day: (typeof days.value)[number]) => {
 };
 
 // ---------- 时间 ----------
-const HOURS = Array.from({ length: 24 }, (_, i) => i);
-const MINUTES = Array.from({ length: 60 }, (_, i) => i);
-const hourList = ref<HTMLDivElement>();
-const minuteList = ref<HTMLDivElement>();
+const timeColumns = [
+  { part: "h", label: "datetime.hour", count: 24, initial: 9 },
+  { part: "mi", label: "datetime.minute", count: 60, initial: 0 },
+  { part: "s", label: "datetime.second", count: 60, initial: 0 },
+] as const;
+type TimePart = typeof timeColumns[number]["part"];
+const visibleTimeColumns = computed(() => props.fixedDate ? timeColumns : timeColumns.slice(0, 2));
+const timeLists = ref<HTMLDivElement>();
 
-const pickTime = (h: number | null, mi: number | null) => {
-  const p = parsed.value;
-  const base = p ?? (() => {
-    const n = new Date();
-    return { y: n.getFullYear(), mo: n.getMonth() + 1, d: n.getDate(), h: 0, mi: 0 };
-  })();
-  emit(base.y, base.mo, base.d, h ?? base.h, mi ?? base.mi);
+const pickTime = (part: TimePart, value: number) => {
+  const n = new Date();
+  const next = {
+    ...(parsed.value ?? { y: n.getFullYear(), mo: n.getMonth() + 1, d: n.getDate(), h: props.fixedDate ? 9 : 0, mi: 0, s: 0 }),
+    [part]: value,
+  };
+  emit(next.y, next.mo, next.d, next.h, next.mi, next.s);
 };
 
 const scrollTimes = () => {
   const p = parsed.value;
-  for (const [list, value] of [
-    [hourList.value, p?.h ?? 9],
-    [minuteList.value, p?.mi ?? 0],
-  ] as const) {
+  for (const { part, initial } of visibleTimeColumns.value) {
+    const list = timeLists.value?.querySelector<HTMLElement>(`[data-part="${part}"]`);
+    const value = p?.[part] ?? initial;
     const el = list?.querySelector<HTMLElement>(`[data-v="${value}"]`);
     if (list && el) list.scrollTop = el.offsetTop - list.clientHeight / 2 + el.offsetHeight / 2;
   }
@@ -113,11 +127,21 @@ const scrollTimes = () => {
 
 const setNow = () => {
   const n = new Date();
-  emit(n.getFullYear(), n.getMonth() + 1, n.getDate(), n.getHours(), n.getMinutes());
+  emit(n.getFullYear(), n.getMonth() + 1, n.getDate(), n.getHours(), n.getMinutes(), n.getSeconds());
   viewYear.value = n.getFullYear();
   viewMonth.value = n.getMonth() + 1;
   nextTick(scrollTimes);
 };
+function clearTime() {
+  local.value = "";
+  model.value = "";
+  confirmTime();
+}
+
+function confirmTime() {
+  close();
+  if (props.fixedDate) trigger.value?.focus({ preventScroll: true });
+}
 
 watch(open, async (isOpen) => {
   if (!isOpen) return;
@@ -132,15 +156,15 @@ watch(() => parsed.value?.h, () => open.value && nextTick(scrollTimes));
 </script>
 
 <template>
-  <button v-bind="$attrs" ref="trigger" type="button" class="dt-trigger" :class="{ open }" @click="toggle">
+  <button v-bind="$attrs" ref="trigger" type="button" class="dt-trigger" :class="{ open }" :aria-expanded="open" @click="toggle">
     <CalendarDays :size="14" class="icon" />
     <span class="value" :class="{ placeholder: !display }">{{ display || placeholder || t("datetime.placeholder") }}</span>
   </button>
 
   <Teleport to="body">
     <Transition name="pop">
-      <div v-if="open" ref="panel" class="dt-panel" :style="style">
-        <div class="calendar">
+      <div v-if="open" ref="panel" class="dt-panel" :class="{ 'fixed-date': fixedDate }" :style="style">
+        <div v-if="!fixedDate" class="calendar">
           <header>
             <button type="button" class="nav" :title="t('datetime.prevMonth')" @click="shiftMonth(-1)"><ChevronLeft :size="15" /></button>
             <b>{{ t("datetime.month", { year: viewYear, month: viewMonth }) }}</b>
@@ -164,39 +188,25 @@ watch(() => parsed.value?.h, () => open.value && nextTick(scrollTimes));
         </div>
 
         <div class="times">
-          <div class="time-head"><span>{{ t("datetime.hour") }}</span><span>{{ t("datetime.minute") }}</span></div>
-          <div class="columns">
-            <div ref="hourList" class="column">
-              <button
-                v-for="h in HOURS"
-                :key="h"
-                type="button"
-                :data-v="h"
-                :class="{ selected: parsed?.h === h }"
-                @click="pickTime(h, null)"
-              >
-                {{ pad(h) }}
-              </button>
-            </div>
-            <div ref="minuteList" class="column">
-              <button
-                v-for="m in MINUTES"
-                :key="m"
-                type="button"
-                :data-v="m"
-                :class="{ selected: parsed?.mi === m }"
-                @click="pickTime(null, m)"
-              >
-                {{ pad(m) }}
+          <div class="time-head">
+            <span v-for="{ part, label } in visibleTimeColumns" :key="part">{{ t(label) }}</span>
+          </div>
+          <div ref="timeLists" class="columns">
+            <div v-for="{ part, label, count } in visibleTimeColumns" :key="part"
+              class="column time-option-list" :data-part="part" :aria-label="t(label)">
+              <button v-for="n in count" :key="n" type="button" :data-v="n - 1"
+                :class="{ selected: parsed?.[part] === n - 1 }" @click="pickTime(part, n - 1)">
+                {{ pad(n - 1) }}
               </button>
             </div>
           </div>
         </div>
 
         <footer>
-          <button type="button" class="link" @click="setNow">{{ t("datetime.now") }}</button>
+          <button v-if="fixedDate && clearLabel" type="button" class="link" @click="clearTime">{{ clearLabel }}</button>
+          <button v-else type="button" class="link" @click="setNow">{{ t("datetime.now") }}</button>
           <span class="current">{{ display || t("datetime.none") }}</span>
-          <button type="button" class="btn small primary" @click="close">{{ t("datetime.ok") }}</button>
+          <button type="button" class="btn small primary" @click="confirmTime">{{ t("datetime.ok") }}</button>
         </footer>
       </div>
     </Transition>
@@ -351,30 +361,26 @@ watch(() => parsed.value?.h, () => open.value && nextTick(scrollTimes));
 }
 .dt-panel .column {
   height: 236px;
-  overflow-y: auto;
-  padding: 0 4px 6px;
-  scrollbar-width: thin;
 }
-.dt-panel .column button {
-  display: block;
-  width: 100%;
-  height: 28px;
-  border: none;
-  border-radius: 6px;
-  background: none;
-  color: var(--text-2);
-  font-size: 12.5px;
-  font-variant-numeric: tabular-nums;
-  cursor: pointer;
+.dt-panel.fixed-date {
+  /* 日历的备注浮窗也是挂到 body，时间下拉层需要盖在备注浮窗上。 */
+  z-index: 102;
+  grid-template-columns: minmax(0, 1fr);
+  max-width: calc(100vw - 16px);
 }
-.dt-panel .column button:hover {
-  background: var(--hover);
-  color: var(--text);
+.dt-panel.fixed-date .times {
+  border-left: 0;
 }
-.dt-panel .column button.selected {
-  background: var(--accent);
-  color: #fff;
-  font-weight: 600;
+.dt-panel.fixed-date .time-head,
+.dt-panel.fixed-date .columns {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.dt-panel.fixed-date .column {
+  height: 146px;
+}
+.dt-panel.fixed-date .current {
+  min-width: 0;
+  white-space: normal;
 }
 .dt-panel footer {
   grid-column: 1 / -1;

@@ -1,5 +1,5 @@
 import { defineAsyncComponent } from "vue";
-import { AlarmClock, Calculator, CalendarClock, FileArchive, FolderArchive, Regex } from "lucide-vue-next";
+import { AlarmClock, Calculator, CalendarClock, CalendarDays, FileArchive, FolderArchive, Regex } from "lucide-vue-next";
 import type { Category } from "../types";
 
 const archive = defineAsyncComponent(() => import("./components/ArchiveTool.vue"));
@@ -21,6 +21,13 @@ const utility: Category = {
       desc: "到指定时间或计时器，可重复提醒；一直保存直到删除，到期弹出提醒",
       icon: AlarmClock,
       component: defineAsyncComponent(() => import("./components/CountdownTool.vue")),
+    },
+    {
+      id: "calendar",
+      name: "日历",
+      desc: "查看多年公历、农历日期和常见节日，每个月一张卡片",
+      icon: CalendarDays,
+      component: defineAsyncComponent(() => import("./components/CalendarTool.vue")),
     },
     {
       id: "regex",

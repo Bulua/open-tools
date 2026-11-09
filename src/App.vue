@@ -16,6 +16,7 @@ import { useUpdater } from "@/composables/useUpdater";
 import CountdownAlerts from "@/components/layout/CountdownAlerts.vue";
 import ErrorToast from "@/components/layout/ErrorToast.vue";
 import { startCountdownTicker } from "@/tools/utility/countdownStore";
+import { calendarDesktop, startCalendarReminders } from "@/tools/utility/calendarStore";
 import { startBrandingSync } from "@/utils/branding";
 import { categoriesForPlatform } from "@/tools";
 import { getAppPlatform } from "@/utils/platform";
@@ -104,6 +105,10 @@ onMounted(startAutoCheck);
 
 // ---------- 倒计时：在后台每秒检查，到期时在任何工具里都会提醒 ----------
 onMounted(startCountdownTicker);
+if (calendarDesktop) {
+  const stopCalendarReminders = startCalendarReminders();
+  onBeforeUnmount(stopCalendarReminders);
+}
 
 // ---------- 远程图标：不发新版本也能换图标，见 utils/branding.ts ----------
 onMounted(startBrandingSync);
