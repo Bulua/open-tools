@@ -1,10 +1,9 @@
 // 把 GitHub 上已发布的版本同步到 Gitee Releases，并把指向 Gitee 下载地址的 latest.json 写到 updater 分支
-// 用法：node scripts/publish-gitee.mjs <标签> <素材目录> [--apk-only]
-// --apk-only 只向已有 Release 上传 APK，不读取或修改 Windows 在线更新信息。
+// 用法：node scripts/publish-gitee.mjs <标签> <素材目录>
 // 素材目录中需要有从 GitHub Release 下载的 latest.json 和安装包；需要环境变量 GITEE_TOKEN
 // 全程只走 Gitee 的 HTTPS 接口：GitHub 的机器 git push 到 Gitee 经常连接超时
 import { request } from "node:https";
-import { readFile, stat } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 
 const REPO = "bulua/open-tools";
@@ -12,12 +11,10 @@ const API = `https://gitee.com/api/v5/repos/${REPO}`;
 
 const BRANCH = "updater";
 
-const [tag, assetDir, mode] = process.argv.slice(2);
-const apkOnly = mode === "--apk-only";
+const [tag, assetDir] = process.argv.slice(2);
 const token = process.env.GITEE_TOKEN;
 if (!tag || !assetDir) throw new Error("用法：node scripts/publish-gitee.mjs <标签> <素材目录>");
 if (!token) throw new Error("缺少环境变量 GITEE_TOKEN");
-if (mode && !apkOnly) throw new Error(`未知发布模式：${mode}`);
 
 async function api(path, init = {}) {
   const url = `${API}${path}${path.includes("?") ? "&" : "?"}access_token=${token}`;
@@ -121,29 +118,6 @@ async function ensureAsset(releaseId, file) {
   throw lastError;
 }
 
-async function syncApk() {
-  if (!/^v\d+\.\d+\.\d+$/.test(tag)) throw new Error("APK 标签必须采用 v主版本.次版本.修订版本 格式");
-  let name = `OpenTools_${tag.slice(1)}_arm64-v8a.apk`;
-  // 提前确认素材存在；不抢先创建 Release，避免与 Windows 发布并发时写入错误标签。
-  const limit = 100_000_000;
-  if ((await stat(join(assetDir, name))).size > limit) name += ".zip";
-  if ((await stat(join(assetDir, name))).size > limit) throw new Error("APK 附件超过 Gitee 单附件上限（100 MB）");
-  for (let attempt = 1; attempt <= 30; attempt++) {
-    const found = await api(`/releases/tags/${encodeURIComponent(tag)}`);
-    if (found.ok && found.data?.id) {
-      const url = await ensureAsset(found.data.id, join(assetDir, name));
-      console.log(`已同步 ${name} → ${url}`);
-      return;
-    }
-    if (found.status !== 404) throw new Error(`读取 Gitee Release 失败（${found.status}）`);
-    if (attempt < 30) {
-      console.log(`等待 Gitee Release 创建（${attempt}/30）`);
-      await sleep(30_000);
-    }
-  }
-  throw new Error(`等待 Gitee Release ${tag} 超时，请确认 Windows 的 Gitee 发布已成功`);
-}
-
 async function syncWindows() {
   const manifest = JSON.parse(await readFile(join(assetDir, "latest.json"), "utf8"));
   const release = await ensureRelease(manifest.notes);
@@ -200,5 +174,4 @@ async function syncWindows() {
   await writeManifest(JSON.stringify(manifest, null, 2));
 }
 
-if (apkOnly) await syncApk();
-else await syncWindows();
+await syncWindows();
