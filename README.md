@@ -34,7 +34,7 @@ Formatting JSON, decoding Base64, converting timestamps, or compressing images o
 
 ## Features
 
-9 categories and 62 tools:
+9 categories and 63 tools:
 
 | Category | Tools |
 | --- | --- |
@@ -42,7 +42,7 @@ Formatting JSON, decoding Base64, converting timestamps, or compressing images o
 | Text & encoding | Base64, URL/Unicode/HTML encoding, hashes, JWT decoding, password generation, password vault, ID number parsing, regex testing, naming convention conversion |
 | Time | Timestamp conversion, time zones and world clocks, cron expressions, countdown reminders |
 | Calculators & converters | Calculator, unit conversion, number bases, color conversion |
-| Images | Compression, format conversion, cropping, rotation, color adjustment, stitching, mosaic, watermarks, background removal (including AI subject detection), watermark removal (AI inpainting), color picker, DPI change, ICO generation |
+| Images | Screenshots and desktop pinning (Windows), compression, format conversion, cropping, rotation, color adjustment, stitching, mosaic, watermarks, background removal (including AI subject detection), watermark removal (AI inpainting), color picker, DPI change, ICO generation |
 | Audio | Format conversion (including extracting audio from video), trimming, joining, recording, text to speech |
 | Video | Bilibili video download (with in-app playback), Douyin download without watermark, video to audio (copy the original track or convert to MP3/M4A/WAV), video to GIF, video trimming (length and picture), video concatenation, background music, screen recording, camera recording |
 | Documents & files | Word to PDF, PDF to Word, Word watermarks and watermark removal, PDF page editing, PDF watermark removal, Markdown editing/preview and Word export, archiving and extraction |
@@ -61,6 +61,10 @@ Formatting JSON, decoding Base64, converting timestamps, or compressing images o
 ### Updates
 
 The app checks for updates shortly after startup. When a new version is available, use the notification in the upper-right corner to download and install it. You can also check manually with the update button in the header.
+
+### Android test build
+
+Download `OpenTools_<version>_arm64-v8a.apk` for ARM64 devices from [GitHub Releases](https://github.com/Bulua/open-tools/releases/latest). The APK uses a debug signature.
 
 ## Tips
 
@@ -89,21 +93,6 @@ Processing is local unless a feature explicitly needs network access:
 - **Ping:** Send a ping to the host you enter.
 - **AI background-removal model downloads:** Download a model only when you request it (the AI runtime, ONNX Runtime, ships with the installer), from ModelScope first and Hugging Face if that fails. Your images are processed locally.
 - **Remote images in Markdown:** When exporting Markdown that references an HTTP(S) image to Word, the app fetches that image from its URL.
-
-## Tech stack
-
-| Area | Technology |
-| --- | --- |
-| Desktop | Tauri 2 (Rust and system WebView2) |
-| UI | Vue 3, TypeScript, Vite, vue-i18n |
-| Code editor | CodeMirror 6 |
-| Documents | PDF.js, pdf-lib, docx, docx-preview, marked |
-| Audio | Web Audio, wasm-media-encoders (MP3), Windows speech |
-| Video | Mediabunny (WebCodecs), gifenc (GIF encoding) |
-| AI background & watermark removal | ONNX Runtime, rembg models (U²-Net, IS-Net), LaMa, MI-GAN |
-| Icons | Lucide |
-| Tests | Vitest |
-| Builds and releases | GitHub Actions, tauri-action |
 
 ## Star history
 
