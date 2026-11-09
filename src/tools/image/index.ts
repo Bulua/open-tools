@@ -16,7 +16,7 @@ const image: Category = {
       name: "截图与贴图",
       desc: "快捷键区域截图，支持标注、复制、固定到桌面，并按日期和小时查看历史截图",
       icon: History,
-      component: defineAsyncComponent(() => import("./components/ScreenshotHistory.vue")),
+      component: defineAsyncComponent(() => import("./screenshot/components/ScreenshotHistory.vue")),
     },
     {
       id: "image-compress",

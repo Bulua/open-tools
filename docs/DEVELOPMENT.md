@@ -71,6 +71,7 @@ open-tools/
 │       ├── encode/
 │       ├── convert/
 │       └── image/
+│           └── screenshot/ # 截图逻辑、单元测试及截图窗口组件
 ├── src-tauri/               # Tauri 原生端（Rust），供 Windows 和 Android 共用
 │   ├── tauri.conf.json      # 窗口、应用名、更新配置（版本号读取 package.json）
 │   ├── tauri.release.conf.json  # 发布版本时额外启用的配置（生成更新文件）

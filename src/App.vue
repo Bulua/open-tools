@@ -19,7 +19,7 @@ import { startCountdownTicker } from "@/tools/utility/countdownStore";
 import { startBrandingSync } from "@/utils/branding";
 import { categoriesForPlatform } from "@/tools";
 import { getAppPlatform } from "@/utils/platform";
-import { registerScreenshotShortcut } from "@/tools/image/screenshot";
+import { registerScreenshotShortcut } from "@/tools/image/screenshot/screenshot";
 
 const { t } = useI18n();
 const { theme, toggleTheme } = useTheme();

@@ -1,6 +1,6 @@
 import { createApp } from "vue";
 import App from "./App.vue";
-import ScreenshotWindow from "./ScreenshotWindow.vue";
+import ScreenshotWindow from "./tools/image/screenshot/components/ScreenshotWindow.vue";
 import "./styles/index.css";
 import { installSegGlide } from "./utils/motion";
 import { i18n, initLocale } from "./locales";

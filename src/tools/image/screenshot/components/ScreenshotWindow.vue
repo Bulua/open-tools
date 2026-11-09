@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted } from "vue";
 import { useTheme } from "@/composables/useTheme";
-import ScreenshotOverlay from "@/tools/image/components/ScreenshotOverlay.vue";
-import ScreenshotPin from "@/tools/image/components/ScreenshotPin.vue";
+import ScreenshotOverlay from "./ScreenshotOverlay.vue";
+import ScreenshotPin from "./ScreenshotPin.vue";
 
 const params = new URLSearchParams(location.search);
 const mode = params.get("window");
