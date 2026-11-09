@@ -7,7 +7,7 @@ use crate::tools::{
     image::{ai_models, inference},
     network,
     text::vault,
-    time::countdown,
+    time::{calendar, countdown},
     video::{douyin, hdr},
 };
 #[cfg(windows)]
@@ -60,6 +60,11 @@ pub fn run() {
             vault::vault_write,
             countdown::countdown_read,
             countdown::countdown_write,
+            calendar::calendar_read,
+            calendar::calendar_write,
+            #[cfg(windows)] calendar::calendar_wait,
+            #[cfg(windows)] calendar::calendar_wake,
+            #[cfg(windows)] calendar::calendar_notify,
             hdr::hdr_enabled,
             hdr::hdr_disable,
             hdr::hdr_restore,
