@@ -40,4 +40,4 @@ ort = { version = "=2.0.0-rc.15", default-features = false, features = ["std", "
 [target.'cfg(windows)'.dependencies]
 tauri-plugin-global-shortcut = "2"
 png = "0.17"
-windows-sys = { version = "0.61", features = ["Win32_Devices_Display", "Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Graphics_Dwm", "Win32_System_LibraryLoader", "Win32_System_SystemInformation", "Win32_UI_HiDpi", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.61", features = ["Win32_Devices_Display", "Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Graphics_Dwm", "Win32_System_DataExchange", "Win32_System_LibraryLoader", "Win32_System_Memory", "Win32_System_Ole", "Win32_System_SystemInformation", "Win32_UI_HiDpi", "Win32_UI_WindowsAndMessaging"] }

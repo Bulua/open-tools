@@ -541,13 +541,13 @@ async function finish(action: "copy" | "save" | "pin") {
     image.src = `data:image/png;base64,${base64}`;
     await image.decode();
     const blob = await exportedPng();
-    if (action === "copy") {
-      // WebView 的剪贴板写入需要窗口处于前台；采样已经完成，重新显示选区层不影响图片。
-      await invoke("screenshot_show", { draftId: activeDraftId.value });
-      await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-    }
     const bytes = new Uint8Array(await blob.arrayBuffer());
-    await invoke("screenshot_finish", { draftId: activeDraftId.value, pngBase64: bytesToBase64(bytes), pin: action === "pin" });
+    await invoke("screenshot_finish", {
+      draftId: activeDraftId.value,
+      pngBase64: bytesToBase64(bytes),
+      pin: action === "pin",
+      copyToClipboard: action === "copy",
+    });
   } catch (error) {
     busy.value = false;
     await invoke("screenshot_show", { draftId: activeDraftId.value }).catch(() => undefined);
@@ -655,7 +655,7 @@ onBeforeUnmount(() => {
       <button :title="t('image.screenshotSave')" @click="finish('save')"><Save :size="17" /></button>
       <button :title="t('image.screenshotPin')" @click="finish('pin')"><Pin :size="17" /></button>
       <button :title="t('image.screenshotCancel')" @click="cancel"><X :size="17" /></button>
-      <button class="done" :title="t('image.screenshotDone')" @click="finish('save')"><Check :size="18" /></button>
+      <button class="done" :title="t('image.screenshotDone')" @click="finish('copy')"><Check :size="18" /></button>
     </div>
   </main>
 </template>
