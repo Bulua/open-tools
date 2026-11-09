@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onDeactivated, onMounted, ref } from "vue";
-import { Camera, FolderOpen, ImageOff, Pencil, Pin, RefreshCw, Trash2 } from "lucide-vue-next";
+import { Camera, ChevronDown, FolderOpen, ImageOff, Pencil, Pin, RefreshCw, Trash2 } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { showError } from "@/utils/errorToast";
@@ -36,6 +36,48 @@ let disposed = false;
 let refreshVersion = 0;
 
 const groups = computed(() => groupScreenshots(items.value));
+const historyScroll = ref<HTMLElement>();
+const collapsedDays = ref(new Set<string>());
+const activeLocation = ref("");
+const locationId = (day: string, hour?: string) => `screenshot-${day}${hour === undefined ? "" : `-${hour}`}`;
+
+function toggleDay(day: string) {
+  if (collapsedDays.value.has(day)) collapsedDays.value.delete(day);
+  else collapsedDays.value.add(day);
+  void nextTick(updateActiveLocation);
+}
+
+async function navigateTo(day: string, hour?: string) {
+  collapsedDays.value.delete(day);
+  await nextTick();
+  const container = historyScroll.value;
+  const id = locationId(day, hour);
+  const target = container?.querySelector<HTMLElement>(`[id="${id}"]`);
+  if (!container || !target) return;
+  activeLocation.value = id;
+  // 只滚动截图面板，避免把外层工具区一起带走；小时标题留出日期栏的空间。
+  const dayHeader = target.closest(".day-group")?.querySelector<HTMLElement>(".day-heading");
+  const inset = hour === undefined ? 0 : (dayHeader?.offsetHeight ?? 0) + 10;
+  container.scrollTo({
+    top: container.scrollTop + target.getBoundingClientRect().top - container.getBoundingClientRect().top - inset,
+    behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+  });
+}
+
+function updateActiveLocation() {
+  const container = historyScroll.value;
+  if (!container) return;
+  const top = container.getBoundingClientRect().top;
+  const anchors = container.querySelectorAll<HTMLElement>(".day-group, .hour-group");
+  let current = anchors[0]?.id ?? "";
+  for (const anchor of anchors) {
+    if (anchor.closest<HTMLElement>(".day-content")?.hidden) continue;
+    const header = anchor.closest(".day-group")?.querySelector<HTMLElement>(".day-heading");
+    if (anchor.getBoundingClientRect().top > top + (header?.offsetHeight ?? 0) + 12) break;
+    current = anchor.id;
+  }
+  activeLocation.value = current;
+}
 
 async function startEditingShortcut() {
   shortcut.value = savedShortcut.value;
@@ -92,6 +134,8 @@ async function refresh() {
     // 焦点恢复与保存事件可能同时触发刷新，只采用最近一次结果。
     if (disposed || version !== refreshVersion) return;
     items.value = latest;
+    collapsedDays.value = new Set([...collapsedDays.value].filter((day) => latest.some((item) => item.day === day)));
+    void nextTick(() => { if (!disposed && version === refreshVersion) updateActiveLocation(); });
     const current = new Set(items.value.map((item) => item.id));
     images.value = Object.fromEntries(Object.entries(images.value).filter(([id]) => current.has(id)));
     for (const item of items.value) {
@@ -198,29 +242,49 @@ onDeactivated(cancelEditingShortcut);
       <span>{{ t("image.screenshotEmptyHint") }}</span>
     </div>
 
-    <div v-else class="history-scroll">
-      <section v-for="day in groups" :key="day.day" class="day-group">
-        <h2>{{ day.day }}</h2>
-        <div v-for="hour in day.hours" :key="hour.hour" class="hour-group">
-          <h3>{{ t("image.screenshotHour", { hour: hour.hour }) }}</h3>
-          <div class="shot-grid">
-            <article v-for="item in hour.shots" :key="item.id" class="shot-card">
-              <div class="thumb">
-                <img v-if="images[item.id]" :src="images[item.id]" :alt="item.name" />
-                <span v-else>{{ t("image.processing") }}</span>
-              </div>
-              <footer>
-                <time>{{ item.createdAt.slice(11, 19) }}</time>
-                <span class="shot-actions">
-                  <button :title="t('image.screenshotPin')" @click="run(() => pinScreenshot(item.id))"><Pin :size="15" /></button>
-                  <button :title="t('image.screenshotReveal')" @click="run(() => revealScreenshot(item.id))"><FolderOpen :size="15" /></button>
-                  <button :title="t('image.remove')" class="danger" @click="remove(item)"><Trash2 :size="15" /></button>
-                </span>
-              </footer>
-            </article>
-          </div>
+    <div v-else class="history-layout">
+      <nav class="history-directory" :aria-label="t('image.screenshotDirectory')">
+        <strong class="directory-title">{{ t("image.screenshotDirectory") }}</strong>
+        <div v-for="day in groups" :key="day.day" class="directory-day">
+          <button class="directory-date" :aria-current="activeLocation === locationId(day.day) ? 'location' : undefined" @click="navigateTo(day.day)">{{ day.day }}</button>
+          <button v-for="hour in day.hours" :key="hour.hour" class="directory-hour" :aria-current="activeLocation === locationId(day.day, hour.hour) ? 'location' : undefined" @click="navigateTo(day.day, hour.hour)">
+            <span>{{ t("image.screenshotHour", { hour: hour.hour }) }}</span>
+            <small>{{ t("image.screenshotCount", { count: hour.shots.length }) }}</small>
+          </button>
         </div>
-      </section>
+      </nav>
+      <div ref="historyScroll" class="history-scroll" @scroll.passive="updateActiveLocation">
+        <section v-for="day in groups" :id="locationId(day.day)" :key="day.day" class="day-group">
+          <h2 class="day-heading">
+            <button class="day-toggle" :aria-expanded="!collapsedDays.has(day.day)" :aria-controls="`${locationId(day.day)}-content`" @click="toggleDay(day.day)">
+              <ChevronDown :size="18" :class="{ collapsed: collapsedDays.has(day.day) }" />
+              <span>{{ day.day }}</span>
+              <small>{{ t("image.screenshotCount", { count: day.hours.reduce((count, hour) => count + hour.shots.length, 0) }) }}</small>
+            </button>
+          </h2>
+          <div :id="`${locationId(day.day)}-content`" class="day-content" :hidden="collapsedDays.has(day.day)">
+            <div v-for="hour in day.hours" :id="locationId(day.day, hour.hour)" :key="hour.hour" class="hour-group">
+              <h3>{{ t("image.screenshotHour", { hour: hour.hour }) }}</h3>
+              <div class="shot-grid">
+                <article v-for="item in hour.shots" :key="item.id" class="shot-card">
+                  <div class="thumb">
+                    <img v-if="images[item.id]" :src="images[item.id]" :alt="item.name" />
+                    <span v-else>{{ t("image.processing") }}</span>
+                  </div>
+                  <footer>
+                    <time>{{ item.createdAt.slice(11, 19) }}</time>
+                    <span class="shot-actions">
+                      <button :title="t('image.screenshotPin')" @click="run(() => pinScreenshot(item.id))"><Pin :size="15" /></button>
+                      <button :title="t('image.screenshotReveal')" @click="run(() => revealScreenshot(item.id))"><FolderOpen :size="15" /></button>
+                      <button :title="t('image.remove')" class="danger" @click="remove(item)"><Trash2 :size="15" /></button>
+                    </span>
+                  </footer>
+                </article>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
     </div>
   </div>
 </template>
@@ -234,12 +298,28 @@ onDeactivated(cancelEditingShortcut);
 .shortcut-field .field.recording { border-color: var(--accent); background: var(--accent-soft); }
 .recording-hint { color: var(--text-2); }
 .saved { color: var(--success); }
-.history-scroll { min-height: 0; overflow: auto; padding-right: 5px; }
+.history-layout { flex: 1; min-height: 0; display: flex; gap: 18px; }
+.history-directory { flex: 0 0 172px; min-width: 0; overflow: auto; padding-right: 12px; border-right: 1px solid var(--border); }
+.directory-title { display: block; padding: 8px; color: var(--text-2); font-size: 12px; }
+.directory-day + .directory-day { margin-top: 12px; }
+.history-directory button { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 4px; padding: 7px 8px; border: 0; border-radius: 6px; background: transparent; color: var(--text-2); text-align: left; }
+.history-directory button:hover { background: var(--hover); color: var(--text); }
+.history-directory button[aria-current] { background: var(--accent-soft); color: var(--accent); }
+.directory-date { font-size: 13px; font-weight: 600; }
+.history-directory .directory-hour { padding-left: 16px; font-size: 12px; }
+.directory-hour span { white-space: nowrap; }
+.directory-hour small { white-space: nowrap; font-size: 11px; }
+.history-scroll { flex: 1; min-width: 0; min-height: 0; overflow: auto; padding-right: 5px; }
 .day-group + .day-group { margin-top: 24px; }
-h2 { position: sticky; top: 0; z-index: 2; margin: 0 0 10px; padding: 7px 0; background: var(--bg); color: var(--text); font-size: 18px; }
+.day-heading { position: sticky; top: 0; z-index: 2; margin: 0 0 10px; background: var(--bg); color: var(--text); font-size: 18px; }
+.day-toggle { width: 100%; display: flex; align-items: center; gap: 8px; padding: 7px 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; }
+.day-toggle small { margin-left: auto; color: var(--text-3); font-size: 12px; font-weight: 400; }
+.day-toggle svg { transition: transform var(--dur) var(--ease-out); }
+.day-toggle svg.collapsed { transform: rotate(-90deg); }
+.history-layout button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .hour-group { margin-bottom: 18px; }
 h3 { margin: 0 0 8px; color: var(--text-2); font-size: 13px; font-weight: 600; }
-.shot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+.shot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(210px, 100%), 1fr)); gap: 12px; }
 .shot-card { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-sm); }
 .thumb { height: 132px; display: grid; place-items: center; overflow: hidden; background: var(--bg-sunken); color: var(--text-3); font-size: 12px; }
 .thumb img { width: 100%; height: 100%; object-fit: contain; }
@@ -252,4 +332,9 @@ time { color: var(--text-2); font-family: var(--font-mono); font-size: 12px; }
 .empty-history { flex: 1; display: grid; place-content: center; justify-items: center; gap: 7px; color: var(--text-3); }
 .empty-history strong { color: var(--text-2); font-size: 15px; }
 .empty-history span { font-size: 13px; }
+@media (max-width: 720px) {
+  .history-layout { gap: 10px; }
+  .history-directory { flex-basis: 140px; padding-right: 6px; }
+  .history-directory .directory-hour { flex-wrap: wrap; }
+}
 </style>
