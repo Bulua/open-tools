@@ -10,7 +10,7 @@ import { boxOf, glide } from "@/utils/motion";
 const props = defineProps<{ category: Category; activeId?: string; collapsed: boolean }>();
 defineEmits<{ select: [id: string]; toggle: []; openUpdate: [] }>();
 const { t } = useI18n();
-const { status: updateStatus, newVersion } = useUpdater();
+const { supported: updaterSupported, status: updateStatus, newVersion } = useUpdater();
 
 const keyword = ref("");
 watch(
@@ -70,6 +70,7 @@ const filtered = computed(() => {
     <!-- 底部：左边是更新（有新版本时醒目提示），右边是收起侧栏；收起时上下排列 -->
     <div class="footer">
       <button
+        v-if="updaterSupported"
         class="update"
         :class="{ available: updateStatus === 'available' }"
         :title="updateStatus === 'available' ? t('header.newVersion', { version: newVersion }) : t('header.checkUpdate')"

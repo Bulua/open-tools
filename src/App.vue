@@ -99,7 +99,7 @@ onMounted(() => window.addEventListener("keydown", onKeydown));
 onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
 
 // ---------- 在线更新：启动几秒后在后台检查，之后定时检查，发现新版本时弹出更新对话框（见 useUpdater） ----------
-const { startAutoCheck, dialogOpen: updateOpen } = useUpdater();
+const { supported: updaterSupported, startAutoCheck, dialogOpen: updateOpen } = useUpdater();
 onMounted(startAutoCheck);
 
 // ---------- 倒计时：在后台每秒检查，到期时在任何工具里都会提醒 ----------
@@ -166,7 +166,7 @@ onMounted(() => void registerScreenshotShortcut().catch(() => undefined));
     </Transition>
 
     <Transition name="modal">
-      <UpdateDialog v-if="updateOpen" @close="updateOpen = false" />
+      <UpdateDialog v-if="updaterSupported && updateOpen" @close="updateOpen = false" />
     </Transition>
     <CountdownAlerts @open="openCountdown" />
     <!-- 各工具的报错统一在窗口上方提示，见 utils/errorToast.ts -->

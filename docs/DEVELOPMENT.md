@@ -15,6 +15,8 @@ npm test
 
 需要验证 Windows 原生能力时，在已配置 Rust、WebView2 和 Windows 构建工具的环境中运行 `npm run tauri dev`。Android ARM64 测试 APK 由 [Android 工作流](../.github/workflows/android.yml)构建，工作流会生成 `src-tauri/gen/android/`，该目录由构建流程维护。
 
+面向 `master` 的 Pull Request 会运行 [PR 检查](../.github/workflows/check.yml)，包括前端类型检查、Vitest（含界面交互回归）、生产构建和 Windows Rust 测试。
+
 ## 项目结构
 
 ```

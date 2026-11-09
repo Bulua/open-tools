@@ -1,8 +1,8 @@
 import { computed, ref } from "vue";
-import { isTauri } from "@tauri-apps/api/core";
 import type { Update } from "@tauri-apps/plugin-updater";
 import { locale, t } from "@/locales";
 import { pickNotes } from "@/utils/releaseNotes";
+import { getAppPlatform } from "@/utils/platform";
 
 /**
  * 在线更新（只在桌面版可用）：
@@ -42,8 +42,8 @@ const readSkipped = () => {
   }
 };
 
-/** 浏览器中（开发预览）不支持在线更新 */
-export const updaterSupported = isTauri();
+// Rust 只在桌面端注册 updater 和 process 插件。
+const updaterSupported = getAppPlatform() === "desktop";
 
 async function loadCurrentVersion() {
   if (currentVersion.value || !updaterSupported) return;
@@ -118,7 +118,7 @@ async function loadCurrentNotes() {
 
 /** 下载并安装新版本，完成后重启程序 */
 async function installUpdate() {
-  if (!pending) return;
+  if (!updaterSupported || !pending) return;
   status.value = "downloading";
   progress.value = 0;
   receivedBytes.value = 0;
