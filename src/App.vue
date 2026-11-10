@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { localizedCategories } from "@/locales/tools";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { useTheme } from "@/composables/useTheme";
@@ -21,6 +22,8 @@ import { startBrandingSync } from "@/utils/branding";
 import { categoriesForPlatform } from "@/tools";
 import { getAppPlatform } from "@/utils/platform";
 import { registerScreenshotShortcut } from "@/tools/image/screenshot/screenshot";
+import { registerClipboardShortcut } from "@/tools/encode/clipboardHistory";
+import { showError } from "@/utils/errorToast";
 
 const { t } = useI18n();
 const { theme, toggleTheme } = useTheme();
@@ -115,6 +118,24 @@ onMounted(startBrandingSync);
 
 // ---------- Windows 全局截图快捷键 ----------
 onMounted(() => void registerScreenshotShortcut().catch(() => undefined));
+
+// ---------- Windows 剪贴板历史入口 ----------
+if (platform === "desktop") {
+  let removeTrayListener = () => {};
+  let disposed = false;
+  onMounted(() => {
+    void registerClipboardShortcut().catch(() => undefined);
+    void getCurrentWebviewWindow().listen<string>("clipboard-history-tray-error", ({ payload }) => showError(payload))
+      .then((unlisten) => {
+        if (disposed) unlisten();
+        else removeTrayListener = unlisten;
+      }).catch(showError);
+  });
+  onBeforeUnmount(() => {
+    disposed = true;
+    removeTrayListener();
+  });
+}
 </script>
 
 <template>

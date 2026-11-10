@@ -45,6 +45,27 @@
   clip-path: inset(-48px round 62px);
 }
 
+/* 时间目录与历史日组共用高度过渡，裁剪内容避免缩放文字或卡片。 */
+.history-fold {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--dur) var(--ease-out);
+}
+.history-fold.is-collapsed {
+  grid-template-rows: 0fr;
+}
+.history-fold-inner {
+  min-height: 0;
+  overflow: clip;
+}
+.history-fold-toggle > svg {
+  flex-shrink: 0;
+  transition: transform var(--dur) var(--ease-out);
+}
+.history-fold-toggle[aria-expanded="false"] > svg {
+  transform: rotate(-90deg);
+}
+
 /* 选中状态的滑块（见 utils/motion.ts） */
 .glide {
   position: absolute;

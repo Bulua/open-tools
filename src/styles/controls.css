@@ -1,5 +1,32 @@
 /* 各工具共用的控件样式：按钮、分段选择、复选框、工具条 */
 
+/* 历史日组的标题按钮：日期与数量沿文字基线对齐。 */
+.history-day-toggle {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 18px;
+  text-align: start;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.history-day-toggle:hover {
+  background: var(--hover);
+}
+.history-day-toggle > svg {
+  align-self: center;
+}
+.history-day-toggle > small {
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 400;
+}
+
 /* 按钮：.btn 描边，.btn.primary 实心强调色，.btn.subtle 无边框 */
 .btn {
   height: 32px;

@@ -9,6 +9,8 @@ const en: Messages<typeof zhCN> = {
   },
   tray: {
     show: "Show window",
+    clipboard: "Clipboard history",
+    clipboardToggle: "Pause or resume clipboard recording",
     quit: "Quit",
     tooltip: "Open Tools",
   },

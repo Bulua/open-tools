@@ -1,5 +1,5 @@
 import { defineAsyncComponent } from "vue";
-import { Binary, BookLock, Fingerprint, IdCard, KeyRound, KeySquare, Link2 } from "lucide-vue-next";
+import { Binary, BookLock, ClipboardList, Fingerprint, IdCard, KeyRound, KeySquare, Link2 } from "lucide-vue-next";
 import type { Category } from "../types";
 
 const encode: Category = {
@@ -47,6 +47,14 @@ const encode: Category = {
       desc: "保存自己的账号和密码，用主密码加密后存放在本机，忘记主密码无法找回",
       icon: BookLock,
       component: defineAsyncComponent(() => import("./components/PasswordVault.vue")),
+    },
+    {
+      id: "clipboard-history",
+      name: "剪贴板历史",
+      desc: "自动记录复制过的纯文本，按日期查找并再次复制",
+      icon: ClipboardList,
+      component: defineAsyncComponent(() => import("./components/ClipboardHistory.vue")),
+      platforms: ["desktop"],
     },
     {
       id: "id-card",

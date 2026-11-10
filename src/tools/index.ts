@@ -49,7 +49,7 @@ const sortTools = (c: Category): Category => ({ ...c, tools: [...c.tools].sort((
 /** 顶部分类，数组顺序就是显示顺序 */
 export const categories: Category[] = [
   { id: "json", name: "JSON", tools: json.tools },
-  { id: "text", name: "文本编码", tools: pick("base64", "text-escape", "hash", "jwt", "password", "password-vault", "id-card", "regex", "naming") },
+  { id: "text", name: "文本编码", tools: pick("base64", "text-escape", "hash", "jwt", "password", "password-vault", "clipboard-history", "id-card", "regex", "naming") },
   { id: "time", name: "时间", tools: pick("timestamp", "timezone", "cron", "countdown", "calendar") },
   { id: "calc", name: "计算换算", tools: pick("calculator", "units", "radix", "color") },
   { id: "image", name: "图片", tools: image.tools },

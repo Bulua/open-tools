@@ -40,21 +40,28 @@ async function mountHistory() {
   return container;
 }
 
-it("时间目录按日期和小时列出截图，按天折叠时不影响其他日期", async () => {
+it("时间目录和右侧截图可以独立折叠，且不影响其他日期", async () => {
   const container = await mountHistory();
   expect(container.querySelectorAll(".directory-date")).toHaveLength(2);
   expect(container.querySelectorAll(".directory-hour")).toHaveLength(3);
-  expect(container.querySelector(".day-toggle small")?.textContent).toBe("2 张");
-  const toggle = container.querySelector<HTMLButtonElement>(".day-toggle")!;
+  expect(container.querySelector(".history-day-toggle small")?.textContent).toBe("2 张");
+  const date = container.querySelector<HTMLButtonElement>(".directory-date")!;
+  const toggle = container.querySelector<HTMLButtonElement>(".history-day-toggle")!;
+  date.click();
+  await nextTick();
+  expect(date.getAttribute("aria-expanded")).toBe("false");
+  expect(toggle.getAttribute("aria-expanded")).toBe("true");
+  expect(container.querySelector("#screenshot-2026-11-09-directory")?.hasAttribute("inert")).toBe(true);
+
   toggle.click();
   await nextTick();
-  const days = container.querySelectorAll<HTMLElement>(".day-content");
   expect(toggle.getAttribute("aria-expanded")).toBe("false");
-  expect(days[0].hidden).toBe(true);
-  expect(days[1].hidden).toBe(false);
-  toggle.click();
+  expect(container.querySelector("#screenshot-2026-11-09-content")?.hasAttribute("inert")).toBe(true);
+  expect(container.querySelector("#screenshot-2026-11-08-content")?.hasAttribute("inert")).toBe(false);
+  date.click();
   await nextTick();
-  expect(days[0].hidden).toBe(false);
+  expect(date.getAttribute("aria-expanded")).toBe("true");
+  expect(toggle.getAttribute("aria-expanded")).toBe("false");
 });
 
 it("点击小时目录自动展开当天，只滚动截图面板并为日期标题留出空间", async () => {
@@ -67,29 +74,38 @@ it("点击小时目录自动展开当天，只滚动截图面板并为日期标�
   const target = container.querySelector<HTMLElement>('[id="screenshot-2026-11-09-09"]')!;
   vi.spyOn(target, "getBoundingClientRect").mockReturnValue({ top: 400 } as DOMRect);
   const heading = container.querySelector<HTMLElement>(".day-heading")!;
+  const panel = container.querySelector<HTMLElement>("#screenshot-2026-11-09-content")!;
+  let finish!: () => void;
+  const finished = new Promise<Animation>((resolve) => { finish = () => resolve({} as Animation); });
+  panel.getAnimations = () => [{ finished } as Animation];
   vi.spyOn(heading, "offsetHeight", "get").mockReturnValue(36);
-  container.querySelector<HTMLButtonElement>(".day-toggle")!.click();
+  container.querySelector<HTMLButtonElement>(".history-day-toggle")!.click();
   await nextTick();
   const link = container.querySelectorAll<HTMLButtonElement>(".directory-hour")[1];
   link.click();
   await nextTick();
-  expect(container.querySelector<HTMLElement>(".day-content")!.hidden).toBe(false);
-  expect(scrollTo).toHaveBeenCalledWith({ top: 304, behavior: "smooth" });
-  await vi.waitFor(() => expect(link.getAttribute("aria-current")).toBe("location"));
+  expect(panel.hasAttribute("inert")).toBe(false);
+  expect(scrollTo).not.toHaveBeenCalled();
+  finish();
+  await vi.waitFor(() => expect(scrollTo).toHaveBeenCalledWith({ top: 304, behavior: "smooth" }));
+  expect(link.getAttribute("aria-current")).toBe("location");
   const date = container.querySelector<HTMLButtonElement>(".directory-date")!;
   date.click();
   await nextTick();
-  await vi.waitFor(() => expect(date.getAttribute("aria-current")).toBe("location"));
-  expect(scrollTo).toHaveBeenCalledTimes(2);
+  expect(date.getAttribute("aria-expanded")).toBe("false");
+  expect(panel.hasAttribute("inert")).toBe(false);
+  expect(scrollTo).toHaveBeenCalledTimes(1);
 });
 
 it("收到截图保存事件后更新目录与数量，并保留已有日期的折叠状态", async () => {
   const container = await mountHistory();
-  container.querySelector<HTMLButtonElement>(".day-toggle")!.click();
+  container.querySelector<HTMLButtonElement>(".history-day-toggle")!.click();
+  container.querySelector<HTMLButtonElement>(".directory-date")!.click();
   await nextTick();
   state.items.unshift({ id: "d", name: "d.png", createdAt: "2026-11-09T16:00:00", day: "2026-11-09", hour: "16" });
   state.saved!();
   await vi.waitFor(() => expect(container.querySelectorAll(".directory-hour")).toHaveLength(4));
-  expect(container.querySelector(".day-toggle small")?.textContent).toBe("3 张");
-  expect(container.querySelector<HTMLElement>(".day-content")!.hidden).toBe(true);
+  expect(container.querySelector(".history-day-toggle small")?.textContent).toBe("3 张");
+  expect(container.querySelector("#screenshot-2026-11-09-content")?.hasAttribute("inert")).toBe(true);
+  expect(container.querySelector("#screenshot-2026-11-09-directory")?.hasAttribute("inert")).toBe(true);
 });

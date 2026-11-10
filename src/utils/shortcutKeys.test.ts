@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shortcutFromKeyboard, shortcutModifiers } from "./screenshotShortcut";
+import { shortcutFromKeyboard, shortcutModifiers } from "./shortcutKeys";
 
 const key = (code: string, modifiers: Partial<KeyboardEvent> = {}) => ({
   code, ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, isComposing: false, ...modifiers,

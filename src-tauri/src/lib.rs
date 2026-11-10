@@ -11,7 +11,7 @@ use crate::tools::{
     video::{douyin, hdr},
 };
 #[cfg(windows)]
-use crate::tools::image::screenshot;
+use crate::tools::{image::screenshot, text::clipboard};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -72,6 +72,11 @@ pub fn run() {
             branding::branding_logo,
             branding::branding_activate,
             tray::set_tray_text,
+            #[cfg(windows)] clipboard::clipboard_history_list,
+            #[cfg(windows)] clipboard::clipboard_history_update,
+            #[cfg(windows)] clipboard::clipboard_history_copy,
+            #[cfg(windows)] clipboard::clipboard_history_open,
+            #[cfg(windows)] clipboard::clipboard_copy_private,
             #[cfg(windows)] screenshot::screenshot_begin,
             #[cfg(windows)] screenshot::screenshot_prepare,
             #[cfg(windows)] screenshot::screenshot_active,
@@ -90,6 +95,8 @@ pub fn run() {
         .setup(|app| {
             // 旧版本放在别处的数据（密码本、模型、图标）搬进数据文件夹，要在读取这些数据之前
             paths::migrate(app.handle());
+            #[cfg(windows)]
+            clipboard::start(app.handle());
             #[cfg(desktop)]
             tray::setup(app)?;
             // 换上之前从 Gitee / GitHub 下载的图标（见 branding.rs）

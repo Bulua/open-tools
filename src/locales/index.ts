@@ -85,17 +85,23 @@ export function useLocale() {
 async function syncTray() {
   if (!isTauri()) return;
   const { invoke } = await import("@tauri-apps/api/core");
-  await invoke("set_tray_text", { show: t("tray.show"), quit: t("tray.quit"), tooltip: t("tray.tooltip") }).catch(() => {});
+  await invoke("set_tray_text", {
+    show: t("tray.show"),
+    quit: t("tray.quit"),
+    tooltip: t("tray.tooltip"),
+    clipboard: t("tray.clipboard"),
+    clipboardToggle: t("tray.clipboardToggle"),
+  }).catch(() => {});
 }
 
 /** 启动时调用：按用户选择设置语言，之后选择变化时自动切换 */
-export function initLocale() {
+export function initLocale(syncTrayMenu = true) {
   const { pref } = useLocale();
   watchEffect(() => {
     const chosen = LOCALES.find((l) => l.value === pref.value)?.value;
     const l = chosen ?? matchLocale(navigator.language);
     global.locale.value = l;
     document.documentElement.lang = l;
-    syncTray();
+    if (syncTrayMenu) syncTray();
   });
 }

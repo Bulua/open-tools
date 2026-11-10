@@ -10,6 +10,8 @@ const zhCN = {
   /** 托盘菜单（由 Rust 显示，前端切换语言时传过去） */
   tray: {
     show: "显示主窗口",
+    clipboard: "剪贴板历史",
+    clipboardToggle: "暂停或恢复剪贴板记录",
     quit: "退出",
     tooltip: "Open Tools 工具百宝箱",
   },

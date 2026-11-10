@@ -7,6 +7,7 @@ import { useClipboard } from "@/composables/useClipboard";
 import { openExternal } from "@/utils/openExternal";
 import { showError } from "@/utils/errorToast";
 import { DEFAULT_PASSWORD, generatePassword } from "../password";
+import { writePrivateClipboardText } from "../clipboardHistory";
 import { createSession, decryptVault, encryptVault, loadVaultFile, matchEntry, newEntry, saveVaultFile, type VaultEntry, type VaultSession } from "../vault";
 
 /**
@@ -270,12 +271,19 @@ const removePicked = async () => {
 
 // 复制按钮共用一个剪贴板，用 key 区分是哪一个按钮显示对勾
 const clip = useClipboard();
+const privateClip = useClipboard(writePrivateClipboardText);
 const copiedKey = ref("");
-const copy = (key: string, text: string) => {
-  copiedKey.value = key;
-  clip.copy(text);
+const copy = async (key: string, text: string) => {
+  const target = key.endsWith(":pass") ? privateClip : clip;
+  try {
+    await target.copy(text);
+    copiedKey.value = key;
+  } catch (error) {
+    showError(error);
+  }
 };
-const isCopied = (key: string) => clip.copied.value && copiedKey.value === key;
+const isCopied = (key: string) =>
+  copiedKey.value === key && (key.endsWith(":pass") ? privateClip.copied.value : clip.copied.value);
 
 const isUrl = (url: string) => /^https?:\/\//i.test(url);
 const formatDate = (ms: number) => new Date(ms).toLocaleString(locale.value, { hour12: false });

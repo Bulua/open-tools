@@ -9,6 +9,8 @@ const ja: Messages<typeof zhCN> = {
   },
   tray: {
     show: "ウィンドウを表示",
+    clipboard: "クリップボード履歴",
+    clipboardToggle: "クリップボードの記録を一時停止／再開",
     quit: "終了",
     tooltip: "Open Tools",
   },

@@ -4,6 +4,8 @@ import { useI18n } from "vue-i18n";
 import { Check, Copy, RefreshCw } from "lucide-vue-next";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { useClipboard } from "@/composables/useClipboard";
+import { showError } from "@/utils/errorToast";
+import { writePrivateClipboardText } from "../clipboardHistory";
 import { CHARSETS, DEFAULT_PASSWORD, crackTime, generatePassword, passwordStrength, type PasswordOptions } from "../password";
 
 /**
@@ -59,12 +61,12 @@ const setLength = (e: Event) => {
   if (Number.isFinite(n)) options.value.length = Math.min(256, Math.max(1, n));
 };
 
-const main = useClipboard();
-const all = useClipboard();
-const one = useClipboard();
+const main = useClipboard(writePrivateClipboardText);
+const all = useClipboard(writePrivateClipboardText);
+const one = useClipboard(writePrivateClipboardText);
 const copiedIndex = ref(-1);
 const copyOne = (p: string, i: number) => {
-  one.copy(p);
+  void one.copy(p).catch(showError);
   copiedIndex.value = i;
 };
 </script>
@@ -115,7 +117,7 @@ const copyOne = (p: string, i: number) => {
             <span class="detail">{{ t("encode.entropy", { bits: strength.bits, time: crackTime(strength.bits) }) }}</span>
           </div>
           <button class="btn" :title="t('encode.regenerateTitle')" @click="regenerate"><RefreshCw :size="14" />{{ t("encode.regenerate") }}</button>
-          <button class="btn primary" :disabled="!password" @click="main.copy(password)">
+          <button class="btn primary" :disabled="!password" @click="main.copy(password).catch(showError)">
             <Check v-if="main.copied.value" :size="14" /><Copy v-else :size="14" />{{ main.copied.value ? t("encode.copied") : t("encode.copy") }}
           </button>
         </div>
@@ -127,7 +129,7 @@ const copyOne = (p: string, i: number) => {
           <div class="seg count">
             <button v-for="n in [5, 10, 20, 50]" :key="n" :class="{ on: count === n }" @click="count = n">{{ t("encode.countN", { n }) }}</button>
           </div>
-          <button class="btn small subtle push" :disabled="!batch.length" @click="all.copy(batch.join('\n'))">
+          <button class="btn small subtle push" :disabled="!batch.length" @click="all.copy(batch.join('\n')).catch(showError)">
             <Check v-if="all.copied.value" :size="13" /><Copy v-else :size="13" />{{ t("encode.copyAll") }}
           </button>
         </div>

@@ -31,8 +31,13 @@ describe("分类", () => {
 });
 
 describe("平台可用性", () => {
-  it.each(["desktop", "web"] as const)("%s 保留完整工具列表", (platform) => {
-    expect(categoriesForPlatform(categories, platform)).toEqual(categories);
+  it("桌面版保留完整工具列表", () => {
+    expect(categoriesForPlatform(categories, "desktop")).toEqual(categories);
+  });
+
+  it("网页预览隐藏依赖 Windows 后台监听的剪贴板历史", () => {
+    const shown = categoriesForPlatform(categories, "web").flatMap((category) => category.tools.map((tool) => tool.id));
+    expect([...shown].sort()).toEqual(allTools.map((tool) => tool.id).filter((id) => id !== "clipboard-history").sort());
   });
 
   it("Android 保留全部分类，并隐藏尚未适配的工具", () => {
@@ -42,6 +47,7 @@ describe("平台可用性", () => {
     expect(androidCategories.map((category) => category.id)).toEqual(categories.map((category) => category.id));
     expect(allTools.filter((tool) => !shown.has(tool.id)).map((tool) => tool.id).sort()).toEqual([
       "camera-recorder",
+      "clipboard-history",
       "douyin-download",
       "image-inpaint",
       "image-removebg",
