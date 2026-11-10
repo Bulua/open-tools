@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   anchorPosition,
+  freeWatermarkPosition,
   colorDistances,
   contentBounds,
   detectBackgroundColor,
@@ -223,11 +224,43 @@ describe("水印位置", () => {
     expect(anchorPosition("t", img, mark, 20)).toEqual({ x: 500, y: 40 });
   });
 
-  it("平铺覆盖整张图", () => {
+  it("自由水印位置按图片尺寸换算，并约束旋转后的边界", () => {
+    const mark = { width: 100, height: 40 };
+    const image = { width: 1000, height: 500 };
+    expect(freeWatermarkPosition({ x: 0.3, y: 0.6 }, image, mark, 0)).toEqual({ x: 300, y: 300 });
+    expect(freeWatermarkPosition({ x: 0.3, y: 0.6 }, { width: 500, height: 1000 }, mark, 0))
+      .toEqual({ x: 150, y: 600 });
+    const edge = freeWatermarkPosition({ x: 0, y: 1 }, image, mark, Math.PI / 2);
+    expect(edge.x).toBeCloseTo(20);
+    expect(edge.y).toBeCloseTo(450);
+    expect(freeWatermarkPosition({ x: 0, y: 0 }, { width: 80, height: 60 }, mark, 0))
+      .toEqual({ x: 40, y: 20 });
+  });
+
+  it("平铺延伸到四周，只保留外接框与图片相交的水印", () => {
     const points = tilePositions(img, mark, 50);
     expect(points.length).toBeGreaterThan(20);
-    expect(points.some((p) => p.x <= 0 && p.y <= 0)).toBe(true);
-    expect(points.some((p) => p.x >= 1000 && p.y >= 500)).toBe(true);
+    expect(points.some((p) => p.x < 150 && p.y < 90)).toBe(true);
+    expect(points.some((p) => p.x > 850 && p.y > 410)).toBe(true);
+    expect(points.every((p) => p.x > -50 && p.x < 1050 && p.y > -20 && p.y < 520)).toBe(true);
+  });
+
+  it("平铺裁剪计入旋转后的大小和阴影边界", () => {
+    const origin = { x: -21, y: 20, odd: false };
+    expect(tilePositions(img, mark, 50, origin, Math.PI / 2)).not.toContainEqual(origin);
+    expect(tilePositions(img, mark, 50, origin, Math.PI / 2, 2)).toContainEqual(origin);
+  });
+
+  it("拖动交错行中的水印时，相邻行与同一行一起平移", () => {
+    const origin = { x: 300, y: 200, odd: true };
+    const moved = { x: 325, y: 215, odd: true };
+    const before = tilePositions(img, mark, 50, origin);
+    const after = tilePositions(img, mark, 50, moved);
+    expect(before).toContainEqual(origin);
+    expect(before).toContainEqual({ x: 225, y: 290, odd: false });
+    expect(after).toContainEqual(moved);
+    expect(after).toContainEqual({ x: 250, y: 305, odd: false });
+    expect(after).toContainEqual({ x: 475, y: 215, odd: true });
   });
 });
 

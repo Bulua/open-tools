@@ -317,17 +317,46 @@ export function anchorPosition(anchor: Anchor, image: Size, mark: Size, margin: 
   return { x: xs[col], y: ys[row] };
 }
 
-/** 平铺水印的所有中心点，交错排列，覆盖整张图（包括旋转后露出的边角） */
-export function tilePositions(image: Size, mark: Size, spacing: number) {
+/** 将相对中心换算成图片坐标，旋转后的水印能放下时保持在图片内。 */
+export function freeWatermarkPosition(position: { x: number; y: number }, image: Size, mark: Size, angle: number) {
+  const cos = Math.abs(Math.cos(angle));
+  const sin = Math.abs(Math.sin(angle));
+  const halfWidth = Math.min(image.width, mark.width * cos + mark.height * sin) / 2;
+  const halfHeight = Math.min(image.height, mark.width * sin + mark.height * cos) / 2;
+  return {
+    x: Math.min(image.width - halfWidth, Math.max(halfWidth, position.x * image.width)),
+    y: Math.min(image.height - halfHeight, Math.max(halfHeight, position.y * image.height)),
+  };
+}
+
+export interface WatermarkTile {
+  x: number;
+  y: number;
+  odd: boolean;
+}
+
+/** 从参考水印向四周平铺，保留其交错行方向。 */
+export function tilePositions(image: Size, mark: Size, spacing: number, origin?: WatermarkTile, angle = 0, bleed = 0): WatermarkTile[] {
   const stepX = mark.width + spacing;
   const stepY = mark.height + spacing;
   const reach = Math.hypot(image.width, image.height);
-  const points: { x: number; y: number }[] = [];
-  let row = 0;
-  for (let y = image.height / 2 - reach; y <= image.height / 2 + reach; y += stepY, row++) {
-    const offset = row % 2 ? stepX / 2 : 0;
-    for (let x = image.width / 2 - reach + offset; x <= image.width / 2 + reach; x += stepX) {
-      points.push({ x, y });
+  const reference = origin ?? { x: image.width / 2 - reach, y: image.height / 2 - reach, odd: false };
+  const parity = Number(reference.odd);
+  const cos = Math.abs(Math.cos(angle));
+  const sin = Math.abs(Math.sin(angle));
+  // 只枚举旋转后仍可能与画布相交的水印，阴影可额外留出边界。
+  const padX = (mark.width * cos + mark.height * sin) / 2 + bleed;
+  const padY = (mark.width * sin + mark.height * cos) / 2 + bleed;
+  const points: WatermarkTile[] = [];
+  const firstRow = Math.floor((-padY - reference.y) / stepY) + 1;
+  const lastRow = Math.ceil((image.height + padY - reference.y) / stepY) - 1;
+  for (let row = firstRow; row <= lastRow; row++) {
+    const odd = (row + parity) & 1;
+    const start = reference.x + ((odd - parity) * stepX) / 2;
+    const firstColumn = Math.floor((-padX - start) / stepX) + 1;
+    const lastColumn = Math.ceil((image.width + padX - start) / stepX) - 1;
+    for (let col = firstColumn; col <= lastColumn; col++) {
+      points.push({ x: start + col * stepX, y: reference.y + row * stepY, odd: !!odd });
     }
   }
   return points;
