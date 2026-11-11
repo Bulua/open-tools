@@ -48,16 +48,16 @@ const sortTools = (c: Category): Category => ({ ...c, tools: [...c.tools].sort((
 
 /** 顶部分类，数组顺序就是显示顺序 */
 export const categories: Category[] = [
-  { id: "json", name: "JSON", tools: json.tools },
-  { id: "text", name: "文本编码", tools: pick("base64", "text-escape", "hash", "jwt", "password", "password-vault", "clipboard-history", "id-card", "regex", "naming") },
+  { id: "developer", name: "开发工具", tools: [...json.tools, ...pick("base64", "text-escape", "hash", "jwt", "regex", "naming")] },
+  { id: "daily", name: "日常工具", tools: pick("password", "password-vault", "clipboard-history", "id-card") },
   { id: "time", name: "时间", tools: pick("timestamp", "timezone", "cron", "countdown", "calendar") },
-  { id: "calc", name: "计算换算", tools: pick("calculator", "units", "radix", "color") },
-  { id: "image", name: "图片", tools: image.tools },
+  { id: "calc", name: "计算换算", tools: pick("calculator", "units", "radix") },
+  { id: "image", name: "图片", tools: [...image.tools, ...pick("color")] },
   { id: "audio", name: "音频", tools: audio.tools },
   { id: "video", name: "视频", tools: video.tools },
   {
     id: "document",
-    name: "文档文件",
+    name: "文档与文件",
     tools: pick("word-to-pdf", "pdf-to-word", "word-watermark", "word-unwatermark", "pdf-pages", "pdf-unwatermark", "markdown-editor", "markdown-to-word", "archive", "extract"),
   },
   { id: "network", name: "网络", tools: network.tools },

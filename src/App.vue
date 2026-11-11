@@ -19,7 +19,8 @@ import AppToast from "@/components/layout/AppToast.vue";
 import { startCountdownTicker } from "@/tools/utility/countdownStore";
 import { calendarDesktop, startCalendarReminders } from "@/tools/utility/calendarStore";
 import { startBrandingSync } from "@/utils/branding";
-import { categoriesForPlatform } from "@/tools";
+import { categories as allCategories, categoriesForPlatform } from "@/tools";
+import { restoreCategorySelection } from "@/tools/categorySelection";
 import { getAppPlatform } from "@/utils/platform";
 import { registerScreenshotShortcut } from "@/tools/image/screenshot/screenshot";
 import { registerClipboardShortcut } from "@/tools/encode/clipboardHistory";
@@ -43,6 +44,11 @@ onBeforeUnmount(() => mobileMedia.removeEventListener("change", onMobileChange))
 const activeCategoryId = useStoredRef("category", categories.value[0].id);
 /** 每个分类上次选中的工具 */
 const activeToolByCategory = useStoredRef<Record<string, string>>("toolByCategory", {});
+const restoredSelection = restoreCategorySelection(allCategories, activeCategoryId.value, activeToolByCategory.value);
+activeCategoryId.value = restoredSelection.categoryId;
+if (JSON.stringify(restoredSelection.tools) !== JSON.stringify(activeToolByCategory.value)) {
+  activeToolByCategory.value = restoredSelection.tools;
+}
 const sidebarCollapsed = useStoredRef("sidebarCollapsed", false);
 
 const activeCategory = computed(

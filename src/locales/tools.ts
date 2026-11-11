@@ -9,25 +9,25 @@ import { locale, toolTexts, translationIn, type Locale, type Translations } from
 /** 分类名的翻译，按语言、再按分类 id 对应（中文写在 src/tools/index.ts 的 categories 里） */
 export const CATEGORY_NAMES: Translations<Record<string, string>> = {
   en: {
-    json: "JSON",
-    text: "Text & Encoding",
+    developer: "Developer Tools",
+    daily: "Everyday Tools",
     time: "Time",
     calc: "Calculate",
     image: "Image",
     audio: "Audio",
     video: "Video",
-    document: "Documents",
+    document: "Documents & Files",
     network: "Network",
   },
   ja: {
-    json: "JSON",
-    text: "テキスト・エンコード",
+    developer: "開発ツール",
+    daily: "日常ツール",
     time: "時間",
     calc: "計算・換算",
     image: "画像",
     audio: "音声",
     video: "動画",
-    document: "文書",
+    document: "文書・ファイル",
     network: "ネットワーク",
   },
 };
