@@ -11,6 +11,7 @@ import { useStoredRef } from "@/composables/useStoredRef";
 import { showError } from "@/utils/errorToast";
 import { calendarDate, calendarDateKey, calendarFestivals, calendarNoteOccursOn, calendarNotesOn, compactLunarDate, localCalendarDate, monthDays } from "../calendar";
 import { calendarDesktop, calendarNotes, calendarNotesReady, calendarReminders, loadCalendarNotes, saveCalendarNote } from "../calendarStore";
+import { centerCalendarDay } from "../calendarNavigation";
 
 const { t, locale } = useI18n();
 const firstYear = 1901;
@@ -29,6 +30,9 @@ const zoom = useStoredRef("calendar.zoom", 1);
 let clock: ReturnType<typeof setInterval>;
 let todayFrame = 0;
 let displayed = true;
+let navigationVersion = 0;
+let targetDate: number | null = null;
+let positionObserver: ResizeObserver | undefined;
 onMounted(() => {
   void goToday();
   void loadCalendarNotes().catch((error) => showError(error, t("utility.calendar.notesLoadFailed")));
@@ -38,8 +42,8 @@ onMounted(() => {
   }, 1000);
 });
 onActivated(() => { displayed = true; void goToday(); });
-onDeactivated(() => { displayed = false; cancelAnimationFrame(todayFrame); });
-onUnmounted(() => { displayed = false; clearInterval(clock); cancelAnimationFrame(todayFrame); });
+onDeactivated(() => { displayed = false; cancelPosition(); });
+onUnmounted(() => { displayed = false; clearInterval(clock); cancelPosition(); });
 
 const yearOptions = computed(() => {
   const formatter = new Intl.DateTimeFormat(locale.value, { year: "numeric", timeZone: "UTC" });
@@ -292,16 +296,45 @@ async function showYear(value: number) {
 }
 
 async function goToday() {
+  cancelPosition();
+  const version = navigationVersion;
   popup.close();
   today.value = localCalendarDate();
   selected.value = today.value;
   year.value = today.value.getUTCFullYear();
   await nextTick();
-  if (!displayed) return;
+  if (!displayed || version !== navigationVersion) return;
+  targetDate = +today.value;
+  const panel = yearList.value;
+  if (!panel) return;
+  // 侧栏展开、异步组件挂载可能改变月历列数，入场后继续按实际布局校正。
+  // 用户开始浏览或编辑时立即停止校正，保留手动滚动位置。
+  if (typeof ResizeObserver !== "undefined") {
+    positionObserver = new ResizeObserver(queuePosition);
+    positionObserver.observe(panel);
+    const currentYear = panel.querySelector(`[data-year="${year.value}"]`);
+    if (currentYear) positionObserver.observe(currentYear);
+  }
+  queuePosition();
+}
+
+function cancelPosition() {
+  navigationVersion += 1;
+  targetDate = null;
   cancelAnimationFrame(todayFrame);
-  // 缓存工具重新挂回工作区后，再在下一帧按实际布局定位当天。
+  todayFrame = 0;
+  positionObserver?.disconnect();
+  positionObserver = undefined;
+}
+
+function queuePosition() {
+  if (!displayed || targetDate === null || todayFrame) return;
   todayFrame = requestAnimationFrame(() => {
-    if (displayed) yearList.value?.querySelector(`[data-date="${+today.value}"]`)?.scrollIntoView({ block: "center", inline: "nearest" });
+    todayFrame = 0;
+    if (!displayed || targetDate === null) return;
+    const panel = yearList.value;
+    const day = panel?.querySelector<HTMLElement>(`[data-date="${targetDate}"]`);
+    if (panel && day) centerCalendarDay(panel, day);
   });
 }
 
@@ -320,7 +353,7 @@ async function moveSelection(event: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="calendar">
+  <div class="calendar" @pointerdown.capture="cancelPosition" @wheel.passive="cancelPosition" @keydown.capture="cancelPosition">
     <div class="toolbar">
       <div class="navigation">
         <div class="year-navigation">
