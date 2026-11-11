@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { recordToolUsage } from "@/composables/toolLibrary";
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { isTauri } from "@tauri-apps/api/core";
@@ -18,11 +19,12 @@ const query = ref("");
 const isSelf = ref(true);
 const localIp = ref("");
 
-const run = async (ip = "") => {
+const run = async (ip = "", track = true) => {
   loading.value = true;
   try {
     info.value = await lookupIp(ip);
     isSelf.value = !ip;
+    if (track) recordToolUsage();
   } catch (e) {
     showError(e);
   } finally {
@@ -31,7 +33,7 @@ const run = async (ip = "") => {
 };
 
 onMounted(async () => {
-  run();
+  run("", false);
   // 局域网 IP 只有桌面版能拿到
   if (isTauri()) {
     const { invoke } = await import("@tauri-apps/api/core");

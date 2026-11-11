@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { recordToolUsage } from "@/composables/toolLibrary";
 import { computed, onBeforeUnmount, onDeactivated, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Download, Eye, FileAudio, FileVideo, Headphones, Minimize2, Plus, Trash2, X } from "lucide-vue-next";
@@ -118,6 +119,7 @@ async function compress() {
       item.error = undefined;
       try {
         item.result = await compressMedia(item.file, options, (value) => { progress.value = value; }, controller.signal);
+        recordToolUsage();
       } catch (error) {
         if (controller.signal.aborted) break;
         item.error = errorMessage(error);

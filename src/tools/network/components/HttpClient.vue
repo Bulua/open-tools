@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { recordToolUsage } from "@/composables/toolLibrary";
 import { computed, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Check, Copy, FileInput, History, Send, Square, Trash2, Upload, X } from "lucide-vue-next";
@@ -134,6 +135,7 @@ const send = async () => {
   try {
     response.value = await sendRequest(req.value, controller.signal);
     entry.status = response.value.status;
+    recordToolUsage();
   } catch (e) {
     response.value = null;
     showError(e);

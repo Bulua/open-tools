@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { recordToolUsage } from "@/composables/toolLibrary";
 import { computed, onBeforeUnmount, ref, shallowRef } from "vue";
 import { Translation, useI18n } from "vue-i18n";
 import { Circle, Download, MousePointerClick, Pause, Play, Square, Trash2, TriangleAlert, Video } from "lucide-vue-next";
@@ -181,6 +182,7 @@ function finish() {
   const id = nextId++;
   recordings.value = [{ id, name: recordingName(id), blob, url: URL.createObjectURL(blob), ext: format?.ext ?? "webm", seconds }, ...recordings.value];
   selectedId.value = id;
+  recordToolUsage();
 }
 
 onBeforeUnmount(() => {

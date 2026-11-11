@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useToolResult } from "@/composables/useToolUsage";
 import { ref, watch } from "vue";
 import { CircleAlert } from "lucide-vue-next";
 import TextPane from "@/components/common/TextPane.vue";
@@ -47,6 +48,8 @@ watch(
   () => [props.encode, props.decode],
   () => left.value && onLeftInput(left.value),
 );
+
+useToolResult(() => !error.value && (left.value || right.value) ? `${left.value}\0${right.value}` : "");
 </script>
 
 <template>

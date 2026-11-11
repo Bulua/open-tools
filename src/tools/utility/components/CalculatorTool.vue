@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useToolResult } from "@/composables/useToolUsage";
 import { computed, nextTick, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { Delete, Trash2 } from "lucide-vue-next";
@@ -115,6 +116,8 @@ const KEYS: Key[] = [
   { label: "=", action: equals, kind: "eq", title: "kEquals" },
 ];
 const press = (k: Key) => (k.action ? k.action() : insert(k.insert!));
+
+useToolResult(() => live.value.ok && live.value.text ? `${expr.value}|${angle.value}` : "");
 </script>
 
 <template>

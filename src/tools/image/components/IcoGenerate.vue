@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useToolResult } from "@/composables/useToolUsage";
 import { computed, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Download, RefreshCw } from "lucide-vue-next";
@@ -70,6 +71,8 @@ const downloadPngs = () =>
     outputs.value.map((o) => ({ name: `${baseName.value}-${o.size}.png`, data: o.png })),
     `${baseName.value}-png.zip`,
   );
+
+useToolResult(() => outputs.value.length ? outputs.value : null);
 </script>
 
 <template>

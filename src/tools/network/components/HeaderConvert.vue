@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useToolResult } from "@/composables/useToolUsage";
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import AppSelect from "@/components/common/AppSelect.vue";
@@ -88,6 +89,8 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.demo
 User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)
 Cookie: session=abc123; theme=light
 Content-Length: 42`;
+
+useToolResult(() => output.value);
 </script>
 
 <template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useToolResult } from "@/composables/useToolUsage";
 import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref } from "vue";
 import { Pause, Play } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
@@ -55,6 +56,8 @@ const resultItems = computed(() => {
 });
 
 const useNow = () => (input.value = String(Math.floor(Date.now() / 1000)));
+
+useToolResult(() => parsed.value.ok ? `${input.value}|${unit.value}` : "");
 </script>
 
 <template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useToolResult } from "@/composables/useToolUsage";
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Check, Copy, Trash2, X } from "lucide-vue-next";
@@ -139,6 +140,8 @@ const onCopy = async (cell: Cell) => {
   copiedLabel.value = cell.label;
   setTimeout(() => (copiedLabel.value = null), 1200);
 };
+
+useToolResult(() => parsed.value?.ok ? info.value?.id18 : "");
 </script>
 
 <template>

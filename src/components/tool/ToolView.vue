@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import FavoriteToolButton from "@/components/common/FavoriteToolButton.vue";
 import { onActivated, ref } from "vue";
 import type { Tool } from "@/tools/types";
 import ToolSession from "./ToolSession.vue";
@@ -65,6 +66,7 @@ const renameSession = (id: number, name: string) => {
       <span class="icon"><component :is="props.tool.icon" :size="16" :stroke-width="1.75" /></span>
       <div class="title">
         <h1>{{ tool.name }}</h1>
+        <FavoriteToolButton :tool-id="tool.id" />
         <p :title="tool.desc">{{ tool.desc }}</p>
       </div>
       <div id="tool-actions" class="actions" />

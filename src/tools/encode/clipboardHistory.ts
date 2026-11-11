@@ -1,3 +1,4 @@
+import { recordToolUsage } from "@/composables/toolLibrary";
 import { ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { useStoredRef } from "@/composables/useStoredRef";
@@ -50,7 +51,10 @@ export type ClipboardUpdate =
 
 export const listClipboardHistory = (query: string) => invoke<ClipboardSnapshot>("clipboard_history_list", { query });
 export const updateClipboardHistory = (action: ClipboardUpdate) => invoke<void>("clipboard_history_update", { action });
-export const copyClipboardEntry = (id: number) => invoke<void>("clipboard_history_copy", { id });
+export const copyClipboardEntry = async (id: number) => {
+  await invoke<void>("clipboard_history_copy", { id });
+  recordToolUsage();
+};
 export const openClipboardHistory = () => invoke<void>("clipboard_history_open");
 export const writePrivateClipboardText = (text: string) => getAppPlatform() === "desktop"
   ? invoke<void>("clipboard_copy_private", { text })

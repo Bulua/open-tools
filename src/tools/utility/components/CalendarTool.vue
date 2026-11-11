@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { recordToolUsage } from "@/composables/toolLibrary";
 import { Bell, BellOff, ChevronLeft, ChevronRight, StickyNote, X } from "lucide-vue-next";
-import { computed, nextTick, onDeactivated, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import AppSelect from "@/components/common/AppSelect.vue";
 import DateTimePicker from "@/components/common/DateTimePicker.vue";
@@ -26,15 +27,19 @@ const maxZoom = 2;
 const zoom = useStoredRef("calendar.zoom", 1);
 
 let clock: ReturnType<typeof setInterval>;
+let todayFrame = 0;
+let displayed = true;
 onMounted(() => {
-  scrollToYear();
+  void goToday();
   void loadCalendarNotes().catch((error) => showError(error, t("utility.calendar.notesLoadFailed")));
   clock = setInterval(() => {
     const date = localCalendarDate();
     if (+date !== +today.value) today.value = date;
   }, 1000);
 });
-onUnmounted(() => clearInterval(clock));
+onActivated(() => { displayed = true; void goToday(); });
+onDeactivated(() => { displayed = false; cancelAnimationFrame(todayFrame); });
+onUnmounted(() => { displayed = false; clearInterval(clock); cancelAnimationFrame(todayFrame); });
 
 const yearOptions = computed(() => {
   const formatter = new Intl.DateTimeFormat(locale.value, { year: "numeric", timeZone: "UTC" });
@@ -215,6 +220,7 @@ async function commitNote(remove = false) {
       annual: annual.value,
       reminderTime: reminderDateTime.value.split("T")[1],
     });
+    recordToolUsage();
     if (editKey.value === key) finishEdit();
   } catch (error) {
     showError(error, t("utility.calendar.notesSaveFailed"));
@@ -291,7 +297,12 @@ async function goToday() {
   selected.value = today.value;
   year.value = today.value.getUTCFullYear();
   await nextTick();
-  yearList.value?.querySelector(`[data-date="${+today.value}"]`)?.scrollIntoView({ block: "center" });
+  if (!displayed) return;
+  cancelAnimationFrame(todayFrame);
+  // 缓存工具重新挂回工作区后，再在下一帧按实际布局定位当天。
+  todayFrame = requestAnimationFrame(() => {
+    if (displayed) yearList.value?.querySelector(`[data-date="${+today.value}"]`)?.scrollIntoView({ block: "center", inline: "nearest" });
+  });
 }
 
 const dayOffsets: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };

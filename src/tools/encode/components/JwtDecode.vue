@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useToolResult } from "@/composables/useToolUsage";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import TextPane from "@/components/common/TextPane.vue";
@@ -36,6 +37,8 @@ const summary = computed(() => {
   const status = jwtStatus(d.payload);
   return { alg: String(d.header.alg ?? t("encode.unknown")), status: { label: t(`encode.${status}`), tone: STATUS_TONE[status] }, times };
 });
+
+useToolResult(() => decoded.value?.ok ? token.value : "");
 </script>
 
 <template>

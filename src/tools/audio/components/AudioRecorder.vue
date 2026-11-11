@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { recordToolUsage } from "@/composables/toolLibrary";
 import { onBeforeUnmount, ref, shallowRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { Download, Mic, Pause, Play, Square, Trash2 } from "lucide-vue-next";
@@ -131,6 +132,7 @@ async function finish() {
     const now = new Date();
     const name = t("audio.recordingName", { n: nextId, time: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}` });
     recordings.value = [{ id: nextId++, name, pcm }, ...recordings.value];
+    recordToolUsage();
   } catch (e) {
     showError(e);
   }

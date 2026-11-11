@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useToolResult } from "@/composables/useToolUsage";
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { FileText, RefreshCw, X } from "lucide-vue-next";
@@ -48,6 +49,8 @@ const items = computed(() =>
     return { label: algo, value: uppercase.value ? value.toUpperCase() : value };
   }),
 );
+
+useToolResult(() => results.value ? JSON.stringify(results.value) : "");
 </script>
 
 <template>

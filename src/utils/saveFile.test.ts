@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { saveToFolder } from "./saveFile";
+import { recordToolUsage } from "@/composables/toolLibrary";
+vi.mock("@/composables/toolLibrary", () => ({ recordToolUsage: vi.fn() }));
 
 const { open, mkdir, writeFile, join } = vi.hoisted(() => ({
   open: vi.fn(),
@@ -25,6 +27,7 @@ describe("saveToFolder", () => {
     expect(open).toHaveBeenCalledWith(expect.objectContaining({ directory: true, recursive: true }));
     expect(mkdir).toHaveBeenCalledWith("C:/output/motion-showreel", { recursive: true });
     expect(writeFile).toHaveBeenCalledWith("C:/output/motion-showreel/README.md", data);
+    expect(recordToolUsage).toHaveBeenCalledTimes(1);
   });
 
   it("取消选择时不写入文件", async () => {
@@ -33,5 +36,12 @@ describe("saveToFolder", () => {
     expect(await saveToFolder([{ parts: ["a.txt"], data: new Uint8Array() }])).toBeNull();
     expect(mkdir).not.toHaveBeenCalled();
     expect(writeFile).not.toHaveBeenCalled();
+    expect(recordToolUsage).not.toHaveBeenCalled();
+  });
+
+  it("写入失败时不记录使用次数", async () => {
+    writeFile.mockRejectedValueOnce(new Error("写入失败"));
+    await expect(saveToFolder([{ parts: ["a.txt"], data: new Uint8Array() }])).rejects.toThrow("写入失败");
+    expect(recordToolUsage).not.toHaveBeenCalled();
   });
 });

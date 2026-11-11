@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useToolResult } from "@/composables/useToolUsage";
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Check, Copy, RefreshCw } from "lucide-vue-next";
@@ -69,6 +70,8 @@ const copyOne = (p: string, i: number) => {
   void one.copy(p).catch(showError);
   copiedIndex.value = i;
 };
+
+useToolResult(() => !error.value ? password.value : "");
 </script>
 
 <template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { recordToolUsage } from "@/composables/toolLibrary";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { isTauri } from "@tauri-apps/api/core";
@@ -107,6 +108,7 @@ const convertItem = async (item: Item) => {
     item.message = result.message;
     item.warn = result.warn;
     item.status = "done";
+    recordToolUsage();
   } catch (e) {
     item.status = "error";
     const message = e instanceof Error ? e.message : String(e);
@@ -151,6 +153,7 @@ const done = computed(() => checkedItems.value.filter((i) => i.docx));
 const notes = computed(() => items.value.filter((i) => (i.status === "error" || i.warn) && i.message));
 const workingItem = computed(() => items.value.find((i) => i.status === "working"));
 const downloadSelected = () => saveFiles(done.value.map((i) => ({ name: docxName(i), data: i.docx! })), t("document.pdfToWordZip"));
+
 </script>
 
 <template>

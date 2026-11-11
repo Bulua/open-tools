@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useToolResult } from "@/composables/useToolUsage";
 import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref } from "vue";
 import AppSelect from "@/components/common/AppSelect.vue";
 import DateTimePicker from "@/components/common/DateTimePicker.vue";
@@ -115,6 +116,8 @@ const fmtHour = (hour: number) => {
   const m = Math.round((hour - h) * 60);
   return m ? `${h}:${String(m).padStart(2, "0")}` : String(h);
 };
+
+useToolResult(() => JSON.stringify([baseInput.value, baseZone.value, zones.value]));
 </script>
 
 <template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { recordToolUsage } from "@/composables/toolLibrary";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -548,6 +549,7 @@ async function finish(action: "copy" | "save" | "pin") {
       pin: action === "pin",
       copyToClipboard: action === "copy",
     });
+    recordToolUsage();
   } catch (error) {
     busy.value = false;
     await invoke("screenshot_show", { draftId: activeDraftId.value }).catch(() => undefined);

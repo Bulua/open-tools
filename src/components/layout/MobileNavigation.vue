@@ -5,6 +5,7 @@ import { useI18n } from "vue-i18n";
 import type { Category, Tool } from "@/tools";
 import { isAvailable } from "@/tools";
 import { searchTextOf } from "@/locales/tools";
+import FavoriteToolButton from "@/components/common/FavoriteToolButton.vue";
 import ToolView from "@/components/tool/ToolView.vue";
 
 export type MobilePage = "home" | "category" | "tool" | "about";
@@ -185,6 +186,7 @@ onUnmounted(() => {
         </div>
 
         <template v-else>
+          <slot name="home" />
           <h1 class="section-title">{{ t("mobile.allCategories") }}</h1>
           <div class="category-grid">
             <button v-for="category in categories" :key="category.id" class="category-card" @click="openCategory(category.id)">
@@ -232,6 +234,7 @@ onUnmounted(() => {
           <div v-if="activeTool" class="tool-identity">
             <span><component :is="activeTool.icon" :size="17" :stroke-width="1.75" /></span>
             <strong>{{ activeTool.name }}</strong>
+            <FavoriteToolButton :tool-id="activeTool.id" />
           </div>
         </header>
         <KeepAlive :max="12">

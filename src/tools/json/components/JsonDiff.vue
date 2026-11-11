@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useToolResult } from "@/composables/useToolUsage";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import TextPane from "@/components/common/TextPane.vue";
@@ -26,6 +27,8 @@ const diffs = computed(() => {
 
 const count = (kind: DiffKind) => diffs.value?.filter((d) => d.kind === kind).length ?? 0;
 
+
+useToolResult(() => diffs.value ? `${left.value}\0${right.value}` : "");
 </script>
 
 <template>

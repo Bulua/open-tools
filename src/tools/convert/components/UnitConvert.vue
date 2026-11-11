@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useToolResult } from "@/composables/useToolUsage";
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import CopyList from "@/components/common/CopyList.vue";
@@ -35,6 +36,8 @@ const fromLabel = computed(() => {
   const u = quantity.value.units.find((x) => x.id === from.value);
   return u ? unitLabel(quantity.value, u) : "";
 });
+
+useToolResult(() => value.value !== null ? `${input.value}|${from.value}|${quantityId.value}` : "");
 </script>
 
 <template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { recordToolUsage } from "@/composables/toolLibrary";
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { isTauri } from "@tauri-apps/api/core";
 import { Download, Gauge, Play, Square } from "lucide-vue-next";
@@ -94,6 +95,7 @@ const speak = async () => {
     if (v) u.voice = v;
     u.rate = rate.value >= 0 ? 1 + rate.value / 10 : 1 + rate.value / 20;
     u.onend = u.onerror = () => (speaking.value = false);
+    u.onstart = () => recordToolUsage();
     speechSynthesis.cancel();
     speechSynthesis.speak(u);
     speaking.value = true;
@@ -102,6 +104,7 @@ const speak = async () => {
   busy.value = true;
   try {
     player.play(await synthesize());
+    recordToolUsage();
   } catch (e) {
     showError(e);
   } finally {

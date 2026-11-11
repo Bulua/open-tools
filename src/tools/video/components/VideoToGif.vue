@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { recordToolUsage } from "@/composables/toolLibrary";
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Download, RefreshCw, Square, X } from "lucide-vue-next";
@@ -100,6 +101,7 @@ const convert = () => {
     else if (msg.type === "done") {
       const blob = new Blob([msg.data as Uint8Array<ArrayBuffer>], { type: "image/gif" });
       result.value = { data: msg.data, url: URL.createObjectURL(blob) };
+      recordToolUsage();
       view.value = "gif";
       finish();
     } else {

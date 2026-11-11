@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useToolResult } from "@/composables/useToolUsage";
 import { computed, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { FileDown, FileText, FolderOpen, ListTree } from "lucide-vue-next";
@@ -71,6 +72,8 @@ const exportHtml = () =>
 
 const view = ref<InstanceType<typeof MarkdownView>>();
 const jump = (id: string) => view.value?.root?.querySelector(`[id="${CSS.escape(id)}"]`)?.scrollIntoView({ behavior: "smooth" });
+
+useToolResult(() => source.value.trim());
 </script>
 
 <template>

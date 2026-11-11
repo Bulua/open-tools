@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { recordToolUsage } from "@/composables/toolLibrary";
 import { computed, nextTick, onBeforeUnmount, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { isTauri } from "@tauri-apps/api/core";
@@ -42,6 +43,7 @@ const start = async () => {
     let reply: PingReply;
     try {
       reply = parsePingOutput(await invoke<string>("ping_once", { host: target.value, timeoutMs: TIMEOUT }));
+      if (seq === 1) recordToolUsage();
     } catch (e) {
       reply = { ok: false, error: String(e) };
     }

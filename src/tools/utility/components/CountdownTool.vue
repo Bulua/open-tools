@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { recordToolUsage } from "@/composables/toolLibrary";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import DateTimePicker from "@/components/common/DateTimePicker.vue";
@@ -82,6 +83,7 @@ const add = () => {
     if (duration <= 0) return (error.value = t("utility.needDuration"));
     addCountdown({ title: title.value.trim() || t("utility.timerName", { time: formatRemaining(duration) }), target: Date.now() + duration, duration, repeat: "none" });
   }
+  recordToolUsage();
   title.value = "";
 };
 

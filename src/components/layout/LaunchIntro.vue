@@ -1,25 +1,8 @@
 <script setup lang="ts">
 import AppLogo from "./AppLogo.vue";
-import happy from "@/assets/mascot/cat-happy.webp";
-import happyStill from "@/assets/mascot/cat-happy.png";
-import sleep from "@/assets/mascot/cat-sleep.webp";
-import sleepStill from "@/assets/mascot/cat-sleep.png";
-import squeeze from "@/assets/mascot/cat-squeeze.webp";
-import squeezeStill from "@/assets/mascot/cat-squeeze.png";
-import thinking from "@/assets/mascot/cat-thinking.webp";
-import thinkingStill from "@/assets/mascot/cat-thinking.png";
-import walk from "@/assets/mascot/cat-walk.webp";
-import walkStill from "@/assets/mascot/cat-walk.png";
+import { mascotAnimations as cats } from "./mascotAnimations";
 
 defineProps<{ leaving: boolean }>();
-
-const cats = [
-  { animated: happy, still: happyStill },
-  { animated: sleep, still: sleepStill },
-  { animated: squeeze, still: squeezeStill },
-  { animated: thinking, still: thinkingStill },
-  { animated: walk, still: walkStill },
-];
 </script>
 
 <template>

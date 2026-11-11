@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useToolResult } from "@/composables/useToolUsage";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { ChevronsDownUp, ChevronsUpDown, CircleAlert, CircleCheck } from "lucide-vue-next";
@@ -48,6 +49,8 @@ const locate = () => {
   const r = result.value;
   if (r && !r.ok && r.position !== undefined) inputPane.value?.focusAt(r.position);
 };
+
+useToolResult(() => output.value ? JSON.stringify([input.value, mode.value, indent.value, sort.value]) : "");
 </script>
 
 <template>

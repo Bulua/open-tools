@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { recordToolUsage } from "@/composables/toolLibrary";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { Translation, useI18n } from "vue-i18n";
 import { isTauri } from "@tauri-apps/api/core";
@@ -82,6 +83,7 @@ const convertItem = async (item: Item) => {
     const result = await invoke<ArrayBuffer>("office_to_pdf", data, { headers: { "x-file-ext": item.ext } });
     item.pdf = new Uint8Array(result);
     item.status = "done";
+    recordToolUsage();
   } catch (e) {
     item.status = "error";
     item.message = e instanceof Error ? e.message : String(e);
@@ -136,6 +138,7 @@ const pending = computed(() => checkedItems.value.filter((i) => i.status !== "do
 const done = computed(() => checkedItems.value.filter((i) => i.pdf));
 const workingItem = computed(() => items.value.find((i) => i.status === "working"));
 const downloadSelected = () => saveFiles(done.value.map((i) => ({ name: pdfName(i), data: i.pdf! })), t("document.wordToPdfZip"));
+
 </script>
 
 <template>

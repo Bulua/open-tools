@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { recordToolUsage } from "@/composables/toolLibrary";
 import { ref } from "vue";
 import { ArrowDownUp } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
@@ -20,6 +21,7 @@ const run = async (action: ToolAction) => {
   error.value = "";
   try {
     output.value = await action.run(input.value);
+    if (input.value.trim() && output.value) recordToolUsage();
   } catch (e) {
     output.value = "";
     error.value = t("tool.actionFailed", { action: action.label, error: e instanceof Error ? e.message : String(e) });

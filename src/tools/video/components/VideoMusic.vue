@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { recordToolUsage } from "@/composables/toolLibrary";
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Download, FileVideo, LoaderCircle, Minus, Music, Plus, RefreshCw, Repeat, X } from "lucide-vue-next";
@@ -173,6 +174,7 @@ const start = async () => {
       (p) => (progress.value = p),
     );
     result.value = { data, url: URL.createObjectURL(new Blob([data as Uint8Array<ArrayBuffer>], { type: "video/mp4" })) };
+    recordToolUsage();
   } catch (e) {
     showError(e);
   } finally {

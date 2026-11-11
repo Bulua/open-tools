@@ -34,6 +34,7 @@
   --shadow-lg: 0 16px 48px rgba(31, 30, 29, 0.16);
   --modal-scrim: rgba(20, 20, 19, 0.28);
   --radius: 10px;
+  --tool-search-width: 208px;
 
   /* 动效：平滑减速、不回弹（见 motion.css） */
   --ease-out: cubic-bezier(0.32, 0.72, 0, 1);

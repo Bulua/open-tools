@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useToolResult } from "@/composables/useToolUsage";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import CopyList from "@/components/common/CopyList.vue";
@@ -25,6 +26,8 @@ const items = computed(() => {
 
 // 取色器只支持不透明的 #rrggbb
 const pickerValue = computed(() => (color.value ? toHex({ ...color.value, a: 1 }, false) : "#000000"));
+
+useToolResult(() => color.value ? input.value : "");
 </script>
 
 <template>

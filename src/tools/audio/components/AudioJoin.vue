@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useToolResult } from "@/composables/useToolUsage";
 import { computed, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { ArrowDown, ArrowUp, Download, GripVertical, X } from "lucide-vue-next";
@@ -110,6 +111,8 @@ const save = async () => {
     saving.value = false;
   }
 };
+
+useToolResult(() => joined.value);
 </script>
 
 <template>

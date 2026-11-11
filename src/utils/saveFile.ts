@@ -1,6 +1,7 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { zipSync } from "fflate";
 import { t } from "@/locales";
+import { recordToolUsage } from "@/composables/toolLibrary";
 
 /**
  * 把数据保存为本地文件。
@@ -17,6 +18,7 @@ export async function saveFile(data: Uint8Array, fileName: string): Promise<bool
     const path = await save({ defaultPath: fileName });
     if (!path) return false;
     await writeFile(path, data);
+    recordToolUsage();
     return true;
   }
 
@@ -25,6 +27,7 @@ export async function saveFile(data: Uint8Array, fileName: string): Promise<bool
   a.href = url;
   a.download = fileName;
   a.click();
+  recordToolUsage();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   return true;
 }
@@ -51,11 +54,13 @@ export async function saveToFolder(files: { parts: string[]; data: Uint8Array }[
     if (dirParts.length) await mkdir(await join(folder, ...dirParts), { recursive: true });
     await writeFile(await join(folder, ...file.parts), file.data);
   }
+  if (files.length) recordToolUsage();
   return folder;
 }
 
 /** 保存多个文件：只有一个时直接保存，多个时打包成 ZIP（重名文件自动加序号） */
 export async function saveFiles(files: { name: string; data: Uint8Array }[], zipName: string): Promise<boolean> {
+  if (!files.length) return false;
   if (files.length === 1) return saveFile(files[0].data, files[0].name);
 
   const entries: Record<string, Uint8Array> = {};
@@ -80,4 +85,5 @@ export async function saveIntoFolder(folder: string, fileName: string, data: Uin
   const { writeFile } = await import("@tauri-apps/plugin-fs");
   const { join } = await import("@tauri-apps/api/path");
   await writeFile(await join(folder, fileName), data);
+  recordToolUsage();
 }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { recordToolUsage } from "@/composables/toolLibrary";
 import { computed, nextTick, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { RefreshCw, Trash2 } from "lucide-vue-next";
@@ -44,6 +45,7 @@ const onFiles = async ([file]: File[]) => {
     small.ctx.drawImage(img, 0, 0, small.canvas.width, small.canvas.height);
     palette.value = extractPalette(small.ctx.getImageData(0, 0, small.canvas.width, small.canvas.height).data);
     selected.value = palette.value[0] ? { ...palette.value[0], a: 1 } : null;
+    recordToolUsage();
   } catch (e) {
     showError(e);
   }

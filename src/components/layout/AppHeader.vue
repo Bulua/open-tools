@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { Bug, Check, ChevronLeft, ChevronRight, Github, Languages, Moon, Search, Sun } from "lucide-vue-next";
+import { Bug, Check, ChevronLeft, ChevronRight, Github, House, Languages, Moon, Sun } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
 import type { Category } from "@/tools";
 import { usePopover } from "@/composables/usePopover";
 import { LOCALES, useLocale, type LocalePref } from "@/locales";
 import { REPO_URL, openExternal } from "@/utils/openExternal";
 import { boxOf, glide } from "@/utils/motion";
+import ToolSearchButton from "@/components/common/ToolSearchButton.vue";
 import AppLogo from "./AppLogo.vue";
 
 const props = defineProps<{
@@ -16,7 +17,7 @@ const props = defineProps<{
   /** 侧栏收起时品牌区跟着收窄，保持与侧栏对齐 */
   compact?: boolean;
 }>();
-defineEmits<{ select: [id: string]; toggleTheme: []; openSearch: [] }>();
+defineEmits<{ home: []; select: [id: string]; toggleTheme: []; openSearch: [] }>();
 
 const { t } = useI18n();
 
@@ -112,16 +113,17 @@ watch(
 
 <template>
   <header class="topbar">
-    <div class="brand" :class="{ compact }">
+    <button class="brand" :class="{ compact }" :aria-label="t('home.title')" @click="$emit('home')">
       <AppLogo :size="22" />
       <span v-if="!compact" class="name">Open Tools</span>
-    </div>
+    </button>
 
     <div class="tabs-wrap" :class="{ 'fade-left': canLeft, 'fade-right': canRight }">
       <button v-show="canLeft" class="arrow left" :aria-label="t('header.scrollLeft')" @click="scrollBy(-1)">
         <ChevronLeft :size="16" />
       </button>
       <nav ref="scroller" class="tabs" @scroll="update" @wheel.prevent="onWheel">
+        <button data-id="home" class="tab home-tab" :class="{ active: activeId === 'home' }" @click="$emit('home')"><House :size="15" />{{ t('home.title') }}</button>
         <button
           v-for="c in categories"
           :key="c.id"
@@ -139,11 +141,9 @@ watch(
     </div>
 
     <div class="actions">
-      <button class="search" @click="$emit('openSearch')">
-        <Search :size="14" />
-        <span>{{ t("header.search") }}</span>
-        <kbd>Ctrl K</kbd>
-      </button>
+      <div class="search-slot" :class="{ hidden: activeId === 'home' }" :inert="activeId === 'home'" :aria-hidden="activeId === 'home'">
+        <ToolSearchButton @search="$emit('openSearch')" />
+      </div>
       <button ref="langBtn" class="theme-btn" :class="{ active: langOpen }" :title="t('locale.title')" @click="showLangMenu">
         <Languages :size="16" />
       </button>
@@ -188,6 +188,7 @@ watch(
 </template>
 
 <style scoped>
+.home-tab { display: flex; align-items: center; gap: 7px; }
 .topbar {
   height: 52px;
   flex-shrink: 0;
@@ -201,6 +202,11 @@ watch(
 /* 品牌区与左侧栏同宽（240px），分类标签正好对齐下方工具区 */
 /* 图标和名称在侧栏宽度内居中 */
 .brand {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -318,35 +324,17 @@ watch(
   gap: 8px;
   flex-shrink: 0;
 }
-.search {
-  height: 32px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 6px 0 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-  color: var(--text-3);
-  font-size: 13px;
-  transition: border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+.search-slot {
+  width: var(--tool-search-width);
+  overflow: hidden;
+  transition: width var(--dur-slow) var(--ease-out), visibility 0s;
 }
-.search svg {
-  transition: transform var(--dur) var(--ease-out);
+.search-slot.hidden {
+  width: 0;
+  visibility: hidden;
+  transition: width var(--dur-slow) var(--ease-out), visibility 0s var(--dur-slow);
 }
-.search span {
-  width: 120px;
-  text-align: left;
-}
-.search:hover {
-  border-color: var(--border-strong);
-  color: var(--text-2);
-  background: var(--surface);
-}
-/* 悬停时放大镜微微放大，提示可以点 */
-.search:hover svg {
-  transform: scale(1.12);
-}
+.search-slot :deep(.tool-search-button) { max-width: none; }
 .theme-btn {
   width: 32px;
   height: 32px;
@@ -454,7 +442,6 @@ watch(
     gap: 2px;
     align-self: center;
   }
-  .search,
   .theme-btn {
     width: 40px;
     height: 40px;
@@ -463,13 +450,18 @@ watch(
     border: none;
     background: none;
   }
-  .search {
-    display: none;
+  .search-slot { width: 40px; }
+  .search-slot.hidden { width: 0; }
+  .search-slot :deep(.tool-search-button) {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    justify-content: center;
+    border: 0;
+    background: none;
   }
-  .search span,
-  .search kbd,
-  .desktop-extra {
-    display: none;
-  }
+  .search-slot :deep(.tool-search-button span),
+  .search-slot :deep(.tool-search-button kbd),
+  .desktop-extra { display: none; }
 }
 </style>

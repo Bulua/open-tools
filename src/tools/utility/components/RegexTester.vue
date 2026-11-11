@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useToolUsage } from "@/composables/useToolUsage";
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { locale, translationOf } from "@/locales";
@@ -28,6 +29,8 @@ const toggleFlag = (f: string) => {
 const TIMEOUT = 1500;
 let worker: Worker | null = null;
 let requestId = 0;
+let userEdited = false;
+const { track: trackUsage, cancel: cancelUsage } = useToolUsage();
 let timer: ReturnType<typeof setTimeout> | undefined;
 const result = ref<RegexResult>({ ok: true, matches: [], truncated: false });
 const timedOut = ref(false);
@@ -41,6 +44,8 @@ const createWorker = () => {
     running.value = false;
     timedOut.value = false;
     result.value = e.data.result;
+    if (userEdited && result.value.ok && pattern.value && text.value) trackUsage();
+    else cancelUsage();
   };
 };
 createWorker();
@@ -48,6 +53,7 @@ onBeforeUnmount(() => worker?.terminate());
 
 let debounce: ReturnType<typeof setTimeout> | undefined;
 const run = () => {
+  cancelUsage();
   clearTimeout(debounce);
   debounce = setTimeout(() => {
     const id = ++requestId;
@@ -71,7 +77,8 @@ const run = () => {
     }, TIMEOUT);
   }, 120);
 };
-watch([pattern, flags, text, replacement, useReplace], run, { immediate: true });
+watch([pattern, flags, text, replacement, useReplace], () => { userEdited = true; run(); });
+run();
 
 // ---------- 显示 ----------
 const activeIndex = ref<number | null>(null);

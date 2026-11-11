@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { localizedCategories } from "@/locales/tools";
@@ -9,7 +9,9 @@ import AppHeader from "@/components/layout/AppHeader.vue";
 import AppSidebar from "@/components/layout/AppSidebar.vue";
 import MobileNavigation, { type MobilePage } from "@/components/layout/MobileNavigation.vue";
 import LaunchIntro from "@/components/layout/LaunchIntro.vue";
-import ToolView from "@/components/tool/ToolView.vue";
+import HomePage from "@/components/layout/HomePage.vue";
+import { rememberRecentTool } from "@/composables/toolLibrary";
+import ToolWorkspace from "@/components/layout/ToolWorkspace.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import CommandPalette from "@/components/common/CommandPalette.vue";
 import UpdateDialog from "@/components/layout/UpdateDialog.vue";
@@ -36,6 +38,9 @@ const categories = computed(() => categoriesForPlatform(localizedCategories.valu
 const mobileMedia = window.matchMedia("(max-width: 720px)");
 const isMobile = ref(mobileMedia.matches);
 const mobilePage = ref<MobilePage>("home");
+const homeOpen = ref(true);
+const showingHome = computed(() => isMobile.value ? mobilePage.value === "home" : homeOpen.value);
+const openHome = () => { homeOpen.value = true; mobilePage.value = "home"; };
 const onMobileChange = (event: MediaQueryListEvent) => (isMobile.value = event.matches);
 onMounted(() => mobileMedia.addEventListener("change", onMobileChange));
 onBeforeUnmount(() => mobileMedia.removeEventListener("change", onMobileChange));
@@ -63,17 +68,26 @@ const activeTool = computed(() => {
 const selectTool = (categoryId: string, toolId: string) => {
   activeCategoryId.value = categoryId;
   activeToolByCategory.value[categoryId] = toolId;
+  homeOpen.value = false;
+  if (isMobile.value) mobilePage.value = "tool";
 };
+
+const selectCategory = (id: string) => {
+  activeCategoryId.value = id;
+  homeOpen.value = false;
+};
+watch(
+  () => (!isMobile.value && !homeOpen.value || isMobile.value && mobilePage.value === "tool") ? activeTool.value?.id : undefined,
+  (id) => { if (id) rememberRecentTool(id); },
+);
 
 const pickSearchTool = (categoryId: string, toolId: string) => {
   selectTool(categoryId, toolId);
-  if (isMobile.value) mobilePage.value = "tool";
   searchOpen.value = false;
 };
 
 const openCountdown = () => {
   selectTool("time", "countdown");
-  if (isMobile.value) mobilePage.value = "tool";
 };
 
 // 主窗口隐藏到托盘时不会卸载；完全退出后再次启动才会重新播放。
@@ -149,29 +163,36 @@ if (platform === "desktop") {
     <AppHeader
       :inert="introPhase !== 'done'"
       :categories="categories"
-      :active-id="activeCategory.id"
+      :active-id="showingHome ? 'home' : activeCategory.id"
       :theme="theme"
-      :compact="sidebarCollapsed"
-      @select="activeCategoryId = $event"
+      :compact="!showingHome && sidebarCollapsed"
+      @select="selectCategory"
+      @home="openHome"
       @toggle-theme="toggleTheme"
       @open-search="searchOpen = true"
     />
     <div v-if="!isMobile" class="body" :inert="introPhase !== 'done'">
-      <AppSidebar
-        :category="activeCategory"
-        :active-id="activeTool?.id"
-        :collapsed="sidebarCollapsed"
-        @select="selectTool(activeCategory.id, $event)"
-        @toggle="sidebarCollapsed = !sidebarCollapsed"
-        @open-update="updateOpen = true"
-      />
+      <div class="sidebar-region" :class="{ compact: sidebarCollapsed, hidden: homeOpen }" :inert="homeOpen" :aria-hidden="homeOpen">
+        <AppSidebar
+          :category="activeCategory"
+          :active-id="activeTool?.id"
+          :collapsed="sidebarCollapsed"
+          @select="selectTool(activeCategory.id, $event)"
+          @toggle="sidebarCollapsed = !sidebarCollapsed"
+          @open-update="updateOpen = true"
+        />
+      </div>
       <main class="main">
         <!-- 切换工具时保留之前工具的输入和结果，最多缓存 12 个 -->
-        <KeepAlive :max="12">
-          <ToolView v-if="activeTool" :key="activeTool.id" :tool="activeTool" />
-        </KeepAlive>
+        <ToolWorkspace
+          :home="homeOpen"
+          :categories="categories"
+          :tool="activeTool"
+          @select="selectTool"
+          @search="searchOpen = true"
+        />
         <EmptyState
-          v-if="!activeTool"
+          v-if="!homeOpen && !activeTool"
           :title="t('app.comingSoonTitle', { name: activeCategory.name })"
           :description="t('app.comingSoonDesc')"
         />
@@ -186,7 +207,11 @@ if (platform === "desktop") {
       :active-tool="activeTool"
       @select-category="activeCategoryId = $event"
       @select-tool="selectTool"
-    />
+    >
+      <template #home>
+        <HomePage :categories="categories" embedded @select="selectTool" @search="searchOpen = true" />
+      </template>
+    </MobileNavigation>
 
     <Transition name="modal">
       <CommandPalette
@@ -218,6 +243,15 @@ if (platform === "desktop") {
   display: flex;
   min-height: 0;
 }
+.sidebar-region {
+  display: flex;
+  width: 240px;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: width var(--dur-slow) var(--ease-out);
+}
+.sidebar-region.compact { width: 56px; }
+.sidebar-region.hidden { width: 0; }
 /* 内边距由工具区自己控制，工具栏可以贴边铺满 */
 .main {
   flex: 1;

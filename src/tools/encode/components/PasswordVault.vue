@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { recordToolUsage } from "@/composables/toolLibrary";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { locale } from "@/locales";
@@ -215,6 +216,7 @@ const save = async () => {
   // 保存失败时会在窗口上方提示，这里只清掉之前「没填标题」的提示
   dialogError.value = "";
   if (!ok) return;
+  recordToolUsage();
   // 新增的条目可能被搜索过滤掉，清空搜索让它能看到
   if (e.isNew && !matchEntry(updated, query.value)) query.value = "";
   await nextTick();

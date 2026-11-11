@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useToolResult } from "@/composables/useToolUsage";
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Download, FileText, RefreshCw, X } from "lucide-vue-next";
@@ -121,6 +122,8 @@ const decodeInfo = computed(() => {
     { label: t("encode.fileSize"), value: formatBytes(f.bytes.length) },
   ];
 });
+
+useToolResult(() => direction.value === "encode" ? output.value : decoded.value?.ok ? base64Input.value : "");
 </script>
 
 <template>

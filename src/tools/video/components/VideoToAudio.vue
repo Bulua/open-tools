@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { recordToolUsage } from "@/composables/toolLibrary";
 import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { CircleAlert, CircleCheck, Download, FileVideo, LoaderCircle, X } from "lucide-vue-next";
@@ -111,6 +112,7 @@ const convertAll = async () => {
         const type = MIME[item.result.ext] ?? "audio/mp4";
         item.resultBlob = new Blob([item.result.data as Uint8Array<ArrayBuffer>], { type });
         item.status = "done";
+    recordToolUsage();
       } catch (e) {
         item.status = "error";
         item.message = e instanceof Error ? e.message : String(e);
@@ -125,6 +127,7 @@ const convertAll = async () => {
 
 const downloadOne = (item: Item) => item.result && saveFile(item.result.data, outputName(item));
 const pending = computed(() => checkedItems.value.filter((i) => i.status !== "done" && i.info?.audio).length);
+
 </script>
 
 <template>

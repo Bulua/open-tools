@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useToolResult } from "@/composables/useToolUsage";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import AppSelect from "@/components/common/AppSelect.vue";
@@ -65,6 +66,8 @@ const onCopy = async (base: number) => {
   copiedBase.value = base;
   setTimeout(() => (copiedBase.value = null), 1200);
 };
+
+useToolResult(() => !error.value && value.value !== null ? `${value.value}|${customBase.value}` : "");
 </script>
 
 <template>

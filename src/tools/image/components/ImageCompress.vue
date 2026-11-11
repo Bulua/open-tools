@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useToolResult } from "@/composables/useToolUsage";
 import { computed, onBeforeUnmount, onDeactivated, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Download, Eye, Plus, Trash2, X } from "lucide-vue-next";
@@ -191,6 +192,8 @@ const FORMAT_NOTES = computed<Record<ImageFormat, string>>(() => ({
   "image/webp": t("image.noteWebp"),
 }));
 const parseSize = (e: Event) => Math.max(0, Math.floor(Number((e.target as HTMLInputElement).value) || 0));
+
+useToolResult(() => !processing.value && items.value.some((item) => item.result && !item.error) ? run : null);
 </script>
 
 <template>

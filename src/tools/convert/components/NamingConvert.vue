@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useToolResult } from "@/composables/useToolUsage";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { locale, translationIn } from "@/locales";
@@ -18,6 +19,8 @@ const items = computed(() =>
     placeholder: s.example,
   })),
 );
+
+useToolResult(() => input.value.trim());
 </script>
 
 <template>

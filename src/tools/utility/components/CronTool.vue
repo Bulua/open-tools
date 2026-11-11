@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useToolResult } from "@/composables/useToolUsage";
 import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { locale, translationOf } from "@/locales";
@@ -127,6 +128,8 @@ const { copied, copy } = useClipboard();
 /** 星期的简称，跟着界面语言 */
 const weekday = (d: Date) => d.toLocaleDateString(locale.value, { weekday: "short" });
 const fieldName = (key: FieldKey) => t(`utility.f${key.charAt(0).toUpperCase()}${key.slice(1)}`);
+
+useToolResult(() => result.value.ok ? `${expr.value}|${dialect.value}` : "");
 </script>
 
 <template>
