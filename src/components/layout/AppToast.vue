@@ -1,17 +1,12 @@
 <script setup lang="ts">
-import { CircleAlert } from "lucide-vue-next";
-import { errors, holdError, releaseError } from "@/utils/errorToast";
-
-/**
- * 报错提示：显示 showError() 发出的报错，见 utils/errorToast.ts。
- * 在窗口上方、顶栏下面居中显示，3 秒后淡出；鼠标停在上面时不消失，内容可以选中复制。
- */
+import { CircleAlert, Info } from "lucide-vue-next";
+import { holdToast, releaseToast, toasts } from "@/utils/errorToast";
 </script>
 
 <template>
-  <TransitionGroup name="toast" tag="div" class="toasts" aria-live="assertive">
-    <div v-for="e in errors" :key="e.id" class="toast" role="alert" @mouseenter="holdError(e.id)" @mouseleave="releaseError(e.id)">
-      <CircleAlert :size="16" class="icon" />
+  <TransitionGroup name="toast" tag="div" class="toasts">
+    <div v-for="e in toasts" :key="e.id" class="toast" :class="e.kind" :role="e.kind === 'error' ? 'alert' : 'status'" @mouseenter="holdToast(e.id)" @mouseleave="releaseToast(e.id)">
+      <component :is="e.kind === 'error' ? CircleAlert : Info" :size="16" class="icon" />
       <p class="text">
         <b v-if="e.title">{{ e.title }}</b>
         {{ e.message }}
@@ -51,6 +46,13 @@ import { errors, holdError, releaseError } from "@/utils/errorToast";
   flex-shrink: 0;
   margin-top: 2px;
   color: var(--danger);
+}
+.toast.notice {
+  border-color: var(--border-strong);
+  background: var(--surface);
+}
+.notice .icon {
+  color: var(--accent);
 }
 /* 报错可能带路径、命令输出，最多显示 4 行 */
 .text {

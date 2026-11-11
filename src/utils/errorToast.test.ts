@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ERROR_DURATION, dismissError, errorMessage, errors, holdError, releaseError, showError } from "./errorToast";
+import { TOAST_DURATION, dismissToast, errorMessage, holdToast, releaseToast, showError, showNotice, toasts } from "./errorToast";
 
 describe("errorToast", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => {
-    errors.value.forEach((x) => dismissError(x.id));
+    toasts.value.forEach((x) => dismissToast(x.id));
     vi.useRealTimers();
   });
 
@@ -17,34 +17,43 @@ describe("errorToast", () => {
 
   it("到时间自动收起", () => {
     showError(new Error("保存失败"), "导出");
-    expect(errors.value[0]).toMatchObject({ message: "保存失败", title: "导出" });
-    vi.advanceTimersByTime(ERROR_DURATION);
-    expect(errors.value).toHaveLength(0);
+    expect(toasts.value[0]).toMatchObject({ message: "保存失败", title: "导出" });
+    vi.advanceTimersByTime(TOAST_DURATION);
+    expect(toasts.value).toHaveLength(0);
   });
 
   it("鼠标停留时不收起，移开后重新计时", () => {
     showError("看一下");
-    const id = errors.value[0].id;
-    holdError(id);
-    vi.advanceTimersByTime(ERROR_DURATION * 2);
-    expect(errors.value).toHaveLength(1);
-    releaseError(id);
-    vi.advanceTimersByTime(ERROR_DURATION);
-    expect(errors.value).toHaveLength(0);
+    const id = toasts.value[0].id;
+    holdToast(id);
+    vi.advanceTimersByTime(TOAST_DURATION * 2);
+    expect(toasts.value).toHaveLength(1);
+    releaseToast(id);
+    vi.advanceTimersByTime(TOAST_DURATION);
+    expect(toasts.value).toHaveLength(0);
   });
 
   it("空内容不显示，相同内容只显示一条并重新计时", () => {
     showError("  ");
     showError("重复");
-    vi.advanceTimersByTime(ERROR_DURATION - 100);
+    vi.advanceTimersByTime(TOAST_DURATION - 100);
     showError("重复");
-    expect(errors.value).toHaveLength(1);
-    vi.advanceTimersByTime(ERROR_DURATION - 100);
-    expect(errors.value).toHaveLength(1);
+    expect(toasts.value).toHaveLength(1);
+    vi.advanceTimersByTime(TOAST_DURATION - 100);
+    expect(toasts.value).toHaveLength(1);
   });
 
   it("最多同时显示 3 条，更早的先收起", () => {
     ["1", "2", "3", "4"].forEach((m) => showError(m));
-    expect(errors.value.map((x) => x.message)).toEqual(["2", "3", "4"]);
+    expect(toasts.value.map((x) => x.message)).toEqual(["2", "3", "4"]);
+  });
+
+  it("普通提示与错误各自去重，共用收起计时", () => {
+    showNotice("请先压缩");
+    showNotice("请先压缩");
+    showError("请先压缩");
+    expect(toasts.value.map((item) => item.kind)).toEqual(["notice", "error"]);
+    vi.advanceTimersByTime(TOAST_DURATION);
+    expect(toasts.value).toHaveLength(0);
   });
 });

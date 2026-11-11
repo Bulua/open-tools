@@ -4,6 +4,7 @@ import { defineModuleLocales } from "@/locales/types";
 export default defineModuleLocales({
   tools: {
     en: {
+      "audio-compress": { name: "Audio Compressor", desc: "Set the bitrate, compress audio to MP3 or M4A in batches, and compare file sizes" },
       "audio-convert": { name: "Audio Converter", desc: "Convert between MP3, WAV, M4A, FLAC and more, or extract audio from videos like MP4" },
       "audio-editor": { name: "Audio Editor", desc: "Select a range on the waveform to keep or delete it; fade in/out and adjust volume" },
       "audio-join": { name: "Audio Joiner", desc: "Join several audio clips in order, with reordering and gaps between them" },
@@ -11,6 +12,7 @@ export default defineModuleLocales({
       tts: { name: "Text to Speech", desc: "Read text aloud with the voices built into Windows, and save it as an audio file" },
     },
     ja: {
+      "audio-compress": { name: "音声圧縮", desc: "ビットレートを設定して MP3 または M4A にまとめて圧縮し、ファイルサイズを比較します" },
       "audio-convert": { name: "音声形式変換", desc: "MP3・WAV・M4A・FLAC などを相互変換し、MP4 などの動画から音声も取り出せます" },
       "audio-editor": { name: "音声編集", desc: "波形上で範囲を選んで残す / 削除し、フェードや音量を調整します" },
       "audio-join": { name: "音声の結合", desc: "複数の音声を順番に 1 つに結合。順番の入れ替えや間隔の挿入も可能" },

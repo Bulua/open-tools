@@ -1,11 +1,19 @@
 import { defineAsyncComponent } from "vue";
-import { AudioWaveform, FileAudio, ListMusic, Mic, Speech } from "lucide-vue-next";
+import { AudioWaveform, FileAudio, ListMusic, Mic, Minimize2, Speech } from "lucide-vue-next";
 import type { Category } from "../types";
 
 const audio: Category = {
   id: "audio",
   name: "音频",
   tools: [
+    {
+      id: "audio-compress",
+      name: "音频压缩",
+      desc: "调整音频码率，批量压缩为 MP3 或 M4A，并对比文件大小",
+      icon: Minimize2,
+      component: defineAsyncComponent(() => import("../video/components/MediaCompress.vue")),
+      props: { mode: "audio" },
+    },
     {
       id: "audio-convert",
       name: "音频格式转换",

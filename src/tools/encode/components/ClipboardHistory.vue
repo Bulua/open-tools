@@ -3,7 +3,7 @@ import { computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMoun
 import { useI18n } from "vue-i18n";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Check, ChevronDown, ClipboardList, Copy, ExternalLink, Search, Settings2, Trash2, X } from "lucide-vue-next";
-import ErrorToast from "@/components/layout/ErrorToast.vue";
+import AppToast from "@/components/layout/AppToast.vue";
 import { useTheme } from "@/composables/useTheme";
 import { usePopover } from "@/composables/usePopover";
 import { useWindowEvent } from "@/composables/useWindowEvent";
@@ -306,7 +306,7 @@ function searchKeydown(event: KeyboardEvent) {
 
 <template>
   <section class="clipboard" :class="{ popup }">
-    <ErrorToast v-if="popup" />
+    <AppToast v-if="popup" />
     <header v-if="popup" class="popup-header" data-tauri-drag-region>
       <ClipboardList :size="18" />
       <strong data-tauri-drag-region>{{ t("encode.clipboardTitle") }}</strong>

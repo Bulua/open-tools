@@ -93,7 +93,7 @@ export type AudioTarget = "original" | "mp3" | "m4a" | "wav";
 
 let mp3Ready: Promise<void> | null = null;
 /** 浏览器不能编码 MP3，注册 LAME 编码器（只注册一次；编码器较大，用到时才载入） */
-const ensureMp3 = () =>
+export const ensureMp3 = () =>
   (mp3Ready ??= canEncodeAudio("mp3").then(async (ok) => {
     if (!ok) (await import("@mediabunny/mp3-encoder")).registerMp3Encoder();
   }));

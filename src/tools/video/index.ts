@@ -1,11 +1,19 @@
 import { defineAsyncComponent } from "vue";
-import { Clapperboard, FileImage, FileMusic, MonitorPlay, Music2, Music4, Scissors, Tv, Webcam } from "lucide-vue-next";
+import { Clapperboard, FileImage, FileMusic, Minimize2, MonitorPlay, Music2, Music4, Scissors, Tv, Webcam } from "lucide-vue-next";
 import type { Category } from "../types";
 
 const video: Category = {
   id: "video",
   name: "视频",
   tools: [
+    {
+      id: "video-compress",
+      name: "视频压缩",
+      desc: "调整视频分辨率与音视频码率，批量压缩为 MP4",
+      icon: Minimize2,
+      component: defineAsyncComponent(() => import("./components/MediaCompress.vue")),
+      props: { mode: "video" },
+    },
     {
       id: "bilibili-download",
       name: "B 站视频下载",

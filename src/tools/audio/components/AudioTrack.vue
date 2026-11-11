@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from "vue";
 import { LoaderCircle, Pause, Play } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
 import { t as i18n } from "@/locales";
 import Waveform from "./Waveform.vue";
 import { formatTime } from "../pcm";
-import { readPeaks, type Peaks } from "../peaks";
+import type { Peaks } from "../peaks";
 
 /**
  * 音轨播放器：显示波形，点击波形定位，播放 / 暂停。
@@ -25,7 +25,7 @@ const props = withDefaults(defineProps<{ sources?: TrackSource[]; title?: string
 });
 const { t } = useI18n();
 // 开始播放时通知外面，用来停掉页面上其他正在播放的声音
-const emit = defineEmits<{ play: [] }>();
+const emit = defineEmits<{ play: []; error: [] }>();
 
 // 当前播放的来源：默认最后一个（转换完成后自动切到转换结果）
 const activeKey = ref("");
@@ -52,6 +52,8 @@ watch(
     if (!blob) return;
     loading.value = true;
     try {
+      const { readPeaks } = await import("../peaks");
+      if (current !== token) return;
       // 每次更新换一个新对象，波形组件才会重画（数组共用，不复制）
       const result = await readPeaks(blob, (p) => current === token && (peaks.value = { ...p }));
       if (current === token) peaks.value = { ...result };
@@ -83,7 +85,9 @@ watch(
   { immediate: true },
 );
 onBeforeUnmount(() => {
+  token += 1;
   cancelAnimationFrame(frame);
+  if (audio.value && !audio.value.paused) audio.value.pause();
   if (url.value) URL.revokeObjectURL(url.value);
 });
 
@@ -119,7 +123,7 @@ const seek = (t: number) => {
 const play = async (key?: string) => {
   if (key && props.sources.some((s) => s.key === key)) activeKey.value = key;
   // 换了来源时等新的地址生效
-  await new Promise((r) => setTimeout(r));
+  await nextTick();
   const el = audio.value;
   if (!el || !url.value) return;
   el.currentTime = 0;
@@ -143,7 +147,7 @@ defineExpose({ play, pause, playing });
       <div v-if="sources.length > 1" class="seg">
         <button v-for="s in sources" :key="s.key" :class="{ on: s.key === activeKey }" @click="activeKey = s.key">{{ s.label }}</button>
       </div>
-      <span v-else-if="active" class="label">{{ active.label }}</span>
+      <span v-else-if="active?.label" class="label">{{ active.label }}</span>
     </div>
     <Waveform class="wave" :peaks="peaks" :position="active ? position : null" :selectable="false" @seek="seek">
       <span v-if="!active" class="overlay">{{ emptyText ?? t("audio.trackEmpty") }}</span>
@@ -157,6 +161,7 @@ defineExpose({ play, pause, playing });
       @play="onPlay"
       @pause="onPause"
       @ended="onPause"
+      @error="emit('error')"
       @loadedmetadata="mediaDuration = audio?.duration || 0"
     />
   </div>

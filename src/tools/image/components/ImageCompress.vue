@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onDeactivated, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { Download, Plus, Trash2, X } from "lucide-vue-next";
+import { Download, Eye, Plus, Trash2, X } from "lucide-vue-next";
 import CheckAll from "@/components/common/CheckAll.vue";
+import CompressionPreview, { type CompressionPreviewSource } from "@/components/common/CompressionPreview.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useFileChecks } from "@/composables/useFileChecks";
 import { useStoredRef } from "@/composables/useStoredRef";
+import { showError, showNotice } from "@/utils/errorToast";
 import { saveFile, saveFiles } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
 import {
@@ -78,7 +80,6 @@ const clear = () => {
   items.value.forEach((i) => URL.revokeObjectURL(i.thumb));
   items.value = [];
 };
-onBeforeUnmount(clear);
 
 const targetFormat = (item: Item) => (format.value === "keep" ? outputFormatOf(item.file.type) : format.value);
 
@@ -103,9 +104,10 @@ let run = 0;
 let timer: ReturnType<typeof setTimeout> | undefined;
 const scheduleProcess = () => {
   clearTimeout(timer);
+  const id = ++run;
+  processing.value = items.value.some((item) => !!item.thumb);
+  if (!processing.value) return;
   timer = setTimeout(async () => {
-    const id = ++run;
-    processing.value = true;
     for (const item of items.value) {
       if (item.error && !item.thumb) continue;
       try {
@@ -122,12 +124,17 @@ const scheduleProcess = () => {
   }, 250);
 };
 watch([format, quality, limitW, limitH, () => items.value.length], scheduleProcess);
+onBeforeUnmount(() => {
+  run += 1;
+  clearTimeout(timer);
+  clear();
+});
 
 // ---------- 统计与下载 ----------
 
 // 统计和下载只算勾选的图片
 const { isChecked, toggle: toggleFile, checkedItems, allChecked, partlyChecked, toggleAll } = useFileChecks(items);
-const done = computed(() => checkedItems.value.filter((i) => i.result));
+const done = computed(() => checkedItems.value.filter((i) => i.result && (converting || !i.error)));
 const totalBefore = computed(() => done.value.reduce((s, i) => s + i.file.size, 0));
 const totalAfter = computed(() => done.value.reduce((s, i) => s + i.result!.bytes.length, 0));
 
@@ -138,13 +145,44 @@ const percent = (before: number, after: number) => {
 };
 
 const outputName = (item: Item) => replaceExtension(item.file.name, formatInfo(item.result!.format).ext);
+const preview = shallowRef<CompressionPreviewSource | null>(null);
+onDeactivated(() => { preview.value = null; });
 
-const downloadOne = (item: Item) => item.result && saveFile(item.result.bytes, outputName(item));
-const downloadAll = () =>
-  saveFiles(
+function showPending(item?: Item, key: "common.autoCompressionPending" | "common.compressBeforeDownload" = "common.autoCompressionPending") {
+  if (!processing.value && item?.error) return showError(item.error, item.file.name);
+  showNotice(t(key));
+}
+
+function openPreview(item: Item) {
+  if (processing.value || item.error || !item.result) return showPending(item);
+  preview.value = {
+    kind: "image",
+    variant: "compressed",
+    name: outputName(item),
+    blob: new Blob([item.result.bytes as BlobPart], { type: item.result.format }),
+  };
+}
+
+function openOriginal(item: Item) {
+  if (!converting) preview.value = { kind: "image", variant: "original", name: item.file.name, blob: item.file };
+}
+
+function downloadOne(item: Item) {
+  if (!converting && (processing.value || item.error || !item.result)) return showPending(item, "common.compressBeforeDownload");
+  if (item.result) void saveFile(item.result.bytes, outputName(item)).catch(showError);
+}
+
+function downloadAll() {
+  if (!checkedItems.value.length) return showNotice(t("common.selectFilesToSave"));
+  if (!converting && (processing.value || !done.value.length)) {
+    return showPending(checkedItems.value.find((item) => item.error), "common.compressBeforeDownload");
+  }
+  if (!done.value.length) return;
+  void saveFiles(
     done.value.map((i) => ({ name: outputName(i), data: i.result!.bytes })),
     converting ? t("image.convertZip", { format: formatInfo(targetFormatSetting.value).label }) : t("image.compressZip"),
-  );
+  ).catch(showError);
+}
 
 const lossless = computed(() => (converting ? targetFormatSetting.value === "image/png" : items.value.length > 0 && items.value.every((i) => outputFormatOf(i.file.type) === "image/png")));
 const FORMAT_NOTES = computed<Record<ImageFormat, string>>(() => ({
@@ -206,7 +244,7 @@ const parseSize = (e: Event) => Math.max(0, Math.floor(Number((e.target as HTMLI
           </template>
           <template v-else>{{ converting ? t("image.convertEmpty") : t("image.compressEmpty") }}</template>
         </p>
-        <button class="btn primary full" :disabled="!done.length || processing" @click="downloadAll">
+        <button class="btn primary full" :disabled="converting ? !done.length || processing : !items.length" @click="downloadAll">
           <Download :size="14" />{{ items.length && !checkedItems.length ? t("image.checkToDownload") : done.length > 1 ? t("image.downloadSelected", { n: done.length }) : t("image.download") }}
         </button>
       </section>
@@ -241,16 +279,24 @@ const parseSize = (e: Event) => Math.max(0, Math.floor(Number((e.target as HTMLI
         <ul class="rows">
           <li v-for="item in items" :key="item.id" class="row" :class="{ unchecked: !isChecked(item) }">
             <input type="checkbox" class="file-check" :title="t('image.checkHint')" :checked="isChecked(item)" @change="toggleFile(item)" />
-            <img v-if="item.thumb" class="thumb" :src="item.thumb" alt="" />
-            <span v-else class="thumb" />
-            <div class="meta">
-              <span class="name" :title="item.file.name">{{ item.file.name }}</span>
-              <span class="sub">
-                {{ item.img.naturalWidth }} × {{ item.img.naturalHeight }}
-                <template v-if="item.result && item.result.width !== item.img.naturalWidth">→ {{ item.result.width }} × {{ item.result.height }}</template>
-                <template v-if="item.result"> · {{ formatInfo(item.result.format).label }}</template>
+            <component
+              :is="converting ? 'div' : 'button'"
+              :type="converting ? undefined : 'button'"
+              class="compression-source"
+              :aria-label="converting ? undefined : `${t('common.originalPreview')} · ${item.file.name}`"
+              @click="openOriginal(item)"
+            >
+              <img v-if="item.thumb" class="thumb" :src="item.thumb" alt="" />
+              <span v-else class="thumb" />
+              <span class="meta">
+                <span class="name" :title="item.file.name">{{ item.file.name }}</span>
+                <span class="sub">
+                  {{ item.img.naturalWidth }} × {{ item.img.naturalHeight }}
+                  <template v-if="item.result && item.result.width !== item.img.naturalWidth">→ {{ item.result.width }} × {{ item.result.height }}</template>
+                  <template v-if="item.result"> · {{ formatInfo(item.result.format).label }}</template>
+                </span>
               </span>
-            </div>
+            </component>
 
             <span v-if="item.error" class="error">{{ item.error }}</span>
             <div v-else-if="item.result" class="sizes">
@@ -265,13 +311,17 @@ const parseSize = (e: Event) => Math.max(0, Math.floor(Number((e.target as HTMLI
             <b v-if="item.result" class="badge" :class="item.result.bytes.length <= item.file.size ? 'good' : 'bad'">
               {{ item.result.keptOriginal ? t("image.keptOriginal") : percent(item.file.size, item.result.bytes.length) }}
             </b>
-            <button class="icon-btn" :title="t('image.download')" :disabled="!item.result" @click="downloadOne(item)"><Download :size="14" /></button>
+            <button v-if="!converting" type="button" class="icon-btn" :title="t('common.compressedPreview')" :aria-label="t('common.compressedPreview')" @click="openPreview(item)">
+              <Eye :size="14" />
+            </button>
+            <button class="icon-btn" :title="t('image.download')" :disabled="converting && !item.result" @click="downloadOne(item)"><Download :size="14" /></button>
             <button class="icon-btn" :title="t('image.remove')" @click="remove(item)"><X :size="14" /></button>
           </li>
         </ul>
         <FileDropZone ref="dropZone" compact class="more" accept="image/*" multiple :title="t('image.addMore')" @files="addFiles" />
       </template>
     </section>
+    <CompressionPreview v-if="!converting" :source="preview" @close="preview = null" />
   </div>
 </template>
 
@@ -449,7 +499,7 @@ h3 em {
 }
 .meta {
   flex: 1;
-  min-width: 90px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
 }

@@ -15,7 +15,7 @@ import CommandPalette from "@/components/common/CommandPalette.vue";
 import UpdateDialog from "@/components/layout/UpdateDialog.vue";
 import { useUpdater } from "@/composables/useUpdater";
 import CountdownAlerts from "@/components/layout/CountdownAlerts.vue";
-import ErrorToast from "@/components/layout/ErrorToast.vue";
+import AppToast from "@/components/layout/AppToast.vue";
 import { startCountdownTicker } from "@/tools/utility/countdownStore";
 import { calendarDesktop, startCalendarReminders } from "@/tools/utility/calendarStore";
 import { startBrandingSync } from "@/utils/branding";
@@ -196,7 +196,7 @@ if (platform === "desktop") {
     </Transition>
     <CountdownAlerts @open="openCountdown" />
     <!-- 各工具的报错统一在窗口上方提示，见 utils/errorToast.ts -->
-    <ErrorToast />
+    <AppToast />
     <LaunchIntro v-if="introPhase !== 'done'" :leaving="introPhase === 'leaving'" />
   </div>
 </template>
