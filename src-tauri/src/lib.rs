@@ -8,7 +8,7 @@ use crate::tools::{
     network,
     text::vault,
     time::{calendar, countdown},
-    video::{douyin, hdr},
+    video::{douyin, hdr, storage, xiaohongshu},
 };
 #[cfg(windows)]
 use crate::tools::{image::screenshot, text::clipboard};
@@ -49,6 +49,8 @@ pub fn run() {
             document::office_to_pdf,
             document::pdf_to_word,
             douyin::douyin_capture,
+            storage::video_download_dir,
+            xiaohongshu::xiaohongshu_capture,
             audio::tts_voices,
             audio::tts_synthesize,
             ai_models::ai_status,
