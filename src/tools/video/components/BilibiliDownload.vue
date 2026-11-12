@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, markRaw, onMounted, ref, watch } from "vue";
+import { computed, markRaw, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { isTauri } from "@tauri-apps/api/core";
 import {
@@ -10,7 +10,6 @@ import {
   ClipboardPaste,
   Download,
   ExternalLink,
-  FolderOpen,
   LoaderCircle,
   Play,
   SkipBack,
@@ -25,7 +24,7 @@ import ProcessingMascot from "@/components/common/ProcessingMascot.vue";
 import ProgressBar from "@/components/common/ProgressBar.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { useWindowEvent } from "@/composables/useWindowEvent";
-import { pickFolder, saveFile, saveIntoFolder } from "@/utils/saveFile";
+import { downloadBaseName, releaseSavedMedia, revealDownloadedMedia, saveDownloadedMedia, type SavedMedia } from "../downloadStorage";
 import { formatBytes } from "@/utils/format";
 import { sendMode } from "@/tools/network/http";
 import { showError } from "@/utils/errorToast";
@@ -36,7 +35,6 @@ import {
   QUALITY_NAMES,
   codecLabel,
   qualityName,
-  downloadFile,
   downloadStream,
   getLoginInfo,
   getPlayInfo,
@@ -46,7 +44,6 @@ import {
   outputBaseName,
   pickAudio,
   pickVideo,
-  safeFileName,
   type CodecPreference,
   type LoginInfo,
   type Session,
@@ -56,9 +53,9 @@ import {
 
 /**
  * B 站视频下载：粘贴视频链接解析，解析过的视频以卡片形式排在右侧（显示封面），每个都可以单独下载。
- * 左侧设置下载内容（视频、音频、封面、弹幕）、清晰度、编码、保存位置和登录。
+ * 自动下载视频，清晰度、编码和登录保留在左侧；保存位置由统一数据目录决定。
  * 多 P 视频在卡片里展开勾选要下载的分 P。画面和声音下载后直接合并为 MP4，不重新编码。
- * 点封面可以在工具里在线播放（最高 720P），多 P 可以切换。
+ * 点封面优先播放下载好的本地文件；尚未下载时在线播放，多 P 可以切换。
  */
 const mode = sendMode();
 const desktop = isTauri() && !isAndroidApp();
@@ -68,7 +65,7 @@ const sessdata = useStoredRef("bilibili.sessdata", "");
 const session = computed<Session>(() => ({ sessdata: sessdata.value }));
 const login = ref<LoginInfo | null>(null);
 const checkingLogin = ref(false);
-const showLogin = ref(false);
+const showLogin = ref(true);
 let loginTimer: ReturnType<typeof setTimeout> | undefined;
 const checkLogin = async () => {
   if (mode === "browser") return;
@@ -88,29 +85,16 @@ watch(sessdata, () => {
 onMounted(checkLogin);
 
 // ---------- 下载设置 ----------
-const quality = useStoredRef("bilibili.quality", 80);
-const { t } = useI18n();
+const quality = useStoredRef("bilibili.downloadQuality", 0);
+const { t, locale } = useI18n();
 const codec = useStoredRef<CodecPreference>("bilibili.codec", "avc");
-const want = useStoredRef("bilibili.want", { video: true, audio: false, cover: false, danmaku: false });
-/** 桌面版的保存位置：第一次下载时选择，之后都保存到这里 */
-const folder = useStoredRef("bilibili.folder", "");
 const CODECS = computed(() => CODEC_PREFERENCES.map((value) => ({ value, label: codecLabel(value) })));
-const nothingWanted = computed(() => !want.value.video && !want.value.audio && !want.value.cover && !want.value.danmaku);
-const changeFolder = async () => {
-  const picked = await pickFolder(t("video.chooseFolder"));
-  if (picked) folder.value = picked;
-  return picked;
-};
-const revealFolder = async (path: string) => {
-  // 在资源管理器中显示（opener 默认权限允许这个操作）
-  const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
-  revealItemInDir(path).catch(() => {});
-};
 
 // ---------- 解析过的视频 ----------
 interface Part extends VideoPage {
   status: "idle" | "working" | "done" | "error";
   message: string;
+  files: SavedMedia[];
 }
 interface Entry {
   key: string;
@@ -130,16 +114,29 @@ interface Entry {
   controller?: AbortController;
 }
 const entries = ref<Entry[]>([]);
-const activeDownload = computed(() => entries.value.find((e) => e.status === "working"));
+const batch = ref(false);
+const busy = computed(() => batch.value || entries.value.some((e) => e.status === "working"));
+let disposed = false;
+const releaseEntry = (e: Entry) => e.parts.forEach((p) => releaseSavedMedia(p.files));
+const savedFile = (e: Entry) => e.parts.flatMap((p) => p.files).find((f) => f.path);
+const reveal = async (e: Entry) => {
+  try { const file = savedFile(e); if (file) await revealDownloadedMedia(file); }
+  catch (err) { showError(err); }
+};
+const clearEntries = () => {
+  closePlayer();
+  entries.value.forEach(releaseEntry);
+  entries.value = [];
+};
 
 const qualityOptions = computed(() => {
   // 清晰度选项：所有解析过的视频里出现过的；还没有解析时列出全部
   const ids = new Set(entries.value.flatMap((e) => e.qualities.map((q) => q.id)));
   const list = ids.size ? [...ids] : Object.keys(QUALITY_NAMES).map(Number);
-  return list.sort((a, b) => b - a).map((id) => ({ value: id, label: qualityName(id) }));
+  return [{ value: 0, label: t("video.autoQuality") }, ...list.sort((a, b) => b - a).map((id) => ({ value: id, label: qualityName(id) }))];
 });
 /** 这个视频实际会下载的清晰度：所选的拿不到时用能拿到的最高一档 */
-const actualQuality = (e: Entry) => e.qualities.find((q) => q.id <= quality.value) ?? e.qualities[e.qualities.length - 1];
+const actualQuality = (e: Entry) => e.qualities.find((q) => !quality.value || q.id <= quality.value) ?? e.qualities[e.qualities.length - 1];
 
 const link = ref("");
 const parsing = ref(false);
@@ -151,11 +148,12 @@ const parse = async () => {
     // 用第一 P 查询当前账号能下载的清晰度
     const play = await getPlayInfo(info.bvid, info.pages[0].cid, session.value).catch(() => null);
     const target = page ? info.pages.find((p) => p.page === page) : null;
+    if (disposed) return;
     const entry: Entry = {
       key: info.bvid,
       info,
       qualities: play?.qualities ?? [],
-      parts: info.pages.map((p) => ({ ...p, status: "idle", message: "" })),
+      parts: info.pages.map((p) => ({ ...p, status: "idle", message: "", files: [] })),
       // 链接里指定了分 P 时只勾选这一 P，否则全选
       selected: target ? [target.cid] : info.pages.map((p) => p.cid),
       expanded: !!target && info.pages.length > 1,
@@ -167,6 +165,11 @@ const parse = async () => {
     };
     // 同一个视频再次解析时移到最前面
     const old = entries.value.find((e) => e.key === entry.key);
+    if (old && old.status !== "working") {
+      for (const part of entry.parts) part.files = old.parts.find((p) => p.cid === part.cid)?.files ?? [];
+      entry.status = old.status;
+      entry.result = old.result;
+    }
     entries.value = [old?.status === "working" ? old : entry, ...entries.value.filter((e) => e.key !== entry.key)];
     link.value = "";
   } catch (e) {
@@ -185,6 +188,8 @@ const pasteAndParse = async () => {
 };
 const removeEntry = (e: Entry) => {
   e.controller?.abort();
+  if (player.value?.entry === e) closePlayer();
+  releaseEntry(e);
   entries.value = entries.value.filter((x) => x !== e);
 };
 
@@ -194,78 +199,58 @@ const toggleAllParts = (e: Entry) => (e.selected = e.selected.length === e.parts
 
 // ---------- 下载 ----------
 const download = async (e: Entry) => {
-  if (e.status === "working" || !e.selected.length || nothingWanted.value) return;
-  // 桌面版：保存到选好的文件夹，每下载完一个就写进去；浏览器：逐个下载
-  let dir = "";
-  if (desktop) {
-    dir = folder.value || (await changeFolder()) || "";
-    if (!dir) return;
-  }
-  const save = (name: string, data: Uint8Array) => (dir ? saveIntoFolder(dir, name, data) : saveFile(data, name).then(() => {}));
-
-  const v = e.info;
+  if (e.status === "working" || !e.selected.length || disposed) return;
   const parts = e.parts.filter((p) => e.selected.includes(p.cid));
-  const controller = new AbortController();
+  const controller = markRaw(new AbortController());
   const signal = controller.signal;
-  // AbortController 不能被响应式代理包装（调用 abort 会出错），用 markRaw 原样保存
-  Object.assign(e, { status: "working", step: t("video.preparing"), progress: 0, message: "", result: "", controller: markRaw(controller) });
+  const selectedQuality = quality.value || 127;
+  const selectedCodec = codec.value;
+  Object.assign(e, { status: "working", step: t("video.preparing"), progress: 0, message: "", result: "", controller });
   parts.forEach((p) => Object.assign(p, { status: "idle", message: "" }));
   const notes: string[] = [];
   let failed = 0;
+  const save = async (part: Part, name: string, data: Uint8Array) => {
+    if (signal.aborted) throw new Error(t("video.cancelled"));
+    const file = await saveDownloadedMedia("bilibili", name, data, "video");
+    if (disposed || !entries.value.includes(e)) releaseSavedMedia([file]);
+    else part.files.push(file);
+    if (signal.aborted) throw new Error(t("video.cancelled"));
+  };
   try {
-    if (want.value.cover) {
-      e.step = t("video.dlCover");
-      const ext = v.cover.match(/\.(jpe?g|png|webp|gif)(?:$|\?)/i)?.[1] ?? "jpg";
-      await save(`${safeFileName(v.title)}.${ext}`, await downloadFile(v.cover, session.value)).catch(() => {});
-      notes.push(t("video.cover"));
-    }
     for (const [index, part] of parts.entries()) {
-      if (signal.aborted) break;
+      if (signal.aborted) throw new Error(t("video.cancelled"));
       part.status = "working";
+      releaseSavedMedia(part.files);
+      part.files = [];
       const prefix = parts.length > 1 ? t("video.partPrefix", { page: part.page, i: index + 1, n: parts.length }) : "";
-      // 整体进度：已完成的分 P + 当前分 P 的进度
-      const setProgress = (p: number) => (e.progress = (index + p) / parts.length);
+      const setProgress = (p: number) => e.progress = (index + p) / parts.length;
+      const onProgress = (label: string, weight: number, offset: number) => (loaded: number, total: number) => {
+        e.step = `${prefix}${label} ${formatBytes(loaded)}${total ? ` / ${formatBytes(total)}` : ""}`;
+        setProgress(offset + (total ? Math.min(loaded / total, 1) * weight : 0));
+      };
       try {
-        const base = outputBaseName(v, part);
-        if (want.value.video || want.value.audio) {
-          e.step = prefix + t("video.getUrl");
-          const play = await getPlayInfo(v.bvid, part.cid, session.value);
-          const video = pickVideo(play.videos, quality.value, codec.value);
-          const audio = pickAudio(play.audios);
-          const onProgress = (label: string, weight: number, offset: number) => (loaded: number, total: number) => {
-            e.step = `${prefix}${label} ${formatBytes(loaded)}${total ? ` / ${formatBytes(total)}` : ""}`;
-            setProgress(offset + (total ? (loaded / total) * weight : 0));
-          };
-          if (video || audio) {
-            // DASH：画面、声音分开下载，再合并
-            const audioData = audio ? await downloadStream(audio, session.value, onProgress(t("video.dlAudio"), want.value.video ? 0.15 : 0.9, 0), signal) : null;
-            if (want.value.video && video) {
-              const videoData = await downloadStream(video, session.value, onProgress(t("video.dlVideo"), 0.8, audio ? 0.15 : 0), signal);
-              e.step = prefix + t("video.merging");
-              setProgress(0.97);
-              const mp4 = await muxToMp4(videoData, audioData);
-              await save(`${base}.mp4`, mp4);
-              const codecName = { 7: "H.264", 12: "H.265", 13: "AV1" }[video.codecid ?? 0] ?? "";
-              if (index === 0) notes.unshift(`${video.id in QUALITY_NAMES ? qualityName(video.id) : video.id}${codecName ? ` · ${codecName}` : ""} · ${formatBytes(mp4.length)}`);
-            }
-            if (want.value.audio && audioData) {
-              await save(`${base}.m4a`, await muxToMp4(null, audioData));
-              if (index === 0) notes.push(t("video.audio"));
-            }
-          } else if (play.files.length) {
-            // 老视频没有 DASH：直接下载完整文件
-            for (const [i, f] of play.files.entries()) {
-              const data = await downloadStream({ url: f.url }, session.value, onProgress(t("video.dlSegment", { n: i + 1 }), 0.95 / play.files.length, (0.95 * i) / play.files.length), signal);
-              const ext = f.url.match(/\.(mp4|flv)(?:$|\?)/i)?.[1] ?? "mp4";
-              await save(`${base}${play.files.length > 1 ? `_${i + 1}` : ""}.${ext}`, data);
-            }
-          } else throw new Error(t("video.noStream"));
-        }
-        if (want.value.danmaku) {
-          e.step = prefix + t("video.dlDanmaku");
-          await save(`${base}.xml`, await downloadFile(`https://comment.bilibili.com/${part.cid}.xml`, session.value));
-          if (index === 0) notes.push(t("video.danmaku"));
-        }
+        const base = downloadBaseName(outputBaseName(e.info, part), `${e.info.bvid}_${part.cid}`);
+        e.step = prefix + t("video.getUrl");
+        const play = await getPlayInfo(e.info.bvid, part.cid, session.value);
+        const video = pickVideo(play.videos, selectedQuality, selectedCodec);
+        const audio = pickAudio(play.audios);
+        if (video) {
+          const audioData = audio ? await downloadStream(audio, session.value, onProgress(t("video.dlAudio"), 0.15, 0), signal) : null;
+          const videoData = await downloadStream(video, session.value, onProgress(t("video.dlVideo"), audio ? 0.8 : 0.95, audio ? 0.15 : 0), signal);
+          if (signal.aborted) throw new Error(t("video.cancelled"));
+          e.step = prefix + t("video.merging");
+          setProgress(0.97);
+          const mp4 = await muxToMp4(videoData, audioData);
+          await save(part, `${base}.mp4`, mp4);
+          const codecName = { 7: "H.264", 12: "H.265", 13: "AV1" }[video.codecid ?? 0] ?? "";
+          if (index === 0) notes.push(`${qualityName(video.id)}${codecName ? ` · ${codecName}` : ""} · ${formatBytes(mp4.length)}`);
+        } else if (play.files.length) {
+          for (const [i, f] of play.files.entries()) {
+            const data = await downloadStream({ url: f.url }, session.value, onProgress(t("video.dlSegment", { n: i + 1 }), 0.95 / play.files.length, 0.95 * i / play.files.length), signal);
+            const ext = f.url.match(/\.(mp4|flv)(?:$|\?)/i)?.[1] ?? "mp4";
+            await save(part, `${base}${play.files.length > 1 ? `_${i + 1}` : ""}.${ext}`, data);
+          }
+        } else throw new Error(t("video.noStream"));
         part.status = "done";
         setProgress(1);
       } catch (err) {
@@ -274,33 +259,43 @@ const download = async (e: Entry) => {
         if (parts.length === 1 || signal.aborted) throw err;
       }
     }
-    if (signal.aborted) throw new Error(t("video.cancelled"));
-    const okCount = parts.length - failed;
     Object.assign(e, {
-      status: failed && !okCount ? "error" : "done",
-      result: parts.length > 1 ? [t("video.partsResult", { ok: okCount, n: parts.length }), ...notes].join(t("video.sep")) : notes.join(t("video.sep")),
+      status: failed && failed === parts.length ? "error" : "done",
+      progress: 1,
+      result: parts.length > 1 ? [t("video.partsResult", { ok: parts.length - failed, n: parts.length }), ...notes].join(t("video.sep")) : notes.join(t("video.sep")),
       message: failed ? t("video.partsFailed", { n: failed }) : "",
       expanded: e.expanded || failed > 0,
     });
   } catch (err) {
     Object.assign(e, { status: "error", message: signal.aborted ? t("video.cancelled") : err instanceof Error ? err.message : String(err) });
-  } finally {
-    e.step = "";
-    e.controller = undefined;
-  }
+    if (!signal.aborted && !disposed) showError(err);
+  } finally { e.step = ""; e.controller = undefined; }
 };
 const cancel = (e: Entry) => e.controller?.abort();
-const downloadAll = () => entries.value.filter((e) => e.status !== "working").forEach((e) => download(e));
-
-const pubdate = (t: number) => new Date(t * 1000).toLocaleDateString();
+const downloadAll = async () => {
+  if (busy.value) return;
+  batch.value = true;
+  try {
+    for (const e of [...entries.value]) {
+      if (disposed) break;
+      if (entries.value.includes(e) && e.status !== "done") await download(e);
+    }
+  } finally { batch.value = false; }
+};
+const pubdate = (time: number) => new Intl.DateTimeFormat(locale.value).format(new Date(time * 1000));
 
 // ---------- 在线播放 ----------
-const player = ref<{ entry: Entry; index: number; url: string; quality: string; loading: boolean; error: string } | null>(null);
+const player = ref<{ entry: Entry; index: number; segment: number; url: string; quality: string; loading: boolean; error: string } | null>(null);
 let playToken = 0;
-const playPart = async (entry: Entry, index: number) => {
+const playPart = async (entry: Entry, index: number, segment = 0) => {
   const current = ++playToken;
   const part = entry.parts[index];
-  player.value = { entry, index, url: "", quality: "", loading: true, error: "" };
+  player.value = { entry, index, segment, url: "", quality: "", loading: true, error: "" };
+  const local = part.files[segment];
+  if (local) {
+    Object.assign(player.value, { url: local.url, quality: t("video.localPlayback"), loading: false });
+    return;
+  }
   try {
     const { url, quality } = await getPreviewUrl(entry.info.bvid, part.cid, session.value);
     if (current === playToken && player.value) Object.assign(player.value, { url, quality, loading: false });
@@ -320,10 +315,21 @@ const closePlayer = () => {
 /** 播放完自动播下一 P */
 const onEnded = () => {
   const p = player.value;
-  if (p && p.index < p.entry.parts.length - 1) playPart(p.entry, p.index + 1);
+  if (!p) return;
+  if (p.segment < p.entry.parts[p.index].files.length - 1) playPart(p.entry, p.index, p.segment + 1);
+  else if (p.index < p.entry.parts.length - 1) playPart(p.entry, p.index + 1);
+};
+const playFailed = () => {
+  if (player.value) Object.assign(player.value, { url: "", loading: false, error: t("video.mediaPlayFailed") });
 };
 useWindowEvent("keydown", (ev) => {
   if (ev.key === "Escape" && player.value) closePlayer();
+});
+onBeforeUnmount(() => {
+  disposed = true;
+  clearTimeout(loginTimer);
+  closePlayer();
+  entries.value.forEach((e) => { e.controller?.abort(); releaseEntry(e); });
 });
 </script>
 
@@ -347,34 +353,14 @@ useWindowEvent("keydown", (ev) => {
     <p v-if="mode === 'browser'" class="banner warn">{{ t("video.biliBrowser") }}</p>
 
     <div class="main">
-      <!-- 左：设置 -->
       <aside class="card panel">
         <section class="section">
-          <h3>{{ t("video.content") }}</h3>
-          <div class="wants">
-            <label class="check"><input v-model="want.video" type="checkbox" />{{ t("video.wantVideo") }}</label>
-            <label class="check"><input v-model="want.audio" type="checkbox" />{{ t("video.wantAudio") }}</label>
-            <label class="check"><input v-model="want.cover" type="checkbox" />{{ t("video.wantCover") }}</label>
-            <label class="check"><input v-model="want.danmaku" type="checkbox" />{{ t("video.wantDanmaku") }}</label>
-          </div>
-        </section>
-
-        <section v-if="want.video" class="section">
           <h3>{{ t("video.quality") }}</h3>
           <AppSelect v-model="quality" :options="qualityOptions" />
           <p class="tip">{{ t("video.qualityTip") }}</p>
           <h3>{{ t("video.codec") }}</h3>
           <AppSelect v-model="codec" :options="CODECS" />
           <p class="tip">{{ t("video.codecTip") }}</p>
-        </section>
-
-        <section v-if="desktop" class="section">
-          <h3>{{ t("video.saveTo") }}</h3>
-          <p class="path" :title="folder">{{ folder || t("video.firstTime") }}</p>
-          <div class="row-btns">
-            <button class="btn small subtle" @click="changeFolder"><FolderOpen :size="13" />{{ folder ? t("video.change") : t("video.choose") }}</button>
-            <button v-if="folder" class="btn small subtle" @click="revealFolder(folder)"><ExternalLink :size="13" />{{ t("video.open") }}</button>
-          </div>
         </section>
 
         <section class="section">
@@ -386,7 +372,7 @@ useWindowEvent("keydown", (ev) => {
             <span class="push link-text">{{ showLogin ? t("video.collapse") : t("video.settings") }}</span>
           </h3>
           <template v-if="showLogin">
-            <input v-model="sessdata" class="field mono" type="password" placeholder="SESSDATA" spellcheck="false" autocomplete="off" />
+            <input v-model="sessdata" class="field mono" type="password" :placeholder="t('video.sessdataPlaceholder')" spellcheck="false" autocomplete="off" />
             <p class="tip">
               {{ t("video.sessdataTip") }}
             </p>
@@ -395,22 +381,22 @@ useWindowEvent("keydown", (ev) => {
         </section>
       </aside>
 
-      <!-- 右：解析过的视频 -->
+      <!-- 解析过的视频 -->
       <section class="card list">
         <div class="card-title">
           {{ t("video.videos") }}<span v-if="entries.length" class="count">{{ t("video.countN", { n: entries.length }) }}</span>
           <div class="push actions">
-            <button v-if="entries.length > 1" class="btn small subtle" :disabled="nothingWanted || mode === 'browser'" @click="downloadAll"><Download :size="13" />{{ t("video.downloadAll") }}</button>
-            <button v-if="entries.length" class="btn small subtle" :disabled="entries.some((e) => e.status === 'working')" @click="entries = []">{{ t("video.clear") }}</button>
+            <button v-if="entries.length > 1" class="btn small subtle" :disabled="busy || mode === 'browser'" @click="downloadAll"><Download :size="13" />{{ t("video.downloadAll") }}</button>
+            <button v-if="entries.length" class="btn small subtle" :disabled="busy" @click="clearEntries">{{ t("video.clear") }}</button>
           </div>
         </div>
 
         <div class="results">
           <ProcessingMascot
-            v-if="activeDownload || parsing"
+            v-if="parsing"
             class="results-overlay"
-            :title="activeDownload?.info.title ?? t('video.parse')"
-            :detail="activeDownload?.step || (parsing ? t('video.parsing') : t('video.preparing'))"
+            :title="t('video.parse')"
+            :detail="t('video.parsing')"
           />
 
           <div v-if="!entries.length && !parsing" class="empty">
@@ -420,21 +406,19 @@ useWindowEvent("keydown", (ev) => {
 
           <div v-else-if="entries.length" class="grid">
             <article v-for="e in entries" :key="e.key" class="video" :class="e.status">
-              <div class="thumb" :title="t('video.playOnline')" @click="openPlayer(e)">
+              <div class="thumb" :title="t('video.play')" @click="openPlayer(e)">
                 <img :src="e.info.cover" alt="" referrerpolicy="no-referrer" loading="lazy" />
                 <span class="play-icon"><Play :size="22" /></span>
                 <span class="badge left">{{ formatDuration(e.info.duration) }}</span>
                 <span v-if="e.info.pages.length > 1" class="badge right">{{ e.info.pages.length }} P</span>
                 <button class="close" :title="t('video.remove')" @click.stop="removeEntry(e)"><X :size="13" /></button>
-                <!-- 下载进度盖在画面底部 -->
-                <ProgressBar v-if="e.status === 'working'" class="cover-progress" :value="e.progress" />
               </div>
 
               <div class="body">
                 <h4 class="title" :title="e.info.title">{{ e.info.title }}</h4>
                 <p class="meta">{{ e.info.owner }} · {{ pubdate(e.info.pubdate) }}</p>
                 <p class="meta">
-                  <template v-if="e.qualities.length">{{ t("video.bestAvailable", { q: e.qualities[0].label }) }}<template v-if="want.video && actualQuality(e)">{{ t("video.willDownload", { q: actualQuality(e)!.label }) }}</template></template>
+                  <template v-if="e.qualities.length">{{ t("video.bestAvailable", { q: e.qualities[0].label }) }}<template v-if="actualQuality(e)">{{ t("video.willDownload", { q: actualQuality(e)!.label }) }}</template></template>
                   <template v-else>{{ t("video.qualityUnknown") }}</template>
                 </p>
 
@@ -468,23 +452,22 @@ useWindowEvent("keydown", (ev) => {
                   </div>
                 </template>
 
-                <p v-if="e.status === 'working'" class="status">{{ e.step }}</p>
+                <div v-if="e.status === 'working'" class="download-progress"><ProgressBar :value="e.progress" /><p class="status">{{ e.step }} · {{ Math.round(e.progress * 100) }}%</p></div>
                 <p v-else-if="e.status === 'done'" class="status ok">{{ t("video.savedResult", { result: e.result }) }}<template v-if="e.message">{{ t("video.paren", { text: e.message }) }}</template></p>
                 <p v-else-if="e.status === 'error'" class="status bad">{{ e.message }}</p>
 
                 <div class="foot">
-                  <button v-if="e.status === 'working'" class="btn small" @click="cancel(e)"><Square :size="12" />{{ t("video.cancel") }}</button>
+                  <button v-if="e.status === 'working'" class="btn small" @click="cancel(e)"><Square :size="12" /><span>{{ t("video.cancel") }}</span></button>
                   <button
                     v-else
                     class="btn small primary"
-                    :disabled="!e.selected.length || nothingWanted || mode === 'browser'"
-                    :title="nothingWanted ? t('video.checkContent') : ''"
+                    :disabled="!e.selected.length || mode === 'browser'"
                     @click="download(e)"
                   >
-                    <Download :size="13" />{{ e.status === "done" ? t("video.redownload") : e.parts.length > 1 ? t("video.downloadParts", { n: e.selected.length }) : t("video.download") }}
+                    <Download :size="13" /><span>{{ e.status === "done" ? t("video.redownload") : e.parts.length > 1 ? t("video.downloadParts", { n: e.selected.length }) : t("video.download") }}</span>
                   </button>
-                  <button class="btn small subtle" :title="t('video.play720Title')" @click="openPlayer(e)"><Play :size="13" />{{ t("video.play") }}</button>
-                  <button v-if="e.status === 'done' && desktop && folder" class="btn small subtle" @click="revealFolder(folder)"><ExternalLink :size="13" />{{ t("video.openFolder") }}</button>
+                  <button class="btn small subtle" :title="t('video.play')" @click="openPlayer(e)"><Play :size="13" /><span>{{ t("video.play") }}</span></button>
+                  <button v-if="desktop && e.status !== 'working' && savedFile(e)" class="btn small subtle" :title="t('video.openFolder')" @click="reveal(e)"><ExternalLink :size="13" /><span>{{ t("video.openFolder") }}</span></button>
                 </div>
               </div>
             </article>
@@ -505,7 +488,7 @@ useWindowEvent("keydown", (ev) => {
           <button class="icon-btn" :title="t('video.closeEsc')" @click="closePlayer"><X :size="16" /></button>
         </div>
         <div class="screen">
-          <video v-if="player.url" :key="player.url" :src="player.url" controls autoplay @ended="onEnded" />
+          <video v-if="player.url" :key="player.url" :src="player.url" controls autoplay @ended="onEnded" @error="playFailed" />
           <span v-else-if="player.loading" class="screen-state"><LoaderCircle :size="18" class="spin" />{{ t("video.gettingPlayUrl") }}</span>
           <span v-else class="screen-state bad">{{ player.error }}</span>
         </div>
@@ -521,7 +504,7 @@ useWindowEvent("keydown", (ev) => {
             {{ t("video.nextPart") }}<SkipForward :size="13" />
           </button>
         </div>
-        <p class="player-tip">{{ t("video.playerTip") }}</p>
+        <p class="player-tip">{{ t("video.localPlaybackTip") }}</p>
       </div>
     </div>
   </div>
@@ -577,23 +560,8 @@ h3 {
   font-weight: 500;
   color: var(--text-2);
 }
-.wants {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
 .tip {
   line-height: 1.6;
-}
-.path {
-  margin: 0;
-  font-size: 12px;
-  color: var(--text-2);
-  word-break: break-all;
-}
-.row-btns {
-  display: flex;
-  gap: 6px;
 }
 .login-head {
   cursor: pointer;
@@ -709,6 +677,8 @@ h3 {
   opacity: 1;
 }
 .thumb img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -750,14 +720,6 @@ h3 {
   opacity: 1;
 }
 /* 盖在封面底部 */
-.cover-progress {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  border-radius: 0;
-  background: rgba(0, 0, 0, 0.3);
-}
 .body {
   flex: 1;
   display: flex;
@@ -856,10 +818,15 @@ h3 {
 }
 .foot {
   display: flex;
-  gap: 6px;
+  flex-wrap: nowrap;
+  min-width: 0;
+  gap: 4px;
   margin-top: auto;
   padding-top: 8px;
 }
+.foot .btn { flex: 0 1 auto; min-width: 0; gap: 4px; padding: 0 6px; }
+.foot .btn > svg { flex-shrink: 0; }
+.foot .btn > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* 播放器 */
 .player-mask {
   position: fixed;
@@ -946,4 +913,5 @@ h3 {
   font-size: 11.5px;
   color: var(--text-3);
 }
+.download-progress { display: flex; flex-direction: column; gap: 5px; padding-top: 6px; }
 </style>

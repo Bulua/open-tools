@@ -2,6 +2,7 @@ import { isTauri } from "@tauri-apps/api/core";
 import { fetchBytes } from "@/tools/network/http";
 import { t } from "@/locales";
 import { safeFileName } from "./bilibili";
+import { groupVideoQualities, type VideoQuality } from "./videoQuality";
 
 /**
  * 抖音下载（无水印）：
@@ -66,6 +67,7 @@ export interface DouyinItem {
   duration: number;
   /** 无水印视频地址（从优先到备用） */
   videoUrls: string[];
+  videoQualities?: VideoQuality[];
   /** 视频分辨率，例如 1080×1920 */
   resolution: string;
   /** 图文：每张无水印原图的地址（从优先到备用）；实况照片附带视频地址 */
@@ -86,6 +88,11 @@ export function toItem(a: RawAweme): DouyinItem {
   const videoUrls = [...new Set([...(best?.urls ?? []), ...a.video].map(withoutWatermark))];
   const w = best?.width || a.width;
   const h = best?.height || a.height;
+  const videoQualities = groupVideoQualities([
+    ...a.rates.map((r) => ({ ...r, urls: r.urls.map(withoutWatermark) })),
+    // 原始播放地址只用于相同分辨率的档位，不能充当其他清晰度的备用地址。
+    { width: a.width, height: a.height, bitrate: 0, h265: false, urls: a.video.map(withoutWatermark) },
+  ]);
   return {
     id: a.id,
     type: images.length ? "images" : "video",
@@ -95,6 +102,7 @@ export function toItem(a: RawAweme): DouyinItem {
     cover: a.cover,
     duration: Math.round((a.duration || 0) / 1000),
     videoUrls,
+    videoQualities: images.length ? [] : videoQualities,
     resolution: w && h ? `${w}×${h}` : "",
     images: images.map((i) => ({ urls: [...i.urls].sort((x, y) => imageRank(x) - imageRank(y)), live: i.live.map(withoutWatermark) })),
     music: a.music,

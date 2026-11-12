@@ -17,7 +17,7 @@ const video: Category = {
     {
       id: "bilibili-download",
       name: "B 站视频下载",
-      desc: "粘贴 B 站视频链接，下载视频（MP4）、音频、封面和弹幕；支持多 P、选择清晰度和编码，登录后可下载高清",
+      desc: "粘贴 B 站链接下载视频，自动选择画质并保存到程序数据目录，支持多 P 和下载后本地播放",
       icon: Tv,
       component: defineAsyncComponent(() => import("./components/BilibiliDownload.vue")),
     },
@@ -25,9 +25,17 @@ const video: Category = {
       id: "douyin-download",
       platforms: ["desktop", "web"],
       name: "抖音下载",
-      desc: "粘贴抖音分享链接，下载无水印视频、图文原图、实况照片、背景音乐和封面（桌面版）",
+      desc: "粘贴抖音分享链接，自动识别视频、图文和实况照片，保存到程序数据目录（桌面版）",
       icon: Music2,
       component: defineAsyncComponent(() => import("./components/DouyinDownload.vue")),
+    },
+    {
+      id: "xiaohongshu-download",
+      platforms: ["desktop", "web"],
+      name: "小红书下载",
+      desc: "粘贴小红书分享链接，自动识别视频或图集，保存到程序数据目录（桌面版）",
+      icon: FileImage,
+      component: defineAsyncComponent(() => import("./components/XiaohongshuDownload.vue")),
     },
     {
       id: "video-to-audio",

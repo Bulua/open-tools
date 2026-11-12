@@ -56,6 +56,7 @@ describe("平台可用性", () => {
       "screenshot-history",
       "tts",
       "word-to-pdf",
+      "xiaohongshu-download",
     ]);
   });
 });

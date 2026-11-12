@@ -34,7 +34,7 @@ Formatting JSON, decoding Base64, converting timestamps, or compressing images o
 
 ## Features
 
-9 categories and 63 tools:
+9 categories and 64 tools:
 
 | Category | Tools |
 | --- | --- |
@@ -44,7 +44,7 @@ Formatting JSON, decoding Base64, converting timestamps, or compressing images o
 | Calculators & converters | Calculator, unit conversion, number bases, color conversion |
 | Images | Screenshots and desktop pinning (Windows), compression, format conversion, cropping, rotation, color adjustment, stitching, mosaic, watermarks, background removal (including AI subject detection), watermark removal (AI inpainting), color picker, DPI change, ICO generation |
 | Audio | Format conversion (including extracting audio from video), trimming, joining, recording, text to speech |
-| Video | Bilibili video download (with in-app playback), Douyin download without watermark, video to audio (copy the original track or convert to MP3/M4A/WAV), video to GIF, video trimming (length and picture), video concatenation, background music, screen recording, camera recording |
+| Video | Bilibili video download (with in-app playback), Douyin download without watermark, RedNote video and photo download (desktop, automatic content detection and local playback), video to audio (copy the original track or convert to MP3/M4A/WAV), video to GIF, video trimming (length and picture), video concatenation, background music, screen recording, camera recording |
 | Documents & files | Word to PDF, PDF to Word, Word watermarks and watermark removal, PDF page editing, PDF watermark removal, Markdown editing/preview and Word export, archiving and extraction |
 | Network | HTTP request client, IP address and location lookup, ping, HTTP headers to JSON/cURL |
 
@@ -93,6 +93,7 @@ Processing is local unless a feature explicitly needs network access:
 - **Update checks:** Read release metadata from Gitee or GitHub without sending your files.
 - **IP lookup:** Query public services (ip-api.com, ipwho.is, then ipapi.co). The queried IP is sent to the provider; ip-api.com uses unencrypted HTTP.
 - **Ping:** Send a ping to the host you enter.
+- **Video downloads:** Contact the selected video platform and its media servers. If a direct RedNote request fails, the desktop app loads the share page in a hidden window; share URL parameters are sent to RedNote.
 - **AI background-removal model downloads:** Download a model only when you request it (the AI runtime, ONNX Runtime, ships with the installer), from ModelScope first and Hugging Face if that fails. Your images are processed locally.
 - **Remote images in Markdown:** When exporting Markdown that references an HTTP(S) image to Word, the app fetches that image from its URL.
 
