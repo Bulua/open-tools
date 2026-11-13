@@ -38,18 +38,66 @@ impl RemoteFile {
 
 /// 下载源：id 与仓库地址（后面接 RemoteFile.path）。默认按这个顺序尝试
 const SOURCES: &[(&str, &str)] = &[
-    ("modelscope", "https://www.modelscope.cn/models/sebponk/open-tools-models/resolve/master/"),
-    ("huggingface", "https://huggingface.co/penghui002/open-tools-models/resolve/main/"),
+    (
+        "modelscope",
+        "https://www.modelscope.cn/models/sebponk/open-tools-models/resolve/master/",
+    ),
+    (
+        "huggingface",
+        "https://huggingface.co/penghui002/open-tools-models/resolve/main/",
+    ),
 ];
 
 /// 可下载的模型：去背景的来自开源项目 rembg；去水印（图片修补）的是 LaMa 和 MI-GAN
 const MODELS: &[(&str, RemoteFile)] = &[
-    ("u2netp", RemoteFile { path: "models/u2netp.onnx", size: 4_574_861, sha256: "309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8" }),
-    ("silueta", RemoteFile { path: "models/silueta.onnx", size: 44_173_029, sha256: "75da6c8d2f8096ec743d071951be73b4a8bc7b3e51d9a6625d63644f90ffeedb" }),
-    ("isnet-general-use", RemoteFile { path: "models/isnet-general-use.onnx", size: 178_648_008, sha256: "60920e99c45464f2ba57bee2ad08c919a52bbf852739e96947fbb4358c0d964a" }),
-    ("u2net_human_seg", RemoteFile { path: "models/u2net_human_seg.onnx", size: 175_997_641, sha256: "01eb6a29a5c4d8edb30b56adad9bb3a2a0535338e480724a213e0acfd2d1c73c" }),
-    ("lama", RemoteFile { path: "models/lama.onnx", size: 208_044_816, sha256: "1faef5301d78db7dda502fe59966957ec4b79dd64e16f03ed96913c7a4eb68d6" }),
-    ("migan", RemoteFile { path: "models/migan.onnx", size: 29_546_882, sha256: "593eba0b7e04730f1b61c0a3cbca68d97d8d6a7ff5c6a44a7b9d7fcd880fc5ae" }),
+    (
+        "u2netp",
+        RemoteFile {
+            path: "models/u2netp.onnx",
+            size: 4_574_861,
+            sha256: "309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8",
+        },
+    ),
+    (
+        "silueta",
+        RemoteFile {
+            path: "models/silueta.onnx",
+            size: 44_173_029,
+            sha256: "75da6c8d2f8096ec743d071951be73b4a8bc7b3e51d9a6625d63644f90ffeedb",
+        },
+    ),
+    (
+        "isnet-general-use",
+        RemoteFile {
+            path: "models/isnet-general-use.onnx",
+            size: 178_648_008,
+            sha256: "60920e99c45464f2ba57bee2ad08c919a52bbf852739e96947fbb4358c0d964a",
+        },
+    ),
+    (
+        "u2net_human_seg",
+        RemoteFile {
+            path: "models/u2net_human_seg.onnx",
+            size: 175_997_641,
+            sha256: "01eb6a29a5c4d8edb30b56adad9bb3a2a0535338e480724a213e0acfd2d1c73c",
+        },
+    ),
+    (
+        "lama",
+        RemoteFile {
+            path: "models/lama.onnx",
+            size: 208_044_816,
+            sha256: "1faef5301d78db7dda502fe59966957ec4b79dd64e16f03ed96913c7a4eb68d6",
+        },
+    ),
+    (
+        "migan",
+        RemoteFile {
+            path: "models/migan.onnx",
+            size: 29_546_882,
+            sha256: "593eba0b7e04730f1b61c0a3cbca68d97d8d6a7ff5c6a44a7b9d7fcd880fc5ae",
+        },
+    ),
 ];
 
 /// 运行环境的版本：换版本时改这里，新版本下载到新的文件夹，旧模型不受影响。
@@ -59,8 +107,16 @@ const RUNTIME_VERSION: &str = "1.24.4";
 /// 运行环境的文件：ONNX Runtime（带 DirectML 显卡加速）及其依赖的 DirectML
 #[cfg(windows)]
 const RUNTIME_FILES: &[RemoteFile] = &[
-    RemoteFile { path: "runtime/1.24.4/win-x64/onnxruntime.dll", size: 17_328_152, sha256: "e7eedec6a6f26dc39dc948276a75ef6d2bee3fff944d874ceed0bbd3b97bff40" },
-    RemoteFile { path: "runtime/1.24.4/win-x64/DirectML.dll", size: 18_527_776, sha256: "9c9e6d822561c6c41b90e6994b3e8857cf1d66dbfb1e0c4c799c7c89b4e92da1" },
+    RemoteFile {
+        path: "runtime/1.24.4/win-x64/onnxruntime.dll",
+        size: 17_328_152,
+        sha256: "e7eedec6a6f26dc39dc948276a75ef6d2bee3fff944d874ceed0bbd3b97bff40",
+    },
+    RemoteFile {
+        path: "runtime/1.24.4/win-x64/DirectML.dll",
+        size: 18_527_776,
+        sha256: "9c9e6d822561c6c41b90e6994b3e8857cf1d66dbfb1e0c4c799c7c89b4e92da1",
+    },
 ];
 /// 其他平台以后再加
 #[cfg(not(windows))]
@@ -75,7 +131,11 @@ pub const RUNTIME_LIB: &str = "libonnxruntime.dylib";
 pub const RUNTIME_LIB: &str = "libonnxruntime.so";
 
 fn model_file(id: &str) -> Result<&'static RemoteFile, String> {
-    MODELS.iter().find(|(m, _)| *m == id).map(|(_, f)| f).ok_or_else(|| format!("Unknown model: {id}"))
+    MODELS
+        .iter()
+        .find(|(m, _)| *m == id)
+        .map(|(_, f)| f)
+        .ok_or_else(|| format!("Unknown model: {id}"))
 }
 
 fn models_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
@@ -85,7 +145,11 @@ fn models_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
 /// 安装包自带的运行环境（安装目录下的 ai-runtime，见 tauri.conf.json 的 bundle.resources）；文件不完整时返回 None
 fn bundled_runtime_dir<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
     let dir = app.path().resource_dir().ok()?.join("ai-runtime");
-    (!RUNTIME_FILES.is_empty() && RUNTIME_FILES.iter().all(|f| complete(&dir.join(f.name()), f))).then_some(dir)
+    (!RUNTIME_FILES.is_empty()
+        && RUNTIME_FILES
+            .iter()
+            .all(|f| complete(&dir.join(f.name()), f)))
+    .then_some(dir)
 }
 
 /// 运行环境所在的文件夹：优先用安装包自带的；没有或不完整（如版本不同）时用数据文件夹里下载的那份
@@ -104,9 +168,15 @@ fn complete(path: &Path, file: &RemoteFile) -> bool {
 }
 
 /// 运行环境缺少的文件及保存位置
-fn missing_runtime<R: Runtime>(app: &AppHandle<R>) -> Result<Vec<(&'static RemoteFile, PathBuf)>, String> {
+fn missing_runtime<R: Runtime>(
+    app: &AppHandle<R>,
+) -> Result<Vec<(&'static RemoteFile, PathBuf)>, String> {
     let dir = runtime_dir(app)?;
-    Ok(RUNTIME_FILES.iter().map(|f| (f, dir.join(f.name()))).filter(|(f, p)| !complete(p, f)).collect())
+    Ok(RUNTIME_FILES
+        .iter()
+        .map(|f| (f, dir.join(f.name())))
+        .filter(|(f, p)| !complete(p, f))
+        .collect())
 }
 
 pub fn runtime_ready<R: Runtime>(app: &AppHandle<R>) -> bool {
@@ -141,7 +211,11 @@ pub struct AiStatus {
 #[tauri::command]
 pub fn ai_status(app: AppHandle) -> Result<AiStatus, String> {
     let dir = models_dir(&app)?;
-    let models = MODELS.iter().filter(|(_, f)| complete(&dir.join(f.name()), f)).map(|(id, _)| id.to_string()).collect();
+    let models = MODELS
+        .iter()
+        .filter(|(_, f)| complete(&dir.join(f.name()), f))
+        .map(|(id, _)| id.to_string())
+        .collect();
     let missing = missing_runtime(&app)?;
     Ok(AiStatus {
         models,
@@ -177,7 +251,13 @@ struct Tracker {
 impl Tracker {
     fn publish(&self) {
         if let Ok(mut map) = PROGRESS.lock() {
-            map.insert(self.id.clone(), Progress { done: self.finished + self.current, total: self.total });
+            map.insert(
+                self.id.clone(),
+                Progress {
+                    done: self.finished + self.current,
+                    total: self.total,
+                },
+            );
         }
     }
     fn set_current(&mut self, bytes: u64) {
@@ -202,9 +282,18 @@ fn source_order(preferred: Option<&str>) -> Vec<&'static str> {
 
 /// 下载模型；运行环境缺少的文件一起下载。耗时较长，进度用 ai_model_progress 查询
 #[tauri::command]
-pub async fn ai_model_download(app: AppHandle, id: String, source: Option<String>) -> Result<(), String> {
+pub async fn ai_model_download(
+    app: AppHandle,
+    id: String,
+    source: Option<String>,
+) -> Result<(), String> {
     let model = model_file(&id)?;
-    let mut tracker = Tracker { id: id.clone(), finished: 0, current: 0, total: 0 };
+    let mut tracker = Tracker {
+        id: id.clone(),
+        finished: 0,
+        current: 0,
+        total: 0,
+    };
     tracker.publish();
     let _lock = DOWNLOADING.lock().await;
 
@@ -236,7 +325,13 @@ pub async fn ai_model_download(app: AppHandle, id: String, source: Option<String
 }
 
 /// 依次尝试各个下载源，下载并校验一个文件
-async fn download_file(client: &reqwest::Client, file: &RemoteFile, target: &Path, sources: &[&str], tracker: &mut Tracker) -> Result<(), String> {
+async fn download_file(
+    client: &reqwest::Client,
+    file: &RemoteFile,
+    target: &Path,
+    sources: &[&str],
+    tracker: &mut Tracker,
+) -> Result<(), String> {
     let part = target.with_file_name(format!("{}.part", file.name()));
     let mut last_error = String::new();
     for base in sources {
@@ -247,7 +342,8 @@ async fn download_file(client: &reqwest::Client, file: &RemoteFile, target: &Pat
         };
         match result {
             Ok(()) => {
-                std::fs::rename(&part, target).map_err(|e| format!("Can't save {}: {e}", file.name()))?;
+                std::fs::rename(&part, target)
+                    .map_err(|e| format!("Can't save {}: {e}", file.name()))?;
                 tracker.finish_file();
                 return Ok(());
             }
@@ -259,7 +355,13 @@ async fn download_file(client: &reqwest::Client, file: &RemoteFile, target: &Pat
 }
 
 /// 下载到 part 文件；part 已有一部分时从断点继续（服务器不支持时从头下载）
-async fn fetch(client: &reqwest::Client, url: &str, part: &Path, file: &RemoteFile, tracker: &mut Tracker) -> Result<(), String> {
+async fn fetch(
+    client: &reqwest::Client,
+    url: &str,
+    part: &Path,
+    file: &RemoteFile,
+    tracker: &mut Tracker,
+) -> Result<(), String> {
     let mut have = std::fs::metadata(part).map(|m| m.len()).unwrap_or(0);
     if file.size > 0 && have >= file.size {
         if have == file.size {
@@ -297,11 +399,13 @@ async fn fetch(client: &reqwest::Client, url: &str, part: &Path, file: &RemoteFi
         .map_err(|e| format!("Can't save {}: {e}", file.name()))?;
     tracker.set_current(have);
     while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
-        out.write_all(&chunk).map_err(|e| format!("Can't save {}: {e}", file.name()))?;
+        out.write_all(&chunk)
+            .map_err(|e| format!("Can't save {}: {e}", file.name()))?;
         have += chunk.len() as u64;
         tracker.set_current(have);
     }
-    out.flush().map_err(|e| format!("Can't save {}: {e}", file.name()))
+    out.flush()
+        .map_err(|e| format!("Can't save {}: {e}", file.name()))
 }
 
 /// 检查大小和校验值。不完整时保留 part 文件，换下载源后接着下载；校验值不对时删除重新下载
@@ -328,13 +432,21 @@ fn sha256_of(path: &Path) -> Result<String, String> {
         }
         hasher.update(&buf[..n]);
     }
-    Ok(hasher.finalize().iter().map(|b| format!("{b:02x}")).collect())
+    Ok(hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect())
 }
 
 /// 正在下载的模型的进度；没有在下载时都是 0
 #[tauri::command]
 pub fn ai_model_progress(id: String) -> Progress {
-    PROGRESS.lock().ok().and_then(|map| map.get(&id).copied()).unwrap_or_default()
+    PROGRESS
+        .lock()
+        .ok()
+        .and_then(|map| map.get(&id).copied())
+        .unwrap_or_default()
 }
 
 /// 删除已下载的模型，释放空间（运行环境保留，其他模型还要用）

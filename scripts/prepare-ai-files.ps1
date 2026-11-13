@@ -1,6 +1,6 @@
 # Prepare the files hosted on ModelScope / Hugging Face for in-app AI downloads.
 # Builds a folder laid out exactly like the hosting repos (models/..., runtime/<version>/win-x64/...),
-# then prints each file's size and SHA-256 for the catalog in src-tauri/src/tools/image/ai_models.rs.
+# then prints each file's size and SHA-256 for the catalog in src-tauri/src/tools/image/shared/ai_models.rs.
 #
 # Usage (from the repo root, Windows PowerShell):
 #   powershell -ExecutionPolicy Bypass -File scripts/prepare-ai-files.ps1 -Out D:\ai-files
@@ -64,7 +64,7 @@ Get-FromNuGet 'Microsoft.AI.DirectML' $DirectMLVersion 'bin\x64-win\DirectML.dll
 Copy-Item (Join-Path $PSScriptRoot 'ai-files\*.md') $Out
 
 Write-Host ''
-Write-Host 'Catalog entries for src-tauri/src/tools/image/ai_models.rs:'
+Write-Host 'Catalog entries for src-tauri/src/tools/image/shared/ai_models.rs:'
 $root = (Resolve-Path $Out).Path.TrimEnd('\') + '\'
 Get-ChildItem -Recurse -File $Out | Where-Object { $_.Extension -notin '.part', '.md' } | Sort-Object FullName | ForEach-Object {
   $rel = $_.FullName.Substring($root.Length).Replace('\', '/')

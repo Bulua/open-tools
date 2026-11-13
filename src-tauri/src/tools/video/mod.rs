@@ -1,2 +1,2 @@
-pub(crate) mod douyin;
-pub(crate) mod hdr;
+pub(crate) mod douyin_download;
+pub(crate) mod shared;

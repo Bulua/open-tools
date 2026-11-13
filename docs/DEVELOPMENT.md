@@ -89,15 +89,29 @@ open-tools/
 │   ├── capabilities/        # 前端可调用的系统能力（权限白名单）
 │   ├── icons/               # 应用图标（由 app-icon.png 生成）
 │   └── src/                 # Rust 入口与插件注册
-│       ├── core/            # 数据路径、脚本执行、托盘与应用图标
-│       └── tools/           # 需要 Rust 能力的工具，按领域分类
-│           ├── audio/       # 语音合成与脚本
-│           ├── document/    # Office/PDF 转换与脚本
-│           ├── image/       # AI 模型下载与推理
-│           ├── network/     # Ping、本机 IP
-│           ├── text/        # 密码本
-│           ├── time/        # 倒计时
-│           └── video/       # 抖音获取、录屏 HDR
+│       ├── core/            # 全应用基础能力：路径、进程输出、脚本、托盘、图标
+│       └── tools/           # 只为需要原生能力的工具建立目录
+│           ├── audio/
+│           │   └── tts/                 # commands.rs、tts.ps1
+│           ├── document/
+│           │   ├── word_to_pdf/         # Word/WPS 转 PDF 命令与脚本
+│           │   ├── pdf_to_word/         # PDF 转 Word 命令与脚本
+│           │   └── shared/              # Office 引擎检测与通用转换流程
+│           ├── encode/
+│           │   ├── password_vault/      # 密码本文件读写
+│           │   └── clipboard_history/   # 命令协调、Windows API、加密存储
+│           ├── image/
+│           │   ├── screenshot_history/  # 截图命令、捕获、窗口、剪贴板、状态与存储
+│           │   └── shared/              # AI 模型管理、ONNX 推理
+│           ├── network/
+│           │   ├── ping/                # 系统 Ping
+│           │   └── ip_lookup/           # 本机局域网 IP
+│           ├── utility/
+│           │   ├── calendar/            # 日历备注与通知
+│           │   └── countdown/           # 倒计时读写
+│           └── video/
+│               ├── douyin_download/     # 抖音信息获取命令与页面脚本
+│               └── shared/              # 录制相关的 HDR 状态管理
 ├── branding/                # 远程图标：不发新版本也能换图标，历史图标都在这里
 └── app-icon.png             # 图标源文件（1024×1024，四角透明）
 ```
@@ -110,6 +124,16 @@ open-tools/
 - 压缩与格式转换、屏幕与摄像头录制等工具各有独立 Vue 入口，通过固定参数复用 `shared/components/` 的页面，避免复制实现。
 - 逻辑测试用 `*.test.ts`；组件测试用 `*.component.test.ts`，与被测文件放在一起，避免 Windows 下仅大小写不同的文件名冲突。
 - 翻译加载器自动收集 `src/tools/*/*/locales.ts`，递归合并同一命名空间中的文案，原有 key 保持稳定。
+
+### Rust 工具目录约定
+
+- Rust 工具按 `src-tauri/src/tools/<模块>/<工具ID>/` 组织，与前端对应。模块名尽量一致；Rust 目录使用下划线，例如前端 `clipboard-history` 对应 Rust `clipboard_history`。
+- 只有需要原生能力的工具才建立 Rust 目录。`mod.rs` 只声明模块；前端调用入口放 `commands.rs`。简单工具可将内部辅助逻辑保留在该文件，复杂工具再拆分职责。
+- 专用 PowerShell / JavaScript 脚本与所属工具一起存放，通过同目录的 `include_str!` 嵌入。多个工具共用的能力放领域模块 `shared/`，全应用基础能力放 `core/`。
+- 截图工具的 `commands.rs` 协调命令，`capture.rs` 负责 Windows 捕获，`clipboard.rs` 负责复制图片，`windows.rs` 管理截图层与贴图窗口，`state.rs` 管理草稿与并发状态，`store.rs` 管理历史文件，`types.rs` 定义序列化数据。
+- `core/` 不依赖具体工具的实现。托盘的工具动作由 `lib.rs` 注入回调；外部进程输出解码在 `core/process.rs`，供脚本执行和 Ping 共用；数据路径继续统一使用 `core/paths.rs`。
+- 插件初始化和 IPC 命令注册仍在 `src-tauri/src/lib.rs`。调整内部模块路径时保留命令名、参数、返回字段和事件名，避免影响前端及权限配置。
+- Windows 专用模块在领域入口用 `#[cfg(windows)]` 限定，平台判断按原有行为保留。完整原生验证在 Windows 上执行 `cargo test --locked --manifest-path src-tauri/Cargo.toml`；Linux 检查需要额外安装 GTK/WebKit 等开发依赖。
 
 ## 新增一个工具
 
@@ -311,9 +335,9 @@ const { t } = useI18n();
 ## 数据存放与 AI 模型
 
 - **数据文件夹**：程序自己保存的数据（密码本、倒计时、AI 模型与运行环境、远程图标）统一通过 `src-tauri/src/core/paths.rs` 的 `data_dir()` / `sub_dir()` 取位置，不要再直接用 `app_local_data_dir()` 或安装目录。Windows 上是安装目录下的 `data`，安装目录不能写时退回 `%LOCALAPPDATA%\com.opentools.app`；Android 使用系统提供的应用数据目录。旧版本的数据在启动时由 `paths::migrate()` 搬过来；倒计时以前存在 localStorage，由前端第一次读取时写进 `countdowns.json`（见 `countdownStore.ts`）。界面设置仍由各平台的 WebView 存在 localStorage 里，不在这个文件夹。
-- **AI 推理在 Rust 里**：`src-tauri/src/tools/image/inference.rs` 用 `ort` 动态加载 ONNX Runtime，只用 CPU 多线程计算（DirectML 显卡加速跑不了 LaMa 等模型，已不再使用）。前端只做预处理、后处理，通过 `ai_run` 命令传入输入张量（请求体，多个输入依次拼接）、形状（请求头 `x-shape`，多个输入用分号隔开）和数据类型（请求头 `x-dtype`，`f32` 或 `u8`），见 `src/tools/image/shared/aiModels.ts` 的 `runModel()`、`runModelRaw()`。网页版不支持 AI 功能。
-- **运行环境随安装包带上，模型不打包**：`onnxruntime.dll`、`DirectML.dll` 直接提交在 `src-tauri/ai-runtime/`，由 `tauri.conf.json` 的 `bundle.resources` 装到安装目录的 `ai-runtime` 里，程序优先用这一份（`ai_models.rs` 的 `runtime_dir()`）；没有或文件大小对不上时，第一次下载模型时自动把运行环境下载到数据文件夹，作为兜底。模型由用户选择下载。可下载的文件、大小、SHA-256 写在 `src-tauri/src/tools/image/ai_models.rs`，每个文件在魔搭（[sebponk/open-tools-models](https://www.modelscope.cn/models/sebponk/open-tools-models)）和 Hugging Face（[penghui002/open-tools-models](https://huggingface.co/penghui002/open-tools-models)）各放一份，路径相同。
-- **新增模型或升级运行环境**：用 `scripts/prepare-ai-files.ps1` 下载、整理文件并输出大小和校验值，把文件上传到两个仓库（两个仓库的 README.md、LICENSE.md 在 `scripts/ai-files/`，脚本会一起放进去，新增文件时记得在里面补上来源和许可证），再把输出填进 `src-tauri/src/tools/image/ai_models.rs`。升级 ONNX Runtime 时同时改 `RUNTIME_VERSION`、`Cargo.toml` 里 `ort` 的 `api-NN` 特性，并替换 `src-tauri/ai-runtime/` 里的文件。注意带 DirectML 的 ONNX Runtime 最后一个版本是 1.24.4，之后微软不再单独发布这个包。
+- **AI 推理在 Rust 里**：`src-tauri/src/tools/image/shared/inference.rs` 用 `ort` 动态加载 ONNX Runtime，只用 CPU 多线程计算（DirectML 显卡加速跑不了 LaMa 等模型，已不再使用）。前端只做预处理、后处理，通过 `ai_run` 命令传入输入张量（请求体，多个输入依次拼接）、形状（请求头 `x-shape`，多个输入用分号隔开）和数据类型（请求头 `x-dtype`，`f32` 或 `u8`），见 `src/tools/image/shared/aiModels.ts` 的 `runModel()`、`runModelRaw()`。网页版不支持 AI 功能。
+- **运行环境随安装包带上，模型不打包**：`onnxruntime.dll`、`DirectML.dll` 直接提交在 `src-tauri/ai-runtime/`，由 `tauri.conf.json` 的 `bundle.resources` 装到安装目录的 `ai-runtime` 里，程序优先用这一份（`ai_models.rs` 的 `runtime_dir()`）；没有或文件大小对不上时，第一次下载模型时自动把运行环境下载到数据文件夹，作为兜底。模型由用户选择下载。可下载的文件、大小、SHA-256 写在 `src-tauri/src/tools/image/shared/ai_models.rs`，每个文件在魔搭（[sebponk/open-tools-models](https://www.modelscope.cn/models/sebponk/open-tools-models)）和 Hugging Face（[penghui002/open-tools-models](https://huggingface.co/penghui002/open-tools-models)）各放一份，路径相同。
+- **新增模型或升级运行环境**：用 `scripts/prepare-ai-files.ps1` 下载、整理文件并输出大小和校验值，把文件上传到两个仓库（两个仓库的 README.md、LICENSE.md 在 `scripts/ai-files/`，脚本会一起放进去，新增文件时记得在里面补上来源和许可证），再把输出填进 `src-tauri/src/tools/image/shared/ai_models.rs`。升级 ONNX Runtime 时同时改 `RUNTIME_VERSION`、`Cargo.toml` 里 `ort` 的 `api-NN` 特性，并替换 `src-tauri/ai-runtime/` 里的文件。注意带 DirectML 的 ONNX Runtime 最后一个版本是 1.24.4，之后微软不再单独发布这个包。
 - **VC++ 运行库随安装包带上**：`onnxruntime.dll` 依赖 `msvcp140.dll`、`msvcp140_1.dll`、`vcruntime140.dll`、`vcruntime140_1.dll`，没装过 VC++ 运行库的电脑会加载失败（主程序自己是静态链接的，不受影响）。GitHub Actions 打包前从 Visual Studio 的可再发行目录（`VC\Redist\MSVC\<版本>\x64\Microsoft.VC*.CRT`）取出这几个文件放到 `src-tauri/vcredist/`（不提交），再通过 `tauri.vcredist.conf.json` 装到安装目录、和 `open-tools.exe` 放在一起；Windows 给 `onnxruntime.dll` 找依赖时会先找程序所在的文件夹。本机打包要带上它们时，自己把文件放进 `src-tauri/vcredist/` 并加 `--config src-tauri/tauri.vcredist.conf.json`。升级 ONNX Runtime 后如果依赖的运行库文件变了，同时改 `build.yml` 里的文件列表和 `tauri.vcredist.conf.json`。
 
 ## 修改应用图标

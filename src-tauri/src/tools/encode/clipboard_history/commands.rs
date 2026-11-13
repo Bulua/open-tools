@@ -1,7 +1,6 @@
 //! Windows 剪贴板历史。监听与磁盘写入独立于 WebView 的生命周期。
 
-mod native;
-mod store;
+use super::{native, store};
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

@@ -28,18 +28,31 @@ fn build_menu<R: Runtime, M: Manager<R>>(
     #[cfg(windows)]
     {
         let clipboard = MenuItem::with_id(manager, "clipboard", clipboard, true, None::<&str>)?;
-        let toggle = MenuItem::with_id(manager, "clipboard-toggle", clipboard_toggle, true, None::<&str>)?;
+        let toggle = MenuItem::with_id(
+            manager,
+            "clipboard-toggle",
+            clipboard_toggle,
+            true,
+            None::<&str>,
+        )?;
         return Menu::with_items(manager, &[&show, &clipboard, &toggle, &quit]);
     }
     #[cfg(not(windows))]
     Menu::with_items(manager, &[&show, &quit])
 }
 
-pub fn setup<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
+pub fn setup<R: Runtime>(
+    app: &App<R>,
+    #[cfg(windows)] clipboard_action: fn(&AppHandle<R>, bool) -> Result<(), String>,
+) -> tauri::Result<()> {
     let menu = build_menu(
-        app, "显示主窗口", "退出",
-        #[cfg(windows)] "剪贴板历史",
-        #[cfg(windows)] "暂停或恢复剪贴板记录",
+        app,
+        "显示主窗口",
+        "退出",
+        #[cfg(windows)]
+        "剪贴板历史",
+        #[cfg(windows)]
+        "暂停或恢复剪贴板记录",
     )?;
 
     let mut tray = TrayIconBuilder::with_id("main")
@@ -47,18 +60,15 @@ pub fn setup<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
         .menu(&menu)
         // 左键单击显示窗口，右键才弹出菜单
         .show_menu_on_left_click(false)
-        .on_menu_event(|app, event| match event.id().as_ref() {
+        .on_menu_event(move |app, event| match event.id().as_ref() {
             "show" => show_main(app),
             #[cfg(windows)]
             id @ ("clipboard" | "clipboard-toggle") => {
                 let app = app.clone();
                 let toggle = id == "clipboard-toggle";
                 tauri::async_runtime::spawn_blocking(move || {
-                    let result = if toggle {
-                        crate::tools::text::clipboard::toggle(&app)
-                    } else {
-                        crate::tools::text::clipboard::open(&app)
-                    };
+                    // 工具动作由应用入口注入，托盘不依赖具体工具的内部模块。
+                    let result = clipboard_action(&app, toggle);
                     if let Err(error) = result {
                         use tauri::Emitter;
                         show_main(&app);
@@ -98,12 +108,21 @@ pub fn set_tray_text(
 ) -> Result<(), String> {
     #[cfg(not(windows))]
     let _ = (clipboard, clipboard_toggle);
-    let Some(tray) = app.tray_by_id("main") else { return Ok(()) };
+    let Some(tray) = app.tray_by_id("main") else {
+        return Ok(());
+    };
     let menu = build_menu(
-        &app, &show, &quit,
-        #[cfg(windows)] clipboard.as_deref().unwrap_or("剪贴板历史"),
-        #[cfg(windows)] clipboard_toggle.as_deref().unwrap_or("暂停或恢复剪贴板记录"),
-    ).map_err(|e| e.to_string())?;
+        &app,
+        &show,
+        &quit,
+        #[cfg(windows)]
+        clipboard.as_deref().unwrap_or("剪贴板历史"),
+        #[cfg(windows)]
+        clipboard_toggle
+            .as_deref()
+            .unwrap_or("暂停或恢复剪贴板记录"),
+    )
+    .map_err(|e| e.to_string())?;
     tray.set_menu(Some(menu)).map_err(|e| e.to_string())?;
     tray.set_tooltip(Some(tooltip)).map_err(|e| e.to_string())
 }

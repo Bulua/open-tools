@@ -1,4 +1,3 @@
-pub(crate) mod ai_models;
-pub(crate) mod inference;
 #[cfg(windows)]
-pub(crate) mod screenshot;
+pub(crate) mod screenshot_history;
+pub(crate) mod shared;

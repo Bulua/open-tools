@@ -24,7 +24,9 @@ pub async fn douyin_capture(app: AppHandle, id: String, kind: String) -> Result<
         return Err("Invalid post id".into());
     }
     let path = if kind == "note" { "note" } else { "video" };
-    let url: Url = format!("https://www.douyin.com/{path}/{id}").parse().map_err(|e| format!("{e}"))?;
+    let url: Url = format!("https://www.douyin.com/{path}/{id}")
+        .parse()
+        .map_err(|e| format!("{e}"))?;
 
     let (tx, rx) = mpsc::channel::<Result<String, String>>();
     let label = format!("douyin-capture-{}", COUNTER.fetch_add(1, Ordering::Relaxed));

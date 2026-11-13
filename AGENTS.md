@@ -25,11 +25,18 @@ npm run build      # 前端构建
 - **语言**：代码注释、提交信息、文档都用中文。提交信息用 `feat(范围): 说明` / `fix(...)` / `chore: ...` 的格式，`feat` / `fix` / `perf` 会自动写进版本说明。
 - **先问再做**：提交、推送、打标签、发版本之前都要先问用户。
 - **界面效果由用户自己验证**：改完界面不要用浏览器面板去截图检查，告诉用户改了什么、在哪里看即可。
-- **本机没有 Rust 工具链**：`src-tauri/` 下的改动只能推送后靠 GitHub Actions 编译验证。改 Rust 前先跟用户说明改法；Rust 改动尽量单独一个提交，编译出错时容易单独修。
+- **Rust 验证**：Windows 专用代码需要在 Windows 环境运行 `cargo test --locked --manifest-path src-tauri/Cargo.toml`，可由 GitHub Actions 验证；Linux 检查还需 GTK/WebKit 等开发依赖。改 Rust 前先跟用户说明改法；Rust 改动尽量单独一个提交，编译出错时容易单独修。
 - **换行符**：仓库统一 LF（见 `.gitattributes`），在 Windows 上编辑时不要引入 CRLF 差异。
 - **动效风格**：过渡要平滑（ease-out），不要回弹；内容不要淡入淡出或闪烁，不要拉伸文字。动效变量在 `src/styles/motion.css`，滑动高亮用 `src/utils/motion.ts`。
 - **数据和 AI 模型**：程序数据的位置统一用 `src-tauri/src/core/paths.rs`（Windows 上是安装目录下的 `data`）；AI 模型在 Rust 里推理。Windows 安装包附带运行库，模型按需下载。详见 `docs/DEVELOPMENT.md`「数据存放与 AI 模型」。
 - **样式**：颜色只用 `src/styles/theme.css` 里的 CSS 变量（深色模式自动适配）；按钮、分段选择、复选框等用 `src/styles/controls.css` 里的公共类。
+
+## Rust 目录约定
+
+- 与前端一样按领域和工具组织：`src-tauri/src/tools/<模块>/<工具ID>/`，工具 ID 中的短横线改为下划线，例如 `clipboard_history`。只为需要原生能力的工具建目录。
+- `mod.rs` 只声明模块；工具命令放 `commands.rs`。专用脚本与工具放在一起，复杂工具再按状态、系统 API、存储等职责拆文件。
+- 多工具共用的实现放领域模块 `shared/`；全应用基础能力放 `core/`，`core/` 不依赖具体工具。统一命令注册仍在 `src-tauri/src/lib.rs`。
+- 目录重构保持 IPC 命令名、参数、返回字段、事件名和数据文件位置稳定；Windows 专用模块继续使用 `#[cfg(windows)]` 限定。
 
 ## 多语言（改界面时必看）
 

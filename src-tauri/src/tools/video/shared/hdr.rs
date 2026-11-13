@@ -8,10 +8,11 @@ mod imp {
     use std::sync::Mutex;
 
     use windows_sys::Win32::Devices::Display::{
-        DisplayConfigGetDeviceInfo, DisplayConfigSetDeviceInfo, GetDisplayConfigBufferSizes, QueryDisplayConfig,
-        DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO, DISPLAYCONFIG_DEVICE_INFO_HEADER, DISPLAYCONFIG_DEVICE_INFO_SET_ADVANCED_COLOR_STATE,
-        DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO, DISPLAYCONFIG_MODE_INFO, DISPLAYCONFIG_PATH_INFO, DISPLAYCONFIG_SET_ADVANCED_COLOR_STATE,
-        QDC_ONLY_ACTIVE_PATHS,
+        DisplayConfigGetDeviceInfo, DisplayConfigSetDeviceInfo, GetDisplayConfigBufferSizes,
+        QueryDisplayConfig, DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO,
+        DISPLAYCONFIG_DEVICE_INFO_HEADER, DISPLAYCONFIG_DEVICE_INFO_SET_ADVANCED_COLOR_STATE,
+        DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO, DISPLAYCONFIG_MODE_INFO, DISPLAYCONFIG_PATH_INFO,
+        DISPLAYCONFIG_SET_ADVANCED_COLOR_STATE, QDC_ONLY_ACTIVE_PATHS,
     };
     use windows_sys::Win32::Foundation::{ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, LUID};
 
@@ -26,7 +27,12 @@ mod imp {
     static DISABLED: Mutex<Vec<(u32, i32, u32)>> = Mutex::new(Vec::new());
 
     fn header(r#type: i32, size: usize, t: Target) -> DISPLAYCONFIG_DEVICE_INFO_HEADER {
-        DISPLAYCONFIG_DEVICE_INFO_HEADER { r#type, size: size as u32, adapterId: t.adapter, id: t.id }
+        DISPLAYCONFIG_DEVICE_INFO_HEADER {
+            r#type,
+            size: size as u32,
+            adapterId: t.adapter,
+            id: t.id,
+        }
     }
 
     /// 当前连接的所有屏幕
@@ -34,11 +40,15 @@ mod imp {
         unsafe {
             loop {
                 let (mut paths, mut modes) = (0u32, 0u32);
-                if GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &mut paths, &mut modes) != ERROR_SUCCESS {
+                if GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &mut paths, &mut modes)
+                    != ERROR_SUCCESS
+                {
                     return Vec::new();
                 }
-                let mut path_info: Vec<DISPLAYCONFIG_PATH_INFO> = vec![std::mem::zeroed(); paths as usize];
-                let mut mode_info: Vec<DISPLAYCONFIG_MODE_INFO> = vec![std::mem::zeroed(); modes as usize];
+                let mut path_info: Vec<DISPLAYCONFIG_PATH_INFO> =
+                    vec![std::mem::zeroed(); paths as usize];
+                let mut mode_info: Vec<DISPLAYCONFIG_MODE_INFO> =
+                    vec![std::mem::zeroed(); modes as usize];
                 let r = QueryDisplayConfig(
                     QDC_ONLY_ACTIVE_PATHS,
                     &mut paths,
@@ -55,7 +65,13 @@ mod imp {
                     return Vec::new();
                 }
                 path_info.truncate(paths as usize);
-                return path_info.iter().map(|p| Target { adapter: p.targetInfo.adapterId, id: p.targetInfo.id }).collect();
+                return path_info
+                    .iter()
+                    .map(|p| Target {
+                        adapter: p.targetInfo.adapterId,
+                        id: p.targetInfo.id,
+                    })
+                    .collect();
             }
         }
     }
@@ -64,7 +80,11 @@ mod imp {
     fn hdr_enabled(t: Target) -> bool {
         unsafe {
             let mut info: DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO = std::mem::zeroed();
-            info.header = header(DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO, size_of::<DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO>(), t);
+            info.header = header(
+                DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO,
+                size_of::<DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO>(),
+                t,
+            );
             if DisplayConfigGetDeviceInfo(&mut info.header) != ERROR_SUCCESS as i32 {
                 return false;
             }
@@ -78,7 +98,11 @@ mod imp {
     fn set_hdr(t: Target, on: bool) -> bool {
         unsafe {
             let mut state: DISPLAYCONFIG_SET_ADVANCED_COLOR_STATE = std::mem::zeroed();
-            state.header = header(DISPLAYCONFIG_DEVICE_INFO_SET_ADVANCED_COLOR_STATE, size_of::<DISPLAYCONFIG_SET_ADVANCED_COLOR_STATE>(), t);
+            state.header = header(
+                DISPLAYCONFIG_DEVICE_INFO_SET_ADVANCED_COLOR_STATE,
+                size_of::<DISPLAYCONFIG_SET_ADVANCED_COLOR_STATE>(),
+                t,
+            );
             state.Anonymous.value = on as u32;
             DisplayConfigSetDeviceInfo(&state.header) == ERROR_SUCCESS as i32
         }
@@ -105,7 +129,16 @@ mod imp {
     pub fn restore() {
         let list: Vec<_> = DISABLED.lock().unwrap().drain(..).collect();
         for (low, high, id) in list {
-            set_hdr(Target { adapter: LUID { LowPart: low, HighPart: high }, id }, true);
+            set_hdr(
+                Target {
+                    adapter: LUID {
+                        LowPart: low,
+                        HighPart: high,
+                    },
+                    id,
+                },
+                true,
+            );
         }
     }
 }
