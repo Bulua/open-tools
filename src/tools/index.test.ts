@@ -59,3 +59,20 @@ describe("平台可用性", () => {
     ]);
   });
 });
+
+// 目录也是工具的边界：入口、页面和翻译都应能够通过工具 ID 定位。
+describe("工具目录约定", () => {
+  const entries = import.meta.glob<{ default: import("./types").Tool }>("./*/*/index.ts", { eager: true });
+  const pages = import.meta.glob("./*/*/*.vue");
+  const locales = import.meta.glob("./*/*/locales.ts");
+
+  it("每个注册工具恰好有一个同名目录，并且包含页面和翻译", () => {
+    expect(Object.values(entries).map((entry) => entry.default.id).sort()).toEqual(allTools.map((tool) => tool.id).sort());
+    for (const [path, entry] of Object.entries(entries)) {
+      const directory = path.slice(0, -"index.ts".length);
+      expect(directory.split("/").slice(-2)[0], path).toBe(entry.default.id);
+      expect(Object.keys(pages).some((page) => page.startsWith(directory)), path).toBe(true);
+      expect(locales, path).toHaveProperty(`${directory}locales.ts`);
+    }
+  });
+});

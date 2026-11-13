@@ -1,6 +1,6 @@
 /**
  * 工具列表的多语言：分类名、工具名称、说明、输入框提示、按钮名。
- * 中文写在各模块的 index.ts 里；其他语言从模块 locales.ts 的 tools 里按语言、工具 id 取，没写的仍显示中文。
+ * 中文写在各工具的 index.ts 里；其他语言从工具 locales.ts 的 tools 里按语言、工具 id 取，没写的仍显示中文。
  */
 import { computed } from "vue";
 import { allTools, categories, compareNames, type Category, type Tool } from "@/tools";

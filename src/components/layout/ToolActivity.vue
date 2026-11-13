@@ -3,7 +3,7 @@ import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { toolActivity } from "@/composables/toolLibrary";
 import { activityCalendar, activityDateKey } from "@/utils/toolActivity";
-import { now } from "@/tools/utility/countdownStore";
+import { now } from "@/tools/utility/countdown/countdownStore";
 
 const { t, locale } = useI18n();
 // 日期按天变化，后台每秒更新的时钟不会导致热力图反复重建。

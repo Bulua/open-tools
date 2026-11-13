@@ -6,7 +6,7 @@ import { favoriteToolIds, recentToolIds } from "@/composables/toolLibrary";
 import type { Category } from "@/tools";
 import HomePage from "./HomePage.vue";
 
-vi.mock("@/tools/utility/calendarStore", async () => {
+vi.mock("@/tools/utility/calendar/calendarStore", async () => {
   const { ref } = await import("vue");
   return { calendarNotes: ref({}), loadCalendarNotes: vi.fn().mockResolvedValue(undefined) };
 });

@@ -2,7 +2,7 @@
  * 国际化：基于 vue-i18n（Composition API 模式）。
  *
  * - 公共文案在本目录，每种语言一个文件（zh-CN.ts、en.ts）
- * - 每个工具模块的文案在 src/tools/<模块>/locales.ts，这里自动收集合并
+ * - 每个工具模块的文案在 src/tools/<模块>/<工具>/locales.ts，这里自动收集合并
  * - 语言默认跟随系统，可在顶栏切换，选择记在 localStorage 的 locale 里
  * - 缺的文案：英文回退到中文；以后加的其他语言先回退到英文，再回退到中文
  *
@@ -12,6 +12,7 @@
 import { computed, watchEffect, type Ref } from "vue";
 import { isTauri } from "@tauri-apps/api/core";
 import { createI18n } from "vue-i18n";
+import { mergeMessages } from "./mergeMessages";
 import { useStoredRef } from "@/composables/useStoredRef";
 import zhCN from "./zh-CN";
 import en from "./en";
@@ -30,7 +31,7 @@ export const LOCALES: { value: Locale; label: string }[] = [
 /** 各语言的公共文案 */
 const COMMON: Record<Locale, Record<string, unknown>> = { "zh-CN": zhCN, en, ja };
 
-const modules = import.meta.glob<{ default: ModuleLocales }>("../tools/*/locales.ts", { eager: true });
+const modules = import.meta.glob<{ default: ModuleLocales }>("../tools/*/*/locales.ts", { eager: true });
 
 // 文案结构各模块不同，结构检查放在各语言的公共文案文件和 defineModuleLocales 里
 const messages = Object.fromEntries(LOCALES.map(({ value }) => [value, { ...COMMON[value] }])) as Record<Locale, Record<string, any>>;
@@ -38,7 +39,7 @@ const messages = Object.fromEntries(LOCALES.map(({ value }) => [value, { ...COMM
 export const toolTexts: Translations<Record<string, ToolText>> = {};
 for (const { default: m } of Object.values(modules)) {
   for (const [l, texts] of Object.entries(m.tools ?? {})) Object.assign((toolTexts[l as OtherLocale] ??= {}), texts);
-  for (const [l, msgs] of Object.entries(m.messages ?? {})) Object.assign(messages[l as Locale], msgs);
+  for (const [l, msgs] of Object.entries(m.messages ?? {})) mergeMessages(messages[l as Locale], msgs);
 }
 
 export const i18n = createI18n({

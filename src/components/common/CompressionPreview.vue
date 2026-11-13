@@ -11,7 +11,7 @@ export interface CompressionPreviewSource {
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { X } from "lucide-vue-next";
-import AudioTrack, { type TrackSource } from "@/tools/audio/components/AudioTrack.vue";
+import AudioTrack, { type TrackSource } from "@/tools/audio/shared/components/AudioTrack.vue";
 import { formatBytes } from "@/utils/format";
 
 const props = defineProps<{ source: CompressionPreviewSource | null }>();
