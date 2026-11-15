@@ -140,20 +140,35 @@ fn giant_single_line_and_split_crlf_stay_bounded() {
     assert_eq!(offset, (BLOCK + 4) as u64);
 }
 #[test]
-fn save_replaces_original_path_keeps_backup_and_supports_more_edits() {
+fn save_replaces_original_without_backup_and_supports_more_edits() {
     let f = Fixture::new(b"old\r\ntext");
     let mut doc = f.open("auto");
     doc.edit(0, 0, 9, "new\ntext").unwrap();
-    let backup = save::save(&mut doc, &|_| Ok(())).unwrap();
+    let existing_backup = f.dir.join("existing.bak");
+    std::fs::write(&existing_backup, b"user backup").unwrap();
+    save::save(&mut doc, &|_| Ok(())).unwrap();
     assert_eq!(std::fs::read(&f.path).unwrap(), b"new\r\ntext");
-    assert_eq!(std::fs::read(&backup).unwrap(), b"old\r\ntext");
+    assert!(!std::fs::read_dir(&f.dir)
+        .unwrap()
+        .filter_map(Result::ok)
+        .any(|entry| entry
+            .file_name()
+            .to_string_lossy()
+            .starts_with(".open-tools-")));
     assert!(!doc.buffer.dirty());
     assert!(doc.buffer.undo());
     doc.revision += 1;
     assert!(doc.buffer.dirty());
     save::save(&mut doc, &|_| Ok(())).unwrap();
     assert_eq!(std::fs::read(&f.path).unwrap(), b"old\r\ntext");
-    assert!(!std::path::Path::new(&backup).exists());
+    assert!(!std::fs::read_dir(&f.dir)
+        .unwrap()
+        .filter_map(Result::ok)
+        .any(|entry| entry
+            .file_name()
+            .to_string_lossy()
+            .starts_with(".open-tools-")));
+    assert_eq!(std::fs::read(existing_backup).unwrap(), b"user backup");
 }
 #[test]
 fn cancelled_save_and_stale_revision_do_not_touch_original() {

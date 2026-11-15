@@ -170,6 +170,7 @@ pub async fn large_text_search(
 #[derive(Serialize)]
 pub struct Saved {
     info: Info,
+    // 保持 IPC 返回字段兼容；保存不再创建备份，此字段始终为空。
     backup: String,
 }
 #[tauri::command]
@@ -183,10 +184,10 @@ pub async fn large_text_save(
         let s = service::get(&id)?;
         s.run("save", |d, s| {
             d.check_revision(revision)?;
-            let backup = save::save(d, &|at| s.check(at))?;
+            save::save(d, &|at| s.check(at))?;
             Ok(Saved {
                 info: d.info(),
-                backup,
+                backup: String::new(),
             })
         })
     })

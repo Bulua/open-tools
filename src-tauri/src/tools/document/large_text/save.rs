@@ -1,4 +1,4 @@
-//! 完整流式写出后才替换原路径；保留最近一次备份并报告替换失败时的恢复位置。
+//! 完整流式写出后才替换原路径，不生成保存前的备份文件。
 use super::buffer::{open_source, unique, BLOCK};
 use super::document::{Document, Stamp};
 #[cfg(unix)]
@@ -19,7 +19,7 @@ impl Drop for Temporary {
     }
 }
 #[cfg(windows)]
-fn replace(path: &Path, temp: &Path, backup: &Path) -> Result<(), String> {
+fn replace(path: &Path, temp: &Path) -> Result<(), String> {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::Storage::FileSystem::ReplaceFileW;
     let wide = |p: &Path| {
@@ -28,12 +28,12 @@ fn replace(path: &Path, temp: &Path, backup: &Path) -> Result<(), String> {
             .chain(Some(0))
             .collect::<Vec<u16>>()
     };
-    let (path, temp, backup) = (wide(path), wide(temp), wide(backup));
+    let (path, temp) = (wide(path), wide(temp));
     if unsafe {
         ReplaceFileW(
             path.as_ptr(),
             temp.as_ptr(),
-            backup.as_ptr(),
+            std::ptr::null(),
             0,
             std::ptr::null(),
             std::ptr::null(),
@@ -46,14 +46,10 @@ fn replace(path: &Path, temp: &Path, backup: &Path) -> Result<(), String> {
     }
 }
 #[cfg(not(windows))]
-fn replace(path: &Path, temp: &Path, backup: &Path) -> Result<(), String> {
-    std::fs::hard_link(path, backup).map_err(|e| format!("Can't create a recovery backup: {e}"))?;
+fn replace(path: &Path, temp: &Path) -> Result<(), String> {
     std::fs::rename(temp, path).map_err(|e| e.to_string())
 }
-pub fn save(
-    doc: &mut Document,
-    check: &dyn Fn(u64) -> Result<(), String>,
-) -> Result<String, String> {
+pub fn save(doc: &mut Document, check: &dyn Fn(u64) -> Result<(), String>) -> Result<(), String> {
     doc.unchanged()?;
     if doc.info().readonly {
         return Err("The file is read-only".into());
@@ -67,7 +63,6 @@ pub fn save(
         path: parent.join(format!(".open-tools-{id}.tmp")),
         keep: false,
     };
-    let backup = parent.join(format!(".open-tools-{id}.bak"));
     let mut file = OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -95,31 +90,28 @@ pub fn save(
     drop(file);
     doc.unchanged()?;
     check(at)?;
-    if let Err(error) = replace(&doc.path, &temporary.path, &backup) {
+    if let Err(error) = replace(&doc.path, &temporary.path) {
         temporary.keep = true;
-        return Err(format!("File replacement failed: {error}. Recovery files: {} and {}. Your editing session is retained",temporary.path.display(),backup.display()));
+        return Err(format!(
+            "File replacement failed: {error}. Recovery file: {}. Your editing session is retained",
+            temporary.path.display()
+        ));
     }
     temporary.keep = true;
     // 保存已提交。此后不能将重新打开失败误报成未写入，也不能再次用旧会话覆盖。
     doc.valid = false;
     let guard = open_source(&doc.path).map_err(|e| {
-        format!(
-            "The file WAS SAVED, but could not be reopened: {e}. Reopen the file. Backup: {}",
-            backup.display()
-        )
+        format!("The file WAS SAVED, but could not be reopened: {e}. Reopen the file")
     })?;
     doc.stamp = Stamp::of(&guard)?;
     doc.guard = guard;
     doc.valid = true;
     doc.buffer.mark_saved();
-    if let Some(previous) = doc.backup.replace(backup.clone()) {
-        let _ = std::fs::remove_file(previous);
-    }
     #[cfg(unix)]
     {
         if let Ok(directory) = File::open(parent) {
             let _ = directory.sync_all();
         }
     }
-    Ok(backup.to_string_lossy().into_owned())
+    Ok(())
 }

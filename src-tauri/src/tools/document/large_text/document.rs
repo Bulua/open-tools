@@ -83,7 +83,6 @@ pub struct Document {
     pub stamp: Stamp,
     pub source_stamp: Stamp,
     pub source_guard: File,
-    pub backup: Option<PathBuf>,
     pub valid: bool,
 }
 impl Document {
@@ -140,7 +139,6 @@ impl Document {
             stamp: stamp.clone(),
             source_stamp: stamp,
             source_guard,
-            backup: None,
             valid: true,
         })
     }
