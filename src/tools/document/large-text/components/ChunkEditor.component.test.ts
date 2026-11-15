@@ -40,7 +40,7 @@ it("滚轮只在边界请求相邻块，忙碌、重复事件和文件末尾不�
   } finally { app.unmount(); root.remove(); }
 });
 
-it("程序恢复滚动位置不会触发加载，选区限制在当前窗口", async () => {
+it("程序恢复滚动位置不会触发加载，已有选区也能滚动接入相邻内容", async () => {
   const { EditorView } = await import("@codemirror/view");
   const boundary = vi.fn(); const component = ref<InstanceType<typeof ChunkEditor>>();
   const root = document.createElement("div"); document.body.append(root);
@@ -54,9 +54,32 @@ it("程序恢复滚动位置不会触发加载，选区限制在当前窗口", a
     expect(boundary).not.toHaveBeenCalled();
     view.dispatch({ selection: { anchor: 0, head: 3 } });
     scroller.dispatchEvent(new WheelEvent("wheel", { deltaY: 40, bubbles: true, cancelable: true }));
-    expect(boundary).not.toHaveBeenCalled();
+    expect(boundary.mock.calls).toEqual([["next"]]);
     component.value!.restore({ position: 0, offset: 0, left: 0, anchor: 3, head: 3 }, 4);
     expect(view.state.selection.main.head).toBe(7);
-    scroller.dispatchEvent(new Event("scroll")); expect(boundary).not.toHaveBeenCalled();
+    scroller.dispatchEvent(new Event("scroll")); expect(boundary).toHaveBeenCalledOnce();
+  } finally { app.unmount(); root.remove(); }
+});
+
+
+it("跳转后的窗口顶部有未加载前文时，向上滚轮和方向键触发加载，选区不阻断", async () => {
+  const { EditorView } = await import("@codemirror/view");
+  const boundary = vi.fn(); const component = ref<InstanceType<typeof ChunkEditor>>();
+  const root = document.createElement("div"); document.body.append(root);
+  const app = createApp({ render: () => h(ChunkEditor, { ref: component, text: "target\nafter", firstLine: 10000, readonly: false, canPrevious: true, onBoundary: boundary }) });
+  try {
+    app.mount(root); await nextTick();
+    const view = EditorView.findFromDOM(root.querySelector<HTMLElement>(".cm-content")!)!;
+    view.dispatch({ selection: { anchor: 0, head: 6 } });
+    Object.defineProperties(view.scrollDOM, { clientHeight: { value: 100 }, scrollHeight: { value: 1000 } });
+    view.scrollDOM.scrollTop = 12;
+    view.scrollDOM.dispatchEvent(new WheelEvent("wheel", { deltaY: -40, bubbles: true, cancelable: true }));
+    expect(boundary.mock.calls).toEqual([["previous"]]);
+    expect(view.state.selection.main).toMatchObject({ anchor: 0, head: 6 });
+    component.value!.releaseBoundary(); view.scrollDOM.scrollTop = 0;
+    const key = new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true, cancelable: true });
+    view.scrollDOM.dispatchEvent(key);
+    expect(key.defaultPrevented).toBe(true);
+    expect(boundary.mock.calls).toEqual([["previous"], ["previous"]]);
   } finally { app.unmount(); root.remove(); }
 });

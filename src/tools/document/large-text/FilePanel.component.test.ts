@@ -6,7 +6,7 @@ import { createTextController } from "./controller";
 import FilePanel from "./components/FilePanel.vue";
 const largeText = createTextController();
 
-const native = vi.hoisted(() => ({ invoke: vi.fn(), message: vi.fn(), restore: vi.fn(), releaseBoundary: vi.fn() }));
+const native = vi.hoisted(() => ({ invoke: vi.fn(), message: vi.fn(), restore: vi.fn(), scrollBy: vi.fn(), releaseBoundary: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => false, invoke: native.invoke }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ message: native.message }));
 vi.mock("@/components/common/AppSelect.vue", async () => {
@@ -21,10 +21,10 @@ vi.mock("@/components/common/AppSelect.vue", async () => {
 vi.mock("./components/ChunkEditor.vue", async () => {
   const { defineComponent, h } = await import("vue");
   return { default: defineComponent({
-    props: ["text", "firstLine", "readonly"], emits: ["boundary"],
+    props: ["text", "firstLine", "readonly"], emits: ["boundary", "scrollIntent"],
     setup: (props, { emit, expose }) => {
-      expose({ snapshot: () => ({ position: 0, offset: 0, left: 0, anchor: 0, head: 0 }), restore: native.restore, releaseBoundary: native.releaseBoundary, remeasure: () => {} });
-      return () => h("div", { "data-text": props.text }, [h("button", { "data-scroll-next": "", onClick: () => emit("boundary", "next") })]);
+      expose({ snapshot: () => ({ position: 0, offset: 0, left: 0, anchor: 0, head: 0 }), restore: native.restore, scrollBy: native.scrollBy, releaseBoundary: native.releaseBoundary, remeasure: () => {} });
+      return () => h("div", { "data-text": props.text }, [h("button", { "data-scroll-next": "", onClick: () => emit("boundary", "next") }), h("button", { "data-scroll-previous": "", onClick: () => emit("boundary", "previous") }), h("button", { "data-wheel-previous": "", onClick: () => { emit("scrollIntent", -600); emit("boundary", "previous"); } })]);
     },
   }) };
 });
@@ -36,6 +36,7 @@ afterEach(async () => {
   vi.clearAllMocks();
 });
 async function mount() {
+  native.scrollBy.mockReset().mockResolvedValue(0);
   native.invoke.mockImplementation(async (command: string) => {
     if (command === "large_text_open") return {
       id: "test-session", info: { path: "C:\\large.txt", size: 10, encoding: "Utf8", newline: "LF", revision: 0, dirty: false, canUndo: false, canRedo: false, readonly: false, bom: 0 },
@@ -110,4 +111,48 @@ it("查找与行号输入按需展开，快捷键聚焦，收起时保留输入�
   expect(document.activeElement).toBe(root!.querySelector('[aria-label="行号"]'));
   expect(largeText.state.draft).toBe("keep draft"); expect(largeText.state.generation).toBe(generation);
   largeText.state.searchVisible = false; largeText.state.jumpVisible = false;
+});
+
+
+it("跳转不预读前文，向上滚动到边界后加载前文并恢复原视口", async () => {
+  await mount(); largeText.state.info!.size = 20;
+  native.invoke.mockImplementation(async (name: string) => {
+    if (name === "large_text_jump") return { start: 10, end: 20, text: "targetline", revision: 0, firstLine: 2, continuation: false };
+    if (name === "large_text_read") return { start: 0, end: 10, text: "firstline\n", revision: 0, firstLine: 1, continuation: false };
+  });
+  largeText.state.lineInput = "2"; largeText.state.jumpVisible = true; await nextTick();
+  root!.querySelector(".jump-form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  await vi.waitFor(() => expect(largeText.state.block!.start).toBe(10));
+  expect(native.invoke.mock.calls.filter(([name]) => name === "large_text_read")).toHaveLength(0);
+  root!.querySelector<HTMLButtonElement>("[data-scroll-previous]")!.click();
+  await vi.waitFor(() => expect(native.restore).toHaveBeenCalledWith({ position: 0, offset: 0, left: 0, anchor: 0, head: 0 }, 10));
+  expect(largeText.state.block!.start).toBe(0);
+  expect(largeText.state.draft).toBe("firstline\ntargetline");
+});
+
+
+it("读取期间累计大幅滚动距离，越过当前窗口时串行继续读块，不并发重复加载", async () => {
+  await mount(); largeText.state.info!.size = 1000000;
+  let complete!: (value: unknown) => void;
+  let reads = 0;
+  native.invoke.mockImplementation(async (name: string, args: Record<string, unknown> = {}) => {
+    if (name === "large_text_jump") return { start: 600000, end: 862144, text: "target", revision: 0, firstLine: 5000, continuation: false };
+    if (name === "large_text_read") {
+      reads++;
+      if (reads === 1) return new Promise((resolve) => { complete = resolve; });
+      return { start: Number(args.start), end: Number(args.end), text: "earlier", revision: 0, firstLine: 1, continuation: false };
+    }
+  });
+  await largeText.jump(5000); await nextTick();
+  native.scrollBy.mockResolvedValueOnce(-700).mockResolvedValue(0);
+  const wheel = () => root!.querySelector<HTMLButtonElement>("[data-wheel-previous]")!.click();
+  wheel(); await vi.waitFor(() => expect(complete).toBeDefined());
+  wheel(); wheel(); await nextTick();
+  expect(reads).toBe(1);
+  complete({ start: 337856, end: 600000, text: "prefix", revision: 0, firstLine: 3000, continuation: false });
+  await vi.waitFor(() => expect(reads).toBe(2));
+  await vi.waitFor(() => expect(native.scrollBy).toHaveBeenCalledTimes(2));
+  expect(native.scrollBy.mock.calls).toEqual([[-1800], [-700]]);
+  expect(largeText.state.block!.start).toBe(75712);
+  expect(largeText.state.draft).toBe("earlierprefixtarget");
 });

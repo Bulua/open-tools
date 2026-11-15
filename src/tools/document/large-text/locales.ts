@@ -5,13 +5,13 @@ export default defineModuleLocales({
     "en": {
       "large-text": {
         "name": "Large Text Editor",
-        "desc": "View and edit large TXT and LOG files in blocks, search, jump and undo; save to the original file with a recovery backup"
+        "desc": "View and edit large TXT and LOG files in blocks, search, jump and undo; save to the original file"
       }
     },
     "ja": {
       "large-text": {
         "name": "大容量テキストエディター",
-        "desc": "大きな TXT・LOG をブロック単位で表示・編集、検索・移動・履歴操作。バックアップ付きで元のファイルに保存"
+        "desc": "大きな TXT・LOG をブロック単位で表示・編集、検索・移動・履歴操作。元のファイルに保存"
       }
     }
   },
@@ -26,7 +26,6 @@ export default defineModuleLocales({
         "find": "查找",
         "hideSearch": "收起查找",
         "hideJump": "收起行号跳转",
-        "backupReady": "已备份",
         "help": "使用说明",
         "fileTabs": "已打开的文件",
         "tabMenu": "标签菜单",
@@ -41,7 +40,7 @@ export default defineModuleLocales({
         "undo": "撤销",
         "redo": "重做",
         "emptyTitle": "大文本也能轻松查看和编辑",
-        "emptyDescription": "按块读取大型 TXT、LOG 文件，修改后保存回原路径，并保留最近一次备份。",
+        "emptyDescription": "按块读取大型 TXT、LOG 文件，修改后保存回原路径。",
         "desktopOnly": "请在桌面版中使用此工具，浏览器预览无法直接修改本机原文件。",
         "encoding": "文本编码（切换后重新读取）",
         "auto": "自动识别",
@@ -72,7 +71,6 @@ export default defineModuleLocales({
         "jumpTask": "定位",
         "editTask": "记录修改",
         "historyTask": "恢复历史",
-        "backup": "最近一次备份：{path}",
         "saveDone": "已保存回原文件",
         "notFound": "后面没有匹配内容，可选择从头查找。",
         "badLine": "请输入大于 0 的有效整数行号。",
@@ -100,7 +98,6 @@ export default defineModuleLocales({
         "find": "Find",
         "hideSearch": "Hide search",
         "hideJump": "Hide line navigation",
-        "backupReady": "Backup ready",
         "help": "Help",
         "fileTabs": "Open files",
         "tabMenu": "Tab menu",
@@ -115,7 +112,7 @@ export default defineModuleLocales({
         "undo": "Undo",
         "redo": "Redo",
         "emptyTitle": "View and edit large text files",
-        "emptyDescription": "Read TXT and LOG files in blocks, save changes to the original path, and keep the latest backup.",
+        "emptyDescription": "Read TXT and LOG files in blocks, save changes to the original path.",
         "desktopOnly": "Use the desktop app to edit original local files. Browser previews cannot update them directly.",
         "encoding": "Text encoding (reloads the file)",
         "auto": "Auto detect",
@@ -146,7 +143,6 @@ export default defineModuleLocales({
         "jumpTask": "Locating",
         "editTask": "Staging changes",
         "historyTask": "Restoring history",
-        "backup": "Latest backup: {path}",
         "saveDone": "Saved to the original file",
         "notFound": "No more matches. Try searching from the start.",
         "badLine": "Enter a positive whole line number.",
@@ -174,7 +170,6 @@ export default defineModuleLocales({
         "find": "検索",
         "hideSearch": "検索を閉じる",
         "hideJump": "行移動を閉じる",
-        "backupReady": "バックアップ済み",
         "help": "使い方",
         "fileTabs": "開いているファイル",
         "tabMenu": "タブメニュー",
@@ -189,7 +184,7 @@ export default defineModuleLocales({
         "undo": "元に戻す",
         "redo": "やり直す",
         "emptyTitle": "大きなテキストも表示・編集",
-        "emptyDescription": "TXT・LOG をブロック単位で読み込み、元のパスへ保存します。直近のバックアップを保持します。",
+        "emptyDescription": "TXT・LOG をブロック単位で読み込み、元のパスへ保存します。",
         "desktopOnly": "元のローカルファイルを編集するにはデスクトップ版を使用してください。",
         "encoding": "文字コード（変更時に再読み込み）",
         "auto": "自動検出",
@@ -220,7 +215,6 @@ export default defineModuleLocales({
         "jumpTask": "位置を確認中",
         "editTask": "変更を記録中",
         "historyTask": "履歴を復元中",
-        "backup": "直近のバックアップ：{path}",
         "saveDone": "元のファイルに保存しました",
         "notFound": "これ以降に一致はありません。先頭から検索できます。",
         "badLine": "1 以上の整数を入力してください。",

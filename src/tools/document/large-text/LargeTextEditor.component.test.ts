@@ -6,9 +6,11 @@ import { undo } from "@codemirror/commands";
 import { i18n } from "@/locales";
 import { textWorkspace } from "./workspace";
 import LargeTextEditor from "./LargeTextEditor.vue";
+import * as actions from "./useLargeText";
 
-const native = vi.hoisted(() => ({ invoke: vi.fn() }));
-vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => false, invoke: native.invoke }));
+const native = vi.hoisted(() => ({ invoke: vi.fn(), desktop: false, drop: undefined as ((event: { payload: { type: string; paths: string[] } }) => void) | undefined }));
+vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => native.desktop, invoke: native.invoke }));
+vi.mock("@tauri-apps/api/webviewWindow", () => ({ getCurrentWebviewWindow: () => ({ onDragDropEvent: async (handler: typeof native.drop) => { native.drop = handler; return () => { native.drop = undefined; }; } }) }));
 // jsdom 不进行文本排版，为 CodeMirror 的几何读取提供空矩形。
 beforeAll(() => {
   Object.defineProperties(Range.prototype, {
@@ -21,7 +23,7 @@ let root: HTMLDivElement | undefined;
 afterEach(async () => {
   app?.unmount(); root?.remove(); app = undefined;
   for (const tab of [...textWorkspace.tabs]) { await tab.controller.close(true); textWorkspace.remove(tab.controller); }
-  vi.clearAllMocks();
+  native.desktop = false; vi.restoreAllMocks(); vi.clearAllMocks();
 });
 async function mount() {
   let id = 1;
@@ -98,4 +100,50 @@ it("点击标签菜单可关闭右侧，边界侧选项禁用，并支持右键�
   expect(Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).slice(1).every((button) => button.disabled)).toBe(true);
   document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); await nextTick();
   expect(document.querySelector('[role="menu"]')).toBeNull();
+});
+
+
+it("空白页面仅保留打开面板，点击、键盘和拖入文件使用自动识别编码", async () => {
+  native.desktop = true;
+  vi.spyOn(actions, "initializeLargeText").mockResolvedValue();
+  const open = vi.spyOn(actions, "openFile").mockResolvedValue();
+  await mount();
+  await vi.waitFor(() => expect(native.drop).toBeDefined());
+  expect(root!.querySelector(".workspace-toolbar")).toBeNull();
+  expect(root!.querySelector(".default-encoding")).toBeNull();
+  expect(root!.querySelector(".workspace-heading")).toBeNull();
+  const panel = root!.querySelector<HTMLElement>('.empty[role="button"]')!;
+  expect(panel.getAttribute("aria-disabled")).toBe("false");
+  panel.click();
+  expect(open).toHaveBeenLastCalledWith("auto");
+  panel.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+  expect(open).toHaveBeenCalledTimes(2);
+  native.drop!({ payload: { type: "drop", paths: ["C:\\example.txt"] } });
+  expect(open).toHaveBeenLastCalledWith("auto", ["C:\\example.txt"]);
+});
+
+
+it("多次跳转重建真实编辑器后仍能向上读取，不访问已销毁的编辑器状态", async () => {
+  await mount();
+  const tab = await textWorkspace.open("C:\\jump.txt", "Utf8"); await nextTick();
+  tab.controller.state.info!.size = 500000;
+  const implementation = native.invoke.getMockImplementation()!;
+  const text = Array.from({ length: 1000 }, (_, i) => `line ${i}`).join("\n");
+  native.invoke.mockImplementation(async (name, args = {}) => {
+    if (name === "large_text_jump") return { start: 100000, end: 200000, text, firstLine: Number(args.line), continuation: false, revision: 0 };
+    if (name === "large_text_read") return { start: Number(args.start), end: Number(args.end), text: "previous\n", firstLine: 1, continuation: false, revision: 0 };
+    return implementation(name, args);
+  });
+  for (const line of [5000, 10000, 20000]) {
+    tab.controller.state.lineInput = String(line); tab.controller.state.jumpVisible = true; await nextTick();
+    root!.querySelector(".jump-form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    await vi.waitFor(() => expect(tab.controller.state.block!.firstLine).toBe(line));
+    await nextTick();
+    const view = EditorView.findFromDOM(root!.querySelector<HTMLElement>(".cm-content")!)!;
+    expect(view.state.doc.toString()).toBe(text);
+    view.scrollDOM.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, bubbles: true, cancelable: true }));
+    await vi.waitFor(() => expect(tab.controller.state.block!.start).toBe(0));
+    await nextTick();
+    expect(root!.querySelector(".cm-content")?.textContent).toContain("previous");
+  }
 });

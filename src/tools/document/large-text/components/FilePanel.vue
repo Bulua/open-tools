@@ -9,6 +9,7 @@ import { showError, showNotice } from "@/utils/errorToast";
 import { useWindowEvent } from "@/composables/useWindowEvent";
 import { useUpdater } from "@/composables/useUpdater";
 import ChunkEditor from "./ChunkEditor.vue";
+import { displayFilePath } from "../path";
 import type { ViewportAnchor } from "../types";
 import type { TextController } from "../controller";
 import { changeEncoding, confirming, saveOriginal } from "../useLargeText";
@@ -44,15 +45,35 @@ const percent = computed(() => Math.min(100, 100 * (state.status?.done ?? 0) / M
 const canPrevious = computed(() => Boolean(state.block && state.info && state.block.start > state.info.bom));
 const canNext = computed(() => Boolean(state.block && state.info && state.block.end < state.info.size));
 const run = async (action: () => Promise<unknown>) => { if (state.busy) return; try { await action(); } catch (e) { showError(e); } };
-const scrollBoundary = async (direction: "next" | "previous") => {
-  if (state.busy || switchingEncoding.value) { editor.value?.releaseBoundary(); return; }
-  const anchor = editor.value?.snapshot();
+const scrolling = ref(false);
+let scrollPixels = 0;
+const rememberScroll = (pixels: number) => { if (Number.isFinite(pixels)) scrollPixels += pixels; };
+const scrollBoundary = async (initial: "next" | "previous") => {
+  if (scrolling.value) return;
+  if (state.busy || switchingEncoding.value) { scrollPixels = 0; editor.value?.releaseBoundary(); return; }
+  scrolling.value = true;
+  let direction = initial, read = true;
+  let generation = state.generation;
   try {
-    const shift = await largeText.scroll(direction);
-    await nextTick();
-    if (anchor) editor.value?.restore(props.active ? anchor : { ...anchor, focused: false }, shift);
+    do {
+      if (read) {
+        const anchor = editor.value?.snapshot();
+        const shift = await largeText.scroll(direction);
+        generation = state.generation;
+        await nextTick();
+        if (anchor) await editor.value?.restore(props.active ? anchor : { ...anchor, focused: false }, shift);
+        if (generation !== state.generation) return;
+      }
+      // 连续滚轮的距离合并处理；只有越过当前窗口时才串行读取另一块。
+      const pixels = scrollPixels; scrollPixels = 0;
+      const remaining = await editor.value?.scrollBy(pixels) ?? 0;
+      if (generation !== state.generation) return;
+      scrollPixels += remaining;
+      direction = scrollPixels < 0 ? "previous" : "next";
+      read = Math.abs(remaining) > 0.5;
+    } while (Math.abs(scrollPixels) > 0.5 && (!read || (direction === "previous" ? canPrevious.value : canNext.value)));
   } catch (e) { showError(e); }
-  finally { editor.value?.releaseBoundary(); }
+  finally { scrollPixels = 0; scrolling.value = false; editor.value?.releaseBoundary(); }
 };
 const history = async (redo: boolean) => {
   if (state.busy || state.info?.readonly) return;
@@ -146,15 +167,15 @@ watch(() => props.active, async (active) => {
       <p v-if="state.error" class="error" role="alert">{{ state.error }} <span>{{ t("largeText.recovery") }}</span></p>
       <p v-if="state.status?.indexError" class="error" role="alert">{{ t("largeText.indexError", { error: state.status.indexError }) }}</p>
       <div class="editor-frame">
-        <ChunkEditor :key="`${state.id}:${state.generation}`" ref="editor" :generation="state.generation" :saved-state="largeText.editorCache.value?.generation === state.generation ? largeText.editorCache.value.json : undefined" :text="state.draft" :first-line="state.block.firstLine" :readonly="state.busy || switchingEncoding || confirming || state.info.readonly"
-          :can-next="canNext" :can-previous="canPrevious" :loading="state.busy || switchingEncoding || confirming"
-          @retain="retainEditor" @boundary="scrollBoundary" @change="change" @save="saveFile" @history="history" @limit="showNotice(t('largeText.limit'))"
+        <ChunkEditor :key="`${state.id}:${state.generation}`" ref="editor" :generation="state.generation" :saved-state="largeText.editorCache.value?.generation === state.generation ? largeText.editorCache.value.json : undefined" :text="state.draft" :first-line="state.block.firstLine" :readonly="state.busy || scrolling || switchingEncoding || confirming || state.info.readonly"
+          :scroll-loading="scrolling" :can-next="canNext" :can-previous="canPrevious" :loading="state.busy || switchingEncoding || confirming"
+          @retain="retainEditor" @scroll-intent="rememberScroll" @boundary="scrollBoundary" @change="change" @save="saveFile" @history="history" @limit="showNotice(t('largeText.limit'))"
           @cursor="(line, column) => cursor = { line, column }" @depths="(undo, redo) => { localUndo = undo; localRedo = redo; }" />
       </div>
       <div class="statusbar">
         <div class="status-file">
           <span class="save-state" :class="{ dirty }" :title="dirty ? t('largeText.unsaved') : t('largeText.saved')"><span class="state-dot" />{{ dirty ? t("largeText.unsaved") : t("largeText.saved") }}</span>
-          <span class="path" :title="state.info.path">{{ state.info.path }}</span>
+          <span class="path" :title="displayFilePath(state.info.path)">{{ displayFilePath(state.info.path) }}</span>
         </div>
         <div class="status-details">
           <span v-if="state.info.readonly" :title="t('largeText.readonlyHint')">{{ t("largeText.readonly") }}</span>
@@ -165,7 +186,6 @@ watch(() => props.active, async (active) => {
           <div class="encoding-control" :title="t('largeText.encoding')">
             <AppSelect size="sm" :model-value="encoding" @update:model-value="changeFileEncoding" :disabled="state.busy || switchingEncoding || confirming || updating" :options="encodings" :aria-label="t('largeText.encoding')" />
           </div>
-          <span v-if="state.backup" class="backup-indicator" :title="t('largeText.backup', { path: state.backup })">{{ t("largeText.backupReady") }}</span>
           <span class="help" role="img" :aria-label="t('largeText.chunkHint')" :title="t('largeText.chunkHint')"><Info :size="13" /></span>
         </div>
       </div>
@@ -198,7 +218,6 @@ watch(() => props.active, async (active) => {
 .path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .encoding-control { width: 138px; flex: 0 0 138px; }
 .encoding-control :deep(.app-select) { height: 25px; border: 0; background: transparent; font-size: 11px; padding: 0 4px; border-radius: 4px; }
-.backup-indicator { color: var(--success); }
 .help { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 24px; color: var(--text-3); }
 .task { display: flex; align-items: center; gap: 12px; padding: 4px 12px; color: var(--text-2); font-size: 12px; background: var(--accent-soft); }
 .task progress { flex: 1; height: 3px; accent-color: var(--accent); }

@@ -3,6 +3,7 @@ import { nextTick, onDeactivated, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { ChevronDown, FileText, X } from "lucide-vue-next";
 import { usePopover } from "@/composables/usePopover";
+import { displayFilePath } from "../path";
 import type { TabCloseScope, TextTab } from "../workspace";
 
 const props = defineProps<{ tab: TextTab; active: boolean; disabled: boolean; hasLeft: boolean; hasRight: boolean }>();
@@ -35,7 +36,7 @@ onDeactivated(menu.close);
 
 <template>
   <div class="file-tab" :class="{ active }" @contextmenu.prevent="showMenu">
-    <button :id="`text-tab-${tab.key}`" class="tab-title" role="tab" :aria-selected="active" :aria-controls="`text-panel-${tab.key}`" :title="tab.controller.state.info?.path" :disabled="disabled" @click="emit('activate')">
+    <button :id="`text-tab-${tab.key}`" class="tab-title" role="tab" :aria-selected="active" :aria-controls="`text-panel-${tab.key}`" :title="displayFilePath(tab.controller.state.info?.path ?? '')" :disabled="disabled" @click="emit('activate')">
       <FileText :size="14" /><span>{{ filename(tab.controller.state.info?.path ?? '') }}</span>
       <span v-if="tab.controller.dirty.value" class="dirty-dot" :aria-label="t('largeText.unsaved')">●</span>
     </button>

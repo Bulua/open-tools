@@ -12,7 +12,7 @@ function setup() {
     if (name === "large_text_open") return { id: "session-1", info: { ...info }, block: { ...block } } satisfies OpenedFile;
     if (name === "large_text_edit") { info = { ...info, size: 12, revision: info.revision + 1, dirty: true, canUndo: true }; block = { ...block, text: String(args?.text), end: 12, revision: info.revision }; return { ...info }; }
     if (name === "large_text_read") return { ...block, start: Number(args?.start ?? 0) };
-    if (name === "large_text_save") { info = { ...info, dirty: false }; return { info: { ...info }, backup: "C:\\data\\backup.bak" }; }
+    if (name === "large_text_save") { info = { ...info, dirty: false }; return { info: { ...info }, backup: "" }; }
     return undefined;
   });
   return { call, controller: createTextController(call as typeof invoke) };
@@ -26,10 +26,10 @@ describe("大文本文件会话", () => {
     expect(call.mock.calls[2][1]).toEqual({ id: "session-1", revision: 0, start: 0, end: 10, text: "modified", changes: [{ from: 0, to: 8, text: "modified" }] });
     expect(call.mock.calls[4][1]).toEqual({ id: "session-1", revision: 1, start: 12 });
   });
-  it("保存调用同一会话的原文件命令，保留备份信息", async () => {
+  it("保存调用同一会话的原文件命令，不维护备份状态", async () => {
     const { call, controller: c } = setup(); await c.open(baseInfo.path, "Utf8"); c.changed("modified"); await c.save();
     expect(call).toHaveBeenCalledWith("large_text_save", { id: "session-1", revision: 1 });
-    expect(c.state.info?.path).toBe(baseInfo.path); expect(c.dirty.value).toBe(false); expect(c.state.backup).toBe("C:\\data\\backup.bak");
+    expect(c.state.info?.path).toBe(baseInfo.path); expect(c.dirty.value).toBe(false); expect(c.state).not.toHaveProperty("backup");
   });
   it("保存失败后保留修改，重试时不重复提交同一编辑", async () => {
     const { call, controller: c } = setup(); await c.open(baseInfo.path, "auto"); c.changed("modified");

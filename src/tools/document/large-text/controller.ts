@@ -7,7 +7,7 @@ import type { EditorCache, FileInfo, OpenedFile, SearchResult, TaskStatus, TextB
 export function createTextController(call: typeof invoke = invoke) {
   const state = reactive({
     id: "", encoding: "auto", query: "", lineInput: "", searchVisible: false, jumpVisible: false, generation: 0, info: null as FileInfo | null, block: null as TextBlock | null, draft: "", busy: false,
-    status: null as TaskStatus | null, backup: "", error: "", back: [] as number[],
+    status: null as TaskStatus | null, error: "", back: [] as number[],
   });
   const editorCache = shallowRef<EditorCache>();
   const localDirty = computed(() => Boolean(state.block && state.draft !== state.block.text));
@@ -51,7 +51,7 @@ export function createTextController(call: typeof invoke = invoke) {
   };
   const refresh = async (start: number) => load(await call<TextBlock>("large_text_read", { ...args(), start }));
   const adopt = (file: OpenedFile, encoding: string) => {
-    state.id = file.id; state.encoding = encoding; state.info = file.info; state.status = null; state.backup = ""; state.back = []; pending = Promise.resolve(); load(file.block);
+    state.id = file.id; state.encoding = encoding; state.info = file.info; state.status = null; state.back = []; pending = Promise.resolve(); load(file.block);
   };
   const open = (path: string, encoding: string) => perform(async () => {
     adopt(await call<OpenedFile>("large_text_open", { path, encoding }), encoding);
@@ -132,8 +132,8 @@ export function createTextController(call: typeof invoke = invoke) {
   const save = () => perform(async () => {
     await flush();
     if (state.info!.dirty) {
-      const result = await call<{ info: FileInfo; backup: string }>("large_text_save", args());
-      state.info = result.info; state.backup = result.backup;
+      const result = await call<{ info: FileInfo }>("large_text_save", args());
+      state.info = result.info;
     }
     // 保存不会改变文本版本；保留连续窗口及编辑器实例，避免保存时跳回窗口开头。
   });

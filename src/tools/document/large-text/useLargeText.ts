@@ -5,6 +5,7 @@ import { showError, showNotice } from "@/utils/errorToast";
 import { registerExitGuard } from "@/utils/exitGuards";
 import { useUpdater } from "@/composables/useUpdater";
 import { ref } from "vue";
+import { displayFilePath } from "./path";
 import type { TextController } from "./controller";
 import { textWorkspace, type TabCloseScope } from "./workspace";
 
@@ -23,7 +24,7 @@ async function resolveChanges(largeText: TextController): Promise<boolean> {
   if (largeText.state.busy) { showNotice(t("largeText.wait")); return false; }
   if (!largeText.dirty.value) return true;
   const { message } = await import("@tauri-apps/plugin-dialog");
-  const choice = await message(`${largeText.state.info?.path ?? ""}\n\n${t("largeText.pendingPrompt")}`, {
+  const choice = await message(`${displayFilePath(largeText.state.info?.path ?? "")}\n\n${t("largeText.pendingPrompt")}`, {
     title: t("largeText.unsaved"), kind: "warning",
     buttons: { yes: t("largeText.saveChoice"), no: t("largeText.discardChoice"), cancel: t("largeText.cancelChoice") },
   });
