@@ -5,7 +5,10 @@ use crate::core::{branding, paths, tray};
 use crate::tools::{
     audio::tts::commands as tts,
     document::{
-        pdf_to_word::commands as pdf_to_word, shared::office, word_to_pdf::commands as word_to_pdf,
+        large_text::{commands as large_text, service as large_text_service},
+        pdf_to_word::commands as pdf_to_word,
+        shared::office,
+        word_to_pdf::commands as word_to_pdf,
     },
     encode::password_vault::commands as vault,
     image::shared::{ai_models, inference},
@@ -51,6 +54,18 @@ pub fn run() {
     let builder = builder
         // 前端可以调用的命令
         .invoke_handler(tauri::generate_handler![
+            large_text::large_text_open,
+            large_text::large_text_read,
+            large_text::large_text_edit,
+            large_text::large_text_history,
+            large_text::large_text_jump,
+            large_text::large_text_search,
+            large_text::large_text_save,
+            large_text::large_text_status,
+            large_text::large_text_pending,
+            large_text::large_text_cancel,
+            large_text::large_text_close,
+            large_text::large_text_exit,
             ping::ping_once,
             ip_lookup::local_ip,
             office::office_engines,
@@ -153,9 +168,19 @@ pub fn run() {
     builder
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
-        .run(|_, event| {
+        .run(|app, event| {
+            if let tauri::RunEvent::ExitRequested { api, code, .. } = &event {
+                if large_text_service::has_sessions() {
+                    api.prevent_exit();
+                    #[cfg(desktop)]
+                    tray::show_main(app);
+                    use tauri::Emitter;
+                    let _ = app.emit_to("main", "large-text-exit-requested", code);
+                }
+            }
             // 退出时恢复录屏前临时关闭的 HDR
             if let tauri::RunEvent::Exit = event {
+                large_text_service::shutdown();
                 hdr::restore();
             }
         });
