@@ -1,0 +1,160 @@
+<script setup lang="ts">
+import { useToolResult } from "@/composables/useToolUsage";
+import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref } from "vue";
+import { Pause, Play } from "lucide-vue-next";
+import { useI18n } from "vue-i18n";
+import CopyList from "@/components/common/CopyList.vue";
+import { useStoredRef } from "@/composables/useStoredRef";
+import ToolActions from "@/components/tool/ToolActions.vue";
+import { formatDateTime, relativeTime } from "@/utils/time";
+import { parseTimeInput, type TimestampUnit } from "./timestamp";
+
+/** 时间戳 ↔ 日期：输入时间戳或日期，一次显示所有常用格式 */
+
+const { t } = useI18n();
+
+// ---------- 当前时间 ----------
+const now = ref(Date.now());
+const running = ref(true);
+// 工具切到后台时停止计时，回来时立即刷新
+let timer: ReturnType<typeof setInterval> | undefined;
+const startClock = () => {
+  clearInterval(timer);
+  now.value = Date.now();
+  timer = setInterval(() => running.value && (now.value = Date.now()), 1000);
+};
+const stopClock = () => clearInterval(timer);
+onMounted(startClock);
+onActivated(startClock);
+onDeactivated(stopClock);
+onBeforeUnmount(stopClock);
+
+const nowItems = computed(() => [
+  { label: t("convert.seconds"), value: String(Math.floor(now.value / 1000)) },
+  { label: t("convert.milliseconds"), value: String(now.value) },
+  { label: t("convert.localTime"), value: formatDateTime(new Date(now.value)) },
+]);
+
+// ---------- 转换 ----------
+const unit = useStoredRef<TimestampUnit>("timestamp.unit", "auto");
+const input = ref(String(Math.floor(Date.now() / 1000)));
+const parsed = computed(() => parseTimeInput(input.value, unit.value));
+
+const UNIT_LABEL = computed(() => ({ s: t("convert.parsedAsS"), ms: t("convert.parsedAsMs"), date: t("convert.parsedAsDate") }));
+
+const resultItems = computed(() => {
+  const p = parsed.value;
+  const d = p.ok ? p.date : null;
+  return [
+    { label: t("convert.localTime"), value: d ? formatDateTime(d) : "" },
+    { label: t("convert.seconds"), value: d ? String(Math.floor(d.getTime() / 1000)) : "" },
+    { label: t("convert.milliseconds"), value: d ? String(d.getTime()) : "" },
+    { label: "ISO 8601", value: d ? d.toISOString() : "" },
+    { label: "UTC", value: d ? d.toUTCString() : "" },
+    { label: t("convert.relative"), value: d ? relativeTime(d.getTime(), now.value) : "" },
+  ];
+});
+
+const useNow = () => (input.value = String(Math.floor(Date.now() / 1000)));
+
+useToolResult(() => parsed.value.ok ? `${input.value}|${unit.value}` : "");
+</script>
+
+<template>
+  <div class="timestamp">
+    <ToolActions>
+      <div class="seg" :title="t('convert.unitTitle')">
+        <button :class="{ on: unit === 'auto' }" @click="unit = 'auto'">{{ t("convert.auto") }}</button>
+        <button :class="{ on: unit === 's' }" @click="unit = 's'">{{ t("convert.seconds") }}</button>
+        <button :class="{ on: unit === 'ms' }" @click="unit = 'ms'">{{ t("convert.milliseconds") }}</button>
+      </div>
+    </ToolActions>
+
+    <!-- 左：转换（主要功能） -->
+    <section class="card convert">
+      <div class="card-title">{{ t("convert.convert") }}</div>
+      <div class="input-row">
+        <input
+          v-model="input"
+          class="field mono big"
+          :class="{ invalid: !parsed.ok && parsed.message }"
+          spellcheck="false"
+          :placeholder="t('convert.timePlaceholder')"
+        />
+        <button class="btn" @click="useNow">{{ t("convert.now") }}</button>
+      </div>
+      <p v-if="!parsed.ok && parsed.message" class="message error">{{ parsed.message }}</p>
+      <p v-else-if="parsed.ok" class="message">{{ UNIT_LABEL[parsed.unit] }}</p>
+      <CopyList :items="resultItems" />
+    </section>
+
+    <!-- 右：当前时间，大字号显示 -->
+    <section class="card now">
+      <header class="card-title">
+        <span>{{ t("convert.currentTime") }}</span>
+        <button class="icon-btn" :title="running ? t('convert.pause') : t('convert.resume')" @click="running = !running">
+          <Pause v-if="running" :size="14" />
+          <Play v-else :size="14" />
+        </button>
+      </header>
+      <div class="clock">
+        <span class="clock-sec">{{ nowItems[0].value }}</span>
+        <span class="clock-date">{{ nowItems[2].value }}</span>
+      </div>
+      <CopyList :items="nowItems.slice(0, 2)" label-width="40px" />
+    </section>
+  </div>
+</template>
+
+<style scoped>
+.timestamp {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr);
+  align-items: start;
+  gap: 14px;
+}
+@media (max-width: 1000px) {
+  .timestamp {
+    grid-template-columns: 1fr;
+  }
+}
+.now .card-title span {
+  flex: 1;
+}
+.input-row {
+  display: flex;
+  gap: 8px;
+  padding: 14px 16px 0;
+}
+.field.big {
+  height: 40px;
+  font-size: 15px;
+}
+.input-row .btn {
+  height: 40px;
+}
+.message {
+  margin: 6px 16px 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.clock {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 16px 16px 6px;
+}
+.clock-sec {
+  font-family: var(--font-mono);
+  font-size: 30px;
+  letter-spacing: 0.5px;
+  font-variant-numeric: tabular-nums;
+}
+.clock-date {
+  font-size: 13px;
+  color: var(--text-3);
+}
+.message.error {
+  color: var(--danger);
+}
+</style>

@@ -1,0 +1,152 @@
+import { defineModuleLocales } from "@/locales/types";
+
+export default defineModuleLocales({
+  "tools": {
+    "en": {
+      "pdf-pages": {
+        "name": "PDF Page Editor",
+        "desc": "Delete, rotate and reorder PDF pages, or merge several PDFs into one"
+      }
+    },
+    "ja": {
+      "pdf-pages": {
+        "name": "PDF ページ編集",
+        "desc": "PDF のページを削除・回転・並べ替え、または複数の PDF を 1 つに結合します"
+      }
+    }
+  },
+  "messages": {
+    "zh-CN": {
+      "document": {
+        "needPages": "请输入页码，例如 1-3, 5",
+        "badRange": "无法识别「{part}」，请输入页码，例如 1-3, 5",
+        "outOfRange": "「{part}」超出范围，共 {total} 页",
+        "noPages": "没有可以保存的页面",
+        "encrypted": "这个 PDF 设置了密码或权限保护，暂不支持编辑",
+        "badPdf": "无法读取这个 PDF，文件可能已损坏",
+        "reading": "正在读取…",
+        "untitled": "文档",
+        "mergedSuffix": "合并",
+        "editedSuffix": "编辑",
+        "saveFailed": "保存失败：{error}",
+        "pageOf": "{name} 第 {n} 页",
+        "originalPage": "原第 {n} 页",
+        "thumbSize": "缩略图大小",
+        "small": "小",
+        "medium": "中",
+        "large": "大",
+        "addPdfTitle": "加入其他 PDF，合并为一个文件",
+        "addPdfBtn": "添加 PDF",
+        "close": "关闭",
+        "saving": "保存中…",
+        "savePdf": "保存 PDF",
+        "selectAll": "全选",
+        "rangePlaceholder": "按页码选择，如 1-3, 5",
+        "select": "选择",
+        "rotateLeft90": "向左旋转 90°",
+        "rotateRight90": "向右旋转 90°",
+        "deleteSelected": "删除选中",
+        "keepSelected": "只保留选中",
+        "undo": "撤销",
+        "pagesTotal": "共 {n} 页",
+        "pagesSelected": "，已选 {n} 页",
+        "pagesDeleted": "，已删除 {n} 页",
+        "dropPdf": "拖入 PDF 文件，或点击选择",
+        "dropPdfHint": "可以删除、旋转、拖动调整页面顺序；一次拖入多个 PDF 会合并成一个文件",
+        "rotateLeft": "向左旋转",
+        "rotateRight": "向右旋转",
+        "deletePage": "删除这一页",
+        "sourceInfo": "{name} · {n} 页 · {size}",
+        "pagesHint": "点击选择，Ctrl 多选、Shift 连选，拖动调整顺序"
+      }
+    },
+    "en": {
+      "document": {
+        "needPages": "Enter page numbers, e.g. 1-3, 5",
+        "badRange": "Can't read “{part}”. Enter page numbers, e.g. 1-3, 5",
+        "outOfRange": "“{part}” is out of range ({total} pages)",
+        "noPages": "No pages to save",
+        "encrypted": "This PDF is password- or permission-protected and can't be edited",
+        "badPdf": "Can't read this PDF — the file may be damaged",
+        "reading": "Reading…",
+        "untitled": "document",
+        "mergedSuffix": "merged",
+        "editedSuffix": "edited",
+        "saveFailed": "Save failed: {error}",
+        "pageOf": "{name} page {n}",
+        "originalPage": "Original page {n}",
+        "thumbSize": "Thumbnail size",
+        "small": "S",
+        "medium": "M",
+        "large": "L",
+        "addPdfTitle": "Add other PDFs to merge into one file",
+        "addPdfBtn": "Add PDF",
+        "close": "Close",
+        "saving": "Saving…",
+        "savePdf": "Save PDF",
+        "selectAll": "Select all",
+        "rangePlaceholder": "Select by page numbers, e.g. 1-3, 5",
+        "select": "Select",
+        "rotateLeft90": "Rotate left 90°",
+        "rotateRight90": "Rotate right 90°",
+        "deleteSelected": "Delete selected",
+        "keepSelected": "Keep selected only",
+        "undo": "Undo",
+        "pagesTotal": "{n} pages",
+        "pagesSelected": ", {n} selected",
+        "pagesDeleted": ", {n} deleted",
+        "dropPdf": "Drop PDF files here, or click to choose",
+        "dropPdfHint": "Delete, rotate and drag to reorder pages; dropping several PDFs merges them into one file",
+        "rotateLeft": "Rotate left",
+        "rotateRight": "Rotate right",
+        "deletePage": "Delete this page",
+        "sourceInfo": "{name} · {n} pages · {size}",
+        "pagesHint": "Click to select, Ctrl for multiple, Shift for a range, drag to reorder"
+      }
+    },
+    "ja": {
+      "document": {
+        "needPages": "ページ番号を入力してください（例：1-3, 5）",
+        "badRange": "「{part}」を認識できません。ページ番号を入力してください（例：1-3, 5）",
+        "outOfRange": "「{part}」は範囲外です（全 {total} ページ）",
+        "noPages": "保存できるページがありません",
+        "encrypted": "この PDF はパスワードまたは権限で保護されているため、編集できません",
+        "badPdf": "この PDF を読み込めません。ファイルが壊れている可能性があります",
+        "reading": "読み込み中…",
+        "untitled": "文書",
+        "mergedSuffix": "結合",
+        "editedSuffix": "編集",
+        "saveFailed": "保存に失敗しました：{error}",
+        "pageOf": "{name} {n} ページ目",
+        "originalPage": "元の {n} ページ目",
+        "thumbSize": "サムネイルのサイズ",
+        "small": "小",
+        "medium": "中",
+        "large": "大",
+        "addPdfTitle": "他の PDF を追加して 1 つのファイルに結合",
+        "addPdfBtn": "PDF を追加",
+        "close": "閉じる",
+        "saving": "保存中…",
+        "savePdf": "PDF を保存",
+        "selectAll": "すべて選択",
+        "rangePlaceholder": "ページ番号で選択（例：1-3, 5）",
+        "select": "選択",
+        "rotateLeft90": "左に 90° 回転",
+        "rotateRight90": "右に 90° 回転",
+        "deleteSelected": "選択を削除",
+        "keepSelected": "選択だけを残す",
+        "undo": "元に戻す",
+        "pagesTotal": "全 {n} ページ",
+        "pagesSelected": "、{n} ページを選択",
+        "pagesDeleted": "、{n} ページを削除済み",
+        "dropPdf": "PDF ファイルをドロップ、またはクリックして選択",
+        "dropPdfHint": "ページの削除・回転・ドラッグでの並べ替えができます。複数の PDF をドロップすると 1 つに結合します",
+        "rotateLeft": "左に回転",
+        "rotateRight": "右に回転",
+        "deletePage": "このページを削除",
+        "sourceInfo": "{name} · {n} ページ · {size}",
+        "pagesHint": "クリックで選択、Ctrl で複数選択、Shift で範囲選択、ドラッグで並べ替え"
+      }
+    }
+  }
+});

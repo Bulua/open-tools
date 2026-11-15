@@ -43,8 +43,8 @@ export interface ToolText {
 }
 
 /**
- * 每个工具模块的 locales.ts 默认导出的内容。
- * - tools：工具列表里的翻译（中文直接写在模块的 index.ts 里），按语言、再按工具 id 对应
+ * 每个工具或模块共享目录的 locales.ts 默认导出的内容。
+ * - tools：工具列表里的翻译（中文直接写在工具目录的 index.ts 里），按语言、再按工具 id 对应
  * - messages：工具界面里的文案，放在以模块名为 key 的命名空间下，各语言结构相同
  */
 export interface ModuleLocales {

@@ -34,7 +34,7 @@ Formatting JSON, decoding Base64, converting timestamps, or compressing images o
 
 ## Features
 
-9 categories and 64 tools:
+9 categories and 69 tools:
 
 | Category | Tools |
 | --- | --- |
@@ -45,7 +45,7 @@ Formatting JSON, decoding Base64, converting timestamps, or compressing images o
 | Images | Screenshots and desktop pinning (Windows), compression, format conversion, cropping, rotation, color adjustment, stitching, mosaic, watermarks, background removal (including AI subject detection), watermark removal (AI inpainting), color picker, DPI change, ICO generation |
 | Audio | Format conversion (including extracting audio from video), trimming, joining, recording, text to speech |
 | Video | Bilibili video download (with in-app playback), Douyin download without watermark, RedNote video and photo download (desktop, automatic content detection and local playback), video to audio (copy the original track or convert to MP3/M4A/WAV), video to GIF, video trimming (length and picture), video concatenation, background music, screen recording, camera recording |
-| Documents & files | Word to PDF, PDF to Word, Word watermarks and watermark removal, PDF page editing, PDF watermark removal, Markdown editing/preview and Word export, archiving and extraction |
+| Documents & files | Large-text editing (multiple tabs and continuous scrolling), Word to PDF, PDF to Word, Word watermarks and watermark removal, PDF page editing, PDF watermark removal, Markdown editing/preview and Word export, archiving and extraction |
 | Network | HTTP request client, IP address and location lookup, ping, HTTP headers to JSON/cURL |
 
 ## Download and install

@@ -61,19 +61,27 @@ open-tools/
 │   │       ├── FileDropZone.vue    # 文件拖放 / 选择 / 粘贴
 │   │       ├── EmptyState.vue
 │   │       └── CommandPalette.vue  # Ctrl+K 全局搜索
-│   └── tools/               # 所有工具，按模块分文件夹
-│       ├── index.ts         # 分类注册表：顶部有哪些分类、每个分类包含哪些工具
+│   └── tools/               # 模块 / 工具 ID 两级目录
+│       ├── index.ts         # 汇总工具，按用途配置展示分类
 │       ├── types.ts         # Tool / Category 类型定义
 │       ├── json/
-│       │   ├── index.ts         # 本模块的工具定义
-│       │   ├── locales.ts       # 本模块的多语言文案（工具名称的英文、界面文案）
-│       │   ├── utils.ts         # 纯逻辑（解析、对比、生成类型…）
-│       │   ├── utils.test.ts    # 单元测试
-│       │   └── components/      # 需要自定义界面的工具
+│       │   ├── index.ts     # 只聚合本模块工具
+│       │   ├── json-diff/
+│       │   │   ├── index.ts       # 工具注册，默认导出 Tool
+│       │   │   ├── JsonDiff.vue   # 工具页面
+│       │   │   ├── diff.ts        # 工具独有逻辑
+│       │   │   ├── diff.test.ts   # 逻辑测试
+│       │   │   └── locales.ts     # 本工具的中英日文案
+│       │   ├── json-format/
+│       │   │   ├── index.ts
+│       │   │   ├── JsonFormat.vue
+│       │   │   ├── locales.ts
+│       │   │   └── components/    # 仅该工具使用的子组件
+│       │   └── shared/            # 多个 JSON 工具复用的解析、格式化和文案
 │       ├── encode/
 │       ├── convert/
 │       └── image/
-│           └── screenshot/ # 截图逻辑、单元测试及截图窗口组件
+│           └── screenshot-history/ # 截图工具的逻辑、测试、页面与多窗口子组件
 ├── src-tauri/               # Tauri 原生端（Rust），供 Windows 和 Android 共用
 │   ├── tauri.conf.json      # 窗口、应用名、更新配置（版本号读取 package.json）
 │   ├── tauri.release.conf.json  # 发布版本时额外启用的配置（生成更新文件）
@@ -81,28 +89,63 @@ open-tools/
 │   ├── capabilities/        # 前端可调用的系统能力（权限白名单）
 │   ├── icons/               # 应用图标（由 app-icon.png 生成）
 │   └── src/                 # Rust 入口与插件注册
-│       ├── core/            # 数据路径、脚本执行、托盘与应用图标
-│       └── tools/           # 需要 Rust 能力的工具，按领域分类
-│           ├── audio/       # 语音合成与脚本
-│           ├── document/    # Office/PDF 转换与脚本
-│           ├── image/       # AI 模型下载与推理
-│           ├── network/     # Ping、本机 IP
-│           ├── text/        # 密码本
-│           ├── time/        # 倒计时
-│           └── video/       # 抖音获取、录屏 HDR
+│       ├── core/            # 全应用基础能力：路径、进程输出、脚本、托盘、图标
+│       └── tools/           # 只为需要原生能力的工具建立目录
+│           ├── audio/
+│           │   └── tts/                 # commands.rs、tts.ps1
+│           ├── document/
+│           │   ├── word_to_pdf/         # Word/WPS 转 PDF 命令与脚本
+│           │   ├── pdf_to_word/         # PDF 转 Word 命令与脚本
+│           │   └── shared/              # Office 引擎检测与通用转换流程
+│           ├── encode/
+│           │   ├── password_vault/      # 密码本文件读写
+│           │   └── clipboard_history/   # 命令协调、Windows API、加密存储
+│           ├── image/
+│           │   ├── screenshot_history/  # 截图命令、捕获、窗口、剪贴板、状态与存储
+│           │   └── shared/              # AI 模型管理、ONNX 推理
+│           ├── network/
+│           │   ├── ping/                # 系统 Ping
+│           │   └── ip_lookup/           # 本机局域网 IP
+│           ├── utility/
+│           │   ├── calendar/            # 日历备注与通知
+│           │   └── countdown/           # 倒计时读写
+│           └── video/
+│               ├── douyin_download/     # 抖音信息获取命令与页面脚本
+│               ├── xiaohongshu_download/ # 小红书分享页读取命令与脚本
+│               └── shared/              # HDR 状态管理与平台下载目录
 ├── branding/                # 远程图标：不发新版本也能换图标，历史图标都在这里
 └── app-icon.png             # 图标源文件（1024×1024，四角透明）
 ```
 
+### 工具目录边界
+
+- 每个工具目录以工具 ID 命名，包含独立 `index.ts`、Vue 页面和 `locales.ts`。工具独有的 TS 逻辑、状态、数据、Worker、测试和子组件都归该目录，子组件多时再建 `components/`。
+- 简单工具保持少量文件；复杂工具按职责拆分逻辑和组合函数，不要求为每个页面机械创建 `useXxx.ts`。
+- 抖音和小红书入口通过各自的 `adapter.ts` 为 `video/shared/components/SocialDownload.vue` 提供解析、下载和文件格式判断；共享页面不导入工具私有代码。下载目录、画质分组和预览缓存也统一放在 `video/shared/`。
+- 多个工具共用的实现放模块 `shared/`；全站通用的组件、组合函数、函数分别放 `src/components/`、`src/composables/`、`src/utils/`。工具之间不直接依赖对方私有文件。
+- 压缩与格式转换、屏幕与摄像头录制等工具各有独立 Vue 入口，通过固定参数复用 `shared/components/` 的页面，避免复制实现。
+- 逻辑测试用 `*.test.ts`；组件测试用 `*.component.test.ts`，与被测文件放在一起，避免 Windows 下仅大小写不同的文件名冲突。
+- 翻译加载器自动收集 `src/tools/*/*/locales.ts`，递归合并同一命名空间中的文案，原有 key 保持稳定。
+
+### Rust 工具目录约定
+
+- Rust 工具按 `src-tauri/src/tools/<模块>/<工具ID>/` 组织，与前端对应。模块名尽量一致；Rust 目录使用下划线，例如前端 `clipboard-history` 对应 Rust `clipboard_history`。
+- 只有需要原生能力的工具才建立 Rust 目录。`mod.rs` 只声明模块；前端调用入口放 `commands.rs`。简单工具可将内部辅助逻辑保留在该文件，复杂工具再拆分职责。
+- 专用 PowerShell / JavaScript 脚本与所属工具一起存放，通过同目录的 `include_str!` 嵌入。多个工具共用的能力放领域模块 `shared/`，全应用基础能力放 `core/`。
+- 截图工具的 `commands.rs` 协调命令，`capture.rs` 负责 Windows 捕获，`clipboard.rs` 负责复制图片，`windows.rs` 管理截图层与贴图窗口，`state.rs` 管理草稿与并发状态，`store.rs` 管理历史文件，`types.rs` 定义序列化数据。
+- `core/` 不依赖具体工具的实现。托盘的工具动作由 `lib.rs` 注入回调；外部进程输出解码在 `core/process.rs`，供脚本执行和 Ping 共用；数据路径继续统一使用 `core/paths.rs`。
+- 插件初始化和 IPC 命令注册仍在 `src-tauri/src/lib.rs`。调整内部模块路径时保留命令名、参数、返回字段和事件名，避免影响前端及权限配置。
+- Windows 专用模块在领域入口用 `#[cfg(windows)]` 限定，平台判断按原有行为保留。完整原生验证在 Windows 上执行 `cargo test --locked --manifest-path src-tauri/Cargo.toml`；Linux 检查需要额外安装 GTK/WebKit 等开发依赖。
+
 ## 新增一个工具
 
-工具定义放在 `src/tools/<模块>/index.ts`，界面分类由 `src/tools/index.ts` 统一注册。工具默认在所有平台显示。需要限制时，在工具定义上声明 `platforms`，可选值为 `desktop`（当前桌面发行版为 Windows）、`android`、`web`（浏览器开发预览）。目前 Android 尚未适配的工具使用 `platforms: ["desktop", "web"]`，保留原有浏览器预览入口。
+工具定义放在 `src/tools/<模块>/<工具ID>/index.ts`，模块 `index.ts` 只负责导入并汇总工具，界面分类由 `src/tools/index.ts` 统一注册。工具默认在所有平台显示。需要限制时，在工具定义上声明 `platforms`，可选值为 `desktop`（当前桌面发行版为 Windows）、`android`、`web`（浏览器开发预览）。目前 Android 尚未适配的工具使用 `platforms: ["desktop", "web"]`，保留原有浏览器预览入口。
 
 工具界面有两种写法。
 
 ### 简单的文本转换
 
-「输入 → 点按钮 → 输出」，只写函数，不用写界面：
+「输入 → 点按钮 → 输出」可复用 `src/components/tool/TextTransform.vue`。工具目录仍需提供独立 Vue 入口（参考 `src/tools/json/json-escape/`），函数写在该工具的 TS 文件中，`actions` 保留按钮元数据和转换函数：
 
 ```ts
 {
@@ -118,7 +161,7 @@ open-tools/
 
 ### 自定义界面
 
-在工具所属模块的 `components/` 下写一个 Vue 组件，然后：
+在工具目录中写 Vue 页面（如 `src/tools/json/json-diff/JsonDiff.vue`），然后在同目录的 `index.ts` 定义工具：
 
 ```ts
 {
@@ -126,7 +169,7 @@ open-tools/
   name: "JSON 差异对比",
   desc: "对比两段 JSON，列出新增、删除和修改的字段",
   icon: GitCompare,
-  component: defineAsyncComponent(() => import("./components/JsonDiff.vue")),
+  component: defineAsyncComponent(() => import("./JsonDiff.vue")),
 },
 ```
 
@@ -165,9 +208,9 @@ import ToolActions from "@/components/tool/ToolActions.vue";
 
 ## 分类与排序
 
-工具代码按模块放在 `src/tools/<模块>/` 下，顶部显示的分类则按用途在 `src/tools/index.ts` 的 `categories` 中用工具 id 挑选，两者可以不同（例如「时间」分类包含来自 `convert/` 和 `utility/` 的工具）。
+工具代码按 `src/tools/<模块>/<工具ID>/` 组织，目录名与工具 ID 一致，顶部显示的分类则按用途在 `src/tools/index.ts` 的 `categories` 中用工具 id 挑选，两者可以不同（例如「时间」分类包含来自 `convert/` 和 `utility/` 的工具）。
 
-- 新增工具：在模块的 `index.ts` 里定义，再把 id 加到 `categories` 的某个分类中。测试会检查每个工具都恰好出现在一个分类里。
+- 新增工具：在工具目录的 `index.ts` 定义，从模块 `index.ts` 聚合，再把 id 加到 `categories` 的某个分类中。测试会检查每个工具都恰好出现在一个分类里。
 - 新增分类：在 `categories` 数组里加一项，数组顺序就是顶部分类的顺序。
 - 分类内的工具自动按名称排序（中文按拼音、英文按字母，按首字母混排），定义时的顺序不影响显示。英文界面下按英文名的字母排序。
 - 新增分类时，在 `src/locales/tools.ts` 的 `CATEGORY_NAMES` 里写上分类在各语言的名称。
@@ -186,17 +229,17 @@ import ToolActions from "@/components/tool/ToolActions.vue";
 |---|---|---|
 | 顶栏、侧栏、更新对话框、托盘菜单、公共控件 | `src/locales/zh-CN.ts` | `src/locales/en.ts`、`ja.ts`…（每种语言一个文件） |
 | 分类名 | `src/tools/index.ts` 的 `categories` | `src/locales/tools.ts` 的 `CATEGORY_NAMES` |
-| 工具名称、说明、输入框提示、按钮名 | 模块的 `index.ts`（工具定义本身） | 模块 `locales.ts` 的 `tools.en`、`tools.ja`… |
-| 工具界面里的文字 | 模块 `locales.ts` 的 `messages["zh-CN"]` | 模块 `locales.ts` 的 `messages.en`、`messages.ja`… |
-| 单位、城市、字体等按 id 区分的数据 | 数据本身 | 按语言分的翻译表，例如 `src/tools/convert/names.ts` |
+| 工具名称、说明、输入框提示、按钮名 | 工具目录的 `index.ts`（工具定义本身） | 同目录 `locales.ts` 的 `tools.en`、`tools.ja`… |
+| 工具界面里的文字 | 工具目录 `locales.ts` 的 `messages["zh-CN"]` | 工具目录 `locales.ts` 的 `messages.en`、`messages.ja`… |
+| 单位、城市、字体等按 id 区分的数据 | 数据本身 | 按语言分的翻译表，例如 `src/tools/convert/units/names.ts` |
 
 ### 新增工具时
 
-1. 照常在模块的 `index.ts` 里用中文写 `name`、`desc`（以及 `inputPlaceholder`、`actions` 的 `label`）。
-2. 在同一模块 `locales.ts` 的 `tools` 里按语言、再按工具 id 写翻译。`actions` 按顺序一一对应。**英文必须写**，其他语言能写就写，没写的显示英文：
+1. 在工具目录的 `index.ts` 里用中文写 `name`、`desc`（以及 `inputPlaceholder`、`actions` 的 `label`）。
+2. 在同一工具目录 `locales.ts` 的 `tools` 里按语言、再按工具 id 写翻译。`actions` 按顺序一一对应。**英文必须写**，其他语言能写就写，没写的显示英文：
 
 ```ts
-// src/tools/json/locales.ts
+// src/tools/json/json-escape/locales.ts
 import { defineModuleLocales } from "@/locales/types";
 
 export default defineModuleLocales({
@@ -220,7 +263,7 @@ export default defineModuleLocales({
 
 ### 工具界面里的文字
 
-写在模块 `locales.ts` 的 `messages` 里，**以模块名为最外层的 key**，避免与其他模块重名。
+写在工具目录 `locales.ts` 的 `messages` 里；多个工具共用的文字写在模块 `shared/locales.ts`。仍然**以模块名为最外层的 key**，避免与其他模块重名。
 
 - 英文必须与中文的 key 完全相同：少写、多写时 `npm run typecheck` 会报错，测试也会检查。
 - 其他语言可以整块不写，但只要写了这个模块，结构也要与中文相同。缺的部分会回退到英文。
@@ -256,7 +299,7 @@ const { t } = useI18n();
 
 - **变量用 `{name}` 插值**，不要把句子拆成几段再拼接，各语言的语序常常不同。
 - 文案里要显示 `{`、`}`、`@`、`|` 这几个字符时，写成 `{'{'}`、`{'}'}`、`{'@'}`、`{'|'}`（它们是 vue-i18n 的语法字符）。邮箱里的 `@` 也要这样写。测试会逐条编译所有语言的文案，写错时 `npm test` 会失败。
-- **按 id 区分的数据**（例如单位、城市、字体、常用预设）：中文留在数据里，其他语言写进 `Translations` 类型的翻译表。用 `translationIn(表, locale, id)` 取，没有时自动回退到英文再到中文。参考 `src/tools/convert/names.ts`。
+- **按 id 区分的数据**（例如单位、城市、字体、常用预设）：中文留在数据里，其他语言写进 `Translations` 类型的翻译表。用 `translationIn(表, locale, id)` 取，没有时自动回退到英文再到中文。参考 `src/tools/convert/units/names.ts`。
 - **不要写死"非中文就是英文"**：需要区分语言时查表，或者用 `Intl`（日期、星期、相对时间、数字）并传入当前语言（`import { locale } from "@/locales"`），参考 `utils/time.ts` 的 `relativeTime`。只有中文有特殊写法时，可以写 `locale.value === "zh-CN" ? 中文写法 : 通用写法`。
 - 句子中间要加粗等带标签的内容时，用 `<Translation keypath="…">` 组件和具名插槽，参考 `UpdateDialog.vue`。
 - 组件模板的 `v-for` 不要用 `t` 作循环变量，会遮住 `t()` 函数。
@@ -273,10 +316,10 @@ const { t } = useI18n();
 2. **公共文案**：复制 `src/locales/en.ts` 为 `ja.ts` 并翻译。它的类型是 `Messages<typeof zhCN>`，必须完整。
 3. **工具列表**：
    - 在 `src/locales/tools.ts` 的 `CATEGORY_NAMES` 里加上这种语言的分类名。
-   - 在每个模块 `locales.ts` 的 `tools` 里加上这种语言的工具名称和说明。测试要求这两项完整。
-4. **工具界面**：在模块 `locales.ts` 的 `messages` 里加上这种语言的翻译。可以一个模块一个模块地加，没加的显示英文。
+   - 在每个工具及共享目录的 `locales.ts` 的 `tools` 里加上这种语言的工具名称和说明。测试要求这两项完整。
+4. **工具界面**：在工具及共享目录的 `locales.ts` 的 `messages` 里加上这种语言的翻译。可以逐个工具添加，没加的显示英文。
 5. **数据翻译表**（可选）：单位、城市、字体、Cron 和正则的常用预设等，在对应的翻译表里加上这种语言，没加的显示英文。
-6. **按语法生成的句子**（可选）：Cron 表达式的说明是按语法拼出来的，每种语言要单独写一个生成函数，登记在 `src/tools/utility/cron.ts` 的 `DESCRIBERS` 里；没写的用英文说明。
+6. **按语法生成的句子**（可选）：Cron 表达式的说明是按语法拼出来的，每种语言要单独写一个生成函数，登记在 `src/tools/utility/cron/cron.ts` 的 `DESCRIBERS` 里；没写的用英文说明。
 7. **检查**：运行 `npm run typecheck` 和 `npm test`。它们会检查工具列表是否齐全、有没有多余的 key、所有文案能否正常编译。
 
 系统语言会自动匹配：例如系统是 `ja-JP` 时，先找完全相同的 `ja-JP`，没有再按语种找 `ja`，都没有时用英文。
@@ -294,10 +337,10 @@ const { t } = useI18n();
 ## 数据存放与 AI 模型
 
 - **数据文件夹**：程序自己保存的数据（密码本、倒计时、AI 模型与运行环境、远程图标）统一通过 `src-tauri/src/core/paths.rs` 的 `data_dir()` / `sub_dir()` 取位置，不要再直接用 `app_local_data_dir()` 或安装目录。Windows 上是安装目录下的 `data`，安装目录不能写时退回 `%LOCALAPPDATA%\com.opentools.app`；Android 使用系统提供的应用数据目录。旧版本的数据在启动时由 `paths::migrate()` 搬过来；倒计时以前存在 localStorage，由前端第一次读取时写进 `countdowns.json`（见 `countdownStore.ts`）。界面设置仍由各平台的 WebView 存在 localStorage 里，不在这个文件夹。
-- **视频平台下载**：B 站、抖音、小红书分别保存到数据目录下的 `videos/bilibili`、`videos/douyin`、`videos/xhs`。前端统一调用 `src/tools/video/downloadStorage.ts`，原生端 `video_download_dir` 通过 `paths::sub_dir()` 创建目录，并只为对应平台目录开放文件写入和本地媒体播放权限。播放使用 Tauri asset 协议读取已保存文件，不把整段视频长期保留在内存中。抖音和小红书共用 `SocialDownload.vue`，自动判断视频或图集；B 站保留清晰度、编码、登录和多 P 选择。网页开发预览仍使用浏览器下载，预览 Blob 在作品移除时释放。
-- **AI 推理在 Rust 里**：`src-tauri/src/tools/image/inference.rs` 用 `ort` 动态加载 ONNX Runtime，只用 CPU 多线程计算（DirectML 显卡加速跑不了 LaMa 等模型，已不再使用）。前端只做预处理、后处理，通过 `ai_run` 命令传入输入张量（请求体，多个输入依次拼接）、形状（请求头 `x-shape`，多个输入用分号隔开）和数据类型（请求头 `x-dtype`，`f32` 或 `u8`），见 `src/tools/image/aiModels.ts` 的 `runModel()`、`runModelRaw()`。网页版不支持 AI 功能。
-- **运行环境随安装包带上，模型不打包**：`onnxruntime.dll`、`DirectML.dll` 直接提交在 `src-tauri/ai-runtime/`，由 `tauri.conf.json` 的 `bundle.resources` 装到安装目录的 `ai-runtime` 里，程序优先用这一份（`ai_models.rs` 的 `runtime_dir()`）；没有或文件大小对不上时，第一次下载模型时自动把运行环境下载到数据文件夹，作为兜底。模型由用户选择下载。可下载的文件、大小、SHA-256 写在 `src-tauri/src/tools/image/ai_models.rs`，每个文件在魔搭（[sebponk/open-tools-models](https://www.modelscope.cn/models/sebponk/open-tools-models)）和 Hugging Face（[penghui002/open-tools-models](https://huggingface.co/penghui002/open-tools-models)）各放一份，路径相同。
-- **新增模型或升级运行环境**：用 `scripts/prepare-ai-files.ps1` 下载、整理文件并输出大小和校验值，把文件上传到两个仓库（两个仓库的 README.md、LICENSE.md 在 `scripts/ai-files/`，脚本会一起放进去，新增文件时记得在里面补上来源和许可证），再把输出填进 `src-tauri/src/tools/image/ai_models.rs`。升级 ONNX Runtime 时同时改 `RUNTIME_VERSION`、`Cargo.toml` 里 `ort` 的 `api-NN` 特性，并替换 `src-tauri/ai-runtime/` 里的文件。注意带 DirectML 的 ONNX Runtime 最后一个版本是 1.24.4，之后微软不再单独发布这个包。
+- **视频平台下载**：B 站、抖音、小红书分别保存到数据目录下的 `videos/bilibili`、`videos/douyin`、`videos/xhs`。前端统一调用 `src/tools/video/shared/downloadStorage.ts`，原生端 `video_download_dir` 通过 `paths::sub_dir()` 创建目录，并只为对应平台目录开放文件写入和本地媒体播放权限。播放使用 Tauri asset 协议读取已保存文件，不把整段视频长期保留在内存中。抖音和小红书共用 `SocialDownload.vue`，自动判断视频或图集；B 站保留清晰度、编码、登录和多 P 选择。网页开发预览仍使用浏览器下载，预览 Blob 在作品移除时释放。
+- **AI 推理在 Rust 里**：`src-tauri/src/tools/image/shared/inference.rs` 用 `ort` 动态加载 ONNX Runtime，只用 CPU 多线程计算（DirectML 显卡加速跑不了 LaMa 等模型，已不再使用）。前端只做预处理、后处理，通过 `ai_run` 命令传入输入张量（请求体，多个输入依次拼接）、形状（请求头 `x-shape`，多个输入用分号隔开）和数据类型（请求头 `x-dtype`，`f32` 或 `u8`），见 `src/tools/image/shared/aiModels.ts` 的 `runModel()`、`runModelRaw()`。网页版不支持 AI 功能。
+- **运行环境随安装包带上，模型不打包**：`onnxruntime.dll`、`DirectML.dll` 直接提交在 `src-tauri/ai-runtime/`，由 `tauri.conf.json` 的 `bundle.resources` 装到安装目录的 `ai-runtime` 里，程序优先用这一份（`ai_models.rs` 的 `runtime_dir()`）；没有或文件大小对不上时，第一次下载模型时自动把运行环境下载到数据文件夹，作为兜底。模型由用户选择下载。可下载的文件、大小、SHA-256 写在 `src-tauri/src/tools/image/shared/ai_models.rs`，每个文件在魔搭（[sebponk/open-tools-models](https://www.modelscope.cn/models/sebponk/open-tools-models)）和 Hugging Face（[penghui002/open-tools-models](https://huggingface.co/penghui002/open-tools-models)）各放一份，路径相同。
+- **新增模型或升级运行环境**：用 `scripts/prepare-ai-files.ps1` 下载、整理文件并输出大小和校验值，把文件上传到两个仓库（两个仓库的 README.md、LICENSE.md 在 `scripts/ai-files/`，脚本会一起放进去，新增文件时记得在里面补上来源和许可证），再把输出填进 `src-tauri/src/tools/image/shared/ai_models.rs`。升级 ONNX Runtime 时同时改 `RUNTIME_VERSION`、`Cargo.toml` 里 `ort` 的 `api-NN` 特性，并替换 `src-tauri/ai-runtime/` 里的文件。注意带 DirectML 的 ONNX Runtime 最后一个版本是 1.24.4，之后微软不再单独发布这个包。
 - **VC++ 运行库随安装包带上**：`onnxruntime.dll` 依赖 `msvcp140.dll`、`msvcp140_1.dll`、`vcruntime140.dll`、`vcruntime140_1.dll`，没装过 VC++ 运行库的电脑会加载失败（主程序自己是静态链接的，不受影响）。GitHub Actions 打包前从 Visual Studio 的可再发行目录（`VC\Redist\MSVC\<版本>\x64\Microsoft.VC*.CRT`）取出这几个文件放到 `src-tauri/vcredist/`（不提交），再通过 `tauri.vcredist.conf.json` 装到安装目录、和 `open-tools.exe` 放在一起；Windows 给 `onnxruntime.dll` 找依赖时会先找程序所在的文件夹。本机打包要带上它们时，自己把文件放进 `src-tauri/vcredist/` 并加 `--config src-tauri/tauri.vcredist.conf.json`。升级 ONNX Runtime 后如果依赖的运行库文件变了，同时改 `build.yml` 里的文件列表和 `tauri.vcredist.conf.json`。
 
 ## 修改应用图标

@@ -3,7 +3,7 @@ import { createApp, nextTick } from "vue";
 import { expect, it } from "vitest";
 import { i18n } from "@/locales";
 import { toolActivity } from "@/composables/toolLibrary";
-import { now } from "@/tools/utility/countdownStore";
+import { now } from "@/tools/utility/countdown/countdownStore";
 import ToolActivity from "./ToolActivity.vue";
 
 it("展示含本月的近六个月记录，日期、总数和当天次数随数据更新", async () => {

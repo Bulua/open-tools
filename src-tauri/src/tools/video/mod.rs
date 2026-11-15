@@ -1,4 +1,3 @@
-pub(crate) mod douyin;
-pub(crate) mod hdr;
-pub(crate) mod storage;
-pub(crate) mod xiaohongshu;
+pub(crate) mod douyin_download;
+pub(crate) mod shared;
+pub(crate) mod xiaohongshu_download;

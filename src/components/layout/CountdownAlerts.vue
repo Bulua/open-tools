@@ -2,7 +2,7 @@
 import { AlarmClock, X } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
 import { formatDateTime } from "@/utils/time";
-import { alerts, dismissAlert } from "@/tools/utility/countdownStore";
+import { alerts, dismissAlert } from "@/tools/utility/countdown/countdownStore";
 
 /** 倒计时到期提醒：显示在窗口右下角，在任何工具中都能看到 */
 const emit = defineEmits<{ open: [] }>();

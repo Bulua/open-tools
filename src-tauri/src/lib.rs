@@ -3,15 +3,28 @@ mod tools;
 
 use crate::core::{branding, paths, tray};
 use crate::tools::{
-    audio, document,
-    image::{ai_models, inference},
-    network,
-    text::vault,
-    time::{calendar, countdown},
-    video::{douyin, hdr, storage, xiaohongshu},
+    audio::tts::commands as tts,
+    document::{
+        large_text::{commands as large_text, service as large_text_service},
+        pdf_to_word::commands as pdf_to_word,
+        shared::office,
+        word_to_pdf::commands as word_to_pdf,
+    },
+    encode::password_vault::commands as vault,
+    image::shared::{ai_models, inference},
+    network::{ip_lookup::commands as ip_lookup, ping::commands as ping},
+    utility::{calendar::commands as calendar, countdown::commands as countdown},
+    video::{
+        douyin_download::commands as douyin,
+        shared::{hdr, storage},
+        xiaohongshu_download::commands as xiaohongshu,
+    },
 };
 #[cfg(windows)]
-use crate::tools::{image::screenshot, text::clipboard};
+use crate::tools::{
+    encode::clipboard_history::commands as clipboard,
+    image::screenshot_history::{commands as screenshot, windows as screenshot_windows},
+};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -20,7 +33,9 @@ pub fn run() {
     #[cfg(desktop)]
     let builder = builder
         // 必须最先注册：再次打开程序时显示已有窗口，而不是启动第二个
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| tray::show_main(app)));
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            tray::show_main(app)
+        }));
 
     let builder = builder
         // 「另存为」/ 选择文件夹对话框与写文件，用于工具导出文件
@@ -43,16 +58,28 @@ pub fn run() {
     let builder = builder
         // 前端可以调用的命令
         .invoke_handler(tauri::generate_handler![
-            network::ping_once,
-            network::local_ip,
-            document::office_engines,
-            document::office_to_pdf,
-            document::pdf_to_word,
+            large_text::large_text_open,
+            large_text::large_text_read,
+            large_text::large_text_edit,
+            large_text::large_text_history,
+            large_text::large_text_jump,
+            large_text::large_text_search,
+            large_text::large_text_save,
+            large_text::large_text_status,
+            large_text::large_text_pending,
+            large_text::large_text_cancel,
+            large_text::large_text_close,
+            large_text::large_text_exit,
+            ping::ping_once,
+            ip_lookup::local_ip,
+            office::office_engines,
+            word_to_pdf::office_to_pdf,
+            pdf_to_word::pdf_to_word,
             douyin::douyin_capture,
             storage::video_download_dir,
             xiaohongshu::xiaohongshu_capture,
-            audio::tts_voices,
-            audio::tts_synthesize,
+            tts::tts_voices,
+            tts::tts_synthesize,
             ai_models::ai_status,
             ai_models::ai_model_download,
             ai_models::ai_model_progress,
@@ -64,9 +91,12 @@ pub fn run() {
             countdown::countdown_write,
             calendar::calendar_read,
             calendar::calendar_write,
-            #[cfg(windows)] calendar::calendar_wait,
-            #[cfg(windows)] calendar::calendar_wake,
-            #[cfg(windows)] calendar::calendar_notify,
+            #[cfg(windows)]
+            calendar::calendar_wait,
+            #[cfg(windows)]
+            calendar::calendar_wake,
+            #[cfg(windows)]
+            calendar::calendar_notify,
             hdr::hdr_enabled,
             hdr::hdr_disable,
             hdr::hdr_restore,
@@ -74,24 +104,42 @@ pub fn run() {
             branding::branding_logo,
             branding::branding_activate,
             tray::set_tray_text,
-            #[cfg(windows)] clipboard::clipboard_history_list,
-            #[cfg(windows)] clipboard::clipboard_history_update,
-            #[cfg(windows)] clipboard::clipboard_history_copy,
-            #[cfg(windows)] clipboard::clipboard_history_open,
-            #[cfg(windows)] clipboard::clipboard_copy_private,
-            #[cfg(windows)] screenshot::screenshot_begin,
-            #[cfg(windows)] screenshot::screenshot_prepare,
-            #[cfg(windows)] screenshot::screenshot_active,
-            #[cfg(windows)] screenshot::screenshot_show,
-            #[cfg(windows)] screenshot::screenshot_capture,
-            #[cfg(windows)] screenshot::screenshot_targets,
-            #[cfg(windows)] screenshot::screenshot_finish,
-            #[cfg(windows)] screenshot::screenshot_cancel,
-            #[cfg(windows)] screenshot::screenshot_list,
-            #[cfg(windows)] screenshot::screenshot_read,
-            #[cfg(windows)] screenshot::screenshot_delete,
-            #[cfg(windows)] screenshot::screenshot_pin,
-            #[cfg(windows)] screenshot::screenshot_reveal
+            #[cfg(windows)]
+            clipboard::clipboard_history_list,
+            #[cfg(windows)]
+            clipboard::clipboard_history_update,
+            #[cfg(windows)]
+            clipboard::clipboard_history_copy,
+            #[cfg(windows)]
+            clipboard::clipboard_history_open,
+            #[cfg(windows)]
+            clipboard::clipboard_copy_private,
+            #[cfg(windows)]
+            screenshot::screenshot_begin,
+            #[cfg(windows)]
+            screenshot::screenshot_prepare,
+            #[cfg(windows)]
+            screenshot::screenshot_active,
+            #[cfg(windows)]
+            screenshot::screenshot_show,
+            #[cfg(windows)]
+            screenshot::screenshot_capture,
+            #[cfg(windows)]
+            screenshot::screenshot_targets,
+            #[cfg(windows)]
+            screenshot::screenshot_finish,
+            #[cfg(windows)]
+            screenshot::screenshot_cancel,
+            #[cfg(windows)]
+            screenshot::screenshot_list,
+            #[cfg(windows)]
+            screenshot::screenshot_read,
+            #[cfg(windows)]
+            screenshot::screenshot_delete,
+            #[cfg(windows)]
+            screenshot::screenshot_pin,
+            #[cfg(windows)]
+            screenshot::screenshot_reveal
         ])
         // 关闭窗口时隐藏到托盘，从托盘菜单退出
         .setup(|app| {
@@ -100,7 +148,17 @@ pub fn run() {
             #[cfg(windows)]
             clipboard::start(app.handle());
             #[cfg(desktop)]
-            tray::setup(app)?;
+            tray::setup(
+                app,
+                #[cfg(windows)]
+                |app, toggle| {
+                    if toggle {
+                        clipboard::toggle(app)
+                    } else {
+                        clipboard::open(app)
+                    }
+                },
+            )?;
             // 换上之前从 Gitee / GitHub 下载的图标（见 branding.rs）
             branding::apply_cached(app.handle());
             Ok(())
@@ -110,15 +168,25 @@ pub fn run() {
     let builder = builder.on_window_event(|window, event| {
         tray::on_window_event(window, event);
         #[cfg(windows)]
-        screenshot::on_window_event(window, event);
+        screenshot_windows::on_window_event(window, event);
     });
 
     builder
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
-        .run(|_, event| {
+        .run(|app, event| {
+            if let tauri::RunEvent::ExitRequested { api, code, .. } = &event {
+                if large_text_service::has_sessions() {
+                    api.prevent_exit();
+                    #[cfg(desktop)]
+                    tray::show_main(app);
+                    use tauri::Emitter;
+                    let _ = app.emit_to("main", "large-text-exit-requested", code);
+                }
+            }
             // 退出时恢复录屏前临时关闭的 HDR
             if let tauri::RunEvent::Exit = event {
+                large_text_service::shutdown();
                 hdr::restore();
             }
         });

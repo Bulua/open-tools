@@ -4,10 +4,10 @@ import { afterEach, expect, it, vi } from "vitest";
 import { i18n } from "@/locales";
 import CompressionPreview, { type CompressionPreviewSource } from "./CompressionPreview.vue";
 
-vi.mock("@/tools/audio/peaks", () => ({
+vi.mock("@/tools/audio/shared/peaks", () => ({
   readPeaks: vi.fn().mockResolvedValue({ min: new Float32Array(1), max: new Float32Array(1), duration: 1, done: true, version: 1 }),
 }));
-vi.mock("@/tools/audio/components/Waveform.vue", () => ({
+vi.mock("@/tools/audio/shared/components/Waveform.vue", () => ({
   default: { template: '<div class="test-waveform"><slot /></div>' },
 }));
 

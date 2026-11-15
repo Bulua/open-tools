@@ -1,7 +1,7 @@
 /**
  * 工具注册表：决定顶部有哪些分类、每个分类下有哪些工具。
  *
- * 工具的代码按模块放在 tools/ 下的各个文件夹里（每个文件夹的 index.ts 定义该模块的工具），
+ * 工具的代码按 tools/<模块>/<工具ID>/ 组织，每个工具的 index.ts 定义入口，模块 index.ts 只做聚合，
  * 显示时按用途重新归类：在下面的 categories 中用工具 id 挑选。新增工具后记得把它的 id 加到某个分类里，
  * 测试会检查每个工具都恰好出现在一个分类中。
  */
@@ -58,7 +58,7 @@ export const categories: Category[] = [
   {
     id: "document",
     name: "文档与文件",
-    tools: pick("word-to-pdf", "pdf-to-word", "word-watermark", "word-unwatermark", "pdf-pages", "pdf-unwatermark", "markdown-editor", "markdown-to-word", "archive", "extract"),
+    tools: pick("large-text", "word-to-pdf", "pdf-to-word", "word-watermark", "word-unwatermark", "pdf-pages", "pdf-unwatermark", "markdown-editor", "markdown-to-word", "archive", "extract"),
   },
   { id: "network", name: "网络", tools: network.tools },
 ].map(sortTools);

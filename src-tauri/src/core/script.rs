@@ -25,7 +25,8 @@ impl TempDir {
     pub fn new() -> Result<Self, String> {
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);
         let dir = std::env::temp_dir().join(format!("open-tools-{}-{n}", std::process::id()));
-        std::fs::create_dir_all(&dir).map_err(|e| format!("Can't create a temporary folder: {e}"))?;
+        std::fs::create_dir_all(&dir)
+            .map_err(|e| format!("Can't create a temporary folder: {e}"))?;
         Ok(Self(dir))
     }
 
@@ -54,19 +55,28 @@ pub fn run_powershell(
     timeout_message: &str,
 ) -> Result<ScriptOutput, String> {
     let script_path = dir.join("script.ps1");
-    std::fs::write(&script_path, script).map_err(|e| format!("Can't write a temporary file: {e}"))?;
+    std::fs::write(&script_path, script)
+        .map_err(|e| format!("Can't write a temporary file: {e}"))?;
 
     let mut cmd = Command::new("powershell");
     hide_window(&mut cmd);
-    cmd.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File"])
-        .arg(&script_path)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+    cmd.args([
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+    ])
+    .arg(&script_path)
+    .stdin(Stdio::null())
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped());
     for (key, value) in envs {
         cmd.env(key, value);
     }
-    let mut child = cmd.spawn().map_err(|e| format!("Can't start PowerShell: {e}"))?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Can't start PowerShell: {e}"))?;
 
     let started = Instant::now();
     loop {
@@ -82,7 +92,7 @@ pub fn run_powershell(
     }
     let output = child.wait_with_output().map_err(|e| e.to_string())?;
     Ok(ScriptOutput {
-        stdout: crate::tools::network::decode_output(&output.stdout),
-        stderr: crate::tools::network::decode_output(&output.stderr),
+        stdout: crate::core::process::decode_output(&output.stdout),
+        stderr: crate::core::process::decode_output(&output.stderr),
     })
 }

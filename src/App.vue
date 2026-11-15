@@ -18,14 +18,14 @@ import UpdateDialog from "@/components/layout/UpdateDialog.vue";
 import { useUpdater } from "@/composables/useUpdater";
 import CountdownAlerts from "@/components/layout/CountdownAlerts.vue";
 import AppToast from "@/components/layout/AppToast.vue";
-import { startCountdownTicker } from "@/tools/utility/countdownStore";
-import { calendarDesktop, startCalendarReminders } from "@/tools/utility/calendarStore";
+import { startCountdownTicker } from "@/tools/utility/countdown/countdownStore";
+import { calendarDesktop, startCalendarReminders } from "@/tools/utility/calendar/calendarStore";
 import { startBrandingSync } from "@/utils/branding";
 import { categories as allCategories, categoriesForPlatform } from "@/tools";
 import { restoreCategorySelection } from "@/tools/categorySelection";
 import { getAppPlatform } from "@/utils/platform";
-import { registerScreenshotShortcut } from "@/tools/image/screenshot/screenshot";
-import { registerClipboardShortcut } from "@/tools/encode/clipboardHistory";
+import { registerScreenshotShortcut } from "@/tools/image/screenshot-history/screenshot";
+import { registerClipboardShortcut } from "@/tools/encode/clipboard-history/clipboardHistory";
 import { showError } from "@/utils/errorToast";
 
 const { t } = useI18n();
