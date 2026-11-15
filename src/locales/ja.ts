@@ -30,9 +30,9 @@ const ja: Messages<typeof zhCN> = {
     allDay: "終日",
     noNotes: "今日のメモはありません。",
     openCalendar: "カレンダーを開く",
-    countdowns: "実行中のカウントダウン",
-    noCountdowns: "実行中のカウントダウンはありません。",
-    openCountdown: "カウントダウンを作成",
+    countdowns: "アラームと通知",
+    noCountdowns: "アラームと通知はありません。",
+    openCountdown: "時計を開く",
     mascot: "マスコットのカルーセル",
   },
   locale: {

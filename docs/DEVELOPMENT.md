@@ -108,7 +108,7 @@ open-tools/
 │           │   └── ip_lookup/           # 本机局域网 IP
 │           ├── utility/
 │           │   ├── calendar/            # 日历备注与通知
-│           │   └── countdown/           # 倒计时读写
+│           │   └── clock/               # 时钟提醒读写
 │           └── video/
 │               ├── douyin_download/     # 抖音信息获取命令与页面脚本
 │               ├── xiaohongshu_download/ # 小红书分享页读取命令与脚本
@@ -336,7 +336,7 @@ const { t } = useI18n();
 
 ## 数据存放与 AI 模型
 
-- **数据文件夹**：程序自己保存的数据（密码本、倒计时、AI 模型与运行环境、远程图标）统一通过 `src-tauri/src/core/paths.rs` 的 `data_dir()` / `sub_dir()` 取位置，不要再直接用 `app_local_data_dir()` 或安装目录。Windows 上是安装目录下的 `data`，安装目录不能写时退回 `%LOCALAPPDATA%\com.opentools.app`；Android 使用系统提供的应用数据目录。旧版本的数据在启动时由 `paths::migrate()` 搬过来；倒计时以前存在 localStorage，由前端第一次读取时写进 `countdowns.json`（见 `countdownStore.ts`）。界面设置仍由各平台的 WebView 存在 localStorage 里，不在这个文件夹。
+- **数据文件夹**：程序自己保存的数据（密码本、倒计时、AI 模型与运行环境、远程图标）统一通过 `src-tauri/src/core/paths.rs` 的 `data_dir()` / `sub_dir()` 取位置，不要再直接用 `app_local_data_dir()` 或安装目录。Windows 上是安装目录下的 `data`，安装目录不能写时退回 `%LOCALAPPDATA%\com.opentools.app`；Android 使用系统提供的应用数据目录。旧版本的数据在启动时由 `paths::migrate()` 搬过来；倒计时以前存在 localStorage，由前端第一次读取时写进 `countdowns.json`（见 `clockStore.ts`）。界面设置仍由各平台的 WebView 存在 localStorage 里，不在这个文件夹。
 - **视频平台下载**：B 站、抖音、小红书分别保存到数据目录下的 `videos/bilibili`、`videos/douyin`、`videos/xhs`。前端统一调用 `src/tools/video/shared/downloadStorage.ts`，原生端 `video_download_dir` 通过 `paths::sub_dir()` 创建目录，并只为对应平台目录开放文件写入和本地媒体播放权限。播放使用 Tauri asset 协议读取已保存文件，不把整段视频长期保留在内存中。抖音和小红书共用 `SocialDownload.vue`，自动判断视频或图集；B 站保留清晰度、编码、登录和多 P 选择。网页开发预览仍使用浏览器下载，预览 Blob 在作品移除时释放。
 - **AI 推理在 Rust 里**：`src-tauri/src/tools/image/shared/inference.rs` 用 `ort` 动态加载 ONNX Runtime，只用 CPU 多线程计算（DirectML 显卡加速跑不了 LaMa 等模型，已不再使用）。前端只做预处理、后处理，通过 `ai_run` 命令传入输入张量（请求体，多个输入依次拼接）、形状（请求头 `x-shape`，多个输入用分号隔开）和数据类型（请求头 `x-dtype`，`f32` 或 `u8`），见 `src/tools/image/shared/aiModels.ts` 的 `runModel()`、`runModelRaw()`。网页版不支持 AI 功能。
 - **运行环境随安装包带上，模型不打包**：`onnxruntime.dll`、`DirectML.dll` 直接提交在 `src-tauri/ai-runtime/`，由 `tauri.conf.json` 的 `bundle.resources` 装到安装目录的 `ai-runtime` 里，程序优先用这一份（`ai_models.rs` 的 `runtime_dir()`）；没有或文件大小对不上时，第一次下载模型时自动把运行环境下载到数据文件夹，作为兜底。模型由用户选择下载。可下载的文件、大小、SHA-256 写在 `src-tauri/src/tools/image/shared/ai_models.rs`，每个文件在魔搭（[sebponk/open-tools-models](https://www.modelscope.cn/models/sebponk/open-tools-models)）和 Hugging Face（[penghui002/open-tools-models](https://huggingface.co/penghui002/open-tools-models)）各放一份，路径相同。

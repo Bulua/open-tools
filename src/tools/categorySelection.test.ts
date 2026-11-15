@@ -2,6 +2,12 @@ import { expect, it } from "vitest";
 import { categories } from "./index";
 import { restoreCategorySelection } from "./categorySelection";
 
+it("工具改名后恢复旧的分类选择", () => {
+  expect(restoreCategorySelection(categories, "time", { time: "countdown", document: "large-text" })).toEqual({
+    categoryId: "time", tools: { time: "clock", document: "large-file" },
+  });
+});
+
 it.each([
   ["json", "json-format", "developer"],
   ["text", "regex", "developer"],
@@ -20,12 +26,12 @@ it("合并分类时优先恢复当前打开的工具，同时保留其他分类�
   const restored = restoreCategorySelection(categories, "text", {
     json: "json-diff",
     text: "base64",
-    time: "countdown",
+    time: "clock",
     image: "image-compress",
   });
   expect(restored).toEqual({
     categoryId: "developer",
-    tools: { developer: "base64", time: "countdown", image: "image-compress" },
+    tools: { developer: "base64", time: "clock", image: "image-compress" },
   });
 });
 

@@ -86,7 +86,7 @@ export async function changeEncoding(largeText: TextController, encoding: string
 export async function initializeLargeText(): Promise<void> {
   if (initialized || !isTauri()) return;
   initialized = true;
-  registerExitGuard("large-text", closeAllFiles);
+  registerExitGuard("large-file", closeAllFiles);
   const { listen } = await import("@tauri-apps/api/event");
   try {
     await listen<number | null>("large-text-exit-requested", async (event) => {

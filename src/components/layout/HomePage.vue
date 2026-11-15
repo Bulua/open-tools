@@ -8,8 +8,8 @@ import ToolActivity from "./ToolActivity.vue";
 import FavoriteToolButton from "@/components/common/FavoriteToolButton.vue";
 import type { Category } from "@/tools";
 import { favoriteToolIds, recentToolIds } from "@/composables/toolLibrary";
-import { countdowns, now } from "@/tools/utility/countdown/countdownStore";
-import { formatRemaining } from "@/tools/utility/countdown/countdown";
+import { countdowns, now } from "@/tools/utility/clock/clockStore";
+import { formatRemaining } from "@/tools/utility/clock/reminders";
 import { calendarNotes, loadCalendarNotes } from "@/tools/utility/calendar/calendarStore";
 import { calendarDateKey, calendarNotesOn, localCalendarDate } from "@/tools/utility/calendar/calendar";
 import { showError } from "@/utils/errorToast";
@@ -31,7 +31,7 @@ const sections = computed(() => [
   });
   return { ...section, entries: section.id === "recent" ? entries.slice(0, 6) : entries };
 }));
-const pending = computed(() => countdowns.value.filter((item) => !item.done && item.pausedRemaining === undefined)
+const pending = computed(() => countdowns.value.filter((item) => item.enabled !== false && !item.done && item.pausedRemaining === undefined)
   .sort((a, b) => a.target - b.target).slice(0, 4));
 const notes = computed(() => calendarNotesOn(calendarNotes.value, calendarDateKey(localCalendarDate(new Date(now.value)))));
 const canOpen = (id: string) => tools.value.some((entry) => entry.tool.id === id);
@@ -94,10 +94,10 @@ onMounted(() => void loadCalendarNotes().catch(showError));
           <section class="reminder-section">
             <header class="reminder-section-heading">
               <h3><Timer :size="15" />{{ t('home.countdowns') }}</h3>
-              <button v-if="canOpen('countdown')" class="reminder-link" @click="emit('select', 'time', 'countdown')">{{ t('home.openCountdown') }}<ArrowUpRight :size="14" /></button>
+              <button v-if="canOpen('clock')" class="reminder-link" @click="emit('select', 'time', 'clock')">{{ t('home.openCountdown') }}<ArrowUpRight :size="14" /></button>
             </header>
             <div v-if="pending.length" class="reminder-list">
-              <button v-for="item in pending" :key="item.id" class="reminder-card countdown-card" :class="{ soon: item.target - now <= 3600000 }" @click="emit('select', 'time', 'countdown')">
+              <button v-for="item in pending" :key="item.id" class="reminder-card countdown-card" :class="{ soon: item.target - now <= 3600000 }" @click="emit('select', 'time', 'clock')">
                 <span class="reminder-icon"><Timer :size="18" /></span>
                 <span class="reminder-content">
                   <span class="countdown-heading"><strong>{{ item.title }}</strong><span class="countdown-remaining" :title="t('home.remaining')">{{ formatRemaining(item.target - now) }}</span></span>

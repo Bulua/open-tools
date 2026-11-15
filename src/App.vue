@@ -16,9 +16,9 @@ import EmptyState from "@/components/common/EmptyState.vue";
 import CommandPalette from "@/components/common/CommandPalette.vue";
 import UpdateDialog from "@/components/layout/UpdateDialog.vue";
 import { useUpdater } from "@/composables/useUpdater";
-import CountdownAlerts from "@/components/layout/CountdownAlerts.vue";
+import ClockAlerts from "@/components/layout/ClockAlerts.vue";
 import AppToast from "@/components/layout/AppToast.vue";
-import { startCountdownTicker } from "@/tools/utility/countdown/countdownStore";
+import { startCountdownTicker } from "@/tools/utility/clock/clockStore";
 import { calendarDesktop, startCalendarReminders } from "@/tools/utility/calendar/calendarStore";
 import { startBrandingSync } from "@/utils/branding";
 import { categories as allCategories, categoriesForPlatform } from "@/tools";
@@ -86,8 +86,8 @@ const pickSearchTool = (categoryId: string, toolId: string) => {
   searchOpen.value = false;
 };
 
-const openCountdown = () => {
-  selectTool("time", "countdown");
+const openClock = () => {
+  selectTool("time", "clock");
 };
 
 // 主窗口隐藏到托盘时不会卸载；完全退出后再次启动才会重新播放。
@@ -225,7 +225,7 @@ if (platform === "desktop") {
     <Transition name="modal">
       <UpdateDialog v-if="updaterSupported && updateOpen" @close="updateOpen = false" />
     </Transition>
-    <CountdownAlerts @open="openCountdown" />
+    <ClockAlerts @open="openClock" />
     <!-- 各工具的报错统一在窗口上方提示，见 utils/errorToast.ts -->
     <AppToast />
     <LaunchIntro v-if="introPhase !== 'done'" :leaving="introPhase === 'leaving'" />

@@ -37,7 +37,7 @@ describe("平台可用性", () => {
 
   it("网页预览隐藏依赖 Windows 后台监听的剪贴板历史", () => {
     const shown = categoriesForPlatform(categories, "web").flatMap((category) => category.tools.map((tool) => tool.id));
-    expect([...shown].sort()).toEqual(allTools.map((tool) => tool.id).filter((id) => !["clipboard-history", "large-text"].includes(id)).sort());
+    expect([...shown].sort()).toEqual(allTools.map((tool) => tool.id).filter((id) => !["clipboard-history", "large-file"].includes(id)).sort());
   });
 
   it("Android 保留全部分类，并隐藏尚未适配的工具", () => {
@@ -51,7 +51,7 @@ describe("平台可用性", () => {
       "douyin-download",
       "image-inpaint",
       "image-removebg",
-      "large-text",
+      "large-file",
       "recorder",
       "screen-recorder",
       "screenshot-history",

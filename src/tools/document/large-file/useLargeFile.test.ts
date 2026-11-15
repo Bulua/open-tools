@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import type { TextController } from "./controller";
 import { textWorkspace } from "./workspace";
-import { changeEncoding, closeFile, closeAllFiles, closeTabGroup } from "./useLargeText";
+import { changeEncoding, closeFile, closeAllFiles, closeTabGroup } from "./useLargeFile";
 
 const mocks = vi.hoisted(() => ({
   state: { id: "session-1", encoding: "auto", busy: false }, dirty: { value: false },

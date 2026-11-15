@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatRemaining, nextOccurrence, progressOf, splitRemaining, toMs, type CountdownItem } from "./countdown";
+import { formatRemaining, nextOccurrence, progressOf, splitRemaining, toMs, type CountdownItem } from "./reminders";
 
 const at = (s: string) => new Date(s).getTime();
 

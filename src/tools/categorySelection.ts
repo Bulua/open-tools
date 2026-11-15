@@ -1,4 +1,5 @@
 import type { Category } from "./types";
+import { currentToolId } from "./toolId";
 
 /** 按工具的新归属恢复分类偏好，当前打开的工具优先于其他分类的历史选择。 */
 export function restoreCategorySelection(
@@ -6,7 +7,7 @@ export function restoreCategorySelection(
   categoryId: string,
   savedTools: Record<string, string> | null,
 ) {
-  const previous = savedTools ?? {};
+  const previous = Object.fromEntries(Object.entries(savedTools ?? {}).map(([category, tool]) => [category, currentToolId(tool)]));
   const locations = new Map(categories.flatMap((category) =>
     category.tools.map((tool) => [tool.id, category.id] as const),
   ));

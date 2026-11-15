@@ -9,8 +9,8 @@ export interface SelectOption<T = string | number> {
 }
 </script>
 
-<script setup lang="ts" generic="T extends string | number">
-import { computed, nextTick, ref, watch } from "vue";
+<script setup lang="ts" generic="T extends string | number, Multiple extends boolean = false">
+import { computed, nextTick, onDeactivated, ref, watch } from "vue";
 import { Check, ChevronDown, Search } from "lucide-vue-next";
 import { usePopover } from "@/composables/usePopover";
 import { useI18n } from "vue-i18n";
@@ -31,16 +31,22 @@ const props = withDefaults(
     /** 弹出层最小宽度 */
     menuWidth?: number;
     size?: "sm" | "md";
+    multiple?: Multiple & boolean;
+    summary?: string;
+    /** 原生模态框内传入 dialog 元素，菜单随它进入顶层。 */
+    teleportTo?: string | HTMLElement;
   }>(),
   { placeholder: undefined, searchable: undefined, menuWidth: 0, size: "md" },
 );
 const { t } = useI18n();
-const model = defineModel<T>({ required: true });
+type Selection = Multiple extends true ? T[] : T;
+const model = defineModel<Selection>({ required: true });
 
 const trigger = ref<HTMLButtonElement>();
 const panel = ref<HTMLDivElement>();
 const list = ref<HTMLDivElement>();
-const { open, style, toggle, close } = usePopover(trigger, panel, { minWidth: props.menuWidth, maxHeight: 320 });
+const { open, style, toggle, close } = usePopover(trigger, panel, { minWidth: props.menuWidth, maxHeight: 320, ignoreEscape: () => Boolean(props.teleportTo) });
+const isSelected = (value: T) => props.multiple ? (model.value as T[]).includes(value) : model.value === value;
 
 const selected = computed(() => props.options.find((o) => o.value === model.value));
 const showSearch = computed(() => props.searchable ?? props.options.length > 12);
@@ -63,10 +69,15 @@ watch(open, async (isOpen) => {
 });
 watch(query, () => (active.value = filtered.value.length ? 0 : -1));
 
-const scrollToActive = () => list.value?.querySelector<HTMLElement>(`[data-index="${active.value}"]`)?.scrollIntoView({ block: "nearest" });
+const scrollToActive = () => list.value?.querySelector<HTMLElement>(`[data-index="${active.value}"]`)?.scrollIntoView?.({ block: "nearest" });
 
 const pick = (o: SelectOption<T>) => {
-  model.value = o.value;
+  if (props.multiple) {
+    const values = model.value as T[];
+    model.value = (values.includes(o.value) ? values.filter(value => value !== o.value) : [...values, o.value]) as Selection;
+    return;
+  }
+  model.value = o.value as Selection;
   close();
   trigger.value?.focus();
 };
@@ -79,7 +90,9 @@ const onKeydown = (e: KeyboardEvent) => {
     }
     return;
   }
-  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+  if (e.key === "Escape") {
+    e.preventDefault(); e.stopPropagation(); close(); trigger.value?.focus();
+  } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
     e.preventDefault();
     const n = filtered.value.length;
     if (!n) return;
@@ -97,36 +110,39 @@ const showGroup = (i: number) => {
   const g = filtered.value[i].group;
   return !!g && (i === 0 || filtered.value[i - 1].group !== g);
 };
+onDeactivated(close);
+defineExpose({ close, isOpen: open });
 </script>
 
 <template>
-  <button v-bind="$attrs" ref="trigger" type="button" class="app-select" :class="[size, { open }]" @click="toggle" @keydown="onKeydown">
-    <span class="label" :class="{ placeholder: !selected }">{{ selected?.label ?? placeholder ?? t("common.select") }}</span>
+  <button v-bind="$attrs" ref="trigger" type="button" class="app-select select-trigger" :class="[size, { open }]" :aria-expanded="open" aria-haspopup="listbox" @click="toggle" @keydown="onKeydown">
+    <span class="label" :class="{ placeholder: !selected && !summary }">{{ summary ?? selected?.label ?? placeholder ?? t("common.select") }}</span>
     <ChevronDown :size="14" class="chevron" />
   </button>
 
-  <Teleport to="body">
+  <Teleport :to="teleportTo ?? 'body'">
     <Transition name="pop">
       <div v-if="open" ref="panel" class="select-menu" :style="style" @keydown="onKeydown">
         <label v-if="showSearch" class="search">
           <Search :size="13" />
           <input ref="searchInput" v-model="query" :placeholder="t('common.search')" spellcheck="false" />
         </label>
-        <div ref="list" class="options" role="listbox">
+        <div ref="list" class="options" role="listbox" :aria-multiselectable="multiple || undefined">
           <template v-for="(o, i) in filtered" :key="`${o.group ?? ''}-${o.value}`">
             <div v-if="showGroup(i)" class="group">{{ o.group }}</div>
             <div
               class="option"
               role="option"
               :data-index="i"
-              :aria-selected="o.value === model"
-              :class="{ active: i === active, selected: o.value === model }"
+              :data-value="o.value"
+              :aria-selected="isSelected(o.value)"
+              :class="{ active: i === active, selected: isSelected(o.value) }"
               @mouseenter="active = i"
               @click="pick(o)"
             >
               <span class="text">{{ o.label }}</span>
               <span v-if="o.hint" class="hint">{{ o.hint }}</span>
-              <Check v-if="o.value === model" :size="13" class="check" />
+              <Check v-if="isSelected(o.value)" :size="13" class="check" aria-hidden="true" />
             </div>
           </template>
           <p v-if="!filtered.length" class="empty">{{ t("common.noOptions") }}</p>
@@ -135,139 +151,3 @@ const showGroup = (i: number) => {
     </Transition>
   </Teleport>
 </template>
-
-<style scoped>
-.app-select {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-width: 0;
-  height: 34px;
-  padding: 0 10px 0 12px;
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--text);
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-.app-select.sm {
-  height: 28px;
-  padding: 0 8px 0 10px;
-  border-radius: 6px;
-  font-size: 12.5px;
-}
-.app-select:hover {
-  border-color: var(--text-3);
-}
-.app-select:focus-visible,
-.app-select.open {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
-.label {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.placeholder {
-  color: var(--text-3);
-}
-.chevron {
-  flex-shrink: 0;
-  color: var(--text-3);
-  transition: transform 0.15s;
-}
-.open .chevron {
-  transform: rotate(180deg);
-}
-</style>
-
-<style>
-/* 弹出层放在 body 下，不能用 scoped */
-.select-menu {
-  position: fixed;
-  z-index: 100;
-  max-width: 420px;
-  display: flex;
-  flex-direction: column;
-  padding: 4px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface);
-  box-shadow: var(--shadow-lg);
-}
-.select-menu .search {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 2px 2px 4px;
-  padding: 0 8px;
-  height: 30px;
-  border-radius: 7px;
-  background: var(--bg-sunken);
-  color: var(--text-3);
-}
-.select-menu .search input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  outline: none;
-  background: none;
-  color: var(--text);
-  font-size: 13px;
-}
-.select-menu .options {
-  max-height: 300px;
-  overflow: auto;
-}
-.select-menu .group {
-  padding: 8px 10px 4px;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-3);
-}
-.select-menu .option {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 30px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 13px;
-  color: var(--text);
-  cursor: pointer;
-}
-.select-menu .option.active {
-  background: var(--hover);
-}
-.select-menu .option.selected {
-  color: var(--accent);
-  font-weight: 500;
-}
-.select-menu .option .text {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.select-menu .option .hint {
-  flex-shrink: 0;
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--text-3);
-}
-.select-menu .empty {
-  margin: 0;
-  padding: 12px 10px;
-  font-size: 12px;
-  color: var(--text-3);
-}
-</style>

@@ -169,6 +169,31 @@ button.compression-source:hover {
   flex: 1;
 }
 
+/* 滑动开关：使用 role="switch" 和 aria-checked 表达状态。 */
+.control-switch {
+  flex-shrink: 0;
+  position: relative;
+  width: 42px;
+  height: 24px;
+  padding: 3px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--border-strong);
+  transition: background var(--dur) var(--ease-out);
+}
+.control-switch[aria-checked="true"] { background: var(--accent); }
+.control-switch > span {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--dur) var(--ease-out);
+}
+.control-switch[aria-checked="true"] > span { transform: translateX(18px); }
+.control-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
 /* 复选框 */
 .check {
   display: inline-flex;

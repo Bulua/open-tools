@@ -7,7 +7,7 @@ import { useUpdater } from "@/composables/useUpdater";
 import { showError } from "@/utils/errorToast";
 import FileTab from "./components/FileTab.vue";
 import FilePanel from "./components/FilePanel.vue";
-import { closeTabGroup, confirming, initializeLargeText, openFile } from "./useLargeText";
+import { closeTabGroup, confirming, initializeLargeText, openFile } from "./useLargeFile";
 import { textWorkspace } from "./workspace";
 
 const { t } = useI18n();
@@ -36,7 +36,7 @@ onBeforeUnmount(() => { disposed = true; unlisten?.(); });
 </script>
 
 <template>
-  <div class="large-text-workspace">
+  <div class="large-file-workspace">
     <div v-if="workspace.tabs.length" class="editor-shell">
     <div class="file-tabs" role="tablist" :aria-label="t('largeText.fileTabs')">
       <FileTab v-for="(tab, index) in workspace.tabs" :key="tab.key" :tab="tab" :active="workspace.activeKey.value === tab.key" :disabled="confirming || workspace.opening.value" :has-left="index > 0" :has-right="index < workspace.tabs.length - 1" @activate="workspace.activate(tab)" @close="(scope) => closeTabGroup(tab.key, scope)" />
@@ -55,7 +55,7 @@ onBeforeUnmount(() => { disposed = true; unlisten?.(); });
 </template>
 
 <style scoped>
-.large-text-workspace { display: flex; flex: 1; flex-direction: column; gap: 0; padding: 12px 16px 16px; min-height: 0; min-width: 0; }
+.large-file-workspace { display: flex; flex: 1; flex-direction: column; gap: 0; padding: 12px 16px 16px; min-height: 0; min-width: 0; }
 .add-file { flex-shrink: 0; align-self: center; margin-inline: 6px; }
 .editor-shell { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface); }
 .file-tabs { display: flex; gap: 0; overflow-x: auto; flex-shrink: 0; border-bottom: 1px solid var(--border); background: var(--bg-sunken); }
@@ -66,5 +66,5 @@ onBeforeUnmount(() => { disposed = true; unlisten?.(); });
 .empty small { color: var(--text-3); font-size: 12px; }
  .empty[aria-disabled="true"] { cursor: default; }
 .empty:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-@media (max-width: 700px) { .large-text-workspace { padding: 10px 12px 12px; } }
+@media (max-width: 700px) { .large-file-workspace { padding: 10px 12px 12px; } }
 </style>

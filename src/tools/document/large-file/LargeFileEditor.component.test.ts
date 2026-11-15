@@ -5,8 +5,8 @@ import { EditorView } from "@codemirror/view";
 import { undo } from "@codemirror/commands";
 import { i18n } from "@/locales";
 import { textWorkspace } from "./workspace";
-import LargeTextEditor from "./LargeTextEditor.vue";
-import * as actions from "./useLargeText";
+import LargeFileEditor from "./LargeFileEditor.vue";
+import * as actions from "./useLargeFile";
 
 const native = vi.hoisted(() => ({ invoke: vi.fn(), desktop: false, drop: undefined as ((event: { payload: { type: string; paths: string[] } }) => void) | undefined }));
 vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => native.desktop, invoke: native.invoke }));
@@ -35,7 +35,7 @@ async function mount() {
     };
   });
   root = document.createElement("div"); document.body.append(root);
-  app = createApp(LargeTextEditor).use(i18n); app.mount(root); await nextTick();
+  app = createApp(LargeFileEditor).use(i18n); app.mount(root); await nextTick();
 }
 it("多个标签各自保留编码、查找词、滚动位置、选区与撤销历史", async () => {
   await mount();
@@ -77,7 +77,7 @@ it("整个工具页面重新挂载后，各标签草稿、设置和本地撤销�
   a.controller.state.query = "needle A"; b.controller.state.query = "needle B";
   app!.unmount(); app = undefined;
   expect(a.controller.editorCache.value).toBeDefined();
-  app = createApp(LargeTextEditor).use(i18n); app.mount(root!); await nextTick();
+  app = createApp(LargeFileEditor).use(i18n); app.mount(root!); await nextTick();
   textWorkspace.activate(a); await nextTick();
   const restored = EditorView.findFromDOM(root!.querySelector<HTMLElement>(`#text-panel-${a.key} .cm-content`)!)!;
   expect(restored.state.doc.toString()).toBe("AAA\ntwo\ntext");

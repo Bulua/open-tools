@@ -30,9 +30,9 @@ const en: Messages<typeof zhCN> = {
     allDay: "All day",
     noNotes: "No calendar notes for today.",
     openCalendar: "Open calendar",
-    countdowns: "Active countdowns",
-    noCountdowns: "No active countdowns.",
-    openCountdown: "Create a countdown",
+    countdowns: "Alarms and reminders",
+    noCountdowns: "No active alarms or reminders.",
+    openCountdown: "Open clock",
     mascot: "Mascot carousel",
   },
   locale: {

@@ -30,9 +30,9 @@ const zhCN = {
     allDay: "全天",
     noNotes: "今天没有日历备注。",
     openCalendar: "打开日历",
-    countdowns: "进行中的倒计时",
-    noCountdowns: "暂时没有进行中的倒计时。",
-    openCountdown: "新建倒计时",
+    countdowns: "闹钟与提醒",
+    noCountdowns: "暂时没有闹钟与提醒。",
+    openCountdown: "打开时钟",
     mascot: "小猫动作轮播",
   },
   locale: {

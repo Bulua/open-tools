@@ -2,6 +2,7 @@
  * 倒计时的纯计算：剩余时间拆分、重复提醒的下一次时间。
  */
 import { t } from "@/locales";
+import type { AlarmSchedule } from "./alarm";
 
 export type Repeat = "none" | "daily" | "weekly" | "monthly" | "yearly";
 
@@ -27,6 +28,8 @@ export interface CountdownItem {
   repeat: Repeat;
   /** 已经提醒过 */
   done: boolean;
+  alarm?: AlarmSchedule;
+  enabled?: boolean;
 }
 
 export interface Remaining {

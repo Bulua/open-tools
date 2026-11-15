@@ -24,7 +24,7 @@ it("实际使用跨天分开统计，打开工具和收藏操作不计次数", (
   recordToolUsage();
   recordToolUsage();
   vi.setSystemTime(new Date(2026, 10, 12, 0, 1));
-  rememberRecentTool("countdown");
+  rememberRecentTool("clock");
   recordToolUsage();
   expect(toolActivity.value).toEqual({ "2026-11-11": 2, "2026-11-12": 1 });
 });
@@ -32,7 +32,8 @@ it("实际使用跨天分开统计，打开工具和收藏操作不计次数", (
 it("损坏的偏好恢复为空列表，有效条目去重并保留顺序", () => {
   expect(toolIds(null)).toEqual([]);
   expect(toolIds({ id: "calendar" })).toEqual([]);
-  expect(toolIds(["calendar", null, "", 12, "countdown", "calendar"])).toEqual(["calendar", "countdown"]);
+  expect(toolIds(["calendar", null, "", 12, "clock", "calendar"])).toEqual(["calendar", "clock"]);
+  expect(toolIds(["countdown", "clock", "large-text", "large-file"])).toEqual(["clock", "large-file"]);
 });
 
 it("重新使用工具将其移到首位，保留全部不同工具以便分批展开", () => {
@@ -44,8 +45,8 @@ it("重新使用工具将其移到首位，保留全部不同工具以便分批�
 it("收藏和取消收藏不会改变最近使用顺序", () => {
   rememberRecentTool("calendar");
   toggleFavorite("calendar");
-  toggleFavorite("countdown");
+  toggleFavorite("clock");
   toggleFavorite("calendar");
-  expect(favoriteToolIds.value).toEqual(["countdown"]);
+  expect(favoriteToolIds.value).toEqual(["clock"]);
   expect(recentToolIds.value).toEqual(["calendar"]);
 });

@@ -1,10 +1,11 @@
 import { ref } from "vue";
 import { useStoredRef } from "./useStoredRef";
+import { currentToolId } from "@/tools/toolId";
 import { activityDateKey, normalizeActivity, type ToolActivity } from "@/utils/toolActivity";
 
 /** 去重，也容忍旧数据或损坏的偏好；展示数量由主页控制。 */
 export function toolIds(value: unknown): string[] {
-  return Array.isArray(value) ? [...new Set(value.filter((id): id is string => typeof id === "string" && !!id))] : [];
+  return Array.isArray(value) ? [...new Set(value.filter((id): id is string => typeof id === "string" && !!id).map(currentToolId))] : [];
 }
 
 const favorites = useStoredRef<string[]>("home.favorites", []);

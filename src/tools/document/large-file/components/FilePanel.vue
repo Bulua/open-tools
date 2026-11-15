@@ -12,7 +12,7 @@ import ChunkEditor from "./ChunkEditor.vue";
 import { displayFilePath } from "../path";
 import type { ViewportAnchor } from "../types";
 import type { TextController } from "../controller";
-import { changeEncoding, confirming, saveOriginal } from "../useLargeText";
+import { changeEncoding, confirming, saveOriginal } from "../useLargeFile";
 
 const { t } = useI18n();
 const props = defineProps<{ controller: TextController; active: boolean }>();

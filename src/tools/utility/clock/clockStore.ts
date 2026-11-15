@@ -1,14 +1,19 @@
 import { ref, watch } from "vue";
 import { isTauri } from "@tauri-apps/api/core";
-import { nextOccurrence, type CountdownItem } from "./countdown";
+import { nextOccurrence, type CountdownItem } from "./reminders";
+import { nextAlarmTarget, type AlarmSchedule } from "./alarm";
+import { showError } from "@/utils/errorToast";
+import { notifyDesktop } from "@/utils/desktopNotification";
+import { locale, t } from "@/locales";
 
 /**
- * 倒计时数据与到期提醒，整个程序共用一份：
+ * 闹钟和兼容的旧版提醒，整个程序共用一份：
  * - 保存在本地，关闭程序后仍然保留，直到用户删除。桌面版存在数据文件夹（安装目录下的 data）里，
  *   程序更新、卸载时都不会删除；浏览器中存在 localStorage
- * - 程序启动后每秒检查一次，不打开倒计时工具也会提醒；程序关闭期间到期的，下次打开时提醒
+ * - 程序启动后每秒检查一次，不打开时钟工具也会提醒；程序关闭期间到期的，下次打开时提醒
  */
 export const countdowns = ref<CountdownItem[]>([]);
+export const countdownsReady = ref(false);
 
 /** 浏览器中、以及旧版本桌面版保存数据的位置 */
 const WEB_KEY = "countdowns";
@@ -50,12 +55,18 @@ async function load() {
     countdowns.value = data === null ? local : JSON.parse(data);
   } catch (e) {
     // 文件读不了或内容损坏时退回 localStorage，不覆盖原文件
-    console.error(e);
+    showError(e);
     countdowns.value = local;
     keepInLocal();
     return;
   }
-  const save = (v: CountdownItem[]) => invoke("countdown_write", { data: JSON.stringify(v) }).catch(console.error);
+  // 同一路径的写入串行执行，连续编辑或批量到期不会让旧数据覆盖新数据。
+  let writes: Promise<void> = Promise.resolve();
+  const save = (v: CountdownItem[]) => {
+    const data = JSON.stringify(v);
+    writes = writes.then(() => invoke<void>("countdown_write", { data })).catch(showError);
+    return writes;
+  };
   if (data === null && local.length) save(local);
   watch(countdowns, save, { deep: true });
 }
@@ -76,6 +87,24 @@ export function removeCountdown(id: string) {
 
 export function updateCountdown(id: string, patch: Partial<CountdownItem>) {
   countdowns.value = countdowns.value.map((c) => (c.id === id ? { ...c, ...patch } : c));
+}
+
+export function saveAlarm(schedule: AlarmSchedule, title: string, id?: string) {
+  const patch = { alarm: { time: schedule.time, weekdays: [...new Set(schedule.weekdays)] }, title,
+    target: nextAlarmTarget(schedule, Date.now()), repeat: "none" as const, done: false, enabled: true };
+  if (id) {
+    updateCountdown(id, patch);
+    dismissAlert(id);
+  } else addCountdown(patch);
+}
+
+export function toggleAlarm(item: CountdownItem) {
+  if (!item.alarm) return;
+  const enabled = item.enabled === false || item.done;
+  updateCountdown(item.id, enabled
+    ? { enabled: true, done: false, target: nextAlarmTarget(item.alarm, Date.now()) }
+    : { enabled: false });
+  dismissAlert(item.id);
 }
 
 export function togglePause(item: CountdownItem) {
@@ -133,13 +162,19 @@ async function bringToFront() {
 
 function check() {
   now.value = Date.now();
-  const due = countdowns.value.filter((c) => !c.done && c.pausedRemaining === undefined && c.target <= now.value);
+  const due = countdowns.value.filter((c) => c.enabled !== false && !c.done && c.pausedRemaining === undefined && c.target <= now.value);
   if (!due.length) return;
   for (const c of due) {
     alerts.value = [...alerts.value.filter((a) => a.id !== c.id), { id: c.id, title: c.title, target: c.target }];
     // 重复的倒计时直接排到下一次；不重复的标记为已到期，保留到用户删除
-    if (c.repeat !== "none") updateCountdown(c.id, { target: nextOccurrence(c.target, c.repeat, now.value) });
+    if (c.alarm) updateCountdown(c.id, c.alarm.weekdays.length
+      ? { target: nextAlarmTarget(c.alarm, now.value) }
+      : { done: true, enabled: false });
+    else if (c.repeat !== "none") updateCountdown(c.id, { target: nextOccurrence(c.target, c.repeat, now.value) });
     else updateCountdown(c.id, { done: true });
+    const time = new Intl.DateTimeFormat(locale.value, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(c.target);
+    void notifyDesktop(t("clock.notificationTitle"), t("clock.notificationBody", { time, label: c.title || t("clock.alarm") }))
+      .catch(error => showError(error, t("clock.notificationFailed")));
   }
   beep();
   bringToFront();
@@ -151,6 +186,7 @@ export async function startCountdownTicker() {
   if (started) return;
   started = true;
   await load();
+  countdownsReady.value = true;
   check();
   setInterval(check, 1000);
 }

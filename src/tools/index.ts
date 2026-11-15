@@ -50,7 +50,7 @@ const sortTools = (c: Category): Category => ({ ...c, tools: [...c.tools].sort((
 export const categories: Category[] = [
   { id: "developer", name: "开发工具", tools: [...json.tools, ...pick("base64", "text-escape", "hash", "jwt", "regex", "naming")] },
   { id: "daily", name: "日常工具", tools: pick("password", "password-vault", "clipboard-history", "id-card") },
-  { id: "time", name: "时间", tools: pick("timestamp", "timezone", "cron", "countdown", "calendar") },
+  { id: "time", name: "时间", tools: pick("timestamp", "timezone", "cron", "clock", "calendar") },
   { id: "calc", name: "计算换算", tools: pick("calculator", "units", "radix") },
   { id: "image", name: "图片", tools: [...image.tools, ...pick("color")] },
   { id: "audio", name: "音频", tools: audio.tools },
@@ -58,7 +58,7 @@ export const categories: Category[] = [
   {
     id: "document",
     name: "文档与文件",
-    tools: pick("large-text", "word-to-pdf", "pdf-to-word", "word-watermark", "word-unwatermark", "pdf-pages", "pdf-unwatermark", "markdown-editor", "markdown-to-word", "archive", "extract"),
+    tools: pick("large-file", "word-to-pdf", "pdf-to-word", "word-watermark", "word-unwatermark", "pdf-pages", "pdf-unwatermark", "markdown-editor", "markdown-to-word", "archive", "extract"),
   },
   { id: "network", name: "网络", tools: network.tools },
 ].map(sortTools);

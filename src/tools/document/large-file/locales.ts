@@ -3,14 +3,14 @@ import { defineModuleLocales } from "@/locales/types";
 export default defineModuleLocales({
   "tools": {
     "en": {
-      "large-text": {
-        "name": "Large Text Editor",
+      "large-file": {
+        "name": "Large File Editor",
         "desc": "View and edit large TXT and LOG files in blocks, search, jump and undo; save to the original file"
       }
     },
     "ja": {
-      "large-text": {
-        "name": "大容量テキストエディター",
+      "large-file": {
+        "name": "大容量ファイルエディター",
         "desc": "大きな TXT・LOG をブロック単位で表示・編集、検索・移動・履歴操作。元のファイルに保存"
       }
     }
@@ -19,7 +19,7 @@ export default defineModuleLocales({
     "zh-CN": {
       "largeText": {
         "open": "打开文件",
-        "title": "大文本编辑器",
+        "title": "大文件编辑器",
         "subtitle": "按需读取，编辑并保存原文件",
         "fileCount": "{n} 个文件",
         "editorActions": "编辑工具栏",
@@ -91,7 +91,7 @@ export default defineModuleLocales({
     "en": {
       "largeText": {
         "open": "Open file",
-        "title": "Large Text Editor",
+        "title": "Large File Editor",
         "subtitle": "Read on demand, edit and save the original",
         "fileCount": "{n} files",
         "editorActions": "Editor toolbar",
@@ -163,7 +163,7 @@ export default defineModuleLocales({
     "ja": {
       "largeText": {
         "open": "ファイルを開く",
-        "title": "大容量テキストエディター",
+        "title": "大容量ファイルエディター",
         "subtitle": "必要な部分を読み込み、元のファイルを編集・保存",
         "fileCount": "{n} ファイル",
         "editorActions": "編集ツールバー",

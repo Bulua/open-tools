@@ -1,4 +1,4 @@
-import largeText from "./large-text";
+import largeFile from "./large-file";
 import type { Category } from "../types";
 import wordToPdf from "./word-to-pdf";
 import pdfToWord from "./pdf-to-word";
@@ -10,7 +10,7 @@ import pdfUnwatermark from "./pdf-unwatermark";
 const document: Category = {
   id: "document",
   name: "文档",
-  tools: [largeText, wordToPdf, pdfToWord, wordWatermark, wordUnwatermark, pdfPages, pdfUnwatermark],
+  tools: [largeFile, wordToPdf, pdfToWord, wordWatermark, wordUnwatermark, pdfPages, pdfUnwatermark],
 };
 
 export default document;
