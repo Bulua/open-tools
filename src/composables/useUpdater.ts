@@ -1,3 +1,4 @@
+import { prepareToExit } from "@/utils/exitGuards";
 import { computed, ref } from "vue";
 import type { Update } from "@tauri-apps/plugin-updater";
 import { locale, t } from "@/locales";
@@ -124,6 +125,7 @@ async function installUpdate() {
   receivedBytes.value = 0;
   totalBytes.value = null;
   try {
+    if (!(await prepareToExit())) { status.value = "available"; return; }
     await pending.downloadAndInstall((event) => {
       if (event.event === "Started") totalBytes.value = event.data.contentLength || null;
       else if (event.event === "Progress") {

@@ -31,13 +31,13 @@ export const LOCALES: { value: Locale; label: string }[] = [
 /** 各语言的公共文案 */
 const COMMON: Record<Locale, Record<string, unknown>> = { "zh-CN": zhCN, en, ja };
 
-const modules = import.meta.glob<{ default: ModuleLocales }>("../tools/*/*/locales.ts", { eager: true });
+const modules = import.meta.glob<ModuleLocales>("../tools/*/*/locales.ts", { eager: true, import: "default" });
 
 // 文案结构各模块不同，结构检查放在各语言的公共文案文件和 defineModuleLocales 里
 const messages = Object.fromEntries(LOCALES.map(({ value }) => [value, { ...COMMON[value] }])) as Record<Locale, Record<string, any>>;
 /** 所有工具在工具列表里的翻译，按语言、再按工具 id 对应 */
 export const toolTexts: Translations<Record<string, ToolText>> = {};
-for (const { default: m } of Object.values(modules)) {
+for (const m of Object.values(modules)) {
   for (const [l, texts] of Object.entries(m.tools ?? {})) Object.assign((toolTexts[l as OtherLocale] ??= {}), texts);
   for (const [l, msgs] of Object.entries(m.messages ?? {})) mergeMessages(messages[l as Locale], msgs);
 }

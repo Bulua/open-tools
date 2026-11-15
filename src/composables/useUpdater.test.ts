@@ -47,3 +47,18 @@ describe("在线更新的平台限制", () => {
     expect(updater.status.value).toBe("latest");
   });
 });
+
+
+it("安装更新前允许文档工具中止退出，避免覆盖未保存的编辑", async () => {
+  platform.mockReturnValue("desktop");
+  const downloadAndInstall = vi.fn();
+  check.mockResolvedValueOnce({ version: "0.13.0", downloadAndInstall });
+  const { useUpdater } = await import("./useUpdater");
+  const { registerExitGuard } = await import("@/utils/exitGuards");
+  const stop = registerExitGuard("test-document", async () => false);
+  try {
+    const updater = useUpdater(); await updater.checkForUpdate(); await updater.installUpdate();
+    expect(downloadAndInstall).not.toHaveBeenCalled();
+    expect(updater.status.value).toBe("available");
+  } finally { stop(); }
+});
