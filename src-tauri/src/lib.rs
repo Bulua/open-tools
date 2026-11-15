@@ -5,7 +5,7 @@ use crate::core::{branding, paths, tray};
 use crate::tools::{
     audio::tts::commands as tts,
     document::{
-        large_text::{commands as large_text, service as large_text_service},
+        large_file::{commands as large_file, service as large_file_service},
         pdf_to_word::commands as pdf_to_word,
         shared::office,
         word_to_pdf::commands as word_to_pdf,
@@ -13,7 +13,7 @@ use crate::tools::{
     encode::password_vault::commands as vault,
     image::shared::{ai_models, inference},
     network::{ip_lookup::commands as ip_lookup, ping::commands as ping},
-    utility::{calendar::commands as calendar, countdown::commands as countdown},
+    utility::{calendar::commands as calendar, clock::commands as clock},
     video::{
         douyin_download::commands as douyin,
         shared::{hdr, storage},
@@ -58,18 +58,18 @@ pub fn run() {
     let builder = builder
         // 前端可以调用的命令
         .invoke_handler(tauri::generate_handler![
-            large_text::large_text_open,
-            large_text::large_text_read,
-            large_text::large_text_edit,
-            large_text::large_text_history,
-            large_text::large_text_jump,
-            large_text::large_text_search,
-            large_text::large_text_save,
-            large_text::large_text_status,
-            large_text::large_text_pending,
-            large_text::large_text_cancel,
-            large_text::large_text_close,
-            large_text::large_text_exit,
+            large_file::large_text_open,
+            large_file::large_text_read,
+            large_file::large_text_edit,
+            large_file::large_text_history,
+            large_file::large_text_jump,
+            large_file::large_text_search,
+            large_file::large_text_save,
+            large_file::large_text_status,
+            large_file::large_text_pending,
+            large_file::large_text_cancel,
+            large_file::large_text_close,
+            large_file::large_text_exit,
             ping::ping_once,
             ip_lookup::local_ip,
             office::office_engines,
@@ -87,8 +87,8 @@ pub fn run() {
             inference::ai_run,
             vault::vault_read,
             vault::vault_write,
-            countdown::countdown_read,
-            countdown::countdown_write,
+            clock::countdown_read,
+            clock::countdown_write,
             calendar::calendar_read,
             calendar::calendar_write,
             #[cfg(windows)]
@@ -97,6 +97,8 @@ pub fn run() {
             calendar::calendar_wake,
             #[cfg(windows)]
             calendar::calendar_notify,
+            #[cfg(windows)]
+            core::notifications::desktop_notify,
             hdr::hdr_enabled,
             hdr::hdr_disable,
             hdr::hdr_restore,
@@ -176,7 +178,7 @@ pub fn run() {
         .expect("error while running tauri application")
         .run(|app, event| {
             if let tauri::RunEvent::ExitRequested { api, code, .. } = &event {
-                if large_text_service::has_sessions() {
+                if large_file_service::has_sessions() {
                     api.prevent_exit();
                     #[cfg(desktop)]
                     tray::show_main(app);
@@ -186,7 +188,7 @@ pub fn run() {
             }
             // 退出时恢复录屏前临时关闭的 HDR
             if let tauri::RunEvent::Exit = event {
-                large_text_service::shutdown();
+                large_file_service::shutdown();
                 hdr::restore();
             }
         });

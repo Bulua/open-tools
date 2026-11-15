@@ -1,2 +1,2 @@
 pub(crate) mod calendar;
-pub(crate) mod countdown;
+pub(crate) mod clock;
