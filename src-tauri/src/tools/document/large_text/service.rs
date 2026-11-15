@@ -13,7 +13,6 @@ fn sessions() -> &'static Mutex<HashMap<String, Arc<Session>>> {
     SESSIONS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 pub struct Session {
-    pub id: String,
     pub document: Mutex<Document>,
     pub index: Mutex<Index>,
     pub revision: AtomicU64,
@@ -183,7 +182,6 @@ pub fn open(path: &Path, encoding: &str, scratch: &Path) -> Result<Opened, Strin
     let info = document.info();
     let id = unique();
     let session = Arc::new(Session {
-        id: id.clone(),
         document: Mutex::new(document),
         index: Mutex::new(index),
         revision: AtomicU64::new(0),

@@ -179,6 +179,7 @@ impl Buffer {
         }
         out
     }
+    #[cfg(test)]
     pub fn replace(&mut self, from: u64, to: u64, bytes: &[u8]) -> Result<(), String> {
         self.replace_many(&[(from, to, bytes.to_vec())])
     }

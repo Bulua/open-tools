@@ -1,7 +1,9 @@
 //! 一个编辑会话拥有原始文件句柄、当前路径保护句柄和磁盘编辑缓冲区。
 use super::buffer::{open_source, Buffer};
 use super::encoding::Encoding;
-use super::index::{self, Index, Point};
+#[cfg(test)]
+use super::index::Point;
+use super::index::{self, Index};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::Read;
@@ -364,6 +366,7 @@ impl Document {
         self.revision += 1;
         Ok(true)
     }
+    #[cfg(test)]
     pub fn point(&self) -> Point {
         Point {
             offset: self.bom,
