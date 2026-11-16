@@ -40,10 +40,10 @@ Formatting JSON, decoding Base64, converting timestamps, or compressing images o
 | Category | Tools |
 | --- | --- |
 | Developer tools | JSON formatting and validation (code/tree views), comparison, escaping, YAML conversion and TypeScript type generation; Base64, URL/Unicode/HTML encoding, hashes, JWT decoding, regex testing, naming convention conversion |
-| Daily tools | Password generation, password vault, clipboard history (Windows), ID number parsing |
+| Daily tools | Password generation, password vault, clipboard history (Windows), screenshots and desktop pinning (Windows), ID number parsing |
 | Time | Timestamp conversion, time zones and world clocks, cron expressions, clock (alarms with weekday repeats, stopwatch laps, multiple timers), calendar (Gregorian/lunar dates, holidays, notes and Windows desktop reminders) |
 | Calculators & converters | Calculator, unit conversion, number bases |
-| Images | Screenshots and desktop pinning (Windows), compression, format conversion, cropping, rotation, color adjustment, stitching, mosaic, watermarks, background removal (including AI subject detection), watermark removal (AI inpainting), image color picker, color conversion, DPI change, ICO generation |
+| Images | Compression, format conversion, cropping, rotation, color adjustment, stitching, mosaic, watermarks, background removal (including AI subject detection), watermark removal (AI inpainting), image color picker, color conversion, DPI change, ICO generation |
 | Audio | Compression, format conversion (including extracting audio from video), trimming, joining, recording, text to speech |
 | Video | Video compression, Bilibili video download (with in-app playback), Douyin download without watermark, RedNote video and photo download (desktop, automatic content detection and local playback), video to audio (copy the original track or convert to MP3/M4A/WAV), video to GIF, video trimming (length and picture), video concatenation, background music, screen recording, camera recording |
 | Documents & files | Large-text editing (multiple tabs and continuous scrolling), Word to PDF, PDF to Word, Word watermarks and watermark removal, PDF page editing, PDF watermark removal, Markdown editing/preview and Word export, archiving and extraction |
