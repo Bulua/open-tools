@@ -1,6 +1,7 @@
 pub(crate) mod pdf_to_word;
 pub(crate) mod shared;
 pub(crate) mod word_to_pdf;
+pub(crate) mod word_to_markdown;
 pub(crate) mod large_file;
 #[cfg(windows)]
 pub(crate) mod pdf_content_editor;

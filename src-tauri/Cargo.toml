@@ -28,6 +28,9 @@ tauri-plugin-http = { version = "2", features = ["unsafe-headers", "dangerous-se
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
 base64 = "0.22"
+# Word 转 Markdown：直接解析 DOCX，并将正文和资源打包。
+roxmltree = "0.21"
+zip = { version = "9.2.2", default-features = false, features = ["deflate"] }
 # 中文 Windows 命令行输出是 GBK 编码，ping 结果需要转成 UTF-8
 encoding_rs = "0.8"
 # 校验下载的 AI 模型和运行环境
