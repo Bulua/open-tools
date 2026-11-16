@@ -77,12 +77,13 @@ defineExpose({ reset });
   scrollbar-width: none;
   overscroll-behavior: contain;
   scroll-snap-type: y mandatory;
+  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
   text-align: center;
   mask-image: linear-gradient(to bottom, transparent, var(--text) 32%, var(--text) 68%, transparent);
 }
 .time-wheel::-webkit-scrollbar { display: none; }
-.time-wheel:focus-visible { outline: none; background: var(--hover); border-radius: 8px; }
-.time-wheel-row { height: 32px; line-height: 32px; scroll-snap-align: center; font-size: 22px; color: var(--text-3); cursor: pointer; user-select: none; }
-.time-wheel-row.selected { font-weight: 600; color: var(--text); }
+.time-wheel:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--border-strong); border-radius: 8px; }
+.time-wheel-row { height: 32px; line-height: 32px; scroll-snap-align: center; font-size: 24px; font-weight: 400; letter-spacing: -0.02em; color: var(--text-3); cursor: pointer; user-select: none; }
+.time-wheel-row.selected { font-weight: 500; color: var(--text); }
 </style>

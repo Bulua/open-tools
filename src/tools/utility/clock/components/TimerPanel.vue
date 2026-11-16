@@ -4,7 +4,7 @@ import { useI18n } from "vue-i18n";
 import { Check, Pause, Play, RotateCcw, Timer, Trash2 } from "lucide-vue-next";
 import { recordToolUsage } from "@/composables/toolLibrary";
 import { addCountdown, countdowns, countdownsReady, now, removeCountdown, restart, togglePause } from "../clockStore";
-import { formatRemaining, progressOf, remainingOf, toMs, type CountdownItem } from "../reminders";
+import { countdownTitle, formatRemaining, progressOf, remainingOf, toMs, type CountdownItem } from "../reminders";
 
 const { t } = useI18n();
 const hours = ref<number | string>(0);
@@ -34,7 +34,7 @@ function startTimer() {
   }
   const current = Date.now();
   now.value = current;
-  addCountdown({ title: title.value.trim() || t("utility.timerName", { time: formatRemaining(duration.value) }),
+  addCountdown({ title: title.value.trim(), defaultTitle: !title.value.trim(),
     duration: duration.value, target: current + duration.value, repeat: "none" });
   error.value = "";
   recordToolUsage();
@@ -75,11 +75,11 @@ function restartTimer(item: CountdownItem) {
 
     <div v-if="timers.length" class="timer-grid">
       <article v-for="item in timers" :key="item.id" class="timer-card" :class="{ paused: item.pausedRemaining !== undefined, finished: finished(item) }">
-        <header><h2 :title="item.title">{{ item.title }}</h2><button class="icon-btn delete-timer" :aria-label="t('clock.deleteTimer', { label: item.title })" :title="t('clock.delete')" @click="removeCountdown(item.id)"><Trash2 :size="15" /></button></header>
+        <header><h2 :title="countdownTitle(item)">{{ countdownTitle(item) }}</h2><button class="icon-btn delete-timer" :aria-label="t('clock.deleteTimer', { label: countdownTitle(item) })" :title="t('clock.delete')" @click="removeCountdown(item.id)"><Trash2 :size="15" /></button></header>
         <div class="timer-readout"><time>{{ formatRemaining(finished(item) ? 0 : remainingOf(item, now)) }}</time><span class="timer-status"><Check v-if="finished(item)" :size="13" /><Pause v-else-if="item.pausedRemaining !== undefined" :size="13" />{{ status(item) }}</span></div>
-        <progress :value="finished(item) ? 1 : progressOf(item, now)" max="1" :aria-label="t('clock.timerProgress', { label: item.title })" />
+        <progress :value="finished(item) ? 1 : progressOf(item, now)" max="1" :aria-label="t('clock.timerProgress', { label: countdownTitle(item) })" />
         <footer><span>{{ t('clock.timerDuration', { time: formatRemaining(item.duration!) }) }}</span><div class="timer-actions">
-          <button v-if="!finished(item)" class="icon-btn" :aria-label="t('clock.restartTimer', { label: item.title })" :title="t('utility.restart')" @click="restartTimer(item)"><RotateCcw :size="16" /></button>
+          <button v-if="!finished(item)" class="icon-btn" :aria-label="t('clock.restartTimer', { label: countdownTitle(item) })" :title="t('utility.restart')" @click="restartTimer(item)"><RotateCcw :size="16" /></button>
           <button v-if="finished(item)" class="btn small" @click="restartTimer(item)"><Play :size="14" />{{ t('utility.restart') }}</button>
           <button v-else class="btn small" @click="toggleTimer(item)"><Play v-if="item.pausedRemaining !== undefined" :size="14" /><Pause v-else :size="14" />{{ t(item.pausedRemaining !== undefined ? 'utility.resume' : 'clock.pause') }}</button>
         </div></footer>

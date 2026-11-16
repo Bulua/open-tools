@@ -21,6 +21,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup?.(); cleanup = undefined;
+  (i18n.global.locale as unknown as { value: string }).value = "zh-CN";
   vi.useRealTimers(); vi.restoreAllMocks();
   for (const [name, descriptor] of [["showModal", originalShow], ["close", originalClose]] as const) {
     if (descriptor) Object.defineProperty(HTMLDialogElement.prototype, name, descriptor);
@@ -48,16 +49,9 @@ it("最后的新增卡片打开弹窗，可多选星期并保存标签、编辑�
   hour.scrollTop = (24 + 8) * 32; hour.dispatchEvent(new Event("scroll"));
   minute.scrollTop = (60 + 35) * 32; minute.dispatchEvent(new Event("scroll"));
   await nextTick();
-  await click(dialog.querySelector("button.repeat-select"));
-  expect(dialog.querySelector(".select-menu .search input")).not.toBeNull();
-  await click(dialog.querySelector('[role="option"][data-value="1"]'));
-  await click(dialog.querySelector('[role="option"][data-value="5"]'));
-  expect(dialog.querySelector("button.repeat-select > span")?.textContent).toBe("周一、周五");
-  const escape = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
-  dialog.querySelector('[role="option"][data-value="5"]')!.dispatchEvent(escape); await nextTick();
-  expect(escape.defaultPrevented).toBe(true);
-  expect(dialog.querySelector("button.repeat-select")?.getAttribute("aria-expanded")).toBe("false");
-  expect(dialog.hasAttribute("open")).toBe(true);
+  await click(dialog.querySelector('.weekday-toggle[data-day="1"]'));
+  await click(dialog.querySelector('.weekday-toggle[data-day="5"]'));
+  expect(dialog.querySelector(".repeat-summary")?.textContent).toBe("周一、周五");
   const label = dialog.querySelector<HTMLInputElement>('input[maxlength="80"]')!;
   label.value = "出门"; label.dispatchEvent(new Event("input"));
   dialog.querySelector("form")!.dispatchEvent(new Event("submit", { cancelable: true })); await nextTick();
@@ -71,9 +65,7 @@ it("最后的新增卡片打开弹窗，可多选星期并保存标签、编辑�
   expect(hour.getAttribute("aria-valuenow")).toBe("8");
   expect(minute.getAttribute("aria-valuenow")).toBe("35");
   expect(label.value).toBe("出门");
-  await click(dialog.querySelector("button.repeat-select"));
-  expect(dialog.querySelectorAll('[role="option"][aria-selected="true"]')).toHaveLength(2);
-  expect(dialog.querySelectorAll('[role="option"][aria-selected="true"] svg.check')).toHaveLength(2);
+  expect(dialog.querySelectorAll('.weekday-toggle[aria-pressed="true"]')).toHaveLength(2);
   expect(dialog.querySelector('input[type="checkbox"]')).toBeNull();
 });
 
@@ -106,7 +98,7 @@ it("启动、分段、暂停、继续及复位正确联动，切页不影响秒�
   expect(host.querySelectorAll(".laps li")).toHaveLength(0);
 });
 
-it("时间滚轮支持键盘跨边界循环，重新新增时恢复默认时间和收起的星期选择", async () => {
+it("时间滚轮支持键盘跨边界循环，重新新增时恢复默认时间和未选中的星期", async () => {
   const host = mount();
   await click(host.querySelector(".add-alarm"));
   const dialog = document.querySelector("dialog")!;
@@ -116,48 +108,49 @@ it("时间滚轮支持键盘跨边界循环，重新新增时恢复默认时间�
   }
   expect(hour.getAttribute("aria-valuenow")).toBe("0");
   expect(minute.getAttribute("aria-valuenow")).toBe("59");
-  await click(dialog.querySelector("button.repeat-select"));
-  await click(dialog.querySelector('[role="option"][data-value="0"]'));
+  await click(dialog.querySelector('.weekday-toggle[data-day="0"]'));
   dialog.querySelector("form")!.dispatchEvent(new Event("submit", { cancelable: true })); await nextTick();
   expect(countdowns.value[0].alarm).toEqual({ time: "00:59", weekdays: [0] });
   await click(host.querySelector(".add-alarm"));
   expect(hour.getAttribute("aria-valuenow")).toBe("9");
   expect(minute.getAttribute("aria-valuenow")).toBe("0");
-  expect(dialog.querySelector("button.repeat-select")?.getAttribute("aria-expanded")).toBe("false");
-  expect(dialog.querySelector("button.repeat-select > span")?.textContent).toBe("仅一次");
+  expect(dialog.querySelectorAll('.weekday-toggle[aria-pressed="true"]')).toHaveLength(0);
+  expect(dialog.querySelector(".repeat-summary")?.textContent).toBe("仅一次");
 });
 
 it("周一至周五统一显示工作日，加入周末后显示具体星期，七天显示每天", async () => {
   const host = mount();
   await click(host.querySelector(".add-alarm"));
   const dialog = document.querySelector("dialog")!;
-  await click(dialog.querySelector("button.repeat-select"));
-  for (const day of [5, 3, 1, 4, 2]) await click(dialog.querySelector(`[role="option"][data-value="${day}"]`));
-  const summary = () => dialog.querySelector("button.repeat-select > span")?.textContent;
+  for (const day of [5, 3, 1, 4, 2]) await click(dialog.querySelector(`.weekday-toggle[data-day="${day}"]`));
+  const summary = () => dialog.querySelector(".repeat-summary")?.textContent;
   expect(summary()).toBe("工作日");
-  await click(dialog.querySelector('[role="option"][data-value="6"]'));
+  await click(dialog.querySelector('.weekday-toggle[data-day="6"]'));
   expect(summary()).not.toBe("工作日");
-  await click(dialog.querySelector('[role="option"][data-value="0"]'));
+  await click(dialog.querySelector('.weekday-toggle[data-day="0"]'));
   expect(summary()).toBe("每天");
-  await click(dialog.querySelector('[role="option"][data-value="0"]'));
-  await click(dialog.querySelector('[role="option"][data-value="6"]'));
+  await click(dialog.querySelector('.weekday-toggle[data-day="0"]'));
+  await click(dialog.querySelector('.weekday-toggle[data-day="6"]'));
   dialog.querySelector("form")!.dispatchEvent(new Event("submit", { cancelable: true })); await nextTick();
   expect(host.querySelector(".alarm-schedule")?.textContent).toBe("工作日");
   expect(countdowns.value[0].alarm?.weekdays).toHaveLength(5);
 });
 
-it("重复选项使用与城市选择相同的搜索菜单，多选后保持展开", async () => {
+it("星期按钮直接多选和取消，全部取消后恢复仅一次，点击不会提交表单", async () => {
   const host = mount();
   await click(host.querySelector(".add-alarm"));
   const dialog = document.querySelector("dialog")!;
-  await click(dialog.querySelector("button.repeat-select"));
-  const search = dialog.querySelector<HTMLInputElement>(".select-menu .search input")!;
-  search.value = "五"; search.dispatchEvent(new Event("input")); await nextTick();
-  expect(dialog.querySelectorAll('.select-menu [role="option"]')).toHaveLength(1);
-  await click(dialog.querySelector('.select-menu [role="option"]'));
-  expect(dialog.querySelector('[role="option"][data-value="5"][aria-selected="true"]')).not.toBeNull();
-  expect(dialog.querySelector("button.repeat-select")?.getAttribute("aria-expanded")).toBe("true");
-  expect(dialog.querySelector("button.repeat-select > span")?.textContent).toBe("周五");
+  expect(dialog.querySelectorAll(".weekday-toggle")).toHaveLength(7);
+  await click(dialog.querySelector('.weekday-toggle[data-day="5"]'));
+  expect(dialog.querySelector('.weekday-toggle[data-day="5"]')?.getAttribute("aria-pressed")).toBe("true");
+  expect(dialog.querySelector(".repeat-summary")?.textContent).toBe("周五");
+  expect(dialog.hasAttribute("open")).toBe(true);
+  expect(countdowns.value).toHaveLength(0);
+  await click(dialog.querySelector('.weekday-toggle[data-day="5"]'));
+  expect(dialog.querySelector(".repeat-summary")?.textContent).toBe("仅一次");
+  (i18n.global.locale as unknown as { value: string }).value = "en"; await nextTick();
+  expect(dialog.querySelector('.weekday-toggle[data-day="5"]')?.textContent).toBe("Fri");
+  expect(dialog.querySelector('.weekday-toggle[data-day="5"]')?.getAttribute("aria-label")).toBe("Every Friday");
 });
 
 it("离开工具并重新挂载后，秒表继续按经过时间计时", async () => {
@@ -169,13 +162,11 @@ it("离开工具并重新挂载后，秒表继续按经过时间计时", async (
   expect(host.querySelector("output")?.textContent).toBe("00:00:04.50");
 });
 
-it("收起重复菜单或点击面板空白处不关闭编辑器，仍能填写标签并点击保存新增", async () => {
+it("点击面板空白处不关闭编辑器，仍能填写标签并点击保存新增", async () => {
   const host = mount();
   await click(host.querySelector(".add-alarm"));
   const dialog = document.querySelector("dialog")!;
-  await click(dialog.querySelector("button.repeat-select"));
-  await click(dialog.querySelector("button.repeat-select"));
-  expect(dialog.querySelector("button.repeat-select")?.getAttribute("aria-expanded")).toBe("false");
+  expect(dialog.querySelectorAll('.weekday-toggle[aria-pressed="true"]')).toHaveLength(0);
   // 原生 dialog 会将模态框外的点击定向到 dialog 本身，不能据此丢弃当前表单。
   dialog.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: -1, clientY: -1 }));
   await nextTick();
@@ -188,19 +179,17 @@ it("收起重复菜单或点击面板空白处不关闭编辑器，仍能填写�
   expect(dialog.hasAttribute("open")).toBe(false);
 });
 
-it("原生取消事件先收起重复菜单，再次取消才关闭表单", async () => {
+it("取消编辑不保存星期和标签，重新打开恢复默认值", async () => {
   const host = mount();
   await click(host.querySelector(".add-alarm"));
   const dialog = document.querySelector("dialog")!;
-  await click(dialog.querySelector("button.repeat-select"));
-  const cancelMenu = new Event("cancel", { cancelable: true });
-  dialog.dispatchEvent(cancelMenu); await nextTick();
-  expect(cancelMenu.defaultPrevented).toBe(true);
-  expect(dialog.hasAttribute("open")).toBe(true);
-  expect(dialog.querySelector("button.repeat-select")?.getAttribute("aria-expanded")).toBe("false");
+  await click(dialog.querySelector('.weekday-toggle[data-day="1"]'));
   dialog.dispatchEvent(new Event("cancel", { cancelable: true })); await nextTick();
   expect(dialog.hasAttribute("open")).toBe(false);
   expect(countdowns.value).toHaveLength(0);
+  await click(host.querySelector(".add-alarm"));
+  expect(dialog.querySelectorAll('.weekday-toggle[aria-pressed="true"]')).toHaveLength(0);
+  expect(dialog.querySelector(".repeat-summary")?.textContent).toBe("仅一次");
 });
 
 it("计时器支持预设、自定义名称、多任务和暂停继续，切页及重新挂载保留状态", async () => {
@@ -267,4 +256,33 @@ it("计时器校验时长，支持秒级输入和到期后重新开始，加载�
   await click(host.querySelector(".timer-actions .btn"));
   expect(countdowns.value[0]).toMatchObject({ target: wallTime + 10000, done: false });
   expect(host.querySelector(".timer-status")?.textContent).toContain("计时中");
+});
+
+it("新旧计时器默认名称随语言切换，重载后仍生效，用户输入的同名标签保持原样", async () => {
+  let host = mount();
+  await click(host.querySelector("#clock-tab-timer"));
+  await click(host.querySelector(".start-timer"));
+  expect(countdowns.value[0]).toMatchObject({ title: "", defaultTitle: true });
+  // 模拟修复前已保存的中文默认名称。
+  countdowns.value.push({ ...countdowns.value[0], id: "legacy", title: "05:00 计时", defaultTitle: undefined });
+  const name = host.querySelector<HTMLInputElement>(".timer-name input")!;
+  name.value = "05:00 计时"; name.dispatchEvent(new Event("input")); await nextTick();
+  await click(host.querySelector(".start-timer"));
+  expect(countdowns.value[2].defaultTitle).toBe(false);
+  const titles = () => [...host.querySelectorAll(".timer-card h2")].map(node => node.textContent);
+  expect(titles()).toEqual(["05:00 计时", "05:00 计时", "05:00 计时"]);
+  for (const [language, expected] of [["en", "05:00 timer"], ["ja", "05:00 タイマー"]]) {
+    (i18n.global.locale as unknown as { value: string }).value = language;
+    await nextTick();
+    expect(titles()).toEqual([expected, expected, "05:00 计时"]);
+    expect(host.querySelector(".timer-card h2")?.getAttribute("title")).toBe(expected);
+    expect(host.querySelector(".delete-timer")?.getAttribute("aria-label")).toContain(expected);
+  }
+  const saved = JSON.stringify(countdowns.value);
+  cleanup?.(); cleanup = undefined;
+  countdowns.value = JSON.parse(saved);
+  host = mount();
+  expect(titles()).toEqual(["05:00 タイマー", "05:00 タイマー", "05:00 计时"]);
+  (i18n.global.locale as unknown as { value: string }).value = "zh-CN"; await nextTick();
+  expect(titles()).toEqual(["05:00 计时", "05:00 计时", "05:00 计时"]);
 });

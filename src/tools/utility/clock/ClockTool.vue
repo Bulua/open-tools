@@ -9,7 +9,6 @@ import { stopwatch } from "./clockState";
 import { formatStopwatch } from "./stopwatch";
 import type { CountdownItem } from "./reminders";
 import TimeWheel from "./components/TimeWheel.vue";
-import AppSelect from "@/components/common/AppSelect.vue";
 import TimerPanel from "./components/TimerPanel.vue";
 
 const { t, locale } = useI18n();
@@ -42,9 +41,10 @@ const time = ref("09:00");
 const hour = computed({ get: () => Number(time.value.slice(0, 2)), set: value => { time.value = `${String(value).padStart(2, "0")}:${time.value.slice(3)}`; } });
 const minute = computed({ get: () => Number(time.value.slice(3)), set: value => { time.value = `${time.value.slice(0, 2)}:${String(value).padStart(2, "0")}`; } });
 const days = ref<number[]>([]);
-const repeatSelect = ref<{ close: () => void; isOpen: boolean }>();
-const repeatOptions = computed(() => weekdays.map(day => ({ value: day, label: dayName(day) })));
 const repeatSummary = computed(() => daysLabel(days.value));
+function toggleDay(day: number) {
+  days.value = days.value.includes(day) ? days.value.filter(value => value !== day) : [...days.value, day];
+}
 const label = ref("");
 const error = ref("");
 async function editAlarm(item?: CountdownItem) {
@@ -53,20 +53,13 @@ async function editAlarm(item?: CountdownItem) {
   days.value = [...(item?.alarm?.weekdays ?? [])];
   label.value = item?.title ?? "";
   error.value = "";
-  repeatSelect.value?.close();
   await nextTick();
   dialog.value?.showModal();
   hourWheel.value?.reset(true);
   minuteWheel.value?.reset();
 }
 function closeAlarm() {
-  repeatSelect.value?.close();
   dialog.value?.close();
-}
-function cancelAlarm() {
-  // 下拉菜单打开时，Escape 先收起菜单；再次按下才取消编辑。
-  if (repeatSelect.value?.isOpen) repeatSelect.value.close();
-  else closeAlarm();
 }
 function submitAlarm() {
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time.value)) { error.value = t("clock.invalidTime"); return; }
@@ -147,16 +140,25 @@ onBeforeUnmount(stopRefresh);
     <div v-show="tab === 'timer'" id="clock-page-timer" role="tabpanel" aria-labelledby="clock-tab-timer" class="clock-content timer-page"><TimerPanel /></div>
   </section>
   <Teleport to="body">
-    <dialog ref="dialog" class="alarm-dialog" aria-labelledby="alarm-dialog-title" @cancel.prevent="cancelAlarm" @close="repeatSelect?.close()">
+    <dialog ref="dialog" class="alarm-dialog" aria-labelledby="alarm-dialog-title" @cancel.prevent="closeAlarm">
       <form @submit.prevent="submitAlarm">
         <header><h2 id="alarm-dialog-title">{{ t(editing ? 'clock.editAlarm' : 'clock.addAlarm') }}</h2><button class="icon-btn" type="button" :aria-label="t('clock.cancel')" @click="closeAlarm"><X :size="18" /></button></header>
-        <div class="time-wheels" role="group" :aria-label="t('clock.time')">
-          <span class="time-selection" aria-hidden="true" />
-          <TimeWheel ref="hourWheel" v-model="hour" :count="24" :label="t('clock.hour')" />
-          <TimeWheel ref="minuteWheel" v-model="minute" :count="60" :label="t('clock.minute')" />
+        <div class="alarm-time-picker" role="group" :aria-label="t('clock.time')">
+          <div class="time-units" aria-hidden="true"><span>{{ t('clock.hour') }}</span><span>{{ t('clock.minute') }}</span></div>
+          <div class="time-wheels">
+            <span class="time-selection" aria-hidden="true" />
+            <TimeWheel ref="hourWheel" v-model="hour" :count="24" :label="t('clock.hour')" />
+            <span class="time-separator" aria-hidden="true">:</span>
+            <TimeWheel ref="minuteWheel" v-model="minute" :count="60" :label="t('clock.minute')" />
+          </div>
         </div>
         <div class="alarm-settings">
-          <div class="repeat-row"><span>{{ t('clock.repeat') }}</span><AppSelect ref="repeatSelect" v-model="days" class="repeat-select" multiple searchable :menu-width="260" :teleport-to="dialog" :options="repeatOptions" :summary="repeatSummary" :aria-label="t('clock.repeat')" /></div>
+          <div class="repeat-setting">
+            <div class="repeat-row"><span>{{ t('clock.repeat') }}</span><span class="repeat-summary" :title="days.length ? repeatSummary : t('clock.onceHint')">{{ repeatSummary }}</span></div>
+            <div class="weekday-buttons" role="group" :aria-label="t('clock.repeat')">
+              <button v-for="day in weekdays" :key="day" type="button" class="btn small weekday-toggle" :class="{ on: days.includes(day) }" :data-day="day" :aria-pressed="days.includes(day)" :aria-label="dayName(day)" @click="toggleDay(day)">{{ t(`clock.shortWeekday${day}`) }}</button>
+            </div>
+          </div>
           <label class="alarm-field"><span>{{ t('clock.label') }}</span><input v-model="label" class="field" maxlength="80" :placeholder="t('clock.labelPlaceholder')" /></label>
         </div>
         <p v-if="error" class="error" role="alert">{{ error }}</p>
@@ -202,15 +204,24 @@ onBeforeUnmount(stopRefresh);
 .alarm-dialog form { display: flex; flex-direction: column; gap: 18px; }
 .alarm-dialog header { display: flex; align-items: center; justify-content: space-between; }
 .alarm-dialog h2 { margin: 0; font-size: 16px; font-weight: 600; }
-.time-wheels { position: relative; display: grid; grid-template-columns: 72px 72px; justify-content: center; gap: 16px; }
-.time-selection { position: absolute; top: 64px; left: 18px; right: 18px; height: 32px; border-radius: 8px; background: var(--active); pointer-events: none; }
+.alarm-time-picker { align-self: center; width: 192px; padding-top: 2px; }
+.time-units, .time-wheels { display: grid; grid-template-columns: 80px 16px 80px; gap: 8px; }
+.time-units { margin-bottom: 4px; color: var(--text-3); font-size: 12px; text-align: center; }
+.time-units > :last-child { grid-column: 3; }
+.time-wheels { position: relative; }
+.time-selection { position: absolute; top: 64px; inset-inline: 0; height: 32px; border-radius: 8px; background: var(--accent-soft); pointer-events: none; }
+.time-separator { align-self: center; color: var(--text-2); font-family: var(--font-sans); font-size: 24px; font-weight: 400; line-height: 32px; text-align: center; }
 .alarm-settings { padding: 0 12px; border-radius: 10px; background: var(--bg-sunken); }
-.repeat-row { display: flex; align-items: center; gap: 20px; min-height: 52px; font-size: 13px; }
-.repeat-row > span { flex-shrink: 0; }
-.repeat-select { flex: 1; }
-.alarm-field { display: flex; align-items: center; gap: 20px; min-height: 52px; border-top: 1px solid var(--border); font-size: 13px; }
-.alarm-field > span { flex-shrink: 0; }
-.alarm-field .field { flex: 1; text-align: start; border: 0; border-radius: 0; outline: none; background: none; box-shadow: none; padding: 0 10px; font-size: 13px; }
+.repeat-setting { padding: 12px 0; }
+.repeat-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; font-size: 13px; }
+.repeat-row > span { flex-shrink: 0; color: var(--text-2); }
+.repeat-row .repeat-summary { flex-shrink: 1; min-width: 0; overflow: hidden; color: var(--text-3); font-size: 12px; text-align: end; text-overflow: ellipsis; white-space: nowrap; }
+.weekday-buttons { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
+.weekday-buttons .weekday-toggle { min-width: 0; height: 30px; justify-content: center; padding: 0; border-color: var(--border); font-size: 12px; }
+.weekday-buttons .weekday-toggle.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.alarm-field { display: flex; align-items: center; gap: 12px; min-height: 48px; border-top: 1px solid var(--border); font-size: 13px; }
+.alarm-field > span { flex-shrink: 0; color: var(--text-2); }
+.alarm-field .field { flex: 1; min-width: 0; text-align: start; border: 0; border-radius: 0; outline: none; background: none; box-shadow: none; padding: 0 8px; font-size: 13px; }
 .alarm-field .field:focus, .alarm-field .field:focus-visible { border: 0; outline: none; box-shadow: inset 0 -1px var(--border-strong); }
 .alarm-dialog footer { display: flex; justify-content: flex-end; gap: 8px; }
 button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }

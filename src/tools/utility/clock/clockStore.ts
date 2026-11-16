@@ -1,6 +1,6 @@
 import { ref, watch } from "vue";
 import { isTauri } from "@tauri-apps/api/core";
-import { nextOccurrence, type CountdownItem } from "./reminders";
+import { countdownTitle, nextOccurrence, type CountdownItem } from "./reminders";
 import { nextAlarmTarget, type AlarmSchedule } from "./alarm";
 import { showError } from "@/utils/errorToast";
 import { notifyDesktop } from "@/utils/desktopNotification";
@@ -72,7 +72,7 @@ async function load() {
 }
 export const now = ref(Date.now());
 /** 刚到期、等待用户确认的提醒 */
-export const alerts = ref<{ id: string; title: string; target: number }[]>([]);
+export const alerts = ref<Pick<CountdownItem, "id" | "title" | "target" | "duration" | "defaultTitle" | "alarm">[]>([]);
 
 const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 
@@ -165,7 +165,8 @@ function check() {
   const due = countdowns.value.filter((c) => c.enabled !== false && !c.done && c.pausedRemaining === undefined && c.target <= now.value);
   if (!due.length) return;
   for (const c of due) {
-    alerts.value = [...alerts.value.filter((a) => a.id !== c.id), { id: c.id, title: c.title, target: c.target }];
+    alerts.value = [...alerts.value.filter((a) => a.id !== c.id), { id: c.id, title: c.title, target: c.target,
+      duration: c.duration, defaultTitle: c.defaultTitle, alarm: c.alarm }];
     // 重复的倒计时直接排到下一次；不重复的标记为已到期，保留到用户删除
     if (c.alarm) updateCountdown(c.id, c.alarm.weekdays.length
       ? { target: nextAlarmTarget(c.alarm, now.value) }
@@ -173,7 +174,7 @@ function check() {
     else if (c.repeat !== "none") updateCountdown(c.id, { target: nextOccurrence(c.target, c.repeat, now.value) });
     else updateCountdown(c.id, { done: true });
     const time = new Intl.DateTimeFormat(locale.value, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(c.target);
-    void notifyDesktop(t("clock.notificationTitle"), t("clock.notificationBody", { time, label: c.title || t("clock.alarm") }))
+    void notifyDesktop(t("clock.notificationTitle"), t("clock.notificationBody", { time, label: countdownTitle(c) || t("clock.alarm") }))
       .catch(error => showError(error, t("clock.notificationFailed")));
   }
   beep();

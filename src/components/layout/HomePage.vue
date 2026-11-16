@@ -9,7 +9,7 @@ import FavoriteToolButton from "@/components/common/FavoriteToolButton.vue";
 import type { Category } from "@/tools";
 import { favoriteToolIds, recentToolIds } from "@/composables/toolLibrary";
 import { countdowns, now } from "@/tools/utility/clock/clockStore";
-import { formatRemaining } from "@/tools/utility/clock/reminders";
+import { countdownTitle, formatRemaining } from "@/tools/utility/clock/reminders";
 import { calendarNotes, loadCalendarNotes } from "@/tools/utility/calendar/calendarStore";
 import { calendarDateKey, calendarNotesOn, localCalendarDate } from "@/tools/utility/calendar/calendar";
 import { showError } from "@/utils/errorToast";
@@ -100,7 +100,7 @@ onMounted(() => void loadCalendarNotes().catch(showError));
               <button v-for="item in pending" :key="item.id" class="reminder-card countdown-card" :class="{ soon: item.target - now <= 3600000 }" @click="emit('select', 'time', 'clock')">
                 <span class="reminder-icon"><Timer :size="18" /></span>
                 <span class="reminder-content">
-                  <span class="countdown-heading"><strong>{{ item.title }}</strong><span class="countdown-remaining" :title="t('home.remaining')">{{ formatRemaining(item.target - now) }}</span></span>
+                  <span class="countdown-heading"><strong>{{ countdownTitle(item) }}</strong><span class="countdown-remaining" :title="t('home.remaining')">{{ formatRemaining(item.target - now) }}</span></span>
                   <span class="reminder-meta">{{ t('home.dueAt', { date: deadlineFormat.format(item.target) }) }}</span>
                 </span>
                 <ArrowUpRight class="reminder-arrow" :size="15" />

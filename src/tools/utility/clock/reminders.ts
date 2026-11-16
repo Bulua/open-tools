@@ -1,8 +1,13 @@
 /**
  * 倒计时的纯计算：剩余时间拆分、重复提醒的下一次时间。
  */
-import { t } from "@/locales";
+import { i18n, locale, LOCALES, t, type Locale } from "@/locales";
 import type { AlarmSchedule } from "./alarm";
+
+// 与 locales 入口一致，收窄翻译函数类型，避免全量文案的递归类型推导。
+const translateIn = (i18n.global as unknown as {
+  t: (key: string, named: Record<string, unknown>, options: { locale: Locale }) => string;
+}).t;
 
 export type Repeat = "none" | "daily" | "weekly" | "monthly" | "yearly";
 
@@ -18,6 +23,8 @@ export const REPEATS: { value: Repeat; label: string }[] = [
 export interface CountdownItem {
   id: string;
   title: string;
+  /** 区分自动名称和用户输入；旧数据没有此标记。 */
+  defaultTitle?: boolean;
   /** 到期时刻（毫秒时间戳） */
   target: number;
   createdAt: number;
@@ -49,10 +56,18 @@ export function splitRemaining(ms: number): Remaining {
 const pad = (n: number) => String(n).padStart(2, "0");
 
 /** 剩余时间显示为「3 天 04:05:06」或「04:05」 */
-export function formatRemaining(ms: number): string {
+export function formatRemaining(ms: number, language: Locale = locale.value): string {
   const r = splitRemaining(ms);
   const clock = r.hours || r.days ? `${pad(r.hours)}:${pad(r.minutes)}:${pad(r.seconds)}` : `${pad(r.minutes)}:${pad(r.seconds)}`;
-  return r.days ? t("utility.daysClock", { n: r.days, clock }) : clock;
+  return r.days ? translateIn("utility.daysClock", { n: r.days, clock }, { locale: language }) : clock;
+}
+
+/** 默认名称按当前语言生成；旧数据仅在名称与原始时长的完整默认文案一致时兼容。 */
+export function countdownTitle(item: Pick<CountdownItem, "title" | "defaultTitle" | "duration" | "alarm">): string {
+  if (item.alarm || !item.duration) return item.title;
+  const isDefault = item.defaultTitle ?? (!item.title || LOCALES.some(({ value }) =>
+    item.title === translateIn("utility.timerName", { time: formatRemaining(item.duration!, value) }, { locale: value })));
+  return isDefault ? t("utility.timerName", { time: formatRemaining(item.duration) }) : item.title;
 }
 
 /** 重复的倒计时到期后，下一次到期的时刻（晚于 now） */

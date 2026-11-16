@@ -1,9 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { formatRemaining, nextOccurrence, progressOf, splitRemaining, toMs, type CountdownItem } from "./reminders";
+import { i18n } from "@/locales";
+import { countdownTitle, formatRemaining, nextOccurrence, progressOf, splitRemaining, toMs, type CountdownItem } from "./reminders";
 
 const at = (s: string) => new Date(s).getTime();
 
 describe("倒计时", () => {
+  it("兼容三种语言的旧默认名称和跨天时长，完整匹配且不改写存储的名称", () => {
+    const language = i18n.global.locale as unknown as { value: string };
+    const original = language.value;
+    try {
+      language.value = "en";
+      for (const title of ["3 天 03:00:01 计时", "3d 03:00:01 timer", "3 日 03:00:01 タイマー"]) {
+        const item = { title, duration: toMs(75, 0, 1) };
+        expect(countdownTitle(item)).toBe("3d 03:00:01 timer");
+        expect(item.title).toBe(title);
+        expect(countdownTitle({ ...item, defaultTitle: false })).toBe(title);
+      }
+      expect(countdownTitle({ title: "我的 05:00 计时", duration: 300000 })).toBe("我的 05:00 计时");
+      expect(countdownTitle({ title: "01:00 计时", duration: 300000 })).toBe("01:00 计时");
+      expect(countdownTitle({ title: "会议" })).toBe("会议");
+    } finally { language.value = original; }
+  });
+
   it("剩余时间拆分与显示", () => {
     expect(splitRemaining(toMs(27, 5, 6))).toMatchObject({ days: 1, hours: 3, minutes: 5, seconds: 6 });
     expect(formatRemaining(toMs(0, 4, 5))).toBe("04:05");
