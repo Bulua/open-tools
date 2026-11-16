@@ -5,13 +5,13 @@ export default defineModuleLocales({
     "en": {
       "clock": {
         "name": "Clock",
-        "desc": "Set alarms with weekly repeats; time activities and record laps with the stopwatch"
+        "desc": "Set alarms, record stopwatch laps, and run multiple countdown timers"
       }
     },
     "ja": {
       "clock": {
         "name": "時計",
-        "desc": "曜日を指定したアラームと、ラップを記録できるストップウォッチ"
+        "desc": "曜日指定のアラーム、ラップ付きストップウォッチ、複数のタイマー"
       }
     }
   },
@@ -58,6 +58,18 @@ export default defineModuleLocales({
         "notificationFailed": "无法发送桌面提醒",
         "hour": "小时",
         "minute": "分钟",
+        "second": "秒",
+        "timerLabelPlaceholder": "例如：泡茶、专注（可选）",
+        "startTimer": "开始计时",
+        "timerPresets": "常用时长",
+        "invalidDuration": "请设置有效时长：小时 0–99，分钟和秒 0–59，且总时长大于 0",
+        "timerRunning": "计时中",
+        "timerFinished": "时间到",
+        "deleteTimer": "删除计时器：{label}",
+        "restartTimer": "重新开始计时器：{label}",
+        "timerProgress": "计时器进度：{label}",
+        "timerDuration": "总时长 {time}",
+        "timerEmpty": "选择常用时长或设置时间，开始一个计时器",
         "shortWeekday0": "周日",
         "shortWeekday1": "周一",
         "shortWeekday2": "周二",
@@ -148,6 +160,18 @@ export default defineModuleLocales({
         "notificationFailed": "Could not send desktop notification",
         "hour": "Hours",
         "minute": "Minutes",
+        "second": "Seconds",
+        "timerLabelPlaceholder": "e.g. Tea, Focus (optional)",
+        "startTimer": "Start timer",
+        "timerPresets": "Quick durations",
+        "invalidDuration": "Set a valid duration: 0–99 hours, 0–59 minutes and seconds, and a total greater than zero",
+        "timerRunning": "Running",
+        "timerFinished": "Time’s up",
+        "deleteTimer": "Delete timer: {label}",
+        "restartTimer": "Restart timer: {label}",
+        "timerProgress": "Timer progress: {label}",
+        "timerDuration": "Duration {time}",
+        "timerEmpty": "Choose a quick duration or set a time to start a timer",
         "shortWeekday0": "Sun",
         "shortWeekday1": "Mon",
         "shortWeekday2": "Tue",
@@ -238,6 +262,18 @@ export default defineModuleLocales({
         "notificationFailed": "デスクトップ通知を送信できませんでした",
         "hour": "時",
         "minute": "分",
+        "second": "秒",
+        "timerLabelPlaceholder": "例：お茶、集中（任意）",
+        "startTimer": "タイマーを開始",
+        "timerPresets": "よく使う時間",
+        "invalidDuration": "時間は0〜99、分と秒は0〜59で、合計が0より大きい時間を設定してください",
+        "timerRunning": "計測中",
+        "timerFinished": "時間です",
+        "deleteTimer": "タイマーを削除：{label}",
+        "restartTimer": "タイマーを再開：{label}",
+        "timerProgress": "タイマーの進捗：{label}",
+        "timerDuration": "設定時間 {time}",
+        "timerEmpty": "よく使う時間を選ぶか時間を設定して、タイマーを開始してください",
         "shortWeekday0": "日曜",
         "shortWeekday1": "月曜",
         "shortWeekday2": "火曜",

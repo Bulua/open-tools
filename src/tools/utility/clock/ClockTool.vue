@@ -10,6 +10,7 @@ import { formatStopwatch } from "./stopwatch";
 import type { CountdownItem } from "./reminders";
 import TimeWheel from "./components/TimeWheel.vue";
 import AppSelect from "@/components/common/AppSelect.vue";
+import TimerPanel from "./components/TimerPanel.vue";
 
 const { t, locale } = useI18n();
 const tab = useStoredRef<"alarm" | "stopwatch" | "timer">("clock.tab", "alarm");
@@ -30,6 +31,7 @@ const scheduleLabel = (item: CountdownItem) => {
 };
 const alarmTime = (item: CountdownItem) => item.alarm?.time ?? new Intl.DateTimeFormat(locale.value, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(item.target);
 const enabled = (item: CountdownItem) => item.enabled !== false && !item.done;
+const alarms = computed(() => countdowns.value.filter(item => item.alarm || !item.duration));
 
 // 原生对话框负责焦点约束、Escape 和关闭后的焦点归还。
 const dialog = ref<HTMLDialogElement>();
@@ -110,7 +112,7 @@ onBeforeUnmount(stopRefresh);
       </div>
     </header>
     <div v-show="tab === 'alarm'" id="clock-page-alarm" role="tabpanel" aria-labelledby="clock-tab-alarm" class="clock-content alarm-grid">
-      <article v-for="item in countdowns" :key="item.id" class="alarm-card" :class="{ disabled: !enabled(item) }">
+      <article v-for="item in alarms" :key="item.id" class="alarm-card" :class="{ disabled: !enabled(item) }">
         <div class="alarm-actions">
           <button v-if="item.alarm" class="icon-btn" :title="t('clock.editAlarm')" :aria-label="t('clock.editAlarm')" @click="editAlarm(item)"><Pencil :size="15" /></button>
           <button class="icon-btn delete-alarm" :title="t('clock.delete')" :aria-label="t('clock.deleteAlarm', { label: item.title })" @click="removeCountdown(item.id)"><Trash2 :size="15" /></button>
@@ -142,7 +144,7 @@ onBeforeUnmount(stopRefresh);
         <p v-else class="empty-laps">{{ t('clock.noLaps') }}</p>
       </section>
     </div>
-    <div v-show="tab === 'timer'" id="clock-page-timer" role="tabpanel" aria-labelledby="clock-tab-timer" class="clock-content timer-page" />
+    <div v-show="tab === 'timer'" id="clock-page-timer" role="tabpanel" aria-labelledby="clock-tab-timer" class="clock-content timer-page"><TimerPanel /></div>
   </section>
   <Teleport to="body">
     <dialog ref="dialog" class="alarm-dialog" aria-labelledby="alarm-dialog-title" @cancel.prevent="cancelAlarm" @close="repeatSelect?.close()">

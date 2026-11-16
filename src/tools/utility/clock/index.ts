@@ -5,7 +5,7 @@ import type { Tool } from "@/tools/types";
 const tool: Tool = {
   id: "clock",
   name: "时钟",
-  desc: "设置闹钟和每周重复提醒，使用秒表计时与记录分段",
+  desc: "设置闹钟和重复提醒，使用秒表记录分段，同时运行多个倒计时",
   icon: AlarmClock,
   component: defineAsyncComponent(() => import("./ClockTool.vue")),
 };

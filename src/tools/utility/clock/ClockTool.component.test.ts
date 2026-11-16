@@ -3,7 +3,7 @@ import { createApp, nextTick } from "vue";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { i18n } from "@/locales";
 import ClockTool from "./ClockTool.vue";
-import { countdowns, countdownsReady } from "./clockStore";
+import { countdowns, countdownsReady, now } from "./clockStore";
 import { stopwatch } from "./clockState";
 
 vi.mock("@/composables/toolLibrary", () => ({ recordToolUsage: vi.fn() }));
@@ -77,7 +77,7 @@ it("最后的新增卡片打开弹窗，可多选星期并保存标签、编辑�
   expect(dialog.querySelector('input[type="checkbox"]')).toBeNull();
 });
 
-it("启动、分段、暂停、继续及复位正确联动，切页不影响秒表且计时器留空", async () => {
+it("启动、分段、暂停、继续及复位正确联动，切页不影响秒表且可使用计时器", async () => {
   const host = mount();
   await click(host.querySelector("#clock-tab-stopwatch"));
   const left = host.querySelector(".stopwatch-buttons button:first-child")!;
@@ -97,7 +97,7 @@ it("启动、分段、暂停、继续及复位正确联动，切页不影响秒�
   expect(host.querySelector("output")?.textContent).toBe("00:00:02.75");
   await click(right);
   await click(host.querySelector("#clock-tab-timer"));
-  expect(host.querySelector("#clock-page-timer")?.childElementCount).toBe(0);
+  expect(host.querySelector("#clock-page-timer .timer-composer")).not.toBeNull();
   current = 11000; await vi.advanceTimersByTimeAsync(30);
   await click(host.querySelector("#clock-tab-stopwatch"));
   expect(host.querySelector("output")?.textContent).toBe("00:00:03.75");
@@ -201,4 +201,70 @@ it("原生取消事件先收起重复菜单，再次取消才关闭表单", asyn
   dialog.dispatchEvent(new Event("cancel", { cancelable: true })); await nextTick();
   expect(dialog.hasAttribute("open")).toBe(false);
   expect(countdowns.value).toHaveLength(0);
+});
+
+it("计时器支持预设、自定义名称、多任务和暂停继续，切页及重新挂载保留状态", async () => {
+  let wallTime = 1000000;
+  vi.spyOn(Date, "now").mockImplementation(() => wallTime);
+  let host = mount();
+  await click(host.querySelector("#clock-tab-timer"));
+  await click(host.querySelector(".timer-presets button"));
+  const name = host.querySelector<HTMLInputElement>(".timer-name input")!;
+  name.value = "泡茶"; name.dispatchEvent(new Event("input")); await nextTick();
+  await click(host.querySelector(".start-timer"));
+  expect(countdowns.value[0]).toMatchObject({ title: "泡茶", duration: 60000, target: 1060000 });
+  expect(host.querySelector(".timer-card time")?.textContent).toBe("01:00");
+  expect(host.querySelectorAll(".alarm-grid .alarm-card:not(.add-alarm)")).toHaveLength(0);
+  wallTime += 15000; now.value = wallTime; await nextTick();
+  expect(host.querySelector(".timer-card time")?.textContent).toBe("00:45");
+  expect(host.querySelector<HTMLProgressElement>(".timer-card progress")?.value).toBe(0.25);
+  await click(host.querySelector(".timer-actions .btn"));
+  wallTime += 20000; now.value = wallTime; await nextTick();
+  expect(host.querySelector(".timer-card time")?.textContent).toBe("00:45");
+  expect(host.querySelector(".timer-status")?.textContent).toContain("已暂停");
+  await click(host.querySelector(".timer-actions .btn"));
+  expect(countdowns.value[0].target).toBe(wallTime + 45000);
+  await click(host.querySelector(".start-timer"));
+  expect(host.querySelectorAll(".timer-card")).toHaveLength(2);
+  await click(host.querySelector("#clock-tab-alarm"));
+  wallTime += 5000; now.value = wallTime;
+  cleanup?.(); cleanup = undefined; host = mount();
+  await click(host.querySelector("#clock-tab-timer"));
+  expect(host.querySelector(".timer-card time")?.textContent).toBe("00:40");
+  await click(host.querySelector(".timer-actions .icon-btn"));
+  expect(host.querySelector(".timer-card time")?.textContent).toBe("01:00");
+  await click(host.querySelector(".delete-timer"));
+  await click(host.querySelector(".delete-timer"));
+  expect(countdowns.value).toHaveLength(0);
+  expect(host.querySelector(".timer-empty")).not.toBeNull();
+});
+
+it("计时器校验时长，支持秒级输入和到期后重新开始，加载完成前禁止新增", async () => {
+  let wallTime = 1000000;
+  vi.spyOn(Date, "now").mockImplementation(() => wallTime);
+  const host = mount();
+  await click(host.querySelector("#clock-tab-timer"));
+  const inputs = host.querySelectorAll<HTMLInputElement>('.duration-fields input');
+  const setDuration = async (values: string[]) => {
+    inputs.forEach((input, i) => { input.value = values[i]; input.dispatchEvent(new Event("input")); });
+    await nextTick(); await click(host.querySelector(".start-timer"));
+  };
+  await setDuration(["0", "0", "0"]);
+  expect(host.querySelector("#timer-duration-error")).not.toBeNull();
+  await setDuration(["0", "60", "0"]);
+  await setDuration(["-1", "0", "0"]);
+  await setDuration(["0", "0.5", "0"]);
+  expect(countdowns.value).toHaveLength(0);
+  countdownsReady.value = false; await nextTick();
+  expect(host.querySelector<HTMLButtonElement>(".start-timer")?.disabled).toBe(true);
+  countdownsReady.value = true; await nextTick();
+  await setDuration(["0", "0", "10"]);
+  expect(countdowns.value[0].duration).toBe(10000);
+  expect(host.querySelector("#timer-duration-error")).toBeNull();
+  wallTime += 10000; now.value = wallTime; await nextTick();
+  expect(host.querySelector(".timer-status")?.textContent).toContain("时间到");
+  expect(host.querySelector(".timer-card time")?.textContent).toBe("00:00");
+  await click(host.querySelector(".timer-actions .btn"));
+  expect(countdowns.value[0]).toMatchObject({ target: wallTime + 10000, done: false });
+  expect(host.querySelector(".timer-status")?.textContent).toContain("计时中");
 });
