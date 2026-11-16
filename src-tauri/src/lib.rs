@@ -22,6 +22,7 @@ use crate::tools::{
 };
 #[cfg(windows)]
 use crate::tools::{
+    document::pdf_content_editor::commands as pdf_content_editor,
     encode::clipboard_history::commands as clipboard,
     image::screenshot_history::{commands as screenshot, windows as screenshot_windows},
 };
@@ -58,6 +59,10 @@ pub fn run() {
     let builder = builder
         // 前端可以调用的命令
         .invoke_handler(tauri::generate_handler![
+            #[cfg(windows)]
+            pdf_content_editor::pdf_system_fonts,
+            #[cfg(windows)]
+            pdf_content_editor::pdf_system_font_read,
             large_file::large_text_open,
             large_file::large_text_read,
             large_file::large_text_edit,
