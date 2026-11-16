@@ -336,6 +336,18 @@ const { t } = useI18n();
 
 PDF 内容编辑与 PDF 页面管理的工具 ID、目录分别为 `pdf-content-editor`、`pdf-page-manager`；历史 ID 通过 `src/tools/toolId.ts` 映射，保留收藏、最近使用和分类选择。页面管理支持点击独立选中或取消单页，Shift 追加连续范围，复选框与页面点击保持一致。
 
+## Word 转 Markdown
+
+「Word 转 Markdown」位于 `src/tools/document/word-to-markdown/`，原生实现位于 `src-tauri/src/tools/document/word_to_markdown/`。仅支持 `.docx`，无需安装 Office 或其他转换组件。前端使用二进制 IPC 上传单个 Word 文件，Rust 直接读取 DOCX 的 ZIP/XML，生成主目录中的同名 `.md` 和 `assets/` 图片，再返回内部 ZIP。界面只解压 Markdown 供查看；没有导出图片时直接保存原始 `.md` 字节，有图片时保存包含 Markdown 与 `assets/` 的 ZIP，不上传服务器。图片判断以实际导出的资源为准，表格和原生公式本身不会触发 ZIP 导出。
+
+第一版支持标题、段落、直接或继承的粗体/斜体、删除线、列表、链接、图片、表格及常见 OMML 公式。简单表格输出 Markdown，合并单元格和嵌套表格输出 HTML，保留 `colspan` / `rowspan`；原生公式输出 `$...$` / `$$...$$` LaTeX。图表、SmartArt、文本框、旧公式嵌入对象及无法识别的公式静默跳过，不显示兼容性提示。批注、页眉页脚不导出，修订取接受后的正文。外链图片不下载；损坏、加密文件、转换和保存失败仍走统一错误提示。输入上限 64 MB，解压总量上限 128 MB。
+
+不支持旧 `.doc`，不进行 DOC 到 DOCX 转换，也不下载或调用 LibreOffice。Android 暂不展示此工具。
+
+职责划分：前端 `WordToMarkdown.vue` 负责交互，`conversion.ts` 负责二进制 IPC、结果解析及 MD/ZIP 格式选择；Rust `commands.rs` 负责命令校验，`converter/package.rs` 负责 DOCX 包和元数据读取，`converter.rs` 负责正文及图片转换，`converter/table.rs` 负责表格，`math.rs` 负责公式，`xml.rs` 负责 XML 公共操作。图片按 SHA-256 去重，避免逐张比较所有已提取图片的内容。
+
+回归测试以实际 ZIP/XML 结构覆盖图片引用、去重、合并表格、公式、多语言文本、列表、修订、路径边界及文件大小限制。新增工具后若 Vitest 文件系统模块缓存仍使用旧的 `import.meta.glob` 清单，先运行 `npm test -- --clearCache`，再正常运行 `npm test`。
+
 ## PDF 内容编辑
 
 「PDF 内容编辑」的页面、逻辑、Worker 和测试统一放在 `src/tools/document/pdf-content-editor/`，工具定义与三语言文案分别在同目录的 `index.ts`、`locales.ts`，PDF 读取与渲染复用 `document/shared/`。支持替换可定位的横排原文，以及叠加文字、图片、手写签名、高亮和图形。`pdfEditor.ts` 保存以 PDF.js 可见页面为基准的坐标，导出时先生成透明叠加页，再根据旋转和 CropBox 转换回原页坐标，保留原文件的文字、图片与矢量内容。新增文字使用 `@pdf-lib/fontkit` 嵌入字形子集，仍可搜索；其他新增对象写入页面内容，导出后不保留编辑器的独立对象状态。手写签名是图形，不是数字证书签名。

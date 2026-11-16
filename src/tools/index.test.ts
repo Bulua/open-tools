@@ -56,6 +56,7 @@ describe("平台可用性", () => {
       "screen-recorder",
       "screenshot-history",
       "tts",
+      "word-to-markdown",
       "word-to-pdf",
       "xiaohongshu-download",
     ]);
