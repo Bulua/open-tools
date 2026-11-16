@@ -510,5 +510,4 @@ pub(super) fn convert(data: Vec<u8>, name: &str) -> Result<Vec<u8>, String> {
 }
 
 #[cfg(test)]
-#[path = "tests.rs"]
 mod tests;

@@ -1,7 +1,11 @@
 //! 使用真实 ZIP/XML 结构覆盖内容保留、资源引用和不可信文档边界。
-use super::package::MAX_XML;
-use super::*;
-use std::io::Read;
+use super::super::xml::parse;
+use super::{convert, image_path, package::MAX_XML, safe_stem, table_pipes};
+use std::{
+    collections::HashMap,
+    io::{Cursor, Read, Write},
+};
+use zip::{write::SimpleFileOptions, ZipArchive, ZipWriter};
 const NS: &str = r#"xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart""#;
 fn package(entries: &[(&str, &[u8])]) -> Vec<u8> {
     let mut zip = ZipWriter::new(Cursor::new(vec![]));
