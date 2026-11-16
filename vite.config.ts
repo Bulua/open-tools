@@ -19,6 +19,11 @@ export default defineConfig({
     __INTLIFY_PROD_DEVTOOLS__: false,
   },
   clearScreen: false,
+  // PDF 原文编辑的 WASM 引擎在独立模块 Worker 中初始化，使用顶层 await。
+  build: { target: "es2022" },
+  worker: { format: "es" },
+  // 引擎包含顶层 await 和相对 WASM 资源，开发时直接加载其 ESM。
+  optimizeDeps: { exclude: ["mupdf"] },
   server: {
     port: 1420,
     strictPort: true,

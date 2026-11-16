@@ -3,7 +3,7 @@ import { PDFDocument, degrees } from "pdf-lib";
 import { t } from "@/locales";
 
 /**
- * PDF 页面编辑的纯逻辑：页码范围解析、按新的页面顺序生成 PDF。
+ * PDF 页面管理的纯逻辑：页码范围解析、按新的页面顺序生成 PDF。
  */
 
 /**

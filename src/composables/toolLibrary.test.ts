@@ -34,6 +34,7 @@ it("损坏的偏好恢复为空列表，有效条目去重并保留顺序", () =
   expect(toolIds({ id: "calendar" })).toEqual([]);
   expect(toolIds(["calendar", null, "", 12, "clock", "calendar"])).toEqual(["calendar", "clock"]);
   expect(toolIds(["countdown", "clock", "large-text", "large-file"])).toEqual(["clock", "large-file"]);
+  expect(toolIds(["pdf-editor", "pdf-content-editor", "pdf-pages", "pdf-page-manager"])).toEqual(["pdf-content-editor", "pdf-page-manager"]);
 });
 
 it("重新使用工具将其移到首位，保留全部不同工具以便分批展开", () => {

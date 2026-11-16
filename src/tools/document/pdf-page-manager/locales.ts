@@ -3,14 +3,14 @@ import { defineModuleLocales } from "@/locales/types";
 export default defineModuleLocales({
   "tools": {
     "en": {
-      "pdf-pages": {
-        "name": "PDF Page Editor",
+      "pdf-page-manager": {
+        "name": "PDF Page Manager",
         "desc": "Delete, rotate and reorder PDF pages, or merge several PDFs into one"
       }
     },
     "ja": {
-      "pdf-pages": {
-        "name": "PDF ページ編集",
+      "pdf-page-manager": {
+        "name": "PDF ページ管理",
         "desc": "PDF のページを削除・回転・並べ替え、または複数の PDF を 1 つに結合します"
       }
     }
@@ -57,7 +57,7 @@ export default defineModuleLocales({
         "rotateRight": "向右旋转",
         "deletePage": "删除这一页",
         "sourceInfo": "{name} · {n} 页 · {size}",
-        "pagesHint": "点击选择，Ctrl 多选、Shift 连选，拖动调整顺序"
+        "pagesHint": "点击选中或取消，Shift 连选，拖动调整顺序"
       }
     },
     "en": {
@@ -101,7 +101,7 @@ export default defineModuleLocales({
         "rotateRight": "Rotate right",
         "deletePage": "Delete this page",
         "sourceInfo": "{name} · {n} pages · {size}",
-        "pagesHint": "Click to select, Ctrl for multiple, Shift for a range, drag to reorder"
+        "pagesHint": "Click to toggle selection, Shift for a range, drag to reorder"
       }
     },
     "ja": {
@@ -145,7 +145,7 @@ export default defineModuleLocales({
         "rotateRight": "右に回転",
         "deletePage": "このページを削除",
         "sourceInfo": "{name} · {n} ページ · {size}",
-        "pagesHint": "クリックで選択、Ctrl で複数選択、Shift で範囲選択、ドラッグで並べ替え"
+        "pagesHint": "クリックで選択・解除、Shift で範囲選択、ドラッグで並べ替え"
       }
     }
   }

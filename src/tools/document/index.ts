@@ -4,13 +4,14 @@ import wordToPdf from "./word-to-pdf";
 import pdfToWord from "./pdf-to-word";
 import wordWatermark from "./word-watermark";
 import wordUnwatermark from "./word-unwatermark";
-import pdfPages from "./pdf-pages";
+import pdfEditor from "./pdf-content-editor";
+import pdfPages from "./pdf-page-manager";
 import pdfUnwatermark from "./pdf-unwatermark";
 
 const document: Category = {
   id: "document",
   name: "文档",
-  tools: [largeFile, wordToPdf, pdfToWord, wordWatermark, wordUnwatermark, pdfPages, pdfUnwatermark],
+  tools: [largeFile, wordToPdf, pdfToWord, wordWatermark, wordUnwatermark, pdfEditor, pdfPages, pdfUnwatermark],
 };
 
 export default document;

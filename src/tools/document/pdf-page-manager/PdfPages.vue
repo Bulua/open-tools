@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
+import { computed, onBeforeUnmount, ref, shallowRef } from "vue";
 import { Translation, useI18n } from "vue-i18n";
 import { FilePlus2, RotateCcw, RotateCw, Save, Trash2, Undo2, X } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
@@ -14,8 +14,8 @@ import { loadPdf } from "../shared/pdf";
 import { openPdf, renderPage, type PdfDocument } from "../shared/pdfjs";
 
 /**
- * PDF 页面编辑：删除、旋转、拖动排序，也可以加入其他 PDF 合并成一个。
- * 点击选择页面，Ctrl 多选、Shift 连选；Delete 删除选中的页，Ctrl+Z 撤销。
+ * PDF 页面管理：删除、旋转、拖动排序，也可以加入其他 PDF 合并成一个。
+ * 点击切换单页选中状态，Shift 追加连续选择；Delete 删除选中的页，Ctrl+Z 撤销。
  */
 interface Source {
   name: string;
@@ -76,6 +76,7 @@ const reset = () => {
   sources.value = [];
   pages.value = [];
   selected.value = new Set();
+  anchor = null;
   history.value = [];
 };
 onBeforeUnmount(reset);
@@ -131,40 +132,36 @@ const undo = () => {
 
 // ---------- 选择 ----------
 let anchor: number | null = null;
-const onSelect = (page: Page, e: MouseEvent) => {
-  const set = new Set(e.ctrlKey || e.metaKey ? selected.value : []);
-  if (e.shiftKey && anchor !== null) {
-    const keys = pages.value.map((p) => p.key);
-    const [a, b] = [keys.indexOf(anchor), keys.indexOf(page.key)].sort((x, y) => x - y);
-    keys.slice(a, b + 1).forEach((k) => set.add(k));
-  } else if ((e.ctrlKey || e.metaKey) && set.has(page.key)) {
-    set.delete(page.key);
-  } else {
-    set.add(page.key);
-    anchor = page.key;
-  }
-  selected.value = set;
-};
 const toggle = (page: Page) => {
   const set = new Set(selected.value);
   if (!set.delete(page.key)) set.add(page.key);
   selected.value = set;
   anchor = page.key;
 };
+const onSelect = (page: Page, event: MouseEvent) => {
+  if (event.shiftKey && anchor !== null) {
+    const keys = pages.value.map((item) => item.key);
+    const start = keys.indexOf(anchor), end = keys.indexOf(page.key);
+    if (start >= 0 && end >= 0) {
+      const set = new Set(selected.value);
+      keys.slice(Math.min(start, end), Math.max(start, end) + 1).forEach((key) => set.add(key));
+      selected.value = set;
+      return;
+    }
+  }
+  toggle(page);
+};
 const allSelected = computed(() => pages.value.length > 0 && selected.value.size === pages.value.length);
 const selectAll = () => (selected.value = allSelected.value ? new Set() : new Set(pages.value.map((p) => p.key)));
 
 const range = ref("");
-const rangeError = ref("");
 const selectRange = () => {
   try {
     selected.value = new Set(parsePageRanges(range.value, pages.value.length).map((i) => pages.value[i].key));
-    rangeError.value = "";
   } catch (e) {
-    rangeError.value = e instanceof Error ? e.message : String(e);
+    showError(e);
   }
 };
-watch(range, () => (rangeError.value = ""));
 
 // ---------- 编辑 ----------
 const hasSelection = computed(() => selected.value.size > 0);
@@ -286,7 +283,7 @@ const deleted = computed(() => sources.value.reduce((n, s) => n + s.pageCount, 0
     <div class="bar">
       <label class="check"><input type="checkbox" :checked="allSelected" :disabled="!pages.length" @change="selectAll" />{{ t("document.selectAll") }}</label>
       <form class="range" @submit.prevent="selectRange">
-        <input v-model="range" class="field" :class="{ invalid: rangeError }" :placeholder="t('document.rangePlaceholder')" />
+        <input v-model="range" class="field" :placeholder="t('document.rangePlaceholder')" />
         <button class="btn" type="submit" :disabled="!pages.length">{{ t("document.select") }}</button>
       </form>
       <span class="divider" />
@@ -301,7 +298,6 @@ const deleted = computed(() => sources.value.reduce((n, s) => n + s.pageCount, 0
         <template v-if="deleted > 0">{{ t("document.pagesDeleted", { n: deleted }) }}</template>
       </span>
     </div>
-    <p v-if="rangeError" class="error">{{ rangeError }}</p>
 
     <!-- 加载后隐藏但保留：「添加 PDF」和 Ctrl+V 粘贴仍由它处理 -->
     <FileDropZone
@@ -408,11 +404,6 @@ const deleted = computed(() => sources.value.reduce((n, s) => n + s.pageCount, 0
 }
 .status b {
   color: var(--text);
-}
-.error {
-  padding: 8px 14px;
-  font-size: 12.5px;
-  background: var(--danger-soft);
 }
 .drop {
   flex: 1;
