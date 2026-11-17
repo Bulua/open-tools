@@ -1,0 +1,244 @@
+use super::*;
+use tauri::ipc::InvokeResponseBody;
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::{TcpListener, TcpStream},
+};
+
+#[test]
+fn topic_filters_follow_mqtt_levels() {
+    for topic in ["a/+", "a/#", "#", "+/b", "/", " a "] {
+        assert!(valid_topic(topic, true), "{topic}");
+    }
+    for topic in ["", "a+", "a/#/b", "a/##", "a\0b"] {
+        assert!(!valid_topic(topic, true), "{topic}");
+    }
+    assert!(!valid_topic("a/+", false));
+    assert!(!valid_topic(&"温".repeat(21846), false));
+    assert!(valid_topic("a/b", false));
+}
+
+fn config(port: u16) -> Config {
+    Config {
+        host: "127.0.0.1".into(),
+        port,
+        client_id: "mqtt-test".into(),
+        username: "".into(),
+        password: "".into(),
+        keep_alive: 5,
+        clean_session: true,
+        tls: false,
+    }
+}
+
+fn channel() -> (Channel<Notice>, Arc<Mutex<Vec<serde_json::Value>>>) {
+    let notices = Arc::new(Mutex::new(Vec::new()));
+    let sink = notices.clone();
+    let channel = Channel::new(move |body| {
+        if let InvokeResponseBody::Json(json) = body {
+            sink.lock()
+                .unwrap()
+                .push(serde_json::from_str(&json).unwrap());
+        }
+        Ok(())
+    });
+    (channel, notices)
+}
+
+// 使用本机协议对端验证真实套接字收发，不依赖公网或已有 MQTT 服务器。
+async fn packet(socket: &mut TcpStream) -> (u8, Vec<u8>) {
+    timeout(Duration::from_secs(5), async {
+        let header = socket.read_u8().await.unwrap();
+        let mut length = 0usize;
+        let mut multiplier = 1;
+        loop {
+            let byte = socket.read_u8().await.unwrap();
+            length += (byte as usize & 127) * multiplier;
+            if byte & 128 == 0 {
+                break;
+            }
+            multiplier *= 128;
+        }
+        let mut body = vec![0; length];
+        socket.read_exact(&mut body).await.unwrap();
+        (header, body)
+    })
+    .await
+    .expect("MQTT peer timed out")
+}
+
+async fn until(socket: &mut TcpStream, kind: u8) -> (u8, Vec<u8>) {
+    loop {
+        let value = packet(socket).await;
+        if value.0 >> 4 == kind {
+            return value;
+        }
+        // 收到的 QoS 1 消息会触发客户端 PUBACK。
+        assert_eq!(value.0 >> 4, 4);
+    }
+}
+
+#[tokio::test]
+async fn native_roundtrip_confirms_subscriptions_and_all_publish_qos() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let broker = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let (header, body) = packet(&mut socket).await;
+        assert_eq!(header, 0x10);
+        assert_eq!(&body[..7], b"\0\x04MQTT\x04");
+        socket.write_all(&[0x20, 2, 0, 0]).await.unwrap();
+        let (header, body) = packet(&mut socket).await;
+        assert_eq!(header, 0x82);
+        assert_eq!(*body.last().unwrap(), 2);
+        socket
+            .write_all(&[0x90, 3, body[0], body[1], 1])
+            .await
+            .unwrap();
+        // 服务器发来一条保留的 QoS 1 消息。
+        socket
+            .write_all(&[
+                0x33, 11, 0, 4, b't', b'e', b's', b't', 0, 99, b'a', b'b', b'c',
+            ])
+            .await
+            .unwrap();
+        for qos in 0..=2 {
+            let (header, body) = until(&mut socket, 3).await;
+            assert_eq!((header >> 1) & 3, qos);
+            assert_eq!(header & 1, 1);
+            let topic_length = u16::from_be_bytes([body[0], body[1]]) as usize;
+            let offset = topic_length + 2;
+            assert_eq!(&body[2..offset], b"test");
+            let payload_offset = offset + if qos > 0 { 2 } else { 0 };
+            assert_eq!(&body[payload_offset..], "你好".as_bytes());
+            if qos > 0 {
+                socket
+                    .write_all(&[
+                        if qos == 1 { 0x40 } else { 0x50 },
+                        2,
+                        body[offset],
+                        body[offset + 1],
+                    ])
+                    .await
+                    .unwrap();
+                if qos == 2 {
+                    let (header, ack) = until(&mut socket, 6).await;
+                    assert_eq!(header, 0x62);
+                    socket.write_all(&[0x70, 2, ack[0], ack[1]]).await.unwrap();
+                }
+            }
+        }
+        let (header, body) = until(&mut socket, 10).await;
+        assert_eq!(header, 0xa2);
+        socket
+            .write_all(&[0xb0, 2, body[0], body[1]])
+            .await
+            .unwrap();
+        assert_eq!(packet(&mut socket).await.0, 0xe0);
+    });
+    let (events, notices) = channel();
+    let state = MqttState::default();
+    state
+        .connect("test".into(), config(port), events)
+        .await
+        .unwrap();
+    assert_eq!(
+        state
+            .request("test", Action::Subscribe("test/#".into(), QoS::ExactlyOnce))
+            .await
+            .unwrap(),
+        Some(1)
+    );
+    for level in 0..=2 {
+        state
+            .request(
+                "test",
+                Action::Publish(
+                    "test".into(),
+                    "你好".as_bytes().to_vec(),
+                    qos(level).unwrap(),
+                    true,
+                ),
+            )
+            .await
+            .unwrap();
+    }
+    state
+        .request("test", Action::Unsubscribe("test/#".into()))
+        .await
+        .unwrap();
+    state.disconnect("test").unwrap();
+    broker.await.unwrap();
+    let notices = notices.lock().unwrap();
+    assert!(notices.iter().any(|notice| notice["kind"] == "message"
+        && notice["topic"] == "test"
+        && notice["retain"] == true
+        && notice["payload"] == serde_json::json!([97, 98, 99])));
+}
+
+#[tokio::test]
+async fn rejected_subscriptions_and_network_loss_are_reported() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let broker = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        packet(&mut socket).await;
+        socket.write_all(&[0x20, 2, 0, 0]).await.unwrap();
+        let (_, body) = packet(&mut socket).await;
+        socket
+            .write_all(&[0x90, 3, body[0], body[1], 0x80])
+            .await
+            .unwrap();
+        let _ = packet(&mut socket).await;
+        // 不发 PUBACK 就关闭连接，发布必须返回失败。
+    });
+    let (events, notices) = channel();
+    let state = MqttState::default();
+    state
+        .connect("reject".into(), config(port), events)
+        .await
+        .unwrap();
+    assert!(state
+        .request(
+            "reject",
+            Action::Subscribe("denied".into(), QoS::AtMostOnce)
+        )
+        .await
+        .unwrap_err()
+        .contains("rejected"));
+    assert!(state
+        .request(
+            "reject",
+            Action::Publish("test".into(), vec![1], QoS::AtLeastOnce, false)
+        )
+        .await
+        .is_err());
+    broker.await.unwrap();
+    assert!(notices
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|notice| notice["kind"] == "closed" && notice["error"].is_string()));
+}
+
+#[tokio::test]
+async fn connecting_session_can_be_cancelled_without_connack() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let state = MqttState::default();
+    let connection_state = state.clone();
+    let connect = tokio::spawn(async move {
+        connection_state
+            .connect("cancel".into(), config(port), channel().0)
+            .await
+    });
+    let (mut socket, _) = listener.accept().await.unwrap();
+    packet(&mut socket).await;
+    state.disconnect("cancel").unwrap();
+    assert!(timeout(Duration::from_secs(2), connect)
+        .await
+        .unwrap()
+        .unwrap()
+        .is_err());
+    assert!(state.0.lock().unwrap().is_empty());
+}

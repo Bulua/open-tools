@@ -13,7 +13,7 @@ use crate::tools::{
     },
     encode::password_vault::commands as vault,
     image::shared::{ai_models, inference},
-    network::{ip_lookup::commands as ip_lookup, ping::commands as ping},
+    network::{ip_lookup::commands as ip_lookup, mqtt_client::commands as mqtt, ping::commands as ping},
     utility::{calendar::commands as calendar, clock::commands as clock},
     video::{
         douyin_download::commands as douyin,
@@ -30,7 +30,7 @@ use crate::tools::{
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = tauri::Builder::default();
+    let builder = tauri::Builder::default().manage(tools::network::mqtt_client::commands::MqttState::default());
 
     #[cfg(desktop)]
     let builder = builder
@@ -77,6 +77,11 @@ pub fn run() {
             large_file::large_text_close,
             large_file::large_text_exit,
             ping::ping_once,
+            mqtt::mqtt_connect,
+            mqtt::mqtt_disconnect,
+            mqtt::mqtt_subscribe,
+            mqtt::mqtt_unsubscribe,
+            mqtt::mqtt_publish,
             ip_lookup::local_ip,
             office::office_engines,
             word_to_pdf::office_to_pdf,
