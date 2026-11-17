@@ -52,6 +52,7 @@ describe("平台可用性", () => {
       "image-inpaint",
       "image-removebg",
       "large-file",
+      "mqtt-client",
       "recorder",
       "screen-recorder",
       "screenshot-history",

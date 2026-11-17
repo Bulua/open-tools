@@ -35,7 +35,7 @@ Formatting JSON, decoding Base64, converting timestamps, or compressing images o
 
 ## Features
 
-9 categories and 70 tools:
+9 categories and 71 tools:
 
 | Category | Tools |
 | --- | --- |
@@ -47,7 +47,7 @@ Formatting JSON, decoding Base64, converting timestamps, or compressing images o
 | Audio | Compression, format conversion (including extracting audio from video), trimming, joining, recording, text to speech |
 | Video | Video compression, Bilibili video download (with in-app playback), Douyin download without watermark, RedNote video and photo download (desktop, automatic content detection and local playback), video to audio (copy the original track or convert to MP3/M4A/WAV), video to GIF, video trimming (length and picture), video concatenation, background music, screen recording, camera recording |
 | Documents & files | Large-text editing (multiple tabs and continuous scrolling), Word to PDF, PDF to Word, Word watermarks and watermark removal, PDF content editing (existing text, added text, images, signatures and markup), PDF page management, PDF watermark removal, Markdown editing/preview and Word export, archiving and extraction |
-| Network | HTTP request client, IP address and location lookup, ping, HTTP headers to JSON/cURL |
+| Network | HTTP request client, IP address and location lookup, ping, MQTT (TCP/TLS), HTTP headers to JSON/cURL |
 
 ## Download and install
 
