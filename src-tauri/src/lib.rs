@@ -13,6 +13,7 @@ use crate::tools::{
     },
     encode::password_vault::commands as vault,
     image::shared::{ai_models, inference},
+    markdown::notebook::commands as notebook,
     network::{ip_lookup::commands as ip_lookup, mqtt_client::commands as mqtt, ping::commands as ping},
     utility::{calendar::commands as calendar, clock::commands as clock},
     video::{
@@ -82,6 +83,8 @@ pub fn run() {
             mqtt::mqtt_subscribe,
             mqtt::mqtt_unsubscribe,
             mqtt::mqtt_publish,
+            notebook::notebook_read,
+            notebook::notebook_write,
             ip_lookup::local_ip,
             office::office_engines,
             word_to_pdf::office_to_pdf,
