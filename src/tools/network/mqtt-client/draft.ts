@@ -18,6 +18,7 @@ export function cleanDraft(value: unknown): MqttDraft | null {
   const topics = Array.isArray(draft.topics) ? draft.topics.filter(item => item && typeof item.topic === "string" && validTopic(item.topic, true) && isQos(item.qos)) : [];
   return {
     config: { host: c.host, port: c.port, clientId: c.clientId, username: c.username, keepAlive: c.keepAlive, tls: c.tls, cleanSession: c.cleanSession,
+      protocolVersion: c.protocolVersion === "5.0" ? c.protocolVersion : DEFAULT_CONNECTION_OPTIONS.protocolVersion,
       connectTimeout: typeof c.connectTimeout === "number" && Number.isFinite(c.connectTimeout) ? c.connectTimeout : DEFAULT_CONNECTION_OPTIONS.connectTimeout,
       autoReconnect: c.autoReconnect === true,
       reconnectPeriod: typeof c.reconnectPeriod === "number" && Number.isFinite(c.reconnectPeriod) ? c.reconnectPeriod : DEFAULT_CONNECTION_OPTIONS.reconnectPeriod,

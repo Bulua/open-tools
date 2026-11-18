@@ -10,10 +10,10 @@ it("持久化时白名单读取，忽略旧密码、消息和损坏的预设", (
 it("旧连接补齐高级默认值，新配置持久化仍剔除密码和额外遗嘱字段", () => {
   const draft = createDraft();
   const old = { ...draft, config: { host: "localhost", port: 1883, clientId: "old", username: "", keepAlive: 60, cleanSession: true, tls: false } };
-  expect(cleanDraft(old)?.config).toMatchObject({ connectTimeout: 10, autoReconnect: false, reconnectPeriod: 4000, willEnabled: false });
-  Object.assign(draft.config, { connectTimeout: 20, autoReconnect: true, reconnectPeriod: 5000, willEnabled: true, willTopic: "device/status", willPayload: "offline", willQos: 1, willRetain: true, password: "secret", extra: "hidden" });
+  expect(cleanDraft(old)?.config).toMatchObject({ protocolVersion: "3.1.1", connectTimeout: 10, autoReconnect: false, reconnectPeriod: 4000, willEnabled: false });
+  Object.assign(draft.config, { protocolVersion: "5.0", connectTimeout: 20, autoReconnect: true, reconnectPeriod: 5000, willEnabled: true, willTopic: "device/status", willPayload: "offline", willQos: 1, willRetain: true, password: "secret", extra: "hidden" });
   const saved = cleanDraft(draft)!;
-  expect(saved.config).toMatchObject({ connectTimeout: 20, reconnectPeriod: 5000, willTopic: "device/status", willPayload: "offline", willQos: 1 });
+  expect(saved.config).toMatchObject({ protocolVersion: "5.0", connectTimeout: 20, reconnectPeriod: 5000, willTopic: "device/status", willPayload: "offline", willQos: 1 });
   expect(JSON.stringify(saved)).not.toContain("secret"); expect(JSON.stringify(saved)).not.toContain("hidden");
 });
 

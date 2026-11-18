@@ -2,7 +2,8 @@
 import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { ChevronDown, Plug, Plus, RefreshCw, Unplug, X } from "lucide-vue-next";
-import { createClientId, matchesTopic, validAdvancedConfig, validConfig, type PublishDraft, type QoS } from "../mqtt";
+import AppSelect from "@/components/common/AppSelect.vue";
+import { createClientId, matchesTopic, MQTT_VERSIONS, validAdvancedConfig, validConfig, type PublishDraft, type QoS } from "../mqtt";
 import { useMqtt } from "../useMqtt";
 import MqttConnectionForm from "./MqttConnectionForm.vue";
 import MqttSplit from "./MqttSplit.vue";
@@ -15,6 +16,7 @@ import { cleanDraft, type MqttDraft } from "../draft";
 const props = defineProps<{ session: SessionNode; active: boolean; creating?: boolean }>();
 const emit = defineEmits<{ draft: [id: string, value: MqttDraft]; status: [id: string, value: string]; create: [name: string, draft: MqttDraft]; cancel: []; rename: [id: string, name: string] }>();
 const { t } = useI18n();
+const versionOptions = computed(() => MQTT_VERSIONS.map(({ value, labelKey }) => ({ value, label: t(labelKey) })));
 const { config, status, connected, subscriptions, topics, messages, busy, supported, connect, disconnect, subscribe, unsubscribe, publish } = useMqtt();
 const draft = props.session.draft;
 Object.assign(config, draft.config, { password: "" });
@@ -80,6 +82,7 @@ const removeTopic = (topic: string) => {
         <label><span>{{ t("network.mqtt.password") }}</span><input v-model="config.password" class="field" type="password" :placeholder="t('network.mqtt.optional')" autocomplete="new-password" /></label>
         <label><span>{{ t("network.mqtt.keepAlive") }}</span><input v-model.number="config.keepAlive" class="field mono" type="number" min="5" max="65535" /></label>
         <label><span>{{ t("network.mqtt.cleanSession") }}</span><span class="check compact-check"><input v-model="config.cleanSession" type="checkbox" />{{ t("network.mqtt.enabled") }}</span></label>
+        <div class="compact-field"><span>{{ t("network.mqtt.mqttVersion") }}</span><AppSelect v-model="config.protocolVersion" :options="versionOptions" :disabled="status !== 'disconnected'" :aria-label="t('network.mqtt.mqttVersion')" /></div>
       </fieldset>
         </div>
       </div>
@@ -119,7 +122,7 @@ const removeTopic = (topic: string) => {
 .connection { flex: none; padding: 0 18px; border-bottom: 1px solid var(--border); background: var(--surface); }
 .mqtt:not(.creating) > .connection > .connection-details > .history-fold-inner { max-height: 45vh; overflow-y: auto; }
 .compact-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 960px; gap: 12px 18px; border: 0; margin: 14px 0 12px; padding: 0; min-width: 0; }
-.compact-fields > label { display: flex; flex-direction: column; gap: 6px; min-width: 0; color: var(--text-2); font-size: 12px; }
+.compact-fields > label, .compact-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; color: var(--text-2); font-size: 12px; }
 .compact-fields .field { min-width: 0; height: 32px; }
 .compact-input-action { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .compact-input-action > .field { flex: 1; }

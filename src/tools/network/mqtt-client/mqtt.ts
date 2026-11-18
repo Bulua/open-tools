@@ -2,13 +2,20 @@ export const MAX_PAYLOAD = 256 * 1024;
 export const MAX_MESSAGES = 200;
 export const MAX_LOG_BYTES = 4 * 1024 * 1024;
 export type QoS = 0 | 1 | 2;
+export const MQTT_VERSIONS = [
+  { value: "3.1.1", labelKey: "network.mqtt.version311" },
+  { value: "5.0", labelKey: "network.mqtt.version50" },
+] as const;
+export type ProtocolVersion = (typeof MQTT_VERSIONS)[number]["value"];
 export const DEFAULT_CONNECTION_OPTIONS = {
+  protocolVersion: "3.1.1" as ProtocolVersion,
   connectTimeout: 10, autoReconnect: false, reconnectPeriod: 4000,
   willEnabled: false, willTopic: "", willPayload: "", willQos: 0 as QoS, willRetain: false,
 };
 export interface ConnectionConfig {
   host: string; port: number; clientId: string; username: string; password: string;
   keepAlive: number; cleanSession: boolean; tls: boolean;
+  protocolVersion: ProtocolVersion;
   connectTimeout: number; autoReconnect: boolean; reconnectPeriod: number;
   willEnabled: boolean; willTopic: string; willPayload: string; willQos: QoS; willRetain: boolean;
 }

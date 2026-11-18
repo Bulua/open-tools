@@ -3,7 +3,7 @@ import { computed, ref, useId } from "vue";
 import { MessageSquare, Plug, RefreshCw, SlidersHorizontal } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
 import AppSelect from "@/components/common/AppSelect.vue";
-import { createClientId, type ConnectionConfig } from "../mqtt";
+import { createClientId, MQTT_VERSIONS, type ConnectionConfig } from "../mqtt";
 
 const props = defineProps<{ config: ConnectionConfig; disabled: boolean }>();
 const name = defineModel<string>("name", { required: true });
@@ -19,7 +19,7 @@ const tabKey = (event: KeyboardEvent) => {
   const buttons = (event.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>('[role="tab"]');
   buttons[next]?.focus(); buttons[next]?.click();
 };
-const versionOptions = computed(() => [{ value: "3.1.1", label: t("network.mqtt.version311") }]);
+const versionOptions = computed(() => MQTT_VERSIONS.map(({ value, labelKey }) => ({ value, label: t(labelKey) })));
 const qosOptions = computed(() => [0, 1, 2].map(value => ({ value, label: t("network.mqtt.qosValue", { n: value }) })));
 const changeTls = () => { if ([1883, 8883].includes(props.config.port)) props.config.port = props.config.tls ? 8883 : 1883; };
 const regenerateId = () => { props.config.clientId = createClientId(); };
@@ -50,7 +50,7 @@ const regenerateId = () => { props.config.clientId = createClientId(); };
           <div class="config-row"><span>{{ t("network.mqtt.cleanSession") }}</span><label class="check"><input v-model="config.cleanSession" type="checkbox" />{{ t("network.mqtt.enabled") }}</label></div>
           <div class="config-row"><span>{{ t("network.mqtt.autoReconnect") }}</span><label class="check"><input v-model="config.autoReconnect" type="checkbox" />{{ t("network.mqtt.enabled") }}</label></div>
           <label class="config-row"><span>{{ t("network.mqtt.reconnectPeriod") }}</span><div class="input-unit"><input v-model.number="config.reconnectPeriod" class="field number-field mono" type="number" min="1000" max="3600000" :disabled="!config.autoReconnect" /><small>{{ t("network.mqtt.milliseconds") }}</small></div></label>
-          <div class="config-row"><span>{{ t("network.mqtt.mqttVersion") }}</span><AppSelect model-value="3.1.1" class="short-select" :options="versionOptions" :disabled="disabled" :aria-label="t('network.mqtt.mqttVersion')" /></div>
+          <div class="config-row"><span>{{ t("network.mqtt.mqttVersion") }}</span><AppSelect v-model="config.protocolVersion" class="short-select" :options="versionOptions" :disabled="disabled" :aria-label="t('network.mqtt.mqttVersion')" /></div>
       </fieldset>
     </section>
     <section v-show="panel === 'lastWill'" :id="`${formId}-panel-lastWill`" class="config-section" :class="{ current: panel === 'lastWill' }" role="tabpanel" :aria-labelledby="`${formId}-tab-lastWill`">
