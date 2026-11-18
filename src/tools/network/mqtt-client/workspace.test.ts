@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { canMove, createDraft, migrateWorkspace, moveNode, readTree, removeNode, type MqttTree, type TreeNode } from "./profiles";
+import { visibleRows, descendants, canMove, migrateWorkspace, moveNode, readTree, removeNode, type MqttTree, type TreeNode } from "./workspace";
+import { createDraft } from "./draft";
 
 const nodes = (): TreeNode[] => [
   { id: "a", name: "A", kind: "folder", parentId: null, collapsed: false },
@@ -44,4 +45,14 @@ describe("MQTT 会话目录", () => {
     const same = migrateWorkspace({ profiles: [{ id: "old", name: "旧配置", draft: saved }], profileId: "old", draft: saved });
     expect(same.nodes).toHaveLength(1); expect(same.activeId).toBe("old");
   });
+});
+
+
+it("目录按原顺序显示可见层级，折叠不丢失子节点，后代遍历可处理循环数据", () => {
+  const input = nodes();
+  expect(visibleRows(input).map(({ node, depth }) => [node.id, depth])).toEqual([["a", 0], ["b", 1], ["s2", 0], ["s3", 0]]);
+  (input[1] as Extract<TreeNode, { kind: "folder" }>).collapsed = false;
+  expect(visibleRows(input).map(({ node, depth }) => [node.id, depth])).toEqual([["a", 0], ["b", 1], ["s1", 2], ["s2", 0], ["s3", 0]]);
+  input[0].parentId = "b";
+  expect([...descendants(input, "a")].sort()).toEqual(["a", "b", "s1"]);
 });

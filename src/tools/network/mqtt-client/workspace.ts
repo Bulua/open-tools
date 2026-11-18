@@ -1,40 +1,11 @@
 import { effectScope, ref, watch, type Ref } from "vue";
 import { showError } from "@/utils/errorToast";
 import { t } from "@/locales";
-import { MAX_PAYLOAD, validTopic, type ConnectionConfig, type QoS } from "./mqtt";
+import { cleanDraft, createDraft, type MqttDraft } from "./draft";
 
-export interface MqttDraft {
-  config: Omit<ConnectionConfig, "password">;
-  topics: { topic: string; qos: QoS }[];
-  publishTopic: string; publishQos: QoS; retain: boolean; payload: string; mode: "text" | "json";
-  filterTopic: string; subscriptionQos: QoS;
-}
-export interface Profile { id: string; name: string; draft: MqttDraft }
-interface Workspace { draft: MqttDraft | null; profiles: Profile[]; profileId?: string; profileName?: string }
+// 旧版工作区仅用于迁移，继续兼容已保存的连接。
+interface LegacyWorkspace { draft: MqttDraft | null; profiles: { id: string; name: string; draft: MqttDraft }[]; profileId?: string; profileName?: string }
 const STORAGE_KEY = "mqtt.workspace.v1";
-const isQos = (value: unknown): value is QoS => value === 0 || value === 1 || value === 2;
-
-/** 逐字段读取，旧数据或被污染的存储不能把密码等额外字段重新写回磁盘。 */
-export function cleanDraft(value: unknown): MqttDraft | null {
-  if (!value || typeof value !== "object") return null;
-  const draft = value as Partial<MqttDraft>;
-  const c = draft.config;
-  if (!c || typeof c.host !== "string" || typeof c.clientId !== "string" || typeof c.username !== "string" ||
-    typeof c.port !== "number" || !Number.isFinite(c.port) || typeof c.keepAlive !== "number" || !Number.isFinite(c.keepAlive) ||
-    typeof c.tls !== "boolean" || typeof c.cleanSession !== "boolean") return null;
-  const topics = Array.isArray(draft.topics) ? draft.topics.filter(item => item && typeof item.topic === "string" && validTopic(item.topic, true) && isQos(item.qos)) : [];
-  return {
-    config: { host: c.host, port: c.port, clientId: c.clientId, username: c.username, keepAlive: c.keepAlive, tls: c.tls, cleanSession: c.cleanSession },
-    topics: [...new Map(topics.map(item => [item.topic, { topic: item.topic, qos: item.qos }])).values()],
-    publishTopic: typeof draft.publishTopic === "string" ? draft.publishTopic : "test/demo",
-    publishQos: isQos(draft.publishQos) ? draft.publishQos : 0,
-    retain: draft.retain === true,
-    payload: typeof draft.payload === "string" && new TextEncoder().encode(draft.payload).length <= MAX_PAYLOAD ? draft.payload : "",
-    mode: draft.mode === "json" ? "json" : "text",
-    filterTopic: typeof draft.filterTopic === "string" ? draft.filterTopic : "test/demo",
-    subscriptionQos: isQos(draft.subscriptionQos) ? draft.subscriptionQos : 0,
-  };
-}
 
 export type FolderNode = { id: string; parentId: string | null; name: string; kind: "folder"; collapsed: boolean };
 export type SessionNode = { id: string; parentId: string | null; name: string; kind: "session"; draft: MqttDraft };
@@ -42,20 +13,41 @@ export type TreeNode = FolderNode | SessionNode;
 export interface MqttTree { nodes: TreeNode[]; activeId: string }
 const TREE_KEY = "mqtt.workspace.v2";
 
-export function createDraft(): MqttDraft {
-  return {
-    config: { host: "127.0.0.1", port: 1883, clientId: `open-tools-${crypto.randomUUID().slice(0, 8)}`, username: "", keepAlive: 60, cleanSession: true, tls: false },
-    topics: [], publishTopic: "test/demo", publishQos: 0, retain: false, payload: "", mode: "text", filterTopic: "test/demo", subscriptionQos: 0,
-  };
+/** 按父级建立索引，遍历目录时避免为每个文件夹重复扫描全部节点。 */
+function childrenByParent(nodes: TreeNode[]) {
+  const children = new Map<string | null, TreeNode[]>();
+  for (const node of nodes) {
+    const siblings = children.get(node.parentId);
+    if (siblings) siblings.push(node);
+    else children.set(node.parentId, [node]);
+  }
+  return children;
 }
 
-/** 目录只保存父级 ID，移动文件夹时不会改动其内部会话的数据或连接。 */
+export function visibleRows(nodes: TreeNode[]): { node: TreeNode; depth: number }[] {
+  const children = childrenByParent(nodes);
+  const rows: { node: TreeNode; depth: number }[] = [];
+  const stack = (children.get(null) ?? []).map(node => ({ node, depth: 0 })).reverse();
+  while (stack.length) {
+    const row = stack.pop()!;
+    rows.push(row);
+    if (row.node.kind === "folder" && !row.node.collapsed) {
+      stack.push(...(children.get(row.node.id) ?? []).map(node => ({ node, depth: row.depth + 1 })).reverse());
+    }
+  }
+  return rows;
+}
+
+/** 目录只保存父级 ID，移动文件夹时不会改动其内部连接的数据。 */
 export function descendants(nodes: TreeNode[], id: string): Set<string> {
-  const result = new Set([id]);
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const node of nodes) if (node.parentId && result.has(node.parentId) && !result.has(node.id)) { result.add(node.id); changed = true; }
+  const children = childrenByParent(nodes);
+  const result = new Set<string>();
+  const stack = [id];
+  while (stack.length) {
+    const current = stack.pop()!;
+    if (result.has(current)) continue;
+    result.add(current);
+    stack.push(...(children.get(current) ?? []).map(node => node.id));
   }
   return result;
 }
@@ -109,7 +101,7 @@ export function readTree(raw: unknown): MqttTree | null {
   return { nodes, activeId: nodes.some(node => node.id === input.activeId && node.kind === "session") ? input.activeId : nodes.find(node => node.kind === "session")?.id ?? "" };
 }
 
-export function migrateWorkspace(raw: Workspace): MqttTree {
+export function migrateWorkspace(raw: LegacyWorkspace): MqttTree {
   const nodes: TreeNode[] = [];
   for (const profile of raw.profiles ?? []) {
     const draft = cleanDraft(profile?.draft);

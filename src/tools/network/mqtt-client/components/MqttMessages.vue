@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { ArrowDownLeft, ArrowUpRight, Send, Trash2 } from "lucide-vue-next";
+import { ArrowDownLeft, ArrowUpRight, Trash2, X } from "lucide-vue-next";
 import TextPane from "@/components/common/TextPane.vue";
-import MqttSplit from "./MqttSplit.vue";
 import { displayPayload, type Message } from "../mqtt";
 
 const props = defineProps<{ messages: Message[] }>();
-const emit = defineEmits<{ clear: []; publish: [] }>();
+const emit = defineEmits<{ clear: [] }>();
 const { t, locale } = useI18n();
 const filter = ref<"all" | "received" | "sent">("all");
 const format = ref(true);
@@ -23,7 +22,7 @@ const language = computed(() => {
 });
 const timeFormat = computed(() => new Intl.DateTimeFormat(locale.value, { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
 watch([visible, follow], async ([list]) => {
-  if (follow.value || !list.some(message => message.id === selectedId.value)) selectedId.value = list[list.length - 1]?.id;
+  if (!list.some(message => message.id === selectedId.value)) selectedId.value = undefined;
   await nextTick(); if (follow.value && log.value) log.value.scrollTop = log.value.scrollHeight;
 }, { immediate: true });
 const select = (id: number) => { selectedId.value = id; follow.value = false; };
@@ -33,53 +32,64 @@ const select = (id: number) => { selectedId.value = id; follow.value = false; };
   <section class="message-panel">
     <header class="message-head">
       <div class="seg"><button v-for="direction in (['all', 'received', 'sent'] as const)" :key="direction" :class="{ on: filter === direction }" :aria-pressed="filter === direction" @click="filter = direction">{{ t(`network.mqtt.${direction}`) }}</button></div>
-      <div class="message-options"><label class="check"><input v-model="follow" type="checkbox" />{{ t("network.mqtt.follow") }}</label><button class="icon-btn" :disabled="!messages.length" :title="t('network.mqtt.clear')" :aria-label="t('network.mqtt.clear')" @click="emit('clear')"><Trash2 :size="14" /></button><button class="btn small open-send" @click="emit('publish')"><Send :size="13" />{{ t("network.mqtt.openSend") }}</button></div>
+      <div class="message-options"><label class="check"><input v-model="format" type="checkbox" />{{ t("network.mqtt.format") }}</label><label class="check"><input v-model="follow" type="checkbox" />{{ t("network.mqtt.follow") }}</label><button class="icon-btn" :disabled="!messages.length" :title="t('network.mqtt.clear')" :aria-label="t('network.mqtt.clear')" @click="emit('clear')"><Trash2 :size="14" /></button></div>
     </header>
-    <MqttSplit storage-key="messageSummary" :initial="150" :label="t('network.mqtt.resizeSummary')">
-      <template #left>
-        <div ref="log" class="message-log" :aria-label="t('network.mqtt.messages')">
-          <p v-if="!visible.length" class="empty">{{ t("network.mqtt.empty") }}</p>
-          <button v-for="message in visible" :key="message.id" class="message-summary" :class="[message.direction, { selected: selectedId === message.id }]" :aria-pressed="selectedId === message.id" @click="select(message.id)">
-            <span class="summary-line"><ArrowDownLeft v-if="message.direction === 'received'" :size="13" /><ArrowUpRight v-else :size="13" /><time>{{ timeFormat.format(message.time) }}</time></span>
-            <code :title="message.topic">{{ message.topic }}</code>
-            <span class="summary-line"><small>{{ t("network.mqtt.bytes", { n: message.bytes }) }}</small><small>{{ t("network.mqtt.qosValue", { n: message.qos }) }}</small></span>
-          </button>
-        </div>
-      </template>
-      <template #right>
-        <div class="message-detail">
-          <TextPane v-if="selected" :model-value="content" class="detail-data" :label="selected.binary ? t('network.mqtt.binary') : selected.topic" :language="language" readonly>
-            <template #actions>
-              <div class="seg detail-format"><button :class="{ on: !format }" :aria-pressed="!format" @click="format = false">{{ t("network.mqtt.rawData") }}</button><button :class="{ on: format }" :aria-pressed="format" @click="format = true">{{ t("network.mqtt.format") }}</button></div>
-              <span v-if="selected.retain" class="detail-meta">{{ t("network.mqtt.retained") }}</span>
-            </template>
-          </TextPane>
-          <p v-else class="empty">{{ t("network.mqtt.empty") }}</p>
-        </div>
-      </template>
-    </MqttSplit>
+    <div ref="log" class="message-log" :aria-label="t('network.mqtt.messages')">
+      <div v-if="!visible.length" class="empty"><ArrowDownLeft :size="28" /><span>{{ t("network.mqtt.empty") }}</span><small>{{ t("network.mqtt.messageHint") }}</small></div>
+      <article v-for="message in visible" :key="message.id" class="message-item" :class="message.direction">
+        <button class="message-summary" :class="{ selected: selectedId === message.id }" :aria-pressed="selectedId === message.id" @click="select(message.id)">
+          <span class="summary-line"><ArrowDownLeft v-if="message.direction === 'received'" :size="14" /><ArrowUpRight v-else :size="14" /><code :title="message.topic">{{ message.topic }}</code><small>{{ t("network.mqtt.qosValue", { n: message.qos }) }}</small><small v-if="message.retain">{{ t("network.mqtt.retained") }}</small></span>
+          <pre>{{ displayPayload(message.payload, format && !message.binary) || t('network.mqtt.emptyPayload') }}</pre>
+          <span v-if="message.binary" class="binary-label">{{ t("network.mqtt.binary") }}</span>
+        </button>
+        <footer><time>{{ timeFormat.format(message.time) }}</time><span>{{ t("network.mqtt.bytes", { n: message.bytes }) }}</span></footer>
+      </article>
+    </div>
+    <Transition name="mqtt-detail">
+    <div v-if="selected" class="message-detail">
+      <TextPane :model-value="content" class="detail-data" :label="selected.binary ? t('network.mqtt.binary') : selected.topic" :language="language" readonly>
+        <template #actions>
+          <div class="seg detail-format"><button :class="{ on: !format }" :aria-pressed="!format" @click="format = false">{{ t("network.mqtt.rawData") }}</button><button :class="{ on: format }" :aria-pressed="format" @click="format = true">{{ t("network.mqtt.format") }}</button></div>
+          <button class="icon-btn" :title="t('network.mqtt.closeDetail')" :aria-label="t('network.mqtt.closeDetail')" @click="selectedId = undefined"><X :size="14" /></button>
+        </template>
+      </TextPane>
+    </div>
+    </Transition>
   </section>
 </template>
 
 <style scoped>
-.message-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
-.message-head, .message-options { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.message-head { flex-shrink: 0; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
-.message-log { flex: 1; min-height: 0; overflow: auto; }
-.message-summary { display: flex; flex-direction: column; gap: 5px; width: 100%; padding: 9px 8px; border: 0; border-bottom: 1px solid var(--border); border-inline-start: 3px solid var(--success); background: none; color: var(--text-2); text-align: start; font-size: 11px; }
-.message-summary.sent { border-inline-start-color: var(--accent); }
-.message-summary:hover { background: var(--hover); }
-.message-summary.selected { background: var(--accent-soft); color: var(--text); }
-.message-summary:focus-visible { outline: 1px solid var(--accent); outline-offset: -2px; }
-.summary-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.summary-line small { color: var(--text-3); font-size: 11px; }
-.message-summary code { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 11px var(--font-mono); }
-.message-detail { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; padding: 0; }
-.detail-meta { font-size: 11px; color: var(--text-3); }
+.message-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; overflow: hidden; background: var(--surface); }
+.message-head, .message-options { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.message-head { flex-shrink: 0; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.message-options .check { font-size: 11px; }
+.message-log { display: flex; flex-direction: column; align-items: flex-start; flex: 1; min-height: 0; overflow: auto; padding: 18px; gap: 18px; }
+.message-item { max-width: 90%; min-width: min(220px, 100%); }
+.message-item.sent { align-self: flex-end; }
+.message-summary { display: block; width: 100%; padding: 12px 16px; border: 1px solid var(--border); border-inline-start: 3px solid var(--success); border-radius: 3px 10px 10px; background: var(--surface); color: var(--text); text-align: start; box-shadow: var(--shadow-sm); }
+.sent .message-summary { border-inline-start-color: var(--accent); border-radius: 10px 3px 10px 10px; background: var(--accent-soft); }
+.message-summary:hover { border-color: var(--border-strong); }
+.message-summary.selected { outline: 1px solid var(--accent); }
+.message-summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.summary-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.summary-line > svg { color: var(--success); flex-shrink: 0; }
+.sent .summary-line > svg { color: var(--accent); }
+.summary-line small, .binary-label { color: var(--text-3); font-size: 10px; }
+.message-summary code { overflow-wrap: anywhere; font: 12px var(--font-mono); }
+.message-summary pre { margin: 10px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.7 var(--font-mono); max-height: 240px; overflow: auto; }
+.message-item footer { display: flex; gap: 10px; padding: 6px 3px 0; color: var(--text-3); font-size: 10px; }
+.sent footer { justify-content: flex-end; }
+.message-detail { display: flex; flex: 0 0 clamp(100px, 20vh, 200px); min-height: 0; border-top: 1px solid var(--border); background: var(--surface); }
+.message-detail { overflow: hidden; }
+.mqtt-detail-enter-active, .mqtt-detail-leave-active { transition: flex-basis var(--dur) var(--ease-out), clip-path var(--dur) var(--ease-out); }
+.mqtt-detail-enter-from, .mqtt-detail-leave-to { flex-basis: 0; clip-path: inset(100% 0 0); pointer-events: none; }
+.mqtt-detail-enter-to, .mqtt-detail-leave-from { clip-path: inset(0); }
 .detail-data { flex: 1; min-height: 0; border: 0; border-radius: 0; }
-.detail-data :deep(.pane-head) { min-height: 36px; gap: 6px; padding: 3px 6px 3px 10px; flex-wrap: wrap; }
-.detail-data :deep(.pane-label) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.detail-data :deep(.pane-actions) { margin-left: 0; max-width: 100%; flex-wrap: wrap; }
+.detail-data :deep(.pane-head) { flex-wrap: wrap; }
+.detail-data :deep(.pane-label) { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .detail-format button { height: 24px; padding: 0 7px; font-size: 11px; }
-.empty { display: grid; place-content: center; flex: 1; margin: 0; min-height: 60px; padding: 16px; color: var(--text-3); font-size: 12px; text-align: center; }
+.empty { display: flex; flex-direction: column; align-items: center; justify-content: center; align-self: stretch; flex: 1; gap: 10px; min-height: 100px; padding: 20px; color: var(--text-3); font-size: 13px; text-align: center; }
+.empty > svg { color: var(--border-strong); }
+.empty small { max-width: 280px; font-size: 11px; line-height: 1.7; }
+@container (max-width: 480px) { .message-head { padding: 8px; } .message-log { padding: 12px 8px; } .message-item { max-width: 96%; } }
 </style>

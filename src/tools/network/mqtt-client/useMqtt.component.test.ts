@@ -14,7 +14,7 @@ vi.mock("@/composables/toolLibrary", () => ({ recordToolUsage: vi.fn() }));
 
 let dispose: (() => void) | undefined;
 beforeEach(() => { vi.clearAllMocks(); vi.mocked(isTauri).mockReturnValue(true); vi.mocked(invoke).mockResolvedValue(undefined); });
-afterEach(() => { dispose?.(); dispose = undefined; });
+afterEach(() => { dispose?.(); dispose = undefined; vi.useRealTimers(); });
 function mount() {
   let mqtt!: ReturnType<typeof useMqtt>;
   const root = document.createElement("div");
@@ -38,7 +38,7 @@ it("订阅和发布收到确认后才更新列表，按 UTF-8 发送", async () 
   vi.mocked(invoke).mockReturnValueOnce(ack.promise);
   const subscribing = mqtt.subscribe("test/+", 2);
   expect(mqtt.subscriptions.value).toEqual([]);
-  ack.resolve(1); await subscribing;
+  ack.resolve(1); expect(await subscribing).toBe(true);
   expect(mqtt.subscriptions.value).toEqual([{ topic: "test/+", qos: 1 }]);
   const sent = deferred<unknown>(); vi.mocked(invoke).mockReturnValueOnce(sent.promise);
   const publishing = mqtt.publish("test/demo", "你好", 1, true);
@@ -52,7 +52,7 @@ it("订阅和发布收到确认后才更新列表，按 UTF-8 发送", async () 
 it("服务器拒绝订阅或发送失败时不伪造成功记录", async () => {
   const mqtt = mount(); await mqtt.connect();
   vi.mocked(invoke).mockRejectedValueOnce("Broker rejected the subscription");
-  await mqtt.subscribe("test/#", 0);
+  expect(await mqtt.subscribe("test/#", 0)).toBe(false);
   expect(mqtt.subscriptions.value).toEqual([]); expect(showError).toHaveBeenCalled();
   vi.mocked(invoke).mockRejectedValueOnce("Connection closed"); await mqtt.publish("test/demo", "data", 1, false);
   expect(mqtt.messages.value).toEqual([]); expect(mqtt.busy.value).toBe(false);
@@ -63,7 +63,7 @@ it("接收保留和二进制消息，断线后禁用操作", async () => {
   events.onmessage({ kind: "message", topic: "test/demo", payload: [255, 128], qos: 2, retain: true });
   expect(mqtt.messages.value[0]).toMatchObject({ payload: "ff 80", binary: true, retain: true });
   events.onmessage({ kind: "closed", error: "Network disconnected" });
-  expect(mqtt.connected.value).toBe(false); expect(mqtt.lastError.value).toBe("Network disconnected");
+  expect(mqtt.connected.value).toBe(false); expect(showError).toHaveBeenCalledExactlyOnceWith("Network disconnected");
   const calls = vi.mocked(invoke).mock.calls.length; await mqtt.publish("test/demo", "", 0, false);
   expect(invoke).toHaveBeenCalledTimes(calls);
 });
@@ -113,4 +113,51 @@ it("恢复订阅失败时保留预设，显示错误并继续恢复其余主题"
   expect(mqtt.connected.value).toBe(true); expect(mqtt.busy.value).toBe(false);
   expect(mqtt.subscriptions.value).toEqual([{ topic: "allowed", qos: 1 }]);
   expect(mqtt.topics.value).toHaveLength(2); expect(showError).toHaveBeenCalledWith("Denied");
+});
+
+it("自动重连按间隔重试、恢复订阅，重复失败只提示一次", async () => {
+  vi.useFakeTimers();
+  const mqtt = mount(); mqtt.config.autoReconnect = true; mqtt.config.reconnectPeriod = 2000;
+  mqtt.topics.value = [{ topic: "sensor/#", qos: 1 }];
+  vi.mocked(invoke).mockImplementation(async command => command === "mqtt_subscribe" ? 1 : undefined);
+  await mqtt.connect();
+  connection().events.onmessage({ kind: "closed", error: "Network lost" });
+  expect(mqtt.status.value).toBe("reconnecting");
+  vi.mocked(invoke).mockRejectedValueOnce("Still offline");
+  await vi.advanceTimersByTimeAsync(1999);
+  expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "mqtt_connect")).toHaveLength(1);
+  await vi.advanceTimersByTimeAsync(1);
+  expect(mqtt.status.value).toBe("reconnecting");
+  expect(showError).toHaveBeenCalledExactlyOnceWith("Network lost");
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(mqtt.connected.value).toBe(true);
+  expect(mqtt.subscriptions.value).toEqual([{ topic: "sensor/#", qos: 1 }]);
+  expect(connection(2).id).not.toBe(connection().id);
+  connection().events.onmessage({ kind: "closed", error: "Old event" });
+  expect(mqtt.connected.value).toBe(true);
+});
+
+it.each(["disconnect", "dispose"])("等待重连时 %s 会取消定时器", async action => {
+  vi.useFakeTimers();
+  const mqtt = mount(); mqtt.config.autoReconnect = true;
+  await mqtt.connect();
+  connection().events.onmessage({ kind: "closed", error: "Offline" });
+  if (action === "disconnect") { await mqtt.disconnect(); expect(mqtt.status.value).toBe("disconnected"); }
+  else { dispose?.(); dispose = undefined; }
+  await vi.advanceTimersByTimeAsync(12000);
+  expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "mqtt_connect")).toHaveLength(1);
+});
+
+it("重连过程中手动断开，迟到结果不会恢复连接或再次重试", async () => {
+  vi.useFakeTimers();
+  const mqtt = mount(); mqtt.config.autoReconnect = true;
+  await mqtt.connect();
+  connection().events.onmessage({ kind: "closed", error: "Offline" });
+  const wait = deferred<unknown>(); vi.mocked(invoke).mockReturnValueOnce(wait.promise);
+  await vi.advanceTimersByTimeAsync(4000);
+  expect(mqtt.status.value).toBe("connecting");
+  await mqtt.disconnect();
+  wait.resolve(undefined); await vi.advanceTimersByTimeAsync(10000);
+  expect(mqtt.status.value).toBe("disconnected");
+  expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "mqtt_connect")).toHaveLength(2);
 });

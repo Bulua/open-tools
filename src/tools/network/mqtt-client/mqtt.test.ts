@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appendMessage, decodePayload, displayPayload, matchesTopic, MAX_LOG_BYTES, validConfig, validTopic, type ConnectionConfig, type Message } from "./mqtt";
+import { DEFAULT_CONNECTION_OPTIONS, appendMessage, decodePayload, displayPayload, matchesTopic, MAX_LOG_BYTES, validConfig, validTopic, type ConnectionConfig, type Message } from "./mqtt";
 
 describe("MQTT 输入与消息记录", () => {
   it("按订阅主题筛选消息，支持多层通配符和系统主题规则", () => {
@@ -14,7 +14,7 @@ describe("MQTT 输入与消息记录", () => {
     expect(validTopic(" test/ ", false)).toBe(true);
   });
   it("校验端口、保活范围和密码与用户名的关联", () => {
-    const config: ConnectionConfig = { host: "127.0.0.1", port: 1883, clientId: "test", username: "", password: "", keepAlive: 60, cleanSession: true, tls: false };
+    const config: ConnectionConfig = { ...DEFAULT_CONNECTION_OPTIONS, host: "127.0.0.1", port: 1883, clientId: "test", username: "", password: "", keepAlive: 60, cleanSession: true, tls: false };
     expect(validConfig(config)).toBe(true);
     for (const patch of [{ port: 0 }, { port: 65536 }, { keepAlive: 1 }, { port: 1.5 }, { host: "mqtt://localhost" }, { clientId: "" }, { password: "secret" }]) expect(validConfig({ ...config, ...patch })).toBe(false);
     expect(validConfig({ ...config, host: "::1", password: "secret", username: "user" })).toBe(true);
@@ -36,4 +36,10 @@ describe("MQTT 输入与消息记录", () => {
     expect(appendMessage(previous, message(3, 1)).map(m => m.id)).toEqual([2, 3]);
     expect(previous).toHaveLength(2);
   });
+});
+
+it("高级配置校验超时、重连范围和遗嘱主题、UTF-8 长度", () => {
+  const config: ConnectionConfig = { ...DEFAULT_CONNECTION_OPTIONS, host: "localhost", port: 1883, clientId: "test", username: "", password: "", keepAlive: 60, cleanSession: true, tls: false };
+  for (const patch of [{ connectTimeout: 0 }, { connectTimeout: 301 }, { autoReconnect: true, reconnectPeriod: 0 }, { autoReconnect: true, reconnectPeriod: 999 }, { willEnabled: true, willTopic: "bad/#" }, { willEnabled: true, willTopic: "status", willPayload: "温".repeat(21846) }]) expect(validConfig({ ...config, ...patch })).toBe(false);
+  expect(validConfig({ ...config, autoReconnect: true, willEnabled: true, willTopic: "device/status", willPayload: "offline", willQos: 2 })).toBe(true);
 });

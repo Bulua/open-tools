@@ -2,9 +2,23 @@ export const MAX_PAYLOAD = 256 * 1024;
 export const MAX_MESSAGES = 200;
 export const MAX_LOG_BYTES = 4 * 1024 * 1024;
 export type QoS = 0 | 1 | 2;
+export const DEFAULT_CONNECTION_OPTIONS = {
+  connectTimeout: 10, autoReconnect: false, reconnectPeriod: 4000,
+  willEnabled: false, willTopic: "", willPayload: "", willQos: 0 as QoS, willRetain: false,
+};
 export interface ConnectionConfig {
   host: string; port: number; clientId: string; username: string; password: string;
   keepAlive: number; cleanSession: boolean; tls: boolean;
+  connectTimeout: number; autoReconnect: boolean; reconnectPeriod: number;
+  willEnabled: boolean; willTopic: string; willPayload: string; willQos: QoS; willRetain: boolean;
+}
+export type ConnectionStatus = "disconnected" | "connecting" | "reconnecting" | "connected" | "disconnecting";
+export interface PublishDraft {
+  publishTopic: string; publishQos: QoS; retain: boolean; payload: string; mode: "text" | "json";
+}
+export const createClientId = () => `open-tools-${crypto.randomUUID().slice(0, 8)}`;
+export function createConnectionConfig(): ConnectionConfig {
+  return { ...DEFAULT_CONNECTION_OPTIONS, host: "127.0.0.1", port: 1883, clientId: createClientId(), username: "", password: "", keepAlive: 60, cleanSession: true, tls: false };
 }
 export type MqttNotice =
   | { kind: "message"; topic: string; payload: number[]; qos: QoS; retain: boolean }
@@ -40,7 +54,14 @@ export function validConfig(config: ConnectionConfig): boolean {
     Number.isInteger(config.port) && config.port > 0 && config.port <= 65535 &&
     Number.isInteger(config.keepAlive) && config.keepAlive >= 5 && config.keepAlive <= 65535 &&
     !!config.clientId && [config.clientId, config.username, config.password].every(s => !s.includes("\0") && new TextEncoder().encode(s).length <= 65535) &&
-    (!config.password || !!config.username);
+    (!config.password || !!config.username) && validAdvancedConfig(config);
+}
+
+export function validAdvancedConfig(config: ConnectionConfig): boolean {
+  return Number.isInteger(config.connectTimeout) && config.connectTimeout >= 1 && config.connectTimeout <= 300 &&
+    (!config.autoReconnect || (Number.isInteger(config.reconnectPeriod) && config.reconnectPeriod >= 1000 && config.reconnectPeriod <= 3600000)) &&
+    (!config.willEnabled || (validTopic(config.willTopic) && [0, 1, 2].includes(config.willQos) &&
+      new TextEncoder().encode(config.willPayload).length <= 65535));
 }
 
 export function decodePayload(payload: number[]): { payload: string; binary: boolean } {

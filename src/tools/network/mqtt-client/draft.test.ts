@@ -1,0 +1,24 @@
+import { expect, it } from "vitest";
+import { cleanDraft, createDraft } from "./draft";
+
+it("持久化时白名单读取，忽略旧密码、消息和损坏的预设", () => {
+  const draft = cleanDraft({ config: { host: "localhost", port: 1883, clientId: "id", username: "", password: "secret", keepAlive: 60, tls: false, cleanSession: true }, topics: [{ topic: "a/#/b", qos: 0 }, { topic: "a/+", qos: 1 }, { topic: "a/+", qos: 2 }, null], payload: "", messages: ["secret"] });
+  expect(draft?.topics).toEqual([{ topic: "a/+", qos: 2 }]);
+  expect(JSON.stringify(draft)).not.toContain("secret"); expect(cleanDraft({ config: {} })).toBeNull();
+});
+
+it("旧连接补齐高级默认值，新配置持久化仍剔除密码和额外遗嘱字段", () => {
+  const draft = createDraft();
+  const old = { ...draft, config: { host: "localhost", port: 1883, clientId: "old", username: "", keepAlive: 60, cleanSession: true, tls: false } };
+  expect(cleanDraft(old)?.config).toMatchObject({ connectTimeout: 10, autoReconnect: false, reconnectPeriod: 4000, willEnabled: false });
+  Object.assign(draft.config, { connectTimeout: 20, autoReconnect: true, reconnectPeriod: 5000, willEnabled: true, willTopic: "device/status", willPayload: "offline", willQos: 1, willRetain: true, password: "secret", extra: "hidden" });
+  const saved = cleanDraft(draft)!;
+  expect(saved.config).toMatchObject({ connectTimeout: 20, reconnectPeriod: 5000, willTopic: "device/status", willPayload: "offline", willQos: 1 });
+  expect(JSON.stringify(saved)).not.toContain("secret"); expect(JSON.stringify(saved)).not.toContain("hidden");
+});
+
+it("未提交的订阅主题不再进入持久化草稿，旧字段读取时自动忽略", () => {
+  const saved = cleanDraft({ ...createDraft(), filterTopic: "temporary/topic" })!;
+  expect(saved).not.toHaveProperty("filterTopic");
+  expect(JSON.stringify(saved)).not.toContain("temporary/topic");
+});

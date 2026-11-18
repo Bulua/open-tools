@@ -20,6 +20,8 @@ const CodeEditor = defineAsyncComponent(() => import("./CodeEditor.vue"));
 const props = withDefaults(
   defineProps<{
     label: string;
+    /** 隐藏标题栏，保留编辑区域及无障碍名称 */
+    hideHeader?: boolean;
     placeholder?: string;
     readonly?: boolean;
     /** 显示错误信息替代文本内容 */
@@ -33,7 +35,7 @@ const props = withDefaults(
     /** 代码编辑器中高亮的区间 */
     codeMarks?: TextMark[];
   }>(),
-  { placeholder: "", readonly: false, error: "", nowrap: false, language: undefined, codeError: null, codeMarks: () => [] },
+  { hideHeader: false, placeholder: "", readonly: false, error: "", nowrap: false, language: undefined, codeError: null, codeMarks: () => [] },
 );
 const { t } = useI18n();
 
@@ -60,8 +62,8 @@ defineExpose({ focusAt });
 </script>
 
 <template>
-  <section class="pane" :class="{ readonly: props.readonly, nowrap: props.nowrap }">
-    <header class="pane-head">
+  <section class="pane" :class="{ readonly: props.readonly, nowrap: props.nowrap }" :aria-label="hideHeader ? label : undefined">
+    <header v-if="!hideHeader" class="pane-head">
       <span class="pane-label">{{ label }}</span>
       <div class="pane-actions">
         <slot name="actions" />
@@ -95,6 +97,7 @@ defineExpose({ focusAt });
     <textarea
       v-else
       ref="textarea"
+      :aria-label="label"
       v-model="model"
       :readonly="props.readonly"
       :placeholder="placeholder"
