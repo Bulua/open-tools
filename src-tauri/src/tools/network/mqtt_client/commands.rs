@@ -1,5 +1,6 @@
+use super::config::{self, Config};
 pub(crate) use super::service::MqttState;
-use super::service::{self, Action, Config, Notice};
+use super::service::{Action, Notice};
 use tauri::{ipc::Channel, State, WebviewWindow};
 
 fn key(window: &WebviewWindow, id: &str) -> Result<String, String> {
@@ -37,13 +38,13 @@ pub async fn mqtt_subscribe(
     topic: String,
     qos: u8,
 ) -> Result<Option<u8>, String> {
-    if !service::valid_topic(&topic, true) {
+    if !config::valid_topic(&topic, true) {
         return Err("Invalid MQTT topic filter".into());
     }
     state
         .request(
             &key(&window, &id)?,
-            Action::Subscribe(topic, service::qos(qos)?),
+            Action::Subscribe(topic, config::qos(qos)?),
         )
         .await
 }
@@ -55,7 +56,7 @@ pub async fn mqtt_unsubscribe(
     id: String,
     topic: String,
 ) -> Result<(), String> {
-    if !service::valid_topic(&topic, true) {
+    if !config::valid_topic(&topic, true) {
         return Err("Invalid MQTT topic filter".into());
     }
     state
@@ -74,16 +75,16 @@ pub async fn mqtt_publish(
     qos: u8,
     retain: bool,
 ) -> Result<(), String> {
-    if !service::valid_topic(&topic, false) {
+    if !config::valid_topic(&topic, false) {
         return Err("Invalid MQTT publish topic".into());
     }
-    if payload.len() > service::MAX_PAYLOAD {
+    if payload.len() > config::MAX_PAYLOAD {
         return Err("MQTT payload exceeds 256 KiB".into());
     }
     state
         .request(
             &key(&window, &id)?,
-            Action::Publish(topic, payload, service::qos(qos)?, retain),
+            Action::Publish(topic, payload, config::qos(qos)?, retain),
         )
         .await
         .map(|_| ())

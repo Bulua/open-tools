@@ -1,8 +1,7 @@
 //! 每个工具会话独占事件循环，操作收到协议确认后才向界面报告成功。
-use rumqttc::{
-    AsyncClient, Event, Incoming, MqttOptions, Outgoing, QoS, SubscribeReasonCode, Transport,
-};
-use serde::{Deserialize, Serialize};
+use super::config::Config;
+use rumqttc::{AsyncClient, Event, Incoming, MqttOptions, Outgoing, QoS, SubscribeReasonCode};
+use serde::Serialize;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -13,89 +12,6 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::time::{timeout, Instant};
 
 const WAIT: Duration = Duration::from_secs(15);
-pub(super) const MAX_PAYLOAD: usize = 256 * 1024;
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct Config {
-    pub host: String,
-    pub port: u16,
-    pub client_id: String,
-    pub username: String,
-    pub password: String,
-    pub keep_alive: u16,
-    pub clean_session: bool,
-    pub tls: bool,
-}
-
-impl Config {
-    fn options(self) -> Result<MqttOptions, String> {
-        if self.host.is_empty()
-            || self
-                .host
-                .chars()
-                .any(|c| c.is_whitespace() || "/?#\0".contains(c))
-        {
-            return Err("Enter a hostname or IP without a scheme or path".into());
-        }
-        if self.port == 0 || self.keep_alive < 5 || self.client_id.is_empty() {
-            return Err("Invalid port, client ID or keep alive (minimum 5 seconds)".into());
-        }
-        for value in [&self.client_id, &self.username, &self.password] {
-            if value.len() > u16::MAX as usize || value.contains('\0') {
-                return Err("MQTT credentials or client ID are invalid or too long".into());
-            }
-        }
-        if self.username.is_empty() && !self.password.is_empty() {
-            return Err("A username is required when a password is supplied".into());
-        }
-        let mut options = MqttOptions::new(self.client_id, self.host, self.port);
-        options.set_keep_alive(Duration::from_secs(self.keep_alive.into()));
-        options.set_clean_session(self.clean_session);
-        options.set_max_packet_size(MAX_PAYLOAD + 65536, MAX_PAYLOAD + 65536);
-        if !self.username.is_empty() {
-            options.set_credentials(self.username, self.password);
-        }
-        if self.tls {
-            // 显式选择已有加密后端，TLS 保持系统信任链和主机名校验。
-            let _ = rustls::crypto::ring::default_provider().install_default();
-            let mut roots = rustls::RootCertStore::empty();
-            roots.add_parsable_certificates(rustls_native_certs::load_native_certs().certs);
-            if roots.is_empty() {
-                return Err("No trusted system certificates are available for TLS".into());
-            }
-            let tls = rustls::ClientConfig::builder()
-                .with_root_certificates(roots)
-                .with_no_client_auth();
-            options.set_transport(Transport::tls_with_config(tls.into()));
-        }
-        Ok(options)
-    }
-}
-
-pub(super) fn valid_topic(value: &str, filter: bool) -> bool {
-    if value.is_empty() || value.len() > 65535 || value.contains('\0') {
-        return false;
-    }
-    if !filter {
-        return !value.contains(['+', '#']);
-    }
-    let levels: Vec<_> = value.split('/').collect();
-    levels.iter().enumerate().all(|(i, part)| {
-        (!part.contains('+') || *part == "+")
-            && (!part.contains('#') || (*part == "#" && i == levels.len() - 1))
-    })
-}
-
-pub(super) fn qos(value: u8) -> Result<QoS, String> {
-    match value {
-        0 => Ok(QoS::AtMostOnce),
-        1 => Ok(QoS::AtLeastOnce),
-        2 => Ok(QoS::ExactlyOnce),
-        _ => Err("Invalid QoS".into()),
-    }
-}
-
 #[derive(Clone, Serialize, Debug)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub(crate) enum Notice {
@@ -134,6 +50,7 @@ impl MqttState {
         config: Config,
         events: Channel<Notice>,
     ) -> Result<(), String> {
+        let connect_timeout = Duration::from_secs(config.connect_timeout.into());
         let options = config.options()?;
         let (requests, rx) = mpsc::channel(16);
         let (cancel, cancelled) = oneshot::channel();
@@ -155,7 +72,7 @@ impl MqttState {
         }
         let state = self.clone();
         tauri::async_runtime::spawn(async move {
-            run(options, rx, cancelled, ready, events).await;
+            run(options, connect_timeout, rx, cancelled, ready, events).await;
             if let Ok(mut sessions) = state.0.lock() {
                 if sessions
                     .get(&id)
@@ -199,15 +116,19 @@ impl MqttState {
 
 async fn run(
     options: MqttOptions,
+    connect_timeout: Duration,
     mut requests: mpsc::Receiver<Request>,
     mut cancelled: oneshot::Receiver<()>,
     ready: oneshot::Sender<Result<(), String>>,
     events: Channel<Notice>,
 ) {
     let (client, mut eventloop) = AsyncClient::new(options, 16);
+    eventloop
+        .network_options
+        .set_connection_timeout(connect_timeout.as_secs());
     let mut ready = Some(ready);
     let mut pending: Option<Request> = None;
-    let mut deadline = Instant::now() + WAIT;
+    let mut deadline = Instant::now() + connect_timeout;
     let error = loop {
         tokio::select! {
             biased;

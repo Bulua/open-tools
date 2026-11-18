@@ -1,3 +1,4 @@
+use super::super::config::{qos, valid_topic};
 use super::*;
 use tauri::ipc::InvokeResponseBody;
 use tokio::{
@@ -28,6 +29,12 @@ fn config(port: u16) -> Config {
         keep_alive: 5,
         clean_session: true,
         tls: false,
+        connect_timeout: 10,
+        will_enabled: false,
+        will_topic: String::new(),
+        will_payload: String::new(),
+        will_qos: 0,
+        will_retain: false,
     }
 }
 
@@ -241,4 +248,59 @@ async fn connecting_session_can_be_cancelled_without_connack() {
         .unwrap()
         .is_err());
     assert!(state.0.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn connect_packet_contains_last_will() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let mut config = config(listener.local_addr().unwrap().port());
+    config.will_enabled = true;
+    config.will_topic = "devices/status".into();
+    config.will_payload = "离线".into();
+    config.will_qos = 1;
+    config.will_retain = true;
+    let broker = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let (_, body) = packet(&mut socket).await;
+        assert_eq!(body[7], 0x2e);
+        let mut offset = 10;
+        let mut fields = Vec::new();
+        for _ in 0..3 {
+            let length = u16::from_be_bytes([body[offset], body[offset + 1]]) as usize;
+            offset += 2;
+            fields.push(body[offset..offset + length].to_vec());
+            offset += length;
+        }
+        assert_eq!(fields[1], b"devices/status");
+        assert_eq!(fields[2], "离线".as_bytes());
+        socket.write_all(&[0x20, 2, 0, 0]).await.unwrap();
+        until(&mut socket, 14).await;
+    });
+    let state = MqttState::default();
+    state
+        .connect("will".into(), config, channel().0)
+        .await
+        .unwrap();
+    state.disconnect("will").unwrap();
+    broker.await.unwrap();
+}
+
+#[tokio::test]
+async fn configured_connect_timeout_stops_unresponsive_broker() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let mut config = config(listener.local_addr().unwrap().port());
+    config.connect_timeout = 1;
+    let broker = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        packet(&mut socket).await;
+        tokio::time::sleep(Duration::from_secs(3)).await;
+    });
+    let result = timeout(
+        Duration::from_secs(2),
+        MqttState::default().connect("timeout".into(), config, channel().0),
+    )
+    .await
+    .unwrap();
+    assert!(result.is_err());
+    broker.abort();
 }
