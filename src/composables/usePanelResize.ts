@@ -1,11 +1,12 @@
-import { computed, onBeforeUnmount, onDeactivated, onMounted, ref, type Ref } from "vue";
-import { useStoredRef } from "@/composables/useStoredRef";
+import { computed, onDeactivated, ref, watch, type Ref } from "vue";
+import { useStoredRef } from "./useStoredRef";
 
-/** 目录和订阅区共用的宽度调整：持久化、键盘操作、指针捕获与取消恢复。 */
-export function useMqttResize(root: Ref<HTMLElement | undefined>, options: {
+/** 分栏宽度调整，支持持久化、键盘操作、指针捕获与取消恢复。 */
+export function usePanelResize(root: Ref<HTMLElement | undefined>, options: {
   storageKey: string;
   initial: number;
   available: number;
+  pointerScale?: number;
   bounds: (available: number) => { min: number; max: number };
 }) {
   const width = useStoredRef(options.storageKey, options.initial);
@@ -33,20 +34,24 @@ export function useMqttResize(root: Ref<HTMLElement | undefined>, options: {
     resizing.value = true; element.setPointerCapture(event.pointerId);
   };
   const move = (event: PointerEvent) => {
-    if (drag?.id === event.pointerId) width.value = clamp(drag.width + event.clientX - drag.x);
+    if (drag?.id === event.pointerId) {
+      width.value = clamp(drag.width + (event.clientX - drag.x) * (options.pointerScale ?? 1));
+    }
   };
   const key = (event: KeyboardEvent) => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
     width.value = event.key === "Home" ? min.value : event.key === "End" ? max.value : clamp(fitted.value + (event.key === "ArrowRight" ? 10 : -10));
   };
-  let observer: ResizeObserver | undefined;
-  onMounted(() => {
-    if (typeof ResizeObserver === "undefined" || !root.value) return;
-    observer = new ResizeObserver(([entry]) => { if (entry?.contentRect.width) available.value = entry.contentRect.width; });
-    observer.observe(root.value);
-  });
-  onBeforeUnmount(() => { observer?.disconnect(); stop(); });
+  watch(root, (element, _, onCleanup) => {
+    if (!element) return;
+    available.value = element.clientWidth || options.available;
+    const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(([entry]) => {
+      if (entry?.contentRect.width) available.value = entry.contentRect.width;
+    });
+    observer?.observe(element);
+    onCleanup(() => { observer?.disconnect(); stop(); });
+  }, { flush: "post" });
   onDeactivated(() => stop());
   return { width, min, max, fitted, resizing, start, move, stop, key };
 }

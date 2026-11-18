@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { useMqttResize } from "../useMqttResize";
+import { usePanelResize } from "@/composables/usePanelResize";
 
 const props = withDefaults(defineProps<{ storageKey: string; label: string; initial?: number }>(), { initial: 170 });
 const root = ref<HTMLElement>();
-const { width, min, max, fitted, resizing, start, move, stop, key } = useMqttResize(root, {
+const { width, min, max, fitted, resizing, start, move, stop, key } = usePanelResize(root, {
   storageKey: `mqtt.split.${props.storageKey}`, initial: props.initial, available: 700,
   bounds: available => {
     const min = Math.min(110, available * 0.35);

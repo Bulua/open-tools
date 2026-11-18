@@ -3,7 +3,7 @@ import { computed, nextTick, onDeactivated, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { ChevronRight, Folder, FolderOpen, FolderPlus, Pencil, Plus, Radio, Trash2 } from "lucide-vue-next";
 import { usePopover } from "@/composables/usePopover";
-import { useMqttResize } from "./useMqttResize";
+import { usePanelResize } from "@/composables/usePanelResize";
 import MqttSession from "./components/MqttSession.vue";
 import { canMove, descendants, moveNode, removeNode, useMqttTree, visibleRows, type SessionNode, type TreeNode } from "./workspace";
 import { createDraft, type MqttDraft } from "./draft";
@@ -21,7 +21,7 @@ const workspaceElement = ref<HTMLElement>();
 const {
   width: directoryWidth, max: widthLimit, fitted: fittedWidth, resizing,
   start: startResize, move: resizeDirectory, stop: stopResize, key: resizeKey,
-} = useMqttResize(workspaceElement, {
+} = usePanelResize(workspaceElement, {
   storageKey: "mqtt.directoryWidth", initial: 280, available: 900,
   bounds: available => ({ min: 160, max: Math.max(160, Math.min(600, available - 320, available * 0.65)) }),
 });
