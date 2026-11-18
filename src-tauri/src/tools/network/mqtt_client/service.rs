@@ -1,6 +1,6 @@
 //! 每个工具会话独占事件循环，操作收到协议确认后才向界面报告成功。
 use super::config::Config;
-use rumqttc::{AsyncClient, Event, Incoming, MqttOptions, Outgoing, QoS, SubscribeReasonCode};
+use super::protocol::{Action, Connection, Event, Options};
 use serde::Serialize;
 use std::{
     collections::HashMap,
@@ -26,11 +26,6 @@ pub(crate) enum Notice {
     },
 }
 
-pub(super) enum Action {
-    Subscribe(String, QoS),
-    Unsubscribe(String),
-    Publish(String, Vec<u8>, QoS, bool),
-}
 struct Request {
     action: Action,
     reply: oneshot::Sender<Result<Option<u8>, String>>,
@@ -115,17 +110,14 @@ impl MqttState {
 }
 
 async fn run(
-    options: MqttOptions,
+    options: Options,
     connect_timeout: Duration,
     mut requests: mpsc::Receiver<Request>,
     mut cancelled: oneshot::Receiver<()>,
     ready: oneshot::Sender<Result<(), String>>,
     events: Channel<Notice>,
 ) {
-    let (client, mut eventloop) = AsyncClient::new(options, 16);
-    eventloop
-        .network_options
-        .set_connection_timeout(connect_timeout.as_secs());
+    let mut connection = Connection::new(options, connect_timeout);
     let mut ready = Some(ready);
     let mut pending: Option<Request> = None;
     let mut deadline = Instant::now() + connect_timeout;
@@ -134,10 +126,10 @@ async fn run(
             biased;
             _ = &mut cancelled => {
                 // 尽量发送 DISCONNECT；即使服务器无响应也及时释放套接字。
-                let _ = client.try_disconnect();
+                connection.disconnect();
                 let _ = timeout(Duration::from_millis(500), async {
-                    loop { match eventloop.poll().await {
-                        Ok(Event::Outgoing(Outgoing::Disconnect)) | Err(_) => break,
+                    loop { match connection.poll().await {
+                        Ok(Event::Disconnected) | Err(_) => break,
                         _ => {}
                     } }
                 }).await;
@@ -148,34 +140,24 @@ async fn run(
             }
             request = requests.recv(), if ready.is_none() && pending.is_none() => {
                 let Some(request) = request else { break None };
-                let result = match &request.action {
-                    Action::Subscribe(topic, qos) => client.try_subscribe(topic, *qos),
-                    Action::Unsubscribe(topic) => client.try_unsubscribe(topic),
-                    Action::Publish(topic, payload, qos, retain) => client.try_publish(topic, *qos, *retain, payload.clone()),
-                };
-                if let Err(e) = result { let _ = request.reply.send(Err(e.to_string())); }
+                if let Err(error) = connection.submit(&request.action) { let _ = request.reply.send(Err(error)); }
                 else { pending = Some(request); deadline = Instant::now() + WAIT; }
             }
-            event = eventloop.poll() => {
-                let event = match event { Ok(event) => event, Err(e) => break Some(e.to_string()) };
-                if matches!(event, Event::Incoming(Incoming::ConnAck(_))) {
-                    if let Some(ready) = ready.take() { let _ = ready.send(Ok(())); }
+            event = connection.poll() => {
+                match event {
+                    Err(error) => break Some(error),
+                    Ok(Event::Connected) => {
+                        if let Some(ready) = ready.take() { let _ = ready.send(Ok(())); }
+                    }
+                    Ok(Event::Message { topic, payload, qos, retain }) => {
+                        if events.send(Notice::Message { topic, payload, qos, retain }).is_err() { break None; }
+                    }
+                    Ok(event) => {
+                        if let Some(result) = pending.as_ref().and_then(|request| event.completion(&request.action)) {
+                            if let Some(request) = pending.take() { let _ = request.reply.send(result); }
+                        }
+                    }
                 }
-                if let Event::Incoming(Incoming::Publish(ref p)) = event {
-                    if events.send(Notice::Message { topic: p.topic.clone(), payload: p.payload.to_vec(), qos: p.qos as u8, retain: p.retain }).is_err() { break None; }
-                }
-                let complete = pending.as_ref().and_then(|r| match (&r.action, &event) {
-                    (Action::Subscribe(..), Event::Incoming(Incoming::SubAck(ack))) => Some(match ack.return_codes.first() {
-                        Some(SubscribeReasonCode::Success(qos)) => Ok(Some(*qos as u8)),
-                        _ => Err("Broker rejected the subscription".into()),
-                    }),
-                    (Action::Unsubscribe(..), Event::Incoming(Incoming::UnsubAck(_))) => Some(Ok(None)),
-                    (Action::Publish(_, _, QoS::AtMostOnce, _), Event::Outgoing(Outgoing::Publish(_))) |
-                    (Action::Publish(_, _, QoS::AtLeastOnce, _), Event::Incoming(Incoming::PubAck(_))) |
-                    (Action::Publish(_, _, QoS::ExactlyOnce, _), Event::Incoming(Incoming::PubComp(_))) => Some(Ok(None)),
-                    _ => None,
-                });
-                if let Some(result) = complete { if let Some(request) = pending.take() { let _ = request.reply.send(result); } }
             }
         }
     };

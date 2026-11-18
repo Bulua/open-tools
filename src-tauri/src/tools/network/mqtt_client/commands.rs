@@ -1,6 +1,7 @@
 use super::config::{self, Config};
+use super::protocol::Action;
 pub(crate) use super::service::MqttState;
-use super::service::{Action, Notice};
+use super::service::Notice;
 use tauri::{ipc::Channel, State, WebviewWindow};
 
 fn key(window: &WebviewWindow, id: &str) -> Result<String, String> {
