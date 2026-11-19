@@ -1,6 +1,7 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import { readonly, ref, watch } from "vue";
+import { nextTick, readonly, ref, watch } from "vue";
 import { showError } from "@/utils/errorToast";
+import { getAppPlatform } from "@/utils/platform";
 import { emptyNotebook, readNotebook, type Notebook } from "./notebook";
 
 const STORAGE_KEY = "open-tools.notebook.v1";
@@ -8,7 +9,7 @@ const notebook = ref<Notebook>();
 const loadState = ref<"loading" | "error" | "ready">("loading");
 const saveState = ref<"saved" | "saving" | "error">("saved");
 let loading: Promise<void> | undefined;
-let writing = false;
+let writing: Promise<void> | undefined;
 let pending: string | undefined;
 
 function load() {
@@ -26,9 +27,16 @@ function load() {
   })().finally(() => { loading = undefined; });
 }
 
-async function flush() {
-  if (writing || pending === undefined) return;
-  writing = true;
+function flush(): Promise<void> | undefined {
+  if (writing || pending === undefined) return writing;
+  writing = savePending().finally(() => {
+    writing = undefined;
+    if (saveState.value === "saved") return flush();
+  });
+  return writing;
+}
+
+async function savePending() {
   saveState.value = "saving";
   try {
     // 同一时间只写一份快照。前一次写入期间的连续编辑只保留最新内容。
@@ -47,8 +55,18 @@ async function flush() {
   } catch (error) {
     saveState.value = "error";
     showError(error);
-  } finally {
-    writing = false;
+  }
+}
+
+async function revealEntry(id: string) {
+  // 新建或移动后可能还有保存正在进行，等磁盘路径更新后再打开。
+  await nextTick();
+  await flush();
+  if (saveState.value !== "saved") return;
+  try {
+    await invoke("notebook_reveal", { id });
+  } catch (error) {
+    showError(error);
   }
 }
 
@@ -61,5 +79,9 @@ watch(notebook, (state, previous) => {
 
 export function useNotebook() {
   load();
-  return { notebook, loadState: readonly(loadState), saveState: readonly(saveState), retryLoad: load, retrySave: flush };
+  return {
+    notebook, loadState: readonly(loadState), saveState: readonly(saveState), retryLoad: load, retrySave: flush,
+    canReveal: getAppPlatform() === "desktop" && /Windows/i.test(navigator.userAgent),
+    revealEntry,
+  };
 }

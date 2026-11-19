@@ -1,10 +1,13 @@
 import type { ElementContent } from "hast";
 import type { Node } from "@milkdown/prose/model";
 import { NodeSelection, Plugin, TextSelection } from "@milkdown/prose/state";
-import { Decoration, DecorationSet, type EditorView } from "@milkdown/prose/view";
+import { Decoration, DecorationSet, type EditorView, type NodeViewConstructor } from "@milkdown/prose/view";
 import { $nodeSchema, $prose, $remark } from "@milkdown/utils";
 import { common, createLowlight } from "lowlight";
 import remarkFrontmatter from "remark-frontmatter";
+import { t } from "@/locales";
+import { attachLanguageSuggestions } from "./codeLanguage";
+import { isMermaid } from "./mermaid";
 
 const yaml = $nodeSchema("notebookFrontmatter", () => ({
   group: "block",
@@ -29,6 +32,7 @@ const yaml = $nodeSchema("notebookFrontmatter", () => ({
 }));
 
 const highlighter = createLowlight(common);
+const languages = [...new Set([...highlighter.listLanguages(), "mermaid", "plaintext"])].sort();
 interface ColorSpan { from: number; to: number; classes: string; }
 const codeColors = new WeakMap<Node, ColorSpan[]>();
 
@@ -41,17 +45,101 @@ export function openFencedBlock(view: EditorView, event: KeyboardEvent): boolean
   const math = text === "$$";
   const code = /^(?:\x60{3,}|~{3,})([\w.+#-]*)$/.exec(text);
   if (!math && !code) return false;
-  const type = state.schema.nodes[math ? "math" : "code_block"];
+  const language = code?.[1] ?? "";
+  const mermaid = isMermaid(language);
+  const type = state.schema.nodes[math ? "math" : mermaid ? "notebookMermaid" : "code_block"];
   const parent = $from.node(-1);
   if (!parent.canReplaceWith($from.index(-1), $from.indexAfter(-1), type)) return false;
   const start = $from.before();
-  const block = type.create(math ? undefined : { language: code?.[1] ?? "" });
+  const block = type.create(math ? undefined : mermaid ? { lang: language } : { language });
   const transaction = state.tr.replaceWith(start, start + $from.parent.nodeSize, block);
-  view.dispatch(transaction.setSelection(math
+  view.dispatch(transaction.setSelection(math || mermaid
     ? NodeSelection.create(transaction.doc, start)
     : TextSelection.create(transaction.doc, start + 1)).scrollIntoView());
   return true;
 }
+
+const codeBlockView: NodeViewConstructor = (initial, view, getPos) => {
+  let node = initial;
+  const document = view.dom.ownerDocument;
+  const dom = document.createElement("div");
+  dom.className = "notebook-code";
+  const body = document.createElement("div");
+  body.className = "notebook-code-body";
+  const gutter = document.createElement("div");
+  gutter.className = "notebook-code-gutter";
+  gutter.contentEditable = "false";
+  gutter.setAttribute("aria-hidden", "true");
+  const pre = document.createElement("pre");
+  const code = pre.appendChild(document.createElement("code"));
+  body.append(gutter, pre);
+  const actions = document.createElement("div");
+  actions.className = "notebook-code-actions";
+  actions.contentEditable = "false";
+  const input = actions.appendChild(document.createElement("input"));
+  input.className = "field notebook-code-language";
+  input.spellcheck = false;
+  input.autocomplete = "off";
+  input.setAttribute("aria-label", t("markdown.notebook.codeLanguage"));
+  input.placeholder = t("markdown.notebook.codeLanguage");
+  dom.append(body, actions);
+
+  let lineCount = 0;
+  function updateLines() {
+    const lines = node.textContent.split("\n").length;
+    if (lines === lineCount) return;
+    lineCount = lines;
+    gutter.textContent = Array.from({ length: lines }, (_, index) => index + 1).join("\n");
+  }
+
+  function commit() {
+    const language = input.value.trim();
+    if (/\s/.test(language)) {
+      input.value = node.attrs.language;
+      return;
+    }
+    input.value = language;
+    const pos = getPos();
+    if (pos === undefined || !view.editable || language === node.attrs.language) return;
+    const transaction = view.state.tr;
+    if (isMermaid(language)) {
+      const diagram = view.state.schema.nodes.notebookMermaid.create({ value: node.textContent, lang: language });
+      transaction.replaceWith(pos, pos + node.nodeSize, diagram);
+    } else {
+      transaction.setNodeAttribute(pos, "language", language);
+    }
+    view.dispatch(transaction);
+  }
+
+  const closeSuggestions = attachLanguageSuggestions(input, languages, commit);
+  input.addEventListener("mousedown", event => {
+    if (event.button !== 0 || document.activeElement === input) return;
+    // 先把焦点交给浮动输入框，避免编辑器失焦时把它提前隐藏。
+    event.preventDefault();
+    input.focus({ preventScroll: true });
+    input.select();
+  });
+  input.value = pre.dataset.language = node.attrs.language;
+  updateLines();
+  return {
+    dom,
+    contentDOM: code,
+    update(updated) {
+      if (updated.type !== node.type) return false;
+      if (updated.attrs.language !== node.attrs.language) {
+        input.value = pre.dataset.language = updated.attrs.language;
+      }
+      node = updated;
+      updateLines();
+      return true;
+    },
+    stopEvent(event) { return actions.contains(event.target as globalThis.Node) || gutter.contains(event.target as globalThis.Node); },
+    ignoreMutation(mutation) {
+      return mutation.type === "selection" ? actions.contains(mutation.target) : !code.contains(mutation.target);
+    },
+    destroy: closeSuggestions,
+  };
+};
 
 function colors(node: Node, language: string): ColorSpan[] {
   const previous = codeColors.get(node);
@@ -97,6 +185,48 @@ function decorations(doc: Node) {
   return DecorationSet.create(doc, marks);
 }
 
+function trackFocusedCode(view: EditorView) {
+  let focused: Element | null = null;
+  let disposed = false;
+
+  function update() {
+    if (disposed) return;
+    const active = view.dom.ownerDocument.activeElement;
+    let next: Element | null = active && view.dom.contains(active)
+      ? active.closest(".notebook-code-actions")?.parentElement ?? null
+      : null;
+    if (view.hasFocus()) {
+      const selection = view.state.selection;
+      const { $head } = selection;
+      const pos = selection instanceof NodeSelection && selection.node.type.name === "code_block"
+        ? selection.from
+        : $head.parent.type.name === "code_block" ? $head.before() : undefined;
+      if (pos !== undefined) {
+        const dom = view.nodeDOM(pos);
+        if (dom instanceof Element) next = dom;
+      }
+    }
+    if (focused === next) return;
+    focused?.classList.remove("code-focused");
+    next?.classList.add("code-focused");
+    focused = next;
+  }
+
+  // 编辑器失焦和语言框聚焦之间也可能触发视图更新，等焦点交接完成再检查。
+  const afterFocusChange = () => queueMicrotask(update);
+  view.dom.addEventListener("focusin", update);
+  view.dom.addEventListener("focusout", afterFocusChange);
+  update();
+  return {
+    update: afterFocusChange,
+    destroy() {
+      disposed = true;
+      view.dom.removeEventListener("focusin", update);
+      view.dom.removeEventListener("focusout", afterFocusChange);
+    },
+  };
+}
+
 export const blockStyles = [
   ...$remark("notebookFrontmatter", () => remarkFrontmatter, "yaml"),
   ...yaml,
@@ -105,6 +235,10 @@ export const blockStyles = [
       init: (_, state) => decorations(state.doc),
       apply: (transaction, previous) => transaction.docChanged ? decorations(transaction.doc) : previous,
     },
-    props: { decorations(state) { return this.getState(state); } },
+    props: {
+      nodeViews: { code_block: codeBlockView },
+      decorations(state) { return this.getState(state); },
+    },
+    view: trackFocusedCode,
   })),
 ];

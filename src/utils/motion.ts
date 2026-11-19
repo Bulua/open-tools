@@ -18,11 +18,11 @@ interface Box {
 /** 元素相对于容器（offsetParent）的位置 */
 export const boxOf = (el: HTMLElement): Box => ({ left: el.offsetLeft, top: el.offsetTop, width: el.offsetWidth, height: el.offsetHeight });
 
-const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+export const prefersReducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 
 /** 在 container 里让一个带 kind 样式的滑块从 from 移到 to（kind 见 motion.css 的 .glide-*） */
 export function glide(container: HTMLElement, from: Box, to: Box, kind: string) {
-  if (reduceMotion()) return;
+  if (prefersReducedMotion()) return;
   // 上一次还没滑完时，从滑块当前的位置接着滑，连续切换时不会跳
   const running = container.querySelector<HTMLElement>(":scope > .glide");
   if (running) {

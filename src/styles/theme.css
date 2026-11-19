@@ -24,6 +24,7 @@
   --guide: #e0358a;
 
   /* 代码/数据高亮 */
+  --code-bg: #f6f6f6;
   --syntax-key: #3b5a7a;
   --syntax-string: #4c7a4f;
   --syntax-number: #b55a3b;
@@ -70,6 +71,7 @@
   --warning-soft: rgba(217, 168, 91, 0.12);
   --guide: #ff5ca8;
 
+  --code-bg: var(--bg-sunken);
   --syntax-key: #a3bcd8;
   --syntax-string: #a5c99a;
   --syntax-number: #e9a185;

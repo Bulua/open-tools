@@ -85,6 +85,8 @@ pub fn run() {
             mqtt::mqtt_publish,
             notebook::notebook_read,
             notebook::notebook_write,
+            #[cfg(windows)]
+            notebook::notebook_reveal,
             ip_lookup::local_ip,
             office::office_engines,
             word_to_pdf::office_to_pdf,

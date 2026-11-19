@@ -6,6 +6,7 @@ import "@milkdown/prose/view/style/prosemirror.css";
 import "@milkdown/prose/tables/style/tables.css";
 import "katex/dist/katex.min.css";
 import { showError } from "@/utils/errorToast";
+import { prefersReducedMotion } from "@/utils/motion";
 import { makeNotebookEditor } from "../editor";
 
 const props = defineProps<{ id: string; markdown: string }>();
@@ -15,27 +16,40 @@ const root = ref<HTMLElement>();
 let disposed = false;
 let teardown: (() => void) | undefined;
 let focusEditor: (() => void) | undefined;
-let focusPending = false;
+let afterFocus: (() => void) | undefined;
 
-function focus() {
-  if (focusEditor) focusEditor();
-  else focusPending = true;
+function focus(restoreScroll: () => void) {
+  if (!focusEditor) {
+    afterFocus = restoreScroll;
+    return;
+  }
+  focusEditor();
+  restoreScroll();
 }
 
-defineExpose({ focus });
+function scrollToHeading(index: number) {
+  root.value?.querySelectorAll(".ProseMirror :is(h1, h2, h3, h4, h5, h6)")[index]
+    ?.scrollIntoView?.({ block: "start", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+}
+
+defineExpose({ focus, scrollToHeading });
 
 onMounted(async () => {
   const id = props.id;
   const editor = makeNotebookEditor(root.value!, props.markdown, () => t("markdown.notebook.editor"), markdown => {
     if (!disposed) emit("edit", id, markdown);
-  }, () => t("markdown.notebook.task"), () => t("markdown.notebook.editFormula"));
+  }, () => t("markdown.notebook.task"), () => t("markdown.notebook.editFormula"), key => t(`markdown.notebook.${key}`));
   try {
     await editor.create();
     teardown = () => { void editor.destroy().catch(showError); };
     if (disposed) teardown();
     else {
       focusEditor = () => editor.action(ctx => ctx.get(editorViewCtx).focus());
-      if (focusPending) focusEditor();
+      if (afterFocus) {
+        const restoreScroll = afterFocus;
+        afterFocus = undefined;
+        focus(restoreScroll);
+      }
     }
   } catch (error) {
     if (!disposed) {
@@ -72,6 +86,61 @@ onBeforeUnmount(() => {
   pointer-events: none;
 }
 .note-editor { position: relative; }
+.note-editor :deep(.note-mermaid) { margin: 1em 0; }
+.note-editor :deep(.mermaid-frame) {
+  --mermaid-height-limit: min(50vh, 480px);
+  display: flex;
+  justify-content: center;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.note-editor :deep(.mermaid-preview) {
+  inline-size: min(100%, var(--mermaid-width, 100%), calc(var(--mermaid-height-limit) * var(--mermaid-ratio, 1)));
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.note-editor :deep(.mermaid-preview img) {
+  display: block;
+  inline-size: 100%;
+  max-block-size: var(--mermaid-height-limit);
+  aspect-ratio: var(--mermaid-ratio, auto);
+  object-fit: contain;
+  margin-inline: auto;
+}
+.note-editor :deep(.mermaid-status) { color: var(--text-2); font-size: 13px; margin: 4px 0; }
+.note-editor :deep(.mermaid-editor) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  margin: 0 0 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  font: 14px/1.6 var(--font-mono);
+}
+.note-editor :deep(.mermaid-gutter) {
+  position: relative;
+  inline-size: calc(19px + var(--mermaid-line-digits, 1) * 1ch);
+  border-inline-end: 1px solid var(--border);
+  overflow: hidden;
+  color: var(--text-2);
+  text-align: end;
+  white-space: pre;
+  user-select: none;
+}
+.note-editor :deep(.mermaid-gutter > div) { position: absolute; inset: 8px 8px auto 0; }
+.note-editor :deep(.mermaid-source) {
+  width: 100%;
+  height: auto;
+  padding: 8px 10px;
+  border: 0;
+  background: none;
+  font: inherit;
+  resize: none;
+}
+.note-editor :deep(.note-mermaid [hidden]) { display: none; }
 .note-editor :deep(.ProseMirror > :first-child) { margin-block-start: 0; }
 .note-editor :deep(p) { margin: 0 0 0.9em; }
 .note-editor :deep(h1), .note-editor :deep(h2), .note-editor :deep(h3),
@@ -98,6 +167,57 @@ onBeforeUnmount(() => {
 .note-editor :deep(code) { font: 0.88em/1.6 var(--font-mono); background: var(--hover); padding-inline: 0.22em; }
 .note-editor :deep(pre) { margin: 1em 0 1.2em; padding: 0.7em 0.95em; overflow: auto; white-space: pre; background: var(--bg-sunken); font: 0.88em/1.6 var(--font-mono); }
 .note-editor :deep(pre code) { background: none; padding: 0; font: inherit; }
+.note-editor :deep(.notebook-code) { position: relative; margin-block: 1em; }
+.note-editor :deep(.notebook-code-body) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--code-bg);
+  font: 0.88em/1.6 var(--font-mono);
+}
+.note-editor :deep(.notebook-code-body pre) {
+  margin: 0;
+  padding: 0.6em 0.8em;
+  background: none;
+  font: inherit;
+}
+.note-editor :deep(.notebook-code-gutter) {
+  padding: 0.6em 0.55em 0.6em 0.7em;
+  border-inline-end: 1px solid var(--border);
+  color: var(--text-3);
+  text-align: end;
+  white-space: pre;
+  user-select: none;
+}
+.note-editor :deep(.notebook-code-actions) {
+  position: absolute;
+  inset-block-start: calc(100% + 4px);
+  inset-inline-end: 0;
+  z-index: 1;
+  width: clamp(5.5rem, 13%, 8rem);
+  max-width: 100%;
+  visibility: hidden;
+}
+.note-editor :deep(.notebook-code:is(.code-focused, :focus-within) .notebook-code-actions) {
+  visibility: visible;
+  animation: code-language-in var(--dur-fast) var(--ease-out);
+}
+@keyframes code-language-in {
+  from { transform: translateY(-3px); clip-path: inset(0 0 100% 0); }
+  to { transform: translateY(0); clip-path: inset(0); }
+}
+.note-editor :deep(.notebook-code-language) {
+  display: block;
+  width: 100%;
+  height: 25px;
+  padding-inline: 6px;
+  border-radius: 4px;
+  background: var(--code-bg);
+  text-align: center;
+  font: 12px/1.4 var(--font-mono);
+}
+.note-editor :deep(.notebook-code-language:focus) { box-shadow: none; }
 .note-editor :deep(pre[data-frontmatter]) { background: none; border-block: 1px solid var(--border); color: var(--text-2); padding-inline: 0; }
 .note-editor :deep(img) { max-width: 100%; height: auto; }
 .note-editor :deep(.tableWrapper) { overflow-x: auto; }
@@ -128,4 +248,28 @@ onBeforeUnmount(() => {
 .note-editor :deep(.hljs-number), .note-editor :deep(.hljs-literal), .note-editor :deep(.hljs-variable), .note-editor :deep(.hljs-type) { color: var(--syntax-number); }
 .note-editor :deep(.hljs-title), .note-editor :deep(.hljs-attr), .note-editor :deep(.hljs-property), .note-editor :deep(.hljs-name) { color: var(--syntax-key); }
 .note-editor :deep(.hljs-deletion) { color: var(--danger); }
+</style>
+
+<style>
+.select-menu.notebook-language-menu {
+  gap: 1px;
+  overflow: auto;
+  padding: 3px;
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  font: 12px/1.4 var(--font-sans);
+}
+.notebook-language-menu[aria-hidden="true"] { pointer-events: none; }
+.notebook-language-menu [role="option"] {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  overflow: hidden;
+  border-radius: 4px;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.notebook-language-menu [role="option"]:hover,
+.notebook-language-menu [aria-selected="true"] { background: var(--hover); }
 </style>

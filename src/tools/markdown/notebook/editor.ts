@@ -12,6 +12,7 @@ import { blockStyles, openFencedBlock } from "./blockStyles";
 import { inlineStyles } from "./inlineStyles";
 import { mathPlugins, mathView } from "./math";
 import { contentsPlugins } from "./contents";
+import { mermaidPlugins, mermaidView, type MermaidLabel } from "./mermaid";
 
 export function makeNotebookEditor(
   root: HTMLElement,
@@ -20,6 +21,7 @@ export function makeNotebookEditor(
   onChange: (markdown: string) => void,
   taskLabel = label,
   formulaLabel = label,
+  mermaidLabel: (key: MermaidLabel) => string = label,
 ) {
   return Editor.make()
     .config(ctx => {
@@ -61,6 +63,7 @@ export function makeNotebookEditor(
         nodeViews: {
           inlineMath: mathView(false, formulaLabel),
           math: mathView(true, formulaLabel),
+          notebookMermaid: mermaidView(mermaidLabel),
           image: (node) => {
             const img = document.createElement("img");
             const src = node.attrs.src as string;
@@ -79,6 +82,7 @@ export function makeNotebookEditor(
     .use(inlineStyles)
     .use(blockStyles)
     .use(mathPlugins)
+    .use(mermaidPlugins)
     .use(contentsPlugins)
     .use(history)
     .use(clipboard)

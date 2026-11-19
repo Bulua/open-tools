@@ -4,19 +4,27 @@ import { useI18n } from "vue-i18n";
 import { ChevronRight, FilePlus2, FileText, Folder, FolderOpen, FolderPlus, Pencil, Trash2 } from "lucide-vue-next";
 import { usePopover } from "@/composables/usePopover";
 import { directoryRows, subtree, type DirectoryDrop, type Node } from "../notebook";
+import type { OutlineHeading } from "../outline";
 
-const props = defineProps<{ nodes: Node[]; selectedId: string | null; width: number }>();
+const props = defineProps<{
+  nodes: Node[]; selectedId: string | null; width: number; canReveal?: boolean;
+  hasNote?: boolean; headings?: OutlineHeading[];
+}>();
+const view = defineModel<"files" | "outline">("view", { default: "files" });
 const emit = defineEmits<{
-  select: [node?: Node];
+  select: [node: Node];
   toggle: [node: Node];
-  add: [kind: "note" | "folder", atRoot?: boolean];
+  add: [kind: "note" | "folder", parentId: string | null];
   rename: [id: string, name: string];
   delete: [node: Node];
   move: [id: string, drop: DirectoryDrop];
+  reveal: [id: string];
+  goToHeading: [heading: OutlineHeading];
 }>();
 const { t } = useI18n();
 const label = (key: string) => t(`markdown.notebook.${key}`);
 const rows = computed(() => directoryRows(props.nodes));
+const outlineBase = computed(() => props.headings?.reduce((base, heading) => Math.min(base, heading.depth), 6) ?? 6);
 const directory = ref<HTMLElement>();
 const menuAnchor = ref<HTMLElement>();
 const menuPanel = ref<HTMLElement>();
@@ -29,6 +37,16 @@ const { open: menuOpen, style: menuStyle, show: showMenu, close: closeMenu } =
 function activate(node: Node) {
   emit("select", node);
   if (node.kind === "folder") emit("toggle", node);
+}
+
+function displayName(node: Node) {
+  return node.kind === "note" && !/\.md$/i.test(node.name) ? `${node.name}.md` : node.name;
+}
+
+function showView(next: typeof view.value) {
+  closeMenu();
+  finishDrag();
+  view.value = next;
 }
 
 async function openContext(event: MouseEvent, node?: Node) {
@@ -168,41 +186,62 @@ onDeactivated(() => { closeMenu(); finishDrag(); });
 <template>
   <aside ref="directory" class="directory" :style="{ flexBasis: `${width}px` }" :aria-label="label('directory')">
     <header class="directory-head">
-      <button class="root" :class="{ current: !selectedId }" @click="emit('select')">{{ label("root") }}</button>
-      <button class="icon-btn" :title="label('addFolder')" :aria-label="label('addFolder')" @click="emit('add', 'folder')"><FolderPlus :size="16" /></button>
-      <button class="icon-btn" :title="label('addNote')" :aria-label="label('addNote')" @click="emit('add', 'note')"><FilePlus2 :size="16" /></button>
+      <div class="seg fill" role="group" :aria-label="label('directory')">
+        <button type="button" :class="{ on: view === 'files' }" :aria-pressed="view === 'files'" @click="showView('files')">{{ label("files") }}</button>
+        <button type="button" :class="{ on: view === 'outline' }" :aria-pressed="view === 'outline'" @click="showView('outline')">{{ label("outline") }}</button>
+      </div>
     </header>
-    <ul class="directory-list" :class="{ 'drop-root': dropTarget === null }" tabindex="-1"
+    <TransitionGroup v-show="view === 'files'" tag="ul" name="directory-fold" class="directory-list"
+      :class="{ 'drop-root': dropTarget === null }" tabindex="-1"
       @contextmenu.self.prevent="openContext($event)" @dragover.self="dragOver($event)" @dragleave.self="leaveDropZone" @drop.self="drop($event)">
       <li v-for="{ node, depth } in rows" :key="node.id" class="directory-row"
         :class="[{ current: selectedId === node.id, dragging: draggedId === node.id }, dropTarget?.id === node.id && `drop-${dropTarget.position}`]"
         :style="{ paddingInlineStart: `${Math.min(depth, 12) * 13}px` }" :draggable="editingId !== node.id"
         @click="activate(node)" @contextmenu.stop.prevent="openContext($event, node)" @dragstart="startDrag($event, node)" @dragend="finishDrag"
         @dragover.stop="dragOver($event, node)" @dragleave="leaveDropZone" @drop.stop="drop($event, node)">
-        <button v-if="node.kind === 'folder'" type="button" class="disclosure" :class="{ expanded: !node.collapsed }"
-          :aria-label="label(node.collapsed ? 'expand' : 'collapse')" :aria-expanded="!node.collapsed">
-          <ChevronRight :size="13" />
-        </button>
-        <span v-else class="disclosure" />
-        <input v-if="editingId === node.id" v-model="draftName" class="field rename-input" :aria-label="label('name')" maxlength="120"
-          @click.stop @keydown="renameKey" @blur="finishRename()" />
-        <button v-else type="button" class="entry" :data-entry="node.id" :aria-current="selectedId === node.id ? 'true' : undefined"
-          :title="node.name" @dblclick="node.kind === 'note' && beginRename(node)" @keydown="entryKey($event, node)">
-          <component :is="node.kind === 'note' ? FileText : node.collapsed ? Folder : FolderOpen" :size="15" />
-          <span>{{ node.name }}</span>
-        </button>
+        <div class="directory-row-content">
+          <button v-if="node.kind === 'folder'" type="button" class="disclosure" :class="{ expanded: !node.collapsed }"
+            :aria-label="label(node.collapsed ? 'expand' : 'collapse')" :aria-expanded="!node.collapsed">
+            <ChevronRight :size="13" />
+          </button>
+          <span v-else class="disclosure" />
+          <input v-if="editingId === node.id" v-model="draftName" class="field rename-input" :aria-label="label('name')" maxlength="120"
+            @click.stop @keydown="renameKey" @blur="finishRename()" />
+          <button v-else type="button" class="entry" :data-entry="node.id" :aria-current="selectedId === node.id ? 'true' : undefined"
+            :title="displayName(node)" @dblclick="node.kind === 'note' && beginRename(node)" @keydown="entryKey($event, node)">
+            <component :is="node.kind === 'note' ? FileText : node.collapsed ? Folder : FolderOpen" :size="15" />
+            <span>{{ displayName(node) }}</span>
+          </button>
+        </div>
       </li>
-    </ul>
+    </TransitionGroup>
+    <template v-if="view === 'outline'">
+      <ul v-if="headings?.length" class="directory-list" :aria-label="label('outline')">
+        <li v-for="heading in headings" :key="heading.index"
+          :style="{ paddingInlineStart: `${(heading.depth - outlineBase) * 12}px` }">
+          <button type="button" class="btn small subtle outline-entry" :title="heading.title" @click="emit('goToHeading', heading)">
+            <span>{{ heading.title }}</span>
+          </button>
+        </li>
+      </ul>
+      <p v-else class="outline-empty">{{ label(hasNote ? "noHeadings" : "noNoteForOutline") }}</p>
+    </template>
     <Teleport to="body">
       <span ref="menuAnchor" class="context-anchor" :style="menuPosition" aria-hidden="true" />
       <div v-if="menuOpen" ref="menuPanel" class="directory-menu" :style="menuStyle" role="menu" @keydown="menuKey">
         <template v-if="menuNode">
+          <button v-if="canReveal" role="menuitem" @click="closeMenu(); returnFocus?.focus(); emit('reveal', menuNode.id)">
+            <FolderOpen :size="14" />{{ label("reveal") }}
+          </button>
+          <button v-if="menuNode.kind === 'folder'" role="menuitem" @click="closeMenu(); emit('add', 'folder', menuNode.id)">
+            <FolderPlus :size="15" />{{ label("addFolder") }}
+          </button>
           <button role="menuitem" @click="beginRename(menuNode)"><Pencil :size="14" />{{ label("rename") }}</button>
           <button role="menuitem" @click="closeMenu(); emit('delete', menuNode)"><Trash2 :size="14" />{{ label("delete") }}</button>
         </template>
         <template v-else>
-          <button role="menuitem" @click="closeMenu(); emit('add', 'folder', true)"><FolderPlus :size="15" />{{ label("addFolder") }}</button>
-          <button role="menuitem" @click="closeMenu(); emit('add', 'note', true)"><FilePlus2 :size="15" />{{ label("addNote") }}</button>
+          <button role="menuitem" @click="closeMenu(); emit('add', 'folder', null)"><FolderPlus :size="15" />{{ label("addFolder") }}</button>
+          <button role="menuitem" @click="closeMenu(); emit('add', 'note', null)"><FilePlus2 :size="15" />{{ label("addNote") }}</button>
         </template>
       </div>
     </Teleport>
@@ -211,13 +250,23 @@ onDeactivated(() => { closeMenu(); finishDrag(); });
 
 <style scoped>
 .directory { display: flex; flex: 0 0 auto; flex-direction: column; min-width: 0; min-height: 0; background: var(--surface); }
-.directory-head { display: flex; align-items: center; gap: 4px; height: 46px; flex-shrink: 0; padding: 0 10px; border-bottom: 1px solid var(--border); }
-.root { flex: 1; min-width: 0; text-align: start; border: 0; border-radius: 5px; padding: 5px 6px; font: inherit; font-weight: 600; color: var(--text-2); background: none; cursor: pointer; }
-.root:hover, .directory-row:hover { background: var(--hover); }
-.root.current, .directory-row.current { color: var(--accent); background: var(--accent-soft); }
+.directory-head { display: grid; align-items: center; height: 46px; flex-shrink: 0; padding: 0 8px; border-bottom: 1px solid var(--border); }
+.directory-head .seg button { min-width: 0; padding-inline: 4px; overflow: hidden; text-overflow: ellipsis; }
+.directory-row:hover { background: var(--hover); }
+.directory-row.current { color: var(--accent); background: var(--accent-soft); }
+.outline-entry { width: 100%; }
+.outline-entry span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.outline-empty { margin: 12px; color: var(--text-2); font-size: 12px; }
 .directory-list { flex: 1; min-height: 0; margin: 0; padding: 7px 6px 28px; list-style: none; overflow: auto; }
 .directory-list.drop-root { outline: 1px solid var(--accent); outline-offset: -1px; }
-.directory-row { display: flex; align-items: center; border-radius: 5px; border-block: 1px solid transparent; cursor: pointer; }
+.directory-row { display: grid; grid-template-rows: 1fr; border-radius: 5px; border-block: 1px solid transparent; cursor: pointer; }
+.directory-row-content { display: flex; align-items: center; min-width: 0; min-height: 0; }
+.directory-fold-enter-active, .directory-fold-leave-active {
+  transition: grid-template-rows var(--dur) var(--ease-out), border-block-width var(--dur) var(--ease-out);
+}
+.directory-fold-enter-active .directory-row-content, .directory-fold-leave-active .directory-row-content { overflow: clip; }
+.directory-fold-leave-active { pointer-events: none; }
+.directory-fold-enter-from, .directory-fold-leave-to { grid-template-rows: 0fr; border-block-width: 0; }
 .directory-row.drop-before { border-top-color: var(--accent); }
 .directory-row.drop-after { border-bottom-color: var(--accent); }
 .directory-row.drop-inside { background: var(--accent-soft); outline: 1px solid var(--accent); outline-offset: -1px; }
