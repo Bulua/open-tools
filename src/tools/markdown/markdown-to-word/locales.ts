@@ -35,7 +35,7 @@ export default defineModuleLocales({
         "convertOne": "转换并下载 Word",
         "wordPreview": "Word 效果预览",
         "dropTitle": "拖入 Markdown 文件或文件夹，或点击选择（可多选）",
-        "dropHint": "文档里引用的本地图片，和 .md 一起拖入或拖入整个文件夹即可嵌入 Word；要转换粘贴的文本，请用「Markdown 编辑预览」的导出 Word"
+        "dropHint": "文档里引用的本地图片，和 .md 一起拖入或拖入整个文件夹即可嵌入 Word"
       }
     },
     "en": {
@@ -57,7 +57,7 @@ export default defineModuleLocales({
         "convertOne": "Convert and download Word",
         "wordPreview": "Word preview",
         "dropTitle": "Drop Markdown files or folders here, or click to choose (multiple allowed)",
-        "dropHint": "Local images referenced by the document are embedded when dropped with the .md file or as a whole folder. To convert pasted text, use Export Word in “Markdown Editor”"
+        "dropHint": "Local images referenced by the document are embedded when dropped with the .md file or as a whole folder."
       }
     },
     "ja": {
@@ -79,7 +79,7 @@ export default defineModuleLocales({
         "convertOne": "変換して Word をダウンロード",
         "wordPreview": "Word のプレビュー",
         "dropTitle": "Markdown ファイルまたはフォルダーをドロップ、またはクリックして選択（複数可）",
-        "dropHint": "文書が参照するローカル画像は、.md と一緒に、またはフォルダーごとドロップすると Word に埋め込まれます。貼り付けたテキストを変換するには「Markdown エディター」の Word 書き出しを使ってください"
+        "dropHint": "文書が参照するローカル画像は、.md と一緒に、またはフォルダーごとドロップすると Word に埋め込まれます。"
       }
     }
   }

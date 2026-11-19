@@ -1,6 +1,5 @@
 /**
- * Markdown 预览的排版样式。程序内预览和「导出 HTML」共用这一份，导出的网页与预览看起来一致。
- * 颜色使用程序的主题变量，导出时在 :root 中补上浅色主题的取值。
+ * Markdown 转 Word 工具内预览的排版样式，颜色跟随程序主题。
  */
 export const MARKDOWN_CSS = `
 .md-body { color: var(--text); font-size: 15px; line-height: 1.75; word-wrap: break-word; }
@@ -43,34 +42,3 @@ export const MARKDOWN_CSS = `
 .md-body .hljs-emphasis { font-style: italic; }
 .md-body .hljs-strong { font-weight: 600; }
 `;
-
-/** 导出 HTML 时补充的浅色主题变量（程序内由主题提供） */
-const EXPORT_VARS = `
-:root { --text: #141413; --text-2: #5e5d59; --text-3: #8f8d86; --bg-sunken: #f5f4ee; --hover: rgba(31,30,29,.04); --active: rgba(31,30,29,.07);
-  --border: rgba(31,30,29,.12); --border-strong: rgba(31,30,29,.2); --accent: #c96442; --danger: #b5412f;
-  --syntax-key: #3b5a7a; --syntax-string: #4c7a4f; --syntax-number: #b55a3b; --syntax-literal: #6a5a9c;
-  --font-serif: Georgia, "Times New Roman", "Microsoft YaHei", serif; --font-mono: "Cascadia Mono", Consolas, monospace; }
-body { margin: 0; background: #faf9f5; font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; }
-.md-body { max-width: 860px; margin: 0 auto; padding: 48px 32px 80px; }
-`;
-
-const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
-/** 生成可以单独打开的 HTML 文件 */
-export function standaloneHtml(title: string, bodyHtml: string): string {
-  return `<!doctype html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>${escapeHtml(title)}</title>
-<style>${EXPORT_VARS}${MARKDOWN_CSS}</style>
-</head>
-<body>
-<article class="md-body">
-${bodyHtml}
-</article>
-</body>
-</html>
-`;
-}
