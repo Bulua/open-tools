@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { ChevronDown, Plug, Plus, RefreshCw, Unplug, X } from "lucide-vue-next";
+import { ChevronDown, Pencil, Plug, Plus, RefreshCw, Unplug, X } from "lucide-vue-next";
 import AppSelect from "@/components/common/AppSelect.vue";
-import { createClientId, matchesTopic, MQTT_VERSIONS, validAdvancedConfig, validConfig, type PublishDraft, type QoS } from "../mqtt";
+import { createClientId, matchesTopic, MQTT_VERSIONS, validAdvancedConfig, validConfig, validTopic, type ConnectionConfig, type PublishDraft, type QoS } from "../mqtt";
 import { useMqtt } from "../useMqtt";
 import MqttConnectionForm from "./MqttConnectionForm.vue";
 import MqttSplit from "./MqttSplit.vue";
@@ -26,8 +26,24 @@ const publishing = ref<PublishDraft>({ publishTopic, publishQos, retain, payload
 const subscriptionQos = ref(draft.subscriptionQos);
 const connectionExpanded = ref(false);
 const connectionName = ref(props.session.name);
+const editing = ref(false);
+const configuring = computed(() => props.creating || editing.value);
+const editConfig = reactive<ConnectionConfig>({ ...config });
+const editName = ref("");
+const startEditing = () => {
+  if (status.value !== "disconnected") return;
+  Object.assign(editConfig, config);
+  editName.value = connectionName.value;
+  editing.value = true;
+};
+const cancelEditing = () => {
+  if (props.creating) emit("cancel");
+  else editing.value = false;
+};
 const configValid = computed(() => validConfig(config) && !!connectionName.value.trim());
 const configHint = computed(() => t(validAdvancedConfig(config) ? "network.mqtt.configError" : "network.mqtt.advancedError"));
+const formValid = computed(() => editing.value ? validConfig(editConfig) && !!editName.value.trim() : configValid.value);
+const formHint = computed(() => t(validAdvancedConfig(editing.value ? editConfig : config) ? "network.mqtt.configError" : "network.mqtt.advancedError"));
 watch(() => props.session.name, value => { connectionName.value = value; });
 watch(connectionName, value => {
   if (!props.creating && status.value === "disconnected" && value.trim() && value.trim() !== props.session.name) emit("rename", props.session.id, value.trim());
@@ -37,13 +53,20 @@ const subscriptionPanel = ref<InstanceType<typeof MqttSubscriptionDialog>>();
 const openSubscription = () => { void subscriptionPanel.value?.open(); };
 const selectedSubscription = ref<string | null>(null);
 const activeTopics = computed(() => new Set(subscriptions.value.map(item => item.topic)));
+const publishTopics = computed(() => [...new Set([...topics.value.map(item => item.topic), ...messages.value.filter(message => message.direction === "sent").map(message => message.topic)])].filter(topic => validTopic(topic)));
 const filteredMessages = computed(() => selectedSubscription.value === null ? messages.value : messages.value.filter(message => matchesTopic(selectedSubscription.value!, message.topic)));
 watch(topics, list => { if (selectedSubscription.value !== null && !list.some(item => item.topic === selectedSubscription.value)) selectedSubscription.value = null; }, { deep: true });
 const snapshot = (): MqttDraft => cleanDraft({ config: { ...config, port: Number(config.port) || 0, keepAlive: Number(config.keepAlive) || 0 }, topics: topics.value, ...publishing.value, subscriptionQos: subscriptionQos.value })!;
 watch(snapshot, value => emit("draft", props.session.id, value), { deep: true, flush: "sync" });
 watch(status, value => emit("status", props.session.id, value), { immediate: true });
 const saveConnection = async () => {
-  if (!configValid.value) return;
+  if (!formValid.value) return;
+  if (editing.value) {
+    Object.assign(config, editConfig);
+    connectionName.value = editName.value.trim();
+    editing.value = false;
+    return;
+  }
   emit("create", connectionName.value.trim(), snapshot());
   await nextTick();
   if (supported) void connect();
@@ -62,33 +85,35 @@ const removeTopic = (topic: string) => {
 </script>
 
 <template>
-  <div class="mqtt" :class="{ creating, 'is-active': active }">
+  <div class="mqtt" :class="{ creating: configuring, 'is-active': active }">
     <section class="connection">
-      <header v-if="creating" class="creation-heading"><div><h1>{{ t("network.mqtt.newSession") }}</h1></div><div class="creation-actions"><button type="button" class="btn" @click="emit('cancel')">{{ t("network.mqtt.cancelAction") }}</button><button type="button" class="btn primary" :disabled="!configValid" :title="!configValid ? configHint : undefined" @click="saveConnection"><Plug :size="14" />{{ t("network.mqtt.connect") }}</button></div></header>
-      <header v-if="!creating" class="workspace-toolbar">
+      <header v-if="configuring" class="creation-heading"><div><h1>{{ t(editing ? "network.mqtt.editConnection" : "network.mqtt.newSession") }}</h1></div><div class="creation-actions"><button type="button" class="btn" @click="cancelEditing">{{ t("network.mqtt.cancelAction") }}</button><button type="button" class="btn primary" :disabled="!formValid" :title="!formValid ? formHint : undefined" @click="saveConnection"><Plug v-if="!editing" :size="14" />{{ t(editing ? "network.mqtt.saveConnection" : "network.mqtt.connect") }}</button></div></header>
+      <header v-if="!configuring" class="workspace-toolbar">
         <button class="connection-toggle" :aria-expanded="connectionExpanded" :title="t(connectionExpanded ? 'network.mqtt.hideConnection' : 'network.mqtt.showConnection')" @click="connectionExpanded = !connectionExpanded"><ChevronDown :size="15" :class="{ collapsed: !connectionExpanded }" /><span>{{ props.session.name }}</span></button>
         <code class="connection-address">{{ config.host }}:{{ config.port }}</code>
+        <button type="button" class="icon-btn connection-edit" :disabled="status !== 'disconnected'" :title="t('network.mqtt.editConnection')" :aria-label="t('network.mqtt.editConnection')" @click="startEditing"><Pencil :size="14" /></button>
         <span class="status" :class="{ online: connected }" role="status"><i />{{ t(`network.mqtt.${status}`) }}</span>
         <button v-if="status === 'disconnected'" class="btn primary" :disabled="!supported || !configValid" :title="!configValid ? configHint : !supported ? t('network.mqtt.nativeOnly') : undefined" @click="connect"><Plug :size="14" />{{ t("network.mqtt.connect") }}</button>
         <button v-else class="btn" :disabled="status === 'disconnecting'" @click="disconnect"><Unplug :size="14" />{{ t(status === 'connecting' ? 'network.mqtt.cancel' : 'network.mqtt.disconnect') }}</button>
       </header>
-      <div class="connection-details" :class="{ 'creation-scroll': creating, 'history-fold': !creating, 'is-collapsed': !creating && !connectionExpanded }" :aria-hidden="!creating && !connectionExpanded" :inert="!creating && !connectionExpanded ? true : undefined">
+      <div class="connection-details" :class="{ 'creation-scroll': configuring, 'history-fold': !configuring, 'is-collapsed': !configuring && !connectionExpanded }" :aria-hidden="!configuring && !connectionExpanded" :inert="!configuring && !connectionExpanded ? true : undefined">
         <div class="history-fold-inner">
-      <MqttConnectionForm v-if="creating" v-model:name="connectionName" :config="config" :disabled="status !== 'disconnected'" />
+      <MqttConnectionForm v-if="editing" v-model:name="editName" :config="editConfig" :disabled="false" />
+      <MqttConnectionForm v-else-if="creating" v-model:name="connectionName" :config="config" :disabled="status !== 'disconnected'" />
       <fieldset v-else class="connection-fields compact-fields" :disabled="status !== 'disconnected'">
         <label class="connection-name"><span>{{ t("network.mqtt.connectionName") }}</span><input v-model="connectionName" class="field" maxlength="100" required /></label>
         <label><span>{{ t("network.mqtt.clientId") }}</span><div class="compact-input-action"><input v-model="config.clientId" class="field mono" spellcheck="false" /><button type="button" class="icon-btn" :aria-label="t('network.mqtt.regenerateId')" :title="t('network.mqtt.regenerateId')" @click="regenerateId"><RefreshCw :size="14" /></button></div></label>
         <label><span>{{ t("network.mqtt.username") }}</span><input v-model="config.username" class="field" :placeholder="t('network.mqtt.optional')" autocomplete="off" /></label>
         <label><span>{{ t("network.mqtt.password") }}</span><input v-model="config.password" class="field" type="password" :placeholder="t('network.mqtt.optional')" autocomplete="new-password" /></label>
         <label><span>{{ t("network.mqtt.keepAlive") }}</span><input v-model.number="config.keepAlive" class="field mono" type="number" min="5" max="65535" /></label>
-        <label><span>{{ t("network.mqtt.cleanSession") }}</span><span class="check compact-check"><input v-model="config.cleanSession" type="checkbox" />{{ t("network.mqtt.enabled") }}</span></label>
         <div class="compact-field"><span>{{ t("network.mqtt.mqttVersion") }}</span><AppSelect v-model="config.protocolVersion" :options="versionOptions" :disabled="status !== 'disconnected'" :aria-label="t('network.mqtt.mqttVersion')" /></div>
+        <label><span>{{ t("network.mqtt.cleanSession") }}</span><span class="check compact-check"><input v-model="config.cleanSession" type="checkbox" />{{ t("network.mqtt.enabled") }}</span></label>
       </fieldset>
         </div>
       </div>
     </section>
 
-    <MqttSplit v-if="!creating" class="workbench" storage-key="subscriptions" :initial="210" :label="t('network.mqtt.resizeSubscriptions')">
+    <MqttSplit v-if="!creating" v-show="!editing" class="workbench" storage-key="subscriptions" :initial="210" :label="t('network.mqtt.resizeSubscriptions')">
       <template #left>
         <section class="subscriptions">
           <header class="section-head"><button class="btn small subscription-add" :aria-label="t('network.mqtt.subscribe')" @click="openSubscription"><Plus :size="13" />{{ t("network.mqtt.addSubscription") }}</button></header>
@@ -104,7 +129,7 @@ const removeTopic = (topic: string) => {
       <template #right>
         <div class="traffic-page">
           <MqttMessages :messages="filteredMessages" @clear="messages = []" />
-          <MqttPublisher v-model="publishing" :connected="connected" :busy="busy" @publish="publish" />
+          <MqttPublisher v-model="publishing" :topics="publishTopics" :active="active && !configuring" :connected="connected" :busy="busy" @publish="publish" />
         </div>
       </template>
     </MqttSplit>
@@ -121,21 +146,23 @@ const removeTopic = (topic: string) => {
 .mqtt { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; container-type: inline-size; }
 .connection { flex: none; padding: 0 18px; border-bottom: 1px solid var(--border); background: var(--surface); }
 .mqtt:not(.creating) > .connection > .connection-details > .history-fold-inner { max-height: 45vh; overflow-y: auto; }
-.compact-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 960px; gap: 12px 18px; border: 0; margin: 14px 0 12px; padding: 0; min-width: 0; }
+.compact-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 1160px; gap: 12px 18px; border: 0; margin: 14px 0 12px; padding: 0; min-width: 0; }
 .compact-fields > label, .compact-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; color: var(--text-2); font-size: 12px; }
+.compact-fields > .connection-name { grid-column: span 2; }
 .compact-fields .field { min-width: 0; height: 32px; }
 .compact-input-action { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .compact-input-action > .field { flex: 1; }
 .compact-input-action > .icon-btn { flex-shrink: 0; }
 .compact-check { min-height: 32px; }
-@container (max-width: 600px) { .compact-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (max-width: 600px) { .compact-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } .compact-fields > .connection-name { grid-column: auto; } }
 .workspace-toolbar { min-height: calc(var(--mqtt-header-height) - 1px); display: flex; align-items: center; gap: 12px; min-width: 0; }
 .connection-toggle { display: inline-flex; align-items: center; gap: 8px; min-width: 0; padding: 0; border: 0; background: none; color: var(--text); font-size: 14px; font-weight: 600; }
 .connection-toggle span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .connection-toggle svg { flex-shrink: 0; transition: transform var(--dur) var(--ease-out); }
 .connection-toggle svg.collapsed { transform: rotate(-90deg); }
 .connection-address { color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11px var(--font-mono); }
-.status { display: flex; align-items: center; gap: 6px; margin-left: auto; color: var(--text-2); font-size: 11px; white-space: nowrap; }
+.connection-edit { margin-inline-start: auto; flex-shrink: 0; }
+.status { display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 11px; white-space: nowrap; }
 .status i { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); }
 .status.online { color: var(--success); }
 .status.online i { background: var(--success); }

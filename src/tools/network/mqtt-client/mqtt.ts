@@ -1,3 +1,5 @@
+import type { PayloadFormat } from "./payload";
+
 export const MAX_PAYLOAD = 256 * 1024;
 export const MAX_MESSAGES = 200;
 export const MAX_LOG_BYTES = 4 * 1024 * 1024;
@@ -21,7 +23,7 @@ export interface ConnectionConfig {
 }
 export type ConnectionStatus = "disconnected" | "connecting" | "reconnecting" | "connected" | "disconnecting";
 export interface PublishDraft {
-  publishTopic: string; publishQos: QoS; retain: boolean; payload: string; mode: "text" | "json";
+  publishTopic: string; publishQos: QoS; retain: boolean; payload: string; mode: PayloadFormat;
 }
 export const createClientId = () => `open-tools-${crypto.randomUUID().slice(0, 8)}`;
 export function createConnectionConfig(): ConnectionConfig {
@@ -30,9 +32,10 @@ export function createConnectionConfig(): ConnectionConfig {
 export type MqttNotice =
   | { kind: "message"; topic: string; payload: number[]; qos: QoS; retain: boolean }
   | { kind: "closed"; error: string | null };
+export interface SentPayload { format: PayloadFormat; payload: string; }
 export interface Message {
   id: number; time: number; direction: "received" | "sent"; topic: string;
-  payload: string; bytes: number; qos: QoS; retain: boolean; binary: boolean;
+  payload: string; rawPayload: number[]; bytes: number; qos: QoS; retain: boolean; binary: boolean; sent?: SentPayload;
 }
 
 /** 不 trim 主题：空格在 MQTT 中是有效且有意义的字符。 */

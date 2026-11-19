@@ -164,7 +164,7 @@ it("默认工作区常驻发送区，同页完成收发", async () => {
   expect(editor(root).querySelector(".publish-panel textarea")).not.toBeNull();
   expect(editor(root).querySelector<HTMLElement>(".publish-panel")!.style.display).not.toBe("none");
   await vi.waitFor(() => expect(editor(root).querySelector(".subscription-list")!.textContent).toContain("已订阅"));
-  const sending = button(editor(root).querySelector(".publish-controls")!, "发送");
+  const sending = button(editor(root).querySelector(".payload-actions")!, "发送");
   await type(editor(root).querySelector<HTMLTextAreaElement>(".publish-panel textarea")!, "same-page test"); sending.click();
   await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("mqtt_publish", expect.anything()));
   await vi.waitFor(() => expect(editor(root).querySelector(".message-summary pre")?.textContent).toContain("same-page test"));
@@ -222,25 +222,35 @@ it("发送区精简标题和展开按钮，保留输入与发送参数", async (
   expect(topic.value).toBe("long/payload"); expect(retain.checked).toBe(true);
 });
 
-it("消息摘要选择详情，切换原始数据和 JSON，读取旧消息时不被新消息打断", async () => {
+it("消息正文可选择复制，点击不展开详情，阅读时新消息不打断选择", async () => {
   vi.mocked(isTauri).mockReturnValue(true);
   const root = mount(); button(editor(root), "连接").click();
   await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("mqtt_connect", expect.anything()));
   const args = vi.mocked(invoke).mock.calls.find(([command]) => command === "mqtt_connect")![1] as { events: { onmessage: (event: unknown) => void } };
   const receive = async (payload: string) => { args.events.onmessage({ kind: "message", topic: "data/test", payload: [...new TextEncoder().encode(payload)], qos: 1, retain: false }); await nextTick(); await nextTick(); };
   await receive('{"value":1}');
-  expect(editor(root).querySelector(".message-summary pre")!.textContent).toBe('{\n  "value": 1\n}');
-  editor(root).querySelector<HTMLButtonElement>(".message-summary")!.click(); await nextTick();
-  button(editor(root), "原始数据").click(); await nextTick();
-  expect(editor(root).querySelector<HTMLTextAreaElement>(".message-detail textarea")!.value).toBe('{"value":1}');
+  const summary = editor(root).querySelector<HTMLElement>(".message-summary")!;
+  const pre = summary.querySelector("pre")!;
+  expect(pre.textContent).toBe('{\n  "value": 1\n}');
+  expect(summary.tagName).toBe("DIV");
+  summary.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+  summary.click(); await nextTick();
+  expect(editor(root).querySelector(".message-detail")).toBeNull();
+  const range = document.createRange(); range.selectNodeContents(pre);
+  const selection = window.getSelection()!; selection.removeAllRanges(); selection.addRange(range);
+  expect(selection.toString()).toBe(pre.textContent);
+  const log = editor(root).querySelector<HTMLElement>(".message-log")!;
+  Object.defineProperty(log, "scrollHeight", { value: 200, configurable: true }); log.scrollTop = 30;
   await receive('{"value":2}');
-  editor(root).querySelector<HTMLButtonElement>(".message-summary")!.click(); await nextTick();
-  await receive('{"value":3}');
-  expect(editor(root).querySelector<HTMLTextAreaElement>(".message-detail textarea")!.value).toBe('{"value":1}');
-  expect(editor(root).querySelectorAll(".message-summary")).toHaveLength(3);
+  expect(log.scrollTop).toBe(30);
+  expect(selection.toString()).toBe('{\n  "value": 1\n}');
+  expect(editor(root).querySelectorAll(".message-summary")).toHaveLength(2);
+  const format = editor(root).querySelector<HTMLSelectElement>(".message-format")!;
+  format.value = "text"; format.dispatchEvent(new Event("change", { bubbles: true })); await nextTick();
+  expect(pre.textContent).toBe('{"value":1}');
+  selection.removeAllRanges();
   editor(root).querySelector<HTMLButtonElement>('[aria-label="清空记录"]')!.click(); await nextTick();
   expect(editor(root).querySelectorAll(".message-summary")).toHaveLength(0);
-  await vi.waitFor(() => expect(editor(root).querySelector(".message-detail textarea")).toBeNull());
 });
 
 it("订阅点击高亮并筛选，再次点击取消高亮并显示全部消息", async () => {
@@ -391,7 +401,7 @@ it.each(["mqtt_connect", "mqtt_subscribe", "mqtt_unsubscribe", "mqtt_publish", "
       editor(root).querySelector<HTMLButtonElement>('[aria-label="移除主题"]')!.click();
     } else if (operation === "mqtt_publish") {
       vi.mocked(invoke).mockRejectedValueOnce(error);
-      button(editor(root).querySelector(".publish-controls")!, "发送").click();
+      button(editor(root).querySelector(".payload-actions")!, "发送").click();
     } else {
       vi.mocked(invoke).mockRejectedValueOnce(error);
       button(editor(root), "断开").click();
@@ -486,7 +496,7 @@ it("发送主题无效时不在编辑器底部显示告警，继续阻止发送"
   const root = mount(); button(editor(root), "连接").click();
   await vi.waitFor(() => expect(editor(root).textContent).toContain("已连接"));
   await type(editor(root).querySelector<HTMLInputElement>(".publish-topic")!, "bad/#");
-  expect(button(editor(root).querySelector(".publish-controls")!, "发送").disabled).toBe(true);
+  expect(button(editor(root).querySelector(".payload-actions")!, "发送").disabled).toBe(true);
   expect(editor(root).querySelector(".publish-error")).toBeNull();
   expect(editor(root).textContent).not.toContain("发送主题不能为空");
 });
@@ -511,10 +521,15 @@ it("订阅弹窗保留内容直到关闭动画结束，切换连接会立即取�
   editor(root).querySelector<HTMLButtonElement>(".subscription-add")!.click(); await nextTick(); await nextTick();
   const dialog = editor(root).querySelector<HTMLDialogElement>(".subscription-dialog")!;
   await type(dialog.querySelector("input")!, "device/status");
+  dialog.style.clipPath = "none";
   let finish!: () => void;
   const cancel = vi.fn();
   dialog.animate = vi.fn(() => ({ finished: new Promise<void>(resolve => { finish = resolve; }), cancel }) as unknown as Animation);
   button(dialog, "取消").click(); await nextTick();
+  expect(dialog.animate).toHaveBeenCalledWith([
+    expect.objectContaining({ clipPath: expect.stringMatching(/^inset\(/) }),
+    { clipPath: "inset(50% 50% round 14px)", transform: "translateY(12px)" },
+  ], expect.objectContaining({ fill: "forwards" }));
   expect(dialog.open).toBe(true);
   expect(dialog.querySelector<HTMLInputElement>("input")!.value).toBe("device/status");
   expect(dialog.querySelector("form")!.hasAttribute("inert")).toBe(true);
@@ -597,4 +612,178 @@ it("三组配置通过分段面板切换，保留输入并支持键盘导航", a
   expect(page.querySelector<HTMLInputElement>(".connection-name input")!.value).toBe("设备连接");
   expect(general.getAttribute("aria-labelledby")).toBe(selected().id);
   expect(page.querySelector(".section-toggle")).toBeNull();
+});
+
+
+it("编辑连接复用完整表单，取消丢弃修改，保存更新原连接并保留订阅和发送草稿", async () => {
+  const root = mount();
+  await addPreset(root);
+  await type(editor(root).querySelector<HTMLTextAreaElement>(".publish-panel textarea")!, "保留发送草稿");
+  const original = JSON.stringify(useMqttTree().value);
+  const edit = async () => {
+    editor(root).querySelector<HTMLButtonElement>('[aria-label="编辑连接"]')!.click(); await nextTick();
+  };
+  await edit();
+  expect(editor(root).querySelector("h1")!.textContent).toBe("编辑连接");
+  expect(editor(root).querySelectorAll('[role="tab"]')).toHaveLength(3);
+  expect(field(root, "连接名称").value).toBe("默认会话");
+  await type(field(root, "连接名称"), "未保存名称");
+  await type(field(root, "服务器"), "discard.example.com");
+  button(editor(root), "取消").click(); await nextTick();
+  expect(JSON.stringify(useMqttTree().value)).toBe(original);
+  await edit();
+  expect(field(root, "连接名称").value).toBe("默认会话");
+  await type(field(root, "连接名称"), "修改后的连接");
+  await type(field(root, "服务器"), "mqtt.example.com");
+  await type(field(root, "端口"), "8883");
+  button(editor(root), "高级配置").click(); await nextTick();
+  const version = editor(root).querySelector<HTMLSelectElement>('.config-section.current select')!;
+  version.value = "5.0"; version.dispatchEvent(new Event("change", { bubbles: true })); await nextTick();
+  button(editor(root), "保存").click(); await nextTick();
+  expect(useMqttTree().value.nodes).toHaveLength(1);
+  expect(useMqttTree().value.nodes[0]).toMatchObject({ id: "s1", name: "修改后的连接", draft: { config: { host: "mqtt.example.com", port: 8883, protocolVersion: "5.0" }, topics: [{ topic: "test/demo" }], payload: "保留发送草稿" } });
+  expect(editor(root).querySelector(".workspace-toolbar")!.textContent).toContain("修改后的连接");
+  expect(editor(root).querySelector<HTMLTextAreaElement>(".publish-panel textarea")!.value).toBe("保留发送草稿");
+  expect(invoke).not.toHaveBeenCalled();
+});
+
+it("编辑连接校验必填项，连接期间禁用编辑入口", async () => {
+  vi.mocked(isTauri).mockReturnValue(true);
+  const root = mount();
+  editor(root).querySelector<HTMLButtonElement>('[aria-label="编辑连接"]')!.click(); await nextTick();
+  await type(field(root, "连接名称"), "");
+  expect(button(editor(root), "保存").disabled).toBe(true);
+  await type(field(root, "连接名称"), "有效名称");
+  await type(field(root, "端口"), "0");
+  expect(button(editor(root), "保存").disabled).toBe(true);
+  button(editor(root), "取消").click(); await nextTick();
+  button(editor(root), "连接").click();
+  await vi.waitFor(() => expect(editor(root).querySelector('[role="status"]')!.textContent).toContain("已连接"));
+  expect(editor(root).querySelector<HTMLButtonElement>('[aria-label="编辑连接"]')!.disabled).toBe(true);
+});
+
+
+it("发送区 Hex 和 Base64 发送二进制，非法输入禁用发送且切换格式不改写内容", async () => {
+  vi.mocked(isTauri).mockReturnValue(true);
+  const root = mount(); button(editor(root), "连接").click();
+  await vi.waitFor(() => expect(editor(root).querySelector('[role="status"]')!.textContent).toContain("已连接"));
+  const panel = editor(root).querySelector(".publish-panel")!;
+  const mode = panel.querySelector<HTMLSelectElement>(".mode-select")!;
+  expect([...mode.options].map(option => option.textContent)).toEqual(["Plaintext", "Base64", "JSON", "Hex"]);
+  const input = panel.querySelector<HTMLTextAreaElement>("textarea")!;
+  for (const [format, payload] of [["hex", "ff 00 80"], ["base64", "/wCA"]]) {
+    mode.value = format; mode.dispatchEvent(new Event("change", { bubbles: true })); await nextTick();
+    await type(input, payload);
+    button(panel, "发送").click();
+    await vi.waitFor(() => expect(invoke).toHaveBeenLastCalledWith("mqtt_publish", expect.objectContaining({ payload: [255, 0, 128] })));
+    await vi.waitFor(() => expect(button(panel, "发送").disabled).toBe(false));
+    expect((useMqttTree().value.nodes[0] as SessionNode).draft.mode).toBe(format);
+  }
+  await type(input, "%%%");
+  expect(button(panel, "发送").disabled).toBe(true);
+  expect(panel.querySelector(".payload-error")!.textContent).toContain("Base64");
+  mode.value = "hex"; mode.dispatchEvent(new Event("change", { bubbles: true })); await nextTick();
+  expect(button(panel, "发送").disabled).toBe(true);
+  expect(panel.querySelector(".payload-error")!.textContent).toContain("Hex");
+  mode.value = "text"; mode.dispatchEvent(new Event("change", { bubbles: true })); await nextTick();
+  expect(input.value).toBe("%%%");
+  expect(button(panel, "发送").disabled).toBe(false);
+});
+
+it("消息列表切换四种格式，二进制往返显示不改变原消息", async () => {
+  vi.mocked(isTauri).mockReturnValue(true);
+  const root = mount(); button(editor(root), "连接").click();
+  await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("mqtt_connect", expect.anything()));
+  const args = vi.mocked(invoke).mock.calls.find(([command]) => command === "mqtt_connect")![1] as { events: { onmessage: (event: unknown) => void } };
+  args.events.onmessage({ kind: "message", topic: "binary/test", payload: [255, 0, 128], qos: 0, retain: false }); await nextTick();
+  const format = editor(root).querySelector<HTMLSelectElement>(".message-format")!;
+  for (const [mode, expected] of [["hex", "ff 00 80"], ["base64", "/wCA"], ["text", "�\0�"], ["json", "�\0�"], ["hex", "ff 00 80"]]) {
+    format.value = mode; format.dispatchEvent(new Event("change", { bubbles: true })); await nextTick();
+    expect(editor(root).querySelector(".message-summary pre")!.textContent).toBe(expected);
+  }
+  expect(editor(root).querySelectorAll(".message-summary")).toHaveLength(1);
+});
+
+
+it("发送记录保留各自的格式和原文，接收格式仅改变接收记录", async () => {
+  vi.mocked(isTauri).mockReturnValue(true);
+  const root = mount(); button(editor(root), "连接").click();
+  await vi.waitFor(() => expect(editor(root).querySelector('[role="status"]')!.textContent).toContain("已连接"));
+  const args = vi.mocked(invoke).mock.calls.find(([command]) => command === "mqtt_connect")![1] as { events: { onmessage: (event: unknown) => void } };
+  const panel = editor(root).querySelector(".publish-panel")!;
+  const sending = panel.querySelector<HTMLSelectElement>(".mode-select")!;
+  const receiving = editor(root).querySelector<HTMLSelectElement>(".message-format")!;
+  const changeFormat = async (element: HTMLSelectElement, value: string) => {
+    element.value = value; element.dispatchEvent(new Event("change", { bubbles: true })); await nextTick();
+  };
+  await changeFormat(receiving, "base64");
+  const original = ' {"a": 1} ';
+  const bytes = [...new TextEncoder().encode(original)];
+  const inputs = [original, btoa(original).replace(/=+$/, ""), original, bytes.map(byte => byte.toString(16).padStart(2, "0").toUpperCase()).join(" ")];
+  for (const [index, format] of ["text", "base64", "json", "hex"].entries()) {
+    await changeFormat(sending, format);
+    await type(panel.querySelector<HTMLTextAreaElement>("textarea")!, inputs[index]);
+    button(panel, "发送").click();
+    await vi.waitFor(() => expect(editor(root).querySelectorAll(".message-item.sent")).toHaveLength(index + 1));
+    expect(invoke).toHaveBeenLastCalledWith("mqtt_publish", expect.objectContaining({ payload: bytes }));
+  }
+  args.events.onmessage({ kind: "message", topic: "test/demo", payload: bytes, qos: 0, retain: false }); await nextTick();
+  const sent = [...editor(root).querySelectorAll(".message-item.sent")];
+  const sentText = () => sent.map(item => item.querySelector("pre")!.textContent);
+  expect(sentText()).toEqual(inputs);
+  expect(editor(root).querySelector(".message-item.received pre")!.textContent).toBe(btoa(original));
+  await changeFormat(receiving, "hex");
+  await changeFormat(sending, "text");
+  expect(sentText()).toEqual(inputs);
+  await changeFormat(receiving, "json");
+  expect(editor(root).querySelector(".message-item.received pre")!.textContent).toBe('{\n  "a": 1\n}');
+  expect(sentText()).toEqual(inputs);
+});
+
+
+it("发送主题下拉合并订阅与已发送主题，排除通配符并允许新主题", async () => {
+  vi.mocked(isTauri).mockReturnValue(true);
+  (useMqttTree().value.nodes[0] as SessionNode).draft.topics = [{ topic: "device/status", qos: 0 }, { topic: "room/+", qos: 0 }, { topic: "room/#", qos: 1 }];
+  vi.mocked(invoke).mockImplementation(async command => command === "mqtt_subscribe" ? 0 : undefined);
+  const root = mount(); button(editor(root), "连接").click();
+  await vi.waitFor(() => expect(button(editor(root).querySelector(".payload-actions")!, "发送").disabled).toBe(false));
+  const topic = editor(root).querySelector<HTMLInputElement>(".publish-topic")!;
+  const openTopics = async () => {
+    editor(root).querySelector<HTMLButtonElement>(".topic-toggle")!.click();
+    await vi.waitFor(() => expect(document.querySelector(".topic-menu")).not.toBeNull());
+  };
+  await openTopics();
+  expect([...document.querySelectorAll(".topic-menu [role=option]")].map(option => option.textContent)).toEqual(["device/status"]);
+  (document.querySelector(".topic-menu [role=option]") as HTMLElement).click(); await nextTick();
+  expect(topic.value).toBe("device/status");
+  await type(topic, "new/topic");
+  expect(topic.getAttribute("aria-invalid")).toBe("false");
+  await type(editor(root).querySelector<HTMLTextAreaElement>(".publish-panel textarea")!, "new payload");
+  button(editor(root).querySelector(".payload-actions")!, "发送").click();
+  await vi.waitFor(() => expect(invoke).toHaveBeenLastCalledWith("mqtt_publish", expect.objectContaining({ topic: "new/topic" })));
+  await vi.waitFor(() => expect(editor(root).querySelectorAll(".message-item.sent")).toHaveLength(1));
+  topic.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); await nextTick();
+  await vi.waitFor(() => expect(document.querySelector(".topic-menu")).toBeNull());
+  await openTopics();
+  expect([...document.querySelectorAll(".topic-menu [role=option]")].map(option => option.textContent)).toEqual(["device/status", "new/topic"]);
+});
+
+it("主题支持筛选和键盘选择，切换连接关闭菜单并隔离候选", async () => {
+  (useMqttTree().value.nodes[0] as SessionNode).draft.topics = [{ topic: "room/temperature", qos: 0 }, { topic: "room/humidity", qos: 0 }];
+  const second = session("s2", "第二连接"); second.draft.topics = [{ topic: "other/status", qos: 0 }];
+  useMqttTree().value.nodes.push(second);
+  const root = mount();
+  const topic = editor(root).querySelector<HTMLInputElement>(".publish-topic")!;
+  await type(topic, "room/hum");
+  await vi.waitFor(() => expect(document.querySelectorAll(".topic-menu [role=option]")).toHaveLength(1));
+  topic.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })); await nextTick();
+  expect(topic.getAttribute("aria-activedescendant")).toBeTruthy();
+  topic.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); await nextTick();
+  expect(topic.value).toBe("room/humidity");
+  await vi.waitFor(() => expect(document.querySelector(".topic-menu")).toBeNull());
+  editor(root).querySelector<HTMLButtonElement>(".topic-toggle")!.click(); await nextTick();
+  row(root, "第二连接").click(); await nextTick();
+  await vi.waitFor(() => expect(document.querySelector(".topic-menu")).toBeNull());
+  editor(root).querySelector<HTMLButtonElement>(".topic-toggle")!.click(); await nextTick();
+  expect([...document.querySelectorAll(".topic-menu [role=option]")].map(option => option.textContent)).toEqual(["other/status"]);
 });

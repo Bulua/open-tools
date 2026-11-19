@@ -2,7 +2,7 @@ import { computed, onBeforeUnmount, reactive, ref } from "vue";
 import { Channel, invoke, isTauri } from "@tauri-apps/api/core";
 import { recordToolUsage } from "@/composables/toolLibrary";
 import { showError } from "@/utils/errorToast";
-import { createConnectionConfig, appendMessage, decodePayload, type ConnectionStatus, type Message, type MqttNotice, type QoS } from "./mqtt";
+import { createConnectionConfig, appendMessage, decodePayload, type ConnectionStatus, type Message, type MqttNotice, type QoS, type SentPayload } from "./mqtt";
 
 export function useMqtt() {
   const config = reactive(createConnectionConfig());
@@ -49,7 +49,7 @@ export function useMqtt() {
     events.onmessage = event => {
       if (disposed || sessionId !== id) return;
       if (event.kind === "message") {
-        addMessage({ direction: "received", topic: event.topic, ...decodePayload(event.payload), bytes: event.payload.length, qos: event.qos, retain: event.retain });
+        addMessage({ direction: "received", topic: event.topic, ...decodePayload(event.payload), rawPayload: [...event.payload], bytes: event.payload.length, qos: event.qos, retain: event.retain });
       } else {
         sessionId = "";
         status.value = "disconnected";
@@ -127,11 +127,11 @@ export function useMqtt() {
       topics.value = topics.value.filter(s => s.topic !== topic);
     }
   });
-  const publish = (topic: string, payload: string, qos: QoS, retain: boolean) => operate(async id => {
-    const bytes = Array.from(new TextEncoder().encode(payload));
+  const publish = (topic: string, payload: string | Uint8Array, qos: QoS, retain: boolean, sent?: SentPayload) => operate(async id => {
+    const bytes = Array.from(typeof payload === "string" ? new TextEncoder().encode(payload) : payload);
     await invoke("mqtt_publish", { id, topic, payload: bytes, qos, retain });
     if (disposed || sessionId !== id) return;
-    addMessage({ direction: "sent", topic, payload, bytes: bytes.length, qos, retain, binary: false });
+    addMessage({ direction: "sent", topic, ...decodePayload(bytes), rawPayload: bytes, bytes: bytes.length, qos, retain, sent });
     recordToolUsage();
   });
   onBeforeUnmount(() => {

@@ -22,3 +22,15 @@ it("未提交的订阅主题不再进入持久化草稿，旧字段读取时自�
   expect(saved).not.toHaveProperty("filterTopic");
   expect(JSON.stringify(saved)).not.toContain("temporary/topic");
 });
+
+
+it("保存并恢复四种发送格式，兼容旧文本草稿，较长的编码字符串不被清空", () => {
+  for (const mode of ["text", "json", "base64", "hex"] as const) {
+    const payload = mode === "hex" ? "ff ".repeat(256 * 1024) : mode === "base64" ? "/w==" : "原有草稿";
+    const restored = cleanDraft(JSON.parse(JSON.stringify({ ...createDraft(), mode, payload })))!;
+    expect(restored.mode).toBe(mode);
+    expect(restored.payload).toBe(payload);
+  }
+  expect(cleanDraft({ ...createDraft(), mode: undefined })?.mode).toBe("text");
+  expect(cleanDraft({ ...createDraft(), mode: "unknown" })?.mode).toBe("text");
+});

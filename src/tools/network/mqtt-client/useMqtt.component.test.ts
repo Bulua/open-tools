@@ -161,3 +161,23 @@ it("重连过程中手动断开，迟到结果不会恢复连接或再次重试"
   expect(mqtt.status.value).toBe("disconnected");
   expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "mqtt_connect")).toHaveLength(2);
 });
+
+
+it("二进制发布直传字节并记录原始内容，接收时保留 BOM", async () => {
+  const mqtt = mount(); await mqtt.connect();
+  await mqtt.publish("binary/test", Uint8Array.from([255, 0, 128]), 2, false);
+  expect(invoke).toHaveBeenLastCalledWith("mqtt_publish", expect.objectContaining({ payload: [255, 0, 128], qos: 2 }));
+  expect(mqtt.messages.value[0]).toMatchObject({ rawPayload: [255, 0, 128], bytes: 3, binary: true });
+  connection().events.onmessage({ kind: "message", topic: "bom", payload: [239, 187, 191, 65], qos: 0, retain: false });
+  expect(mqtt.messages.value[1]).toMatchObject({ rawPayload: [239, 187, 191, 65], bytes: 4 });
+});
+
+
+it("发送确认后记录发送时的格式与输入原文", async () => {
+  const mqtt = mount(); await mqtt.connect();
+  const ack = deferred<unknown>(); vi.mocked(invoke).mockReturnValueOnce(ack.promise);
+  const publishing = mqtt.publish("test/demo", Uint8Array.from([255, 0]), 1, false, { format: "hex", payload: "FF 00" });
+  expect(mqtt.messages.value).toHaveLength(0);
+  ack.resolve(undefined); await publishing;
+  expect(mqtt.messages.value[0]).toMatchObject({ rawPayload: [255, 0], sent: { format: "hex", payload: "FF 00" } });
+});

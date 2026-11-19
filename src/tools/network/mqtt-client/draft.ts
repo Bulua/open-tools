@@ -1,3 +1,4 @@
+import { isPayloadFormat } from "./payload";
 import { DEFAULT_CONNECTION_OPTIONS, MAX_PAYLOAD, createConnectionConfig, validTopic, type ConnectionConfig, type PublishDraft, type QoS } from "./mqtt";
 
 export interface MqttDraft extends PublishDraft {
@@ -30,8 +31,8 @@ export function cleanDraft(value: unknown): MqttDraft | null {
     publishTopic: typeof draft.publishTopic === "string" ? draft.publishTopic : "test/demo",
     publishQos: isQos(draft.publishQos) ? draft.publishQos : 0,
     retain: draft.retain === true,
-    payload: typeof draft.payload === "string" && new TextEncoder().encode(draft.payload).length <= MAX_PAYLOAD ? draft.payload : "",
-    mode: draft.mode === "json" ? "json" : "text",
+    payload: typeof draft.payload === "string" && new TextEncoder().encode(draft.payload).length <= MAX_PAYLOAD * (draft.mode === "hex" || draft.mode === "base64" ? 4 : 1) ? draft.payload : "",
+    mode: isPayloadFormat(draft.mode) ? draft.mode : "text",
     subscriptionQos: isQos(draft.subscriptionQos) ? draft.subscriptionQos : 0,
   };
 }

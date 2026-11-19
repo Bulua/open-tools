@@ -27,7 +27,7 @@ describe("MQTT 输入与消息记录", () => {
     expect(displayPayload("plain text", true)).toBe("plain text");
   });
   it("长期收消息时同时限制条数和字节，不修改已有数组", () => {
-    const message = (id: number, bytes = 1): Message => ({ id, bytes, time: 0, direction: "received", topic: "test", payload: "x", qos: 0, retain: false, binary: false });
+    const message = (id: number, bytes = 1): Message => ({ id, bytes, time: 0, direction: "received", topic: "test", payload: "x", rawPayload: [120], qos: 0, retain: false, binary: false });
     let messages: Message[] = [];
     for (let i = 0; i < 205; i++) messages = appendMessage(messages, message(i));
     expect(messages).toHaveLength(200);
