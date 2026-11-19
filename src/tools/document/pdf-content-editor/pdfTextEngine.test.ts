@@ -129,7 +129,8 @@ it("同一视觉行中的同字体片段合并，大间隔的分栏和不同样�
 
 it("在中英混排的大写字母后追加文字时，保留原文起点、字距和水平缩放", async () => {
   const pdf = await PDFDocument.create(); pdf.registerFontkit(fontkit);
-  const font = await pdf.embedFont(fontBytes, { subset: false, features: { kern: false, liga: false, clig: false, calt: false } });
+  // 测试只用到少量字形，按子集嵌入可避免保存和解析完整的 CJK 字体。
+  const font = await pdf.embedFont(fontBytes, { subset: true, features: { kern: false, liga: false, clig: false, calt: false } });
   const page = pdf.addPage([500, 400]), original = "原文 AVATAR";
   page.pushOperators(pushGraphicsState(), beginText(), setCharacterSpacing(0.8), setCharacterSqueeze(85), endText());
   page.drawText(original, { font, x: 32, y: 300, size: 16 });
@@ -147,8 +148,9 @@ it("在中英混排的大写字母后追加文字时，保留原文起点、字�
     finally { structured.destroy(); page.destroy(); document.destroy(); }
   };
   const expected = positions(before), actual = positions(output);
+  expect(expected.map(({ char }) => char).join("")).toBe(original);
+  expect(actual.map(({ char }) => char).join("")).toBe(original + " 添加");
   for (const [index, glyph] of expected.entries()) {
-    expect(actual[index].char).toBe(glyph.char);
     expect(actual[index].x).toBeCloseTo(glyph.x, 2);
   }
 });
