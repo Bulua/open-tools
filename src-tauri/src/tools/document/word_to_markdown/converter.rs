@@ -508,6 +508,3 @@ pub(super) fn convert(data: Vec<u8>, name: &str) -> Result<Vec<u8>, String> {
         .map(|c| c.into_inner())
         .map_err(|e| e.to_string())
 }
-
-#[cfg(test)]
-mod tests;

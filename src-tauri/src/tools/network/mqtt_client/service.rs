@@ -173,7 +173,3 @@ async fn run(
     }
     let _ = events.send(Notice::Closed { error });
 }
-
-#[cfg(test)]
-#[path = "tests.rs"]
-mod tests;

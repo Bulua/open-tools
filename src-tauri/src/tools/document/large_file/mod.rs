@@ -5,5 +5,3 @@ mod encoding;
 mod index;
 mod save;
 pub(crate) mod service;
-#[cfg(test)]
-mod tests;

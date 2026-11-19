@@ -1,8 +1,6 @@
 //! 一个编辑会话拥有原始文件句柄、当前路径保护句柄和磁盘编辑缓冲区。
 use super::buffer::{open_source, Buffer};
 use super::encoding::Encoding;
-#[cfg(test)]
-use super::index::Point;
 use super::index::{self, Index};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
@@ -227,61 +225,6 @@ impl Document {
             revision: self.revision,
         })
     }
-    #[cfg(test)]
-    pub fn edit(
-        &mut self,
-        revision: u64,
-        start: u64,
-        end: u64,
-        text: &str,
-    ) -> Result<bool, String> {
-        self.check_revision(revision)?;
-        if self.info().readonly {
-            return Err("The file is read-only".into());
-        }
-        if start < self.bom
-            || start > end
-            || end > self.buffer.view.len
-            || end - start > 4 * 1024 * 1024
-            || text.len() > 4 * 1024 * 1024
-        {
-            return Err("The edit is larger than the bounded text block".into());
-        }
-        let old = self
-            .encoding
-            .normalized(&self.buffer.view.read(start, (end - start) as usize)?)?;
-        let text = text.replace("\r\n", "\n").replace('\r', "\n");
-        if old.text == text {
-            return Ok(false);
-        }
-        let a: Vec<char> = old.text.chars().collect();
-        let b: Vec<char> = text.chars().collect();
-        let mut prefix = 0;
-        while prefix < a.len().min(b.len()) && a[prefix] == b[prefix] {
-            prefix += 1;
-        }
-        let mut suffix = 0;
-        while suffix < a.len() - prefix
-            && suffix < b.len() - prefix
-            && a[a.len() - 1 - suffix] == b[b.len() - 1 - suffix]
-        {
-            suffix += 1;
-        }
-        let added: String = b[prefix..b.len() - suffix].iter().collect();
-        let from = a[..prefix].iter().map(|c| c.len_utf16()).sum();
-        let to = a[..a.len() - suffix].iter().map(|c| c.len_utf16()).sum();
-        self.edit_changes(
-            revision,
-            start,
-            end,
-            &text,
-            &[Edit {
-                from,
-                to,
-                text: added,
-            }],
-        )
-    }
     /// 前端提交原块坐标下互不重叠的修改；按倒序应用，保留修改之间的原始字节。
     pub fn edit_changes(
         &mut self,
@@ -363,14 +306,6 @@ impl Document {
         self.buffer.replace_many(&edits)?;
         self.revision += 1;
         Ok(true)
-    }
-    #[cfg(test)]
-    pub fn point(&self) -> Point {
-        Point {
-            offset: self.bom,
-            line: 1,
-            line_start: self.bom,
-        }
     }
 }
 

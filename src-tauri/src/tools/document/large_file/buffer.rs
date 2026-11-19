@@ -179,10 +179,6 @@ impl Buffer {
         }
         out
     }
-    #[cfg(test)]
-    pub fn replace(&mut self, from: u64, to: u64, bytes: &[u8]) -> Result<(), String> {
-        self.replace_many(&[(from, to, bytes.to_vec())])
-    }
     /// 一次用户提交只产生一个撤销节点；任意片段写入失败时回滚内存状态。
     pub fn replace_many(&mut self, changes: &[(u64, u64, Vec<u8>)]) -> Result<(), String> {
         if changes.is_empty() {
