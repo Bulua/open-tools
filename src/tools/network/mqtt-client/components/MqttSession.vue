@@ -3,7 +3,7 @@ import { computed, nextTick, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { ChevronDown, Pencil, Plug, Plus, RefreshCw, Unplug, X } from "lucide-vue-next";
 import AppSelect from "@/components/common/AppSelect.vue";
-import { createClientId, matchesTopic, MQTT_VERSIONS, validAdvancedConfig, validConfig, validTopic, type ConnectionConfig, type PublishDraft, type QoS } from "../mqtt";
+import { connectionAddress, createClientId, matchesTopic, MQTT_VERSIONS, validAdvancedConfig, validConfig, validTopic, type ConnectionConfig, type PublishDraft, type QoS } from "../mqtt";
 import { useMqtt } from "../useMqtt";
 import MqttConnectionForm from "./MqttConnectionForm.vue";
 import MqttSplit from "./MqttSplit.vue";
@@ -90,7 +90,7 @@ const removeTopic = (topic: string) => {
       <header v-if="configuring" class="creation-heading"><div><h1>{{ t(editing ? "network.mqtt.editConnection" : "network.mqtt.newSession") }}</h1></div><div class="creation-actions"><button type="button" class="btn" @click="cancelEditing">{{ t("network.mqtt.cancelAction") }}</button><button type="button" class="btn primary" :disabled="!formValid" :title="!formValid ? formHint : undefined" @click="saveConnection"><Plug v-if="!editing" :size="14" />{{ t(editing ? "network.mqtt.saveConnection" : "network.mqtt.connect") }}</button></div></header>
       <header v-if="!configuring" class="workspace-toolbar">
         <button class="connection-toggle" :aria-expanded="connectionExpanded" :title="t(connectionExpanded ? 'network.mqtt.hideConnection' : 'network.mqtt.showConnection')" @click="connectionExpanded = !connectionExpanded"><ChevronDown :size="15" :class="{ collapsed: !connectionExpanded }" /><span>{{ props.session.name }}</span></button>
-        <code class="connection-address">{{ config.host }}:{{ config.port }}</code>
+        <code class="connection-address">{{ connectionAddress(config) }}</code>
         <button type="button" class="icon-btn connection-edit" :disabled="status !== 'disconnected'" :title="t('network.mqtt.editConnection')" :aria-label="t('network.mqtt.editConnection')" @click="startEditing"><Pencil :size="14" /></button>
         <span class="status" :class="{ online: connected }" role="status"><i />{{ t(`network.mqtt.${status}`) }}</span>
         <button v-if="status === 'disconnected'" class="btn primary" :disabled="!supported || !configValid" :title="!configValid ? configHint : !supported ? t('network.mqtt.nativeOnly') : undefined" @click="connect"><Plug :size="14" />{{ t("network.mqtt.connect") }}</button>
@@ -104,7 +104,7 @@ const removeTopic = (topic: string) => {
         <label class="connection-name"><span>{{ t("network.mqtt.connectionName") }}</span><input v-model="connectionName" class="field" maxlength="100" required /></label>
         <label><span>{{ t("network.mqtt.clientId") }}</span><div class="compact-input-action"><input v-model="config.clientId" class="field mono" spellcheck="false" /><button type="button" class="icon-btn" :aria-label="t('network.mqtt.regenerateId')" :title="t('network.mqtt.regenerateId')" @click="regenerateId"><RefreshCw :size="14" /></button></div></label>
         <label><span>{{ t("network.mqtt.username") }}</span><input v-model="config.username" class="field" :placeholder="t('network.mqtt.optional')" autocomplete="off" /></label>
-        <label><span>{{ t("network.mqtt.password") }}</span><input v-model="config.password" class="field" type="password" :placeholder="t('network.mqtt.optional')" autocomplete="new-password" /></label>
+        <label class="connection-password"><span>{{ t("network.mqtt.password") }}</span><input v-model="config.password" class="field" type="password" :placeholder="t('network.mqtt.optional')" autocomplete="new-password" /></label>
         <label><span>{{ t("network.mqtt.keepAlive") }}</span><input v-model.number="config.keepAlive" class="field mono" type="number" min="5" max="65535" /></label>
         <div class="compact-field"><span>{{ t("network.mqtt.mqttVersion") }}</span><AppSelect v-model="config.protocolVersion" :options="versionOptions" :disabled="status !== 'disconnected'" :aria-label="t('network.mqtt.mqttVersion')" /></div>
         <label><span>{{ t("network.mqtt.cleanSession") }}</span><span class="check compact-check"><input v-model="config.cleanSession" type="checkbox" />{{ t("network.mqtt.enabled") }}</span></label>
@@ -146,15 +146,15 @@ const removeTopic = (topic: string) => {
 .mqtt { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; container-type: inline-size; }
 .connection { flex: none; padding: 0 18px; border-bottom: 1px solid var(--border); background: var(--surface); }
 .mqtt:not(.creating) > .connection > .connection-details > .history-fold-inner { max-height: 45vh; overflow-y: auto; }
-.compact-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 1160px; gap: 12px 18px; border: 0; margin: 14px 0 12px; padding: 0; min-width: 0; }
+.compact-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 1000px; gap: 12px 18px; border: 0; margin: 14px 0 12px; padding: 0; min-width: 0; }
 .compact-fields > label, .compact-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; color: var(--text-2); font-size: 12px; }
-.compact-fields > .connection-name { grid-column: span 2; }
+.compact-fields > .connection-password { grid-column: 1; }
 .compact-fields .field { min-width: 0; height: 32px; }
 .compact-input-action { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .compact-input-action > .field { flex: 1; }
 .compact-input-action > .icon-btn { flex-shrink: 0; }
 .compact-check { min-height: 32px; }
-@container (max-width: 600px) { .compact-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } .compact-fields > .connection-name { grid-column: auto; } }
+@container (max-width: 600px) { .compact-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } .compact-fields > .connection-password { grid-column: auto; } }
 .workspace-toolbar { min-height: calc(var(--mqtt-header-height) - 1px); display: flex; align-items: center; gap: 12px; min-width: 0; }
 .connection-toggle { display: inline-flex; align-items: center; gap: 8px; min-width: 0; padding: 0; border: 0; background: none; color: var(--text); font-size: 14px; font-weight: 600; }
 .connection-toggle span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

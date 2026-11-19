@@ -8,8 +8,20 @@ export const MQTT_VERSIONS = [
   { value: "3.1.1", labelKey: "network.mqtt.version311" },
   { value: "5.0", labelKey: "network.mqtt.version50" },
 ] as const;
+export const CONNECTION_TRANSPORTS = ["mqtt", "mqtts", "ws", "wss"] as const;
+export type ConnectionTransport = (typeof CONNECTION_TRANSPORTS)[number];
+export const DEFAULT_PORTS: Record<ConnectionTransport, number> = { mqtt: 1883, mqtts: 8883, ws: 80, wss: 443 };
+export const isConnectionTransport = (value: unknown): value is ConnectionTransport => CONNECTION_TRANSPORTS.some(item => item === value);
+export const isWebSocket = (transport: ConnectionTransport) => transport === "ws" || transport === "wss";
+export const usesTls = (transport: ConnectionTransport) => transport === "mqtts" || transport === "wss";
+export const validWebSocketPath = (path: string) => path.startsWith("/") && !/[\s\u0000-\u001f\u007f#\\]/.test(path);
+export function connectionAddress(config: Pick<ConnectionConfig, "transport" | "host" | "port" | "path">): string {
+  const host = config.host.includes(":") && !config.host.startsWith("[") ? `[${config.host}]` : config.host;
+  return `${config.transport}://${host}:${config.port}${isWebSocket(config.transport) ? config.path : ""}`;
+}
 export type ProtocolVersion = (typeof MQTT_VERSIONS)[number]["value"];
 export const DEFAULT_CONNECTION_OPTIONS = {
+  transport: "mqtt" as ConnectionTransport, path: "/mqtt",
   protocolVersion: "3.1.1" as ProtocolVersion,
   connectTimeout: 10, autoReconnect: false, reconnectPeriod: 4000,
   willEnabled: false, willTopic: "", willPayload: "", willQos: 0 as QoS, willRetain: false,
@@ -17,6 +29,7 @@ export const DEFAULT_CONNECTION_OPTIONS = {
 export interface ConnectionConfig {
   host: string; port: number; clientId: string; username: string; password: string;
   keepAlive: number; cleanSession: boolean; tls: boolean;
+  transport: ConnectionTransport; path: string;
   protocolVersion: ProtocolVersion;
   connectTimeout: number; autoReconnect: boolean; reconnectPeriod: number;
   willEnabled: boolean; willTopic: string; willPayload: string; willQos: QoS; willRetain: boolean;
@@ -60,7 +73,8 @@ export function matchesTopic(filter: string, topic: string): boolean {
 }
 
 export function validConfig(config: ConnectionConfig): boolean {
-  return !!config.host.trim() && !/[\s/?#\0]/.test(config.host.trim()) &&
+  return !!config.host.trim() && !/[\s/?#@\\\0]/.test(config.host.trim()) &&
+    isConnectionTransport(config.transport) && (!isWebSocket(config.transport) || validWebSocketPath(config.path)) &&
     Number.isInteger(config.port) && config.port > 0 && config.port <= 65535 &&
     Number.isInteger(config.keepAlive) && config.keepAlive >= 5 && config.keepAlive <= 65535 &&
     !!config.clientId && [config.clientId, config.username, config.password].every(s => !s.includes("\0") && new TextEncoder().encode(s).length <= 65535) &&

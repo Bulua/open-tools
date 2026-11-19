@@ -3,7 +3,7 @@ import { computed, ref, useId } from "vue";
 import { MessageSquare, Plug, RefreshCw, SlidersHorizontal } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
 import AppSelect from "@/components/common/AppSelect.vue";
-import { createClientId, MQTT_VERSIONS, type ConnectionConfig } from "../mqtt";
+import { CONNECTION_TRANSPORTS, DEFAULT_PORTS, createClientId, isWebSocket, usesTls, validWebSocketPath, MQTT_VERSIONS, type ConnectionConfig, type ConnectionTransport } from "../mqtt";
 
 const props = defineProps<{ config: ConnectionConfig; disabled: boolean }>();
 const name = defineModel<string>("name", { required: true });
@@ -21,7 +21,15 @@ const tabKey = (event: KeyboardEvent) => {
 };
 const versionOptions = computed(() => MQTT_VERSIONS.map(({ value, labelKey }) => ({ value, label: t(labelKey) })));
 const qosOptions = computed(() => [0, 1, 2].map(value => ({ value, label: t("network.mqtt.qosValue", { n: value }) })));
-const changeTls = () => { if ([1883, 8883].includes(props.config.port)) props.config.port = props.config.tls ? 8883 : 1883; };
+const transportOptions = CONNECTION_TRANSPORTS.map(value => ({ value, label: `${value}://` }));
+const transport = computed({
+  get: () => props.config.transport,
+  set: (value: ConnectionTransport) => {
+    if (props.config.port === DEFAULT_PORTS[props.config.transport]) props.config.port = DEFAULT_PORTS[value];
+    props.config.transport = value;
+    props.config.tls = usesTls(value);
+  },
+});
 const regenerateId = () => { props.config.clientId = createClientId(); };
 </script>
 
@@ -35,12 +43,12 @@ const regenerateId = () => { props.config.clientId = createClientId(); };
     <section v-show="panel === 'general'" :id="`${formId}-panel-general`" class="config-section general-section" :class="{ current: panel === 'general' }" role="tabpanel" :aria-labelledby="`${formId}-tab-general`">
       <fieldset class="config-body" :disabled="disabled">
         <label class="config-row connection-name"><span>{{ t("network.mqtt.connectionName") }}</span><input v-model="name" class="field" maxlength="100" required autofocus /></label>
-        <label class="config-row host"><span>{{ t("network.mqtt.host") }}</span><input v-model="config.host" class="field mono" :placeholder="t('network.mqtt.hostHint')" spellcheck="false" /></label>
+        <label class="config-row host"><span>{{ t("network.mqtt.host") }}</span><div class="address-input"><AppSelect v-model="transport" class="transport-select" :options="transportOptions" :disabled="disabled" :aria-label="t('network.mqtt.transport')" /><input v-model="config.host" class="field mono" :placeholder="t('network.mqtt.hostHint')" spellcheck="false" /></div></label>
         <label class="config-row port"><span>{{ t("network.mqtt.port") }}</span><input v-model.number="config.port" class="field number-field mono" type="number" min="1" max="65535" /></label>
+        <label v-if="isWebSocket(transport)" class="config-row websocket-path"><span>{{ t("network.mqtt.path") }}</span><input v-model="config.path" class="field mono" :placeholder="t('network.mqtt.pathHint')" :aria-invalid="!validWebSocketPath(config.path)" spellcheck="false" /></label>
         <label class="config-row client-id"><span>{{ t("network.mqtt.clientId") }}</span><div class="input-action"><input v-model="config.clientId" class="field mono" spellcheck="false" /><button type="button" class="icon-btn" :aria-label="t('network.mqtt.regenerateId')" :title="t('network.mqtt.regenerateId')" @click="regenerateId"><RefreshCw :size="14" /></button></div></label>
         <label class="config-row credentials"><span>{{ t("network.mqtt.username") }}</span><input v-model="config.username" class="field" :placeholder="t('network.mqtt.optional')" autocomplete="off" /></label>
         <label class="config-row password"><span>{{ t("network.mqtt.password") }}</span><input v-model="config.password" class="field" type="password" :placeholder="t('network.mqtt.optional')" autocomplete="new-password" /></label>
-        <div class="config-row"><span>{{ t("network.mqtt.tls") }}</span><label class="check"><input v-model="config.tls" type="checkbox" @change="changeTls" />{{ t("network.mqtt.enabled") }}</label></div>
       </fieldset>
     </section>
     <section v-show="panel === 'advanced'" :id="`${formId}-panel-advanced`" class="config-section" :class="{ current: panel === 'advanced' }" role="tabpanel" :aria-labelledby="`${formId}-tab-advanced`">
@@ -83,6 +91,9 @@ const regenerateId = () => { props.config.clientId = createClientId(); };
 .config-row > span { text-align: end; line-height: 1.5; }
 .field { width: 100%; min-width: 0; height: 34px; }
 .number-field, .short-select { width: 140px; max-width: 100%; }
+.address-input { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.address-input :deep(.transport-select) { width: 100px; flex: 0 0 100px; }
+.address-input > .field { flex: 1; }
 .input-action, .input-unit { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .input-action > input { flex: 1; }
 .input-action > button { flex-shrink: 0; }

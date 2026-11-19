@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_CONNECTION_OPTIONS, appendMessage, decodePayload, displayPayload, matchesTopic, MAX_LOG_BYTES, validConfig, validTopic, type ConnectionConfig, type Message } from "./mqtt";
+import { DEFAULT_CONNECTION_OPTIONS, connectionAddress, createConnectionConfig, appendMessage, decodePayload, displayPayload, matchesTopic, MAX_LOG_BYTES, validConfig, validTopic, type ConnectionConfig, type Message } from "./mqtt";
 
 describe("MQTT 输入与消息记录", () => {
   it("按订阅主题筛选消息，支持多层通配符和系统主题规则", () => {
@@ -42,4 +42,18 @@ it("高级配置校验超时、重连范围和遗嘱主题、UTF-8 长度", () =
   const config: ConnectionConfig = { ...DEFAULT_CONNECTION_OPTIONS, host: "localhost", port: 1883, clientId: "test", username: "", password: "", keepAlive: 60, cleanSession: true, tls: false };
   for (const patch of [{ connectTimeout: 0 }, { connectTimeout: 301 }, { autoReconnect: true, reconnectPeriod: 0 }, { autoReconnect: true, reconnectPeriod: 999 }, { willEnabled: true, willTopic: "bad/#" }, { willEnabled: true, willTopic: "status", willPayload: "温".repeat(21846) }]) expect(validConfig({ ...config, ...patch })).toBe(false);
   expect(validConfig({ ...config, autoReconnect: true, willEnabled: true, willTopic: "device/status", willPayload: "offline", willQos: 2 })).toBe(true);
+});
+
+
+it("四种传输协议校验 Path 并生成含协议的连接地址", () => {
+  for (const transport of ["mqtt", "mqtts", "ws", "wss"] as const) {
+    const config = { ...createConnectionConfig(), transport, host: "broker.example.com", port: 8083, path: "/mqtt?token=test" };
+    expect(validConfig(config)).toBe(true);
+    expect(connectionAddress(config)).toBe(`${transport}://broker.example.com:8083${transport === "ws" || transport === "wss" ? "/mqtt?token=test" : ""}`);
+  }
+  for (const path of ["", "mqtt", "/mqtt#fragment", "/bad path", "/mqtt\r\nHeader: x", "/bad\\path"]) {
+    expect(validConfig({ ...createConnectionConfig(), transport: "ws", path })).toBe(false);
+    expect(validConfig({ ...createConnectionConfig(), transport: "wss", path })).toBe(false);
+  }
+  expect(connectionAddress({ ...createConnectionConfig(), transport: "ws", host: "::1", port: 8083 })).toBe("ws://[::1]:8083/mqtt");
 });

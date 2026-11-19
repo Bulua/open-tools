@@ -1,5 +1,5 @@
 import { isPayloadFormat } from "./payload";
-import { DEFAULT_CONNECTION_OPTIONS, MAX_PAYLOAD, createConnectionConfig, validTopic, type ConnectionConfig, type PublishDraft, type QoS } from "./mqtt";
+import { DEFAULT_CONNECTION_OPTIONS, MAX_PAYLOAD, createConnectionConfig, isConnectionTransport, usesTls, validTopic, type ConnectionConfig, type PublishDraft, type QoS } from "./mqtt";
 
 export interface MqttDraft extends PublishDraft {
   config: Omit<ConnectionConfig, "password">;
@@ -17,8 +17,9 @@ export function cleanDraft(value: unknown): MqttDraft | null {
     typeof c.port !== "number" || !Number.isFinite(c.port) || typeof c.keepAlive !== "number" || !Number.isFinite(c.keepAlive) ||
     typeof c.tls !== "boolean" || typeof c.cleanSession !== "boolean") return null;
   const topics = Array.isArray(draft.topics) ? draft.topics.filter(item => item && typeof item.topic === "string" && validTopic(item.topic, true) && isQos(item.qos)) : [];
+  const transport = isConnectionTransport(c.transport) ? c.transport : c.tls ? "mqtts" : "mqtt";
   return {
-    config: { host: c.host, port: c.port, clientId: c.clientId, username: c.username, keepAlive: c.keepAlive, tls: c.tls, cleanSession: c.cleanSession,
+    config: { host: c.host, port: c.port, clientId: c.clientId, username: c.username, keepAlive: c.keepAlive, tls: usesTls(transport), transport, path: typeof c.path === "string" ? c.path : "/mqtt", cleanSession: c.cleanSession,
       protocolVersion: c.protocolVersion === "5.0" ? c.protocolVersion : DEFAULT_CONNECTION_OPTIONS.protocolVersion,
       connectTimeout: typeof c.connectTimeout === "number" && Number.isFinite(c.connectTimeout) ? c.connectTimeout : DEFAULT_CONNECTION_OPTIONS.connectTimeout,
       autoReconnect: c.autoReconnect === true,

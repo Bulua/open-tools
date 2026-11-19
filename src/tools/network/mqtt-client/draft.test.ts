@@ -34,3 +34,17 @@ it("保存并恢复四种发送格式，兼容旧文本草稿，较长的编码�
   expect(cleanDraft({ ...createDraft(), mode: undefined })?.mode).toBe("text");
   expect(cleanDraft({ ...createDraft(), mode: "unknown" })?.mode).toBe("text");
 });
+
+
+it("旧 TLS 配置迁移为对应协议，新 WebSocket 协议和 Path 独立持久化", () => {
+  for (const tls of [false, true]) {
+    const draft = createDraft();
+    const config = { ...draft.config, tls, transport: undefined, path: undefined };
+    expect(cleanDraft({ ...draft, config })?.config).toMatchObject({ transport: tls ? "mqtts" : "mqtt", tls, path: "/mqtt" });
+  }
+  for (const transport of ["mqtt", "mqtts", "ws", "wss"] as const) {
+    const draft = createDraft();
+    const restored = cleanDraft({ ...draft, config: { ...draft.config, transport, tls: false, path: "/custom/mqtt?token=test" } });
+    expect(restored?.config).toMatchObject({ transport, tls: transport === "mqtts" || transport === "wss", path: "/custom/mqtt?token=test" });
+  }
+});

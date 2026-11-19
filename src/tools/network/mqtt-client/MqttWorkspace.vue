@@ -6,6 +6,7 @@ import { usePopover } from "@/composables/usePopover";
 import { usePanelResize } from "@/composables/usePanelResize";
 import MqttSession from "./components/MqttSession.vue";
 import { canMove, descendants, moveNode, removeNode, useMqttTree, visibleRows, type SessionNode, type TreeNode } from "./workspace";
+import { connectionAddress } from "./mqtt";
 import { createDraft, type MqttDraft } from "./draft";
 
 const { t } = useI18n();
@@ -179,7 +180,7 @@ const keydown = async (event: KeyboardEvent, node: TreeNode) => {
           <span v-else class="tree-spacer" />
           <Folder v-if="node.kind === 'folder' && node.collapsed" :size="15" /><FolderOpen v-else-if="node.kind === 'folder'" :size="15" /><Radio v-else :size="14" />
           <input v-if="editingId === node.id" v-model="editName" class="field rename-input" :aria-label="t('network.mqtt.nodeName')" maxlength="100" @click.stop @keydown.stop @keydown.enter.prevent="finishRename" @keydown.escape.prevent="editingId = ''" @blur="finishRename" />
-          <span v-else class="node-label"><span class="node-name" :title="node.name">{{ node.name }}</span><small v-if="node.kind === 'session'">{{ node.draft.config.host }}:{{ node.draft.config.port }}</small></span>
+          <span v-else class="node-label"><span class="node-name" :title="node.name">{{ node.name }}</span><small v-if="node.kind === 'session'">{{ connectionAddress(node.draft.config) }}</small></span>
           <span v-if="statuses[node.id] === 'connected'" class="connection-dot" :title="t('network.mqtt.connected')" />
         </div>
         </TransitionGroup>

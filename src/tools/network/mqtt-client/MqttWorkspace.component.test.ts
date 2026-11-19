@@ -787,3 +787,47 @@ it("主题支持筛选和键盘选择，切换连接关闭菜单并隔离候选"
   editor(root).querySelector<HTMLButtonElement>(".topic-toggle")!.click(); await nextTick();
   expect([...document.querySelectorAll(".topic-menu [role=option]")].map(option => option.textContent)).toEqual(["other/status"]);
 });
+
+
+it("连接协议下拉支持四种协议，自动调整默认端口并只在 WebSocket 时显示 Path", async () => {
+  const root = mount(); await action(root, "添加连接");
+  const transport = editor(root).querySelector<HTMLSelectElement>(".transport-select")!;
+  expect([...transport.options].map(option => option.textContent)).toEqual(["mqtt://", "mqtts://", "ws://", "wss://"]);
+  expect(editor(root).querySelector(".websocket-path")).toBeNull();
+  const choose = async (value: string) => { transport.value = value; transport.dispatchEvent(new Event("change", { bubbles: true })); await nextTick(); };
+  await choose("mqtts"); expect(field(root, "端口").value).toBe("8883");
+  await choose("ws"); expect(field(root, "端口").value).toBe("80");
+  expect(field(root, "Path").value).toBe("/mqtt");
+  await choose("wss"); expect(field(root, "端口").value).toBe("443");
+  await type(field(root, "端口"), "8084");
+  await type(field(root, "Path"), "/custom/mqtt?token=test");
+  await choose("ws"); expect(field(root, "端口").value).toBe("8084");
+  await choose("mqtt"); expect(editor(root).querySelector(".websocket-path")).toBeNull();
+  await choose("wss"); expect(field(root, "Path").value).toBe("/custom/mqtt?token=test");
+  await type(field(root, "连接名称"), "WebSocket 测试");
+  await type(field(root, "Path"), "bad-path");
+  expect(button(editor(root), "连接").disabled).toBe(true);
+  await type(field(root, "Path"), "/custom/mqtt?token=test");
+  button(editor(root), "连接").click(); await nextTick();
+  const saved = useMqttTree().value.nodes.find(node => node.name === "WebSocket 测试") as SessionNode;
+  expect(saved.draft.config).toMatchObject({ transport: "wss", tls: true, port: 8084, path: "/custom/mqtt?token=test" });
+  expect(editor(root).querySelector(".connection-address")!.textContent).toContain("wss://127.0.0.1:8084/custom/mqtt?token=test");
+  expect(localStorage.getItem("mqtt.workspace.v2")).toContain("/custom/mqtt?token=test");
+});
+
+it("WebSocket 配置连同 MQTT 版本传给原生接口，重新编辑时保留协议与 Path", async () => {
+  vi.mocked(isTauri).mockReturnValue(true);
+  const root = mount();
+  editor(root).querySelector<HTMLButtonElement>('[aria-label="编辑连接"]')!.click(); await nextTick();
+  const transport = editor(root).querySelector<HTMLSelectElement>(".transport-select")!;
+  transport.value = "ws"; transport.dispatchEvent(new Event("change", { bubbles: true })); await nextTick();
+  await type(field(root, "Path"), "/broker/ws");
+  button(editor(root), "保存").click(); await nextTick();
+  button(editor(root), "连接").click();
+  await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("mqtt_connect", expect.objectContaining({ config: expect.objectContaining({ transport: "ws", tls: false, port: 80, path: "/broker/ws", protocolVersion: "3.1.1" }) })));
+  await vi.waitFor(() => expect(editor(root).querySelector('[role="status"]')!.textContent).toContain("已连接"));
+  button(editor(root), "断开").click(); await nextTick(); await nextTick();
+  editor(root).querySelector<HTMLButtonElement>('[aria-label="编辑连接"]')!.click(); await nextTick();
+  expect(editor(root).querySelector<HTMLSelectElement>(".transport-select")!.value).toBe("ws");
+  expect(field(root, "Path").value).toBe("/broker/ws");
+});
