@@ -30,6 +30,8 @@ fn config(port: u16) -> Config {
         keep_alive: 5,
         clean_session: true,
         tls: false,
+        transport: None,
+        path: "/mqtt".into(),
         protocol_version: ProtocolVersion::V311,
         connect_timeout: 10,
         will_enabled: false,
@@ -402,3 +404,6 @@ async fn configured_connect_timeout_stops_unresponsive_broker() {
     assert!(result.is_err());
     broker.abort();
 }
+
+#[path = "websocket_tests.rs"]
+mod websocket_tests;

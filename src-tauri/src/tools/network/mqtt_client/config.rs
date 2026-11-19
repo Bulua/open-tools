@@ -1,6 +1,6 @@
 //! MQTT 配置校验、TLS 信任链与遗嘱参数构建。
 use super::protocol::Options;
-use rumqttc::{v5, LastWill, MqttOptions, QoS, Transport};
+use rumqttc::{v5, LastWill, MqttOptions, QoS, TlsConfiguration, Transport};
 use serde::Deserialize;
 use std::time::Duration;
 
@@ -16,6 +16,19 @@ pub(crate) enum ProtocolVersion {
     V5,
 }
 
+#[derive(Clone, Copy, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum ConnectionTransport {
+    Mqtt,
+    Mqtts,
+    Ws,
+    Wss,
+}
+
+fn default_path() -> String {
+    "/mqtt".into()
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Config {
@@ -26,7 +39,12 @@ pub(crate) struct Config {
     pub password: String,
     pub keep_alive: u16,
     pub clean_session: bool,
+    #[serde(default)]
     pub tls: bool,
+    #[serde(default)]
+    pub transport: Option<ConnectionTransport>,
+    #[serde(default = "default_path")]
+    pub path: String,
     #[serde(default)]
     pub protocol_version: ProtocolVersion,
     #[serde(default = "default_connect_timeout")]
@@ -53,7 +71,7 @@ impl Config {
             || self
                 .host
                 .chars()
-                .any(|c| c.is_whitespace() || "/?#\0".contains(c))
+                .any(|c| c.is_whitespace() || "/?#@\\\0".contains(c))
         {
             return Err("Enter a hostname or IP without a scheme or path".into());
         }
@@ -80,15 +98,48 @@ impl Config {
             );
         }
         let will_qos = self.will_enabled.then(|| qos(self.will_qos)).transpose()?;
-        let transport = if self.tls {
-            tls_transport()?
+        // 旧配置仅有 tls 字段，未声明传输协议时按旧行为恢复。
+        let kind = self.transport.unwrap_or(if self.tls {
+            ConnectionTransport::Mqtts
         } else {
-            Transport::tcp()
+            ConnectionTransport::Mqtt
+        });
+        let websocket = matches!(kind, ConnectionTransport::Ws | ConnectionTransport::Wss);
+        let address = if websocket {
+            if !self.path.starts_with('/')
+                || self
+                    .path
+                    .chars()
+                    .any(|c| c.is_whitespace() || c.is_control() || "#\\".contains(c))
+            {
+                return Err("WebSocket Path must start with / and contain no whitespace, fragment or backslash".into());
+            }
+            let scheme = if matches!(kind, ConnectionTransport::Wss) {
+                "wss"
+            } else {
+                "ws"
+            };
+            let host = if self.host.contains(':') && !self.host.starts_with('[') {
+                format!("[{}]", self.host)
+            } else {
+                self.host.clone()
+            };
+            let url = tauri::Url::parse(&format!("{scheme}://{host}:{}{}", self.port, self.path))
+                .map_err(|_| "Invalid WebSocket address".to_string())?;
+            url.to_string()
+        } else {
+            self.host.clone()
+        };
+        let transport = match kind {
+            ConnectionTransport::Mqtt => Transport::tcp(),
+            ConnectionTransport::Mqtts => Transport::tls_with_config(tls_configuration()?),
+            ConnectionTransport::Ws => Transport::Ws,
+            ConnectionTransport::Wss => Transport::wss_with_config(tls_configuration()?),
         };
         let keep_alive = Duration::from_secs(self.keep_alive.into());
         Ok(match self.protocol_version {
             ProtocolVersion::V311 => {
-                let mut options = MqttOptions::new(self.client_id, self.host, self.port);
+                let mut options = MqttOptions::new(self.client_id, address, self.port);
                 options
                     .set_keep_alive(keep_alive)
                     .set_clean_session(self.clean_session)
@@ -108,7 +159,7 @@ impl Config {
                 Options::V311(Box::new(options))
             }
             ProtocolVersion::V5 => {
-                let mut options = v5::MqttOptions::new(self.client_id, self.host, self.port);
+                let mut options = v5::MqttOptions::new(self.client_id, address, self.port);
                 // 关闭「清除会话」时，请求恢复旧会话并让新会话持续保留。
                 let expiry = if self.clean_session { 0 } else { u32::MAX };
                 options
@@ -136,7 +187,7 @@ impl Config {
     }
 }
 
-fn tls_transport() -> Result<Transport, String> {
+fn tls_configuration() -> Result<TlsConfiguration, String> {
     // 显式选择已有加密后端，TLS 保持系统信任链和主机名校验。
     let _ = rustls::crypto::ring::default_provider().install_default();
     let mut roots = rustls::RootCertStore::empty();
@@ -147,7 +198,7 @@ fn tls_transport() -> Result<Transport, String> {
     let tls = rustls::ClientConfig::builder()
         .with_root_certificates(roots)
         .with_no_client_auth();
-    Ok(Transport::tls_with_config(tls.into()))
+    Ok(tls.into())
 }
 
 pub(super) fn valid_topic(value: &str, filter: bool) -> bool {
