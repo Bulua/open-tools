@@ -1,11 +1,11 @@
-//! 下载作品统一存入程序数据目录，只开放三个平台的下载文件夹。
+//! 下载作品统一存入程序数据目录，只开放已注册平台的下载文件夹。
 
 use tauri::{AppHandle, Manager};
 use tauri_plugin_fs::FsExt;
 
 #[tauri::command]
 pub fn video_download_dir(app: AppHandle, platform: String) -> Result<String, String> {
-    if !matches!(platform.as_str(), "douyin" | "bilibili" | "xhs") {
+    if !matches!(platform.as_str(), "douyin" | "bilibili" | "xhs" | "x") {
         return Err("Invalid video platform".into());
     }
     let dir = crate::core::paths::sub_dir(&app, &format!("videos/{platform}"))?;
