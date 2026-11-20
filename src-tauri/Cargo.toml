@@ -45,12 +45,20 @@ sha2 = "0.10"
 # api-24：运行库是 ONNX Runtime 1.24（带 DirectML 的最后一个版本），只用它支持的接口
 ort = { version = "=2.0.0-rc.15", default-features = false, features = ["std", "load-dynamic", "api-24"] }
 
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+# MCP 工具仅在桌面版使用，子进程包装器负责清理命令启动的进程树。
+rmcp = { version = "3.11", default-features = false, features = ["client", "reqwest-tls-no-provider", "transport-streamable-http-client-reqwest", "which-command"] }
+reqwest = { version = "0.13", default-features = false }
+process-wrap = { version = "10", features = ["tokio1"] }
+futures-util = "0.3"
+sse-stream = "0.2.6"
+
 # 录屏前临时关闭屏幕 HDR（Windows 显示设置接口）；指定 AI 运行库所在的文件夹（LibraryLoader）
 [target.'cfg(windows)'.dependencies]
 tauri-plugin-global-shortcut = "2"
 tauri-winrt-notification = "0.8"
 png = "0.17"
-windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem", "Win32_Devices_Display", "Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Graphics_Dwm", "Win32_Security_Cryptography", "Win32_System_DataExchange", "Win32_System_LibraryLoader", "Win32_System_Memory", "Win32_System_Ole", "Win32_System_SystemInformation", "Win32_UI_HiDpi", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem", "Win32_Devices_Display", "Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Graphics_Dwm", "Win32_Security_Cryptography", "Win32_System_DataExchange", "Win32_System_LibraryLoader", "Win32_System_Memory", "Win32_System_Ole", "Win32_System_SystemInformation", "Win32_System_Threading", "Win32_UI_HiDpi", "Win32_UI_WindowsAndMessaging"] }
 
 [dev-dependencies]
 # 本机 WebSocket 对端用于验证真实握手和 MQTT 收发。

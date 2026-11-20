@@ -2,6 +2,8 @@ mod core;
 mod tools;
 
 use crate::core::{branding, paths, tray};
+#[cfg(desktop)]
+use crate::tools::network::mcp_inspector::commands as mcp;
 use crate::tools::{
     audio::tts::commands as tts,
     document::{
@@ -78,6 +80,10 @@ pub fn run() {
             large_file::large_text_close,
             large_file::large_text_exit,
             ping::ping_once,
+            #[cfg(desktop)]
+            mcp::mcp_list_tools,
+            #[cfg(desktop)]
+            mcp::mcp_call_tool,
             mqtt::mqtt_connect,
             mqtt::mqtt_disconnect,
             mqtt::mqtt_subscribe,
