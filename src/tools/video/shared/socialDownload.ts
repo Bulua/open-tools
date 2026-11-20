@@ -1,4 +1,5 @@
 import type { VideoQuality } from "./videoQuality";
+import type { DownloadPlatform } from "./downloadStorage";
 
 /** 下载页面只依赖公共作品信息，平台解析和请求头由工具入口提供。 */
 export interface SocialMediaItem {
@@ -16,9 +17,9 @@ export interface SocialMediaItem {
 }
 
 export interface SocialDownloadAdapter {
-  platform: "douyin" | "xhs";
+  platform: Exclude<DownloadPlatform, "bilibili">;
   previewThroughHttp: boolean;
-  parse(input: string): Promise<SocialMediaItem>;
+  parse(input: string): Promise<SocialMediaItem | SocialMediaItem[]>;
   baseName(item: SocialMediaItem): string;
   imageExt(data: Uint8Array): string | undefined;
   download(urls: string[], kind: "video" | "image", onProgress?: (loaded: number, total: number) => void, signal?: AbortSignal): Promise<Uint8Array>;

@@ -19,7 +19,7 @@ import { downloadBaseName, releaseSavedMedia, revealDownloadedMedia, saveDownloa
 const props = defineProps<{ adapter: SocialDownloadAdapter }>();
 const { t, locale } = useI18n();
 const desktop = isTauri();
-const prefix = computed(() => props.adapter.platform === "douyin" ? "dy" : "xhs");
+const prefix = computed(() => props.adapter.platform === "douyin" ? "dy" : props.adapter.platform);
 const platform = computed(() => props.adapter.platform);
 type Item = SocialMediaItem;
 interface Entry {
@@ -127,15 +127,19 @@ const parse = async () => {
   const input = link.value;
   parsing.value = true;
   try {
-    const item = await props.adapter.parse(input);
+    const result = await props.adapter.parse(input);
     if (disposed) return;
-    const old = entries.value.find((e) => e.item.id === item.id);
-    const entry: Entry = { item, status: "idle", step: "", progress: 0, message: "", result: "", files: [], previews: markRaw(createMediaPreviewCache()) };
-    // 已下载的文件继续留在原卡片上，更新远程地址后仍可以离线播放。
-    if (old && old.status !== "working") {
-      old.item = item;
-    }
-    entries.value = [old ?? entry, ...entries.value.filter((e) => e.item.id !== item.id)];
+    const items = Array.isArray(result) ? result : [result];
+    const previous = new Map(entries.value.map((entry) => [entry.item.id, entry]));
+    const parsed = items.map((item): Entry => {
+      const old = previous.get(item.id);
+      if (!old) return { item, status: "idle", step: "", progress: 0, message: "", result: "", files: [], previews: markRaw(createMediaPreviewCache()) };
+      // 已下载的文件继续留在原卡片上，更新远程地址后仍可以离线播放。
+      if (old.status !== "working") old.item = item;
+      previous.delete(item.id);
+      return old;
+    });
+    entries.value = [...parsed, ...previous.values()];
     if (link.value === input) link.value = "";
   } catch (e) { if (!disposed) showError(e); }
   finally { parsing.value = false; }
@@ -253,9 +257,11 @@ onBeforeUnmount(() => {
       <section class="section">
         <h3>{{ t("video.quality") }}</h3>
         <AppSelect v-model="quality" :options="qualityOptions" />
-        <h3>{{ t("video.codec") }}</h3>
-        <AppSelect v-model="codec" :options="codecOptions" />
-        <p class="tip">{{ t("video.socialQualityTip") }}</p>
+        <template v-if="platform !== 'x'">
+          <h3>{{ t("video.codec") }}</h3>
+          <AppSelect v-model="codec" :options="codecOptions" />
+        </template>
+        <p class="tip">{{ t(platform === "x" ? "video.xQualityTip" : "video.socialQualityTip") }}</p>
       </section>
     </aside>
     <section class="card list">
@@ -268,7 +274,7 @@ onBeforeUnmount(() => {
       </div>
       <div class="results">
         <ProcessingMascot v-if="parsing" class="results-overlay" :title="t('video.parse')" :detail="t('video.openingPage')" />
-        <div v-if="!entries.length && !parsing" class="empty"><p>{{ t(`video.${prefix}EmptyHint`) }}</p><p class="sub">{{ t("video.autoMediaEmpty") }}</p></div>
+        <div v-if="!entries.length && !parsing" class="empty"><p>{{ t(`video.${prefix}EmptyHint`) }}</p><p class="sub">{{ t(platform === "x" ? "video.xEmptySub" : "video.autoMediaEmpty") }}</p></div>
         <div v-else-if="entries.length" class="grid">
           <article v-for="e in entries" :key="e.item.id" class="video" :class="e.status">
             <div class="thumb" :title="e.item.type === 'video' ? t('video.play') : t('video.browseImages')" @click="openViewer(e)">
