@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onDeactivated, reactive, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { Download, Plus, RotateCw, X } from "lucide-vue-next";
+import { Download, Plus, RotateCcw, RotateCw, X } from "lucide-vue-next";
 import ColorPicker from "@/components/common/ColorPicker.vue";
 import CheckAll from "@/components/common/CheckAll.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
@@ -10,16 +10,17 @@ import { useStoredRef } from "@/composables/useStoredRef";
 import { useFitFrame } from "@/composables/useFitFrame";
 import { saveFiles } from "@/utils/saveFile";
 import { canvasToBytes, createCanvas, formatInfo, loadImage, outputFormatOf, replaceExtension } from "../shared/utils";
-import { anchorPosition, freeWatermarkPosition, tilePositions, type Anchor, type WatermarkTile } from "../shared/effects";
+import { anchorPosition, freeWatermarkPosition, rotatedSize, tilePositions, type Anchor, type WatermarkTile } from "../shared/effects";
 
 /**
  * 图片水印：文字或图片水印，支持九宫格定位、拖动或平铺。
- * 每张图片有自己的水印配置，可批量下载。
+ * 每张图片有自己的旋转角度和水印配置，可批量下载。
  * 文字大小按图片短边的百分比计算，不同尺寸的图片效果一致。
  */
 const { t } = useI18n();
 type Point = { x: number; y: number };
 const defaults = reactive({
+  imageRotation: 0,
   kind: useStoredRef<"text" | "image">("watermark.kind", "text"),
   text: useStoredRef("watermark.text", "© Open Tools"),
   fontSize: useStoredRef("watermark.fontSize", 5),
@@ -58,6 +59,11 @@ const draft = shallowRef<Transform | null>(null);
 const previewSettings = computed(() => ({ ...settings.value, ...draft.value }));
 const freePosition = computed(() => previewSettings.value.position);
 
+function rotateImage(degrees: -90 | 90) {
+  const item = selected.value;
+  if (item) item.settings.imageRotation = (item.settings.imageRotation + degrees + 360) % 360;
+}
+
 const addFiles = async (files: File[]) => {
   const loaded: Item[] = [];
   const initialSettings = { ...defaults };
@@ -89,12 +95,25 @@ const onLogo = async (e: Event) => {
 
 // ---------- 绘制 ----------
 
-/** 预览和导出共用原图坐标，预览缩放只影响画布分辨率。 */
-const draw = (ctx: CanvasRenderingContext2D, img: HTMLImageElement, options: WatermarkSettings, previewScale = 1) => {
+/** 预览和导出共用旋转后的画布坐标，预览缩放只影响画布分辨率。 */
+const draw = (
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  image: { width: number; height: number },
+  options: WatermarkSettings,
+  previewScale = 1,
+) => {
   const { kind, text, fontSize, color, bold, shadow, logo, logoSize, opacity, rotation, anchor, tiled, margin, spacing, position, tileOrigin } = options;
-  const w = img.naturalWidth;
-  const h = img.naturalHeight;
-  ctx.drawImage(img, 0, 0);
+  const { width: w, height: h } = image;
+  if (options.imageRotation) {
+    ctx.save();
+    ctx.translate(w / 2, h / 2);
+    ctx.rotate(options.imageRotation * Math.PI / 180);
+    ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+    ctx.restore();
+  } else {
+    ctx.drawImage(img, 0, 0);
+  }
 
   const short = Math.min(w, h);
   let markW = 0;
@@ -129,7 +148,6 @@ const draw = (ctx: CanvasRenderingContext2D, img: HTMLImageElement, options: Wat
     drawMark = () => ctx.drawImage(logo, -markW / 2, -markH / 2, markW, markH);
   }
 
-  const image = { width: w, height: h };
   const mark = { width: markW, height: markH };
   const angle = (rotation * Math.PI) / 180;
   const center = tiled ? null : position
@@ -152,7 +170,10 @@ const draw = (ctx: CanvasRenderingContext2D, img: HTMLImageElement, options: Wat
 
 // ---------- 预览 ----------
 const view = ref<HTMLCanvasElement>();
-const previewSize = computed(() => (selected.value ? { width: selected.value.img.naturalWidth, height: selected.value.img.naturalHeight } : null));
+const previewSize = computed(() => {
+  const item = selected.value;
+  return item ? rotatedSize(item.img.naturalWidth, item.img.naturalHeight, item.settings.imageRotation) : null;
+});
 const { observeArea, frameStyle, scale } = useFitFrame(previewSize);
 const previewMark = shallowRef<ReturnType<typeof draw>>(null);
 const focusPoint = shallowRef<Point | null>(null);
@@ -198,13 +219,13 @@ const redraw = () => {
   frame = requestAnimationFrame(() => {
     const v = view.value;
     const item = selected.value;
-    if (!v || !item || !scale.value) {
+    const size = previewSize.value;
+    if (!v || !item || !size || !scale.value) {
       previewMark.value = null;
       return;
     }
     const resolution = Math.min(1, scale.value * (window.devicePixelRatio || 1));
-    const w = item.img.naturalWidth;
-    const h = item.img.naturalHeight;
+    const { width: w, height: h } = size;
     const width = Math.max(1, Math.round(w * resolution));
     const height = Math.max(1, Math.round(h * resolution));
     if (v.width !== width) v.width = width;
@@ -212,7 +233,7 @@ const redraw = () => {
     const ctx = v.getContext("2d")!;
     ctx.setTransform(width / w, 0, 0, height / h, 0, 0);
     ctx.clearRect(0, 0, w, h);
-    previewMark.value = draw(ctx, item.img, previewSettings.value, resolution);
+    previewMark.value = draw(ctx, item.img, size, previewSettings.value, resolution);
   });
 };
 watch([previewSettings, scale], redraw, { flush: "post" });
@@ -280,7 +301,8 @@ function selectMark(event: PointerEvent) {
 
 function moveDrag(event: PointerEvent) {
   const point = previewPoint(event);
-  if (!point) return;
+  const size = previewSize.value;
+  if (!point || !size) return;
   const active = drag.value;
   if (!active) {
     overMark.value = event.target === event.currentTarget && !!hitMark(point);
@@ -291,7 +313,7 @@ function moveDrag(event: PointerEvent) {
   if (!draft.value && start.x === point.x && start.y === point.y) return;
   const x = pivot.x + (mode === "move" ? point.x - start.x : 0);
   const y = pivot.y + (mode === "move" ? point.y - start.y : 0);
-  const position = { x: x / item.img.naturalWidth, y: y / item.img.naturalHeight };
+  const position = { x: x / size.width, y: y / size.height };
   const transform: Transform = item.settings.tiled
     ? { tileOrigin: { ...position, odd: pivot.odd } }
     : { position: { x: clamp(position.x, 0, 1), y: clamp(position.y, 0, 1) } };
@@ -329,7 +351,7 @@ function cancelDrag() {
   draft.value = null;
 }
 
-watch([selected, () => settings.value.kind, () => settings.value.tiled], () => {
+watch([selected, () => settings.value.kind, () => settings.value.tiled, () => settings.value.imageRotation], () => {
   cancelDrag();
   focusPoint.value = null;
   overMark.value = false;
@@ -354,8 +376,9 @@ const download = async () => {
     const files = [];
     for (const { item, options } of jobs) {
       const format = outputFormatOf(item.file.type);
-      const { canvas, ctx } = createCanvas(item.img.naturalWidth, item.img.naturalHeight);
-      draw(ctx, item.img, options);
+      const size = rotatedSize(item.img.naturalWidth, item.img.naturalHeight, options.imageRotation);
+      const { canvas, ctx } = createCanvas(size.width, size.height);
+      draw(ctx, item.img, size, options);
       files.push({
         name: replaceExtension(item.file.name.replace(/(\.[^.]+)?$/, `_${t("image.watermarkSuffix")}$1`), formatInfo(format).ext),
         data: await canvasToBytes(canvas, format, 0.92),
@@ -374,6 +397,17 @@ const ANCHORS: Anchor[] = ["tl", "t", "tr", "l", "c", "r", "bl", "b", "br"];
 <template>
   <div class="watermark">
     <aside class="card panel">
+      <section class="section">
+        <h3>{{ t("image.rotateSourceImage") }}</h3>
+        <div class="rotate-buttons">
+          <button class="btn" :disabled="!selected" @click="rotateImage(-90)">
+            <RotateCcw :size="14" />{{ t("image.rotateSourceLeft") }}
+          </button>
+          <button class="btn" :disabled="!selected" @click="rotateImage(90)">
+            <RotateCw :size="14" />{{ t("image.rotateSourceRight") }}
+          </button>
+        </div>
+      </section>
       <section class="section">
         <div class="seg fill">
           <button :class="{ on: settings.kind === 'text' }" @click="settings.kind = 'text'">{{ t("image.textWatermark") }}</button>
@@ -415,7 +449,7 @@ const ANCHORS: Anchor[] = ["tl", "t", "tr", "l", "c", "r", "bl", "b", "br"];
           <em>{{ settings.opacity }}%</em>
         </label>
         <label class="slider">
-          <span>{{ t("image.rotation") }}</span>
+          <span>{{ t("image.watermarkAngle") }}</span>
           <input v-model.number="settings.rotation" type="range" min="-180" max="180" step="1" @dblclick="settings.rotation = 0" />
           <em>{{ settings.rotation }}°</em>
         </label>
@@ -509,7 +543,7 @@ const ANCHORS: Anchor[] = ["tl", "t", "tr", "l", "c", "r", "bl", "b", "br"];
           :title="item.file.name"
           @click="selectedId = item.id"
         >
-          <img :src="item.url" alt="" />
+          <img :src="item.url" alt="" :style="{ transform: `rotate(${item.settings.imageRotation}deg)` }" />
           <input type="checkbox" class="file-check pick" :title="t('image.checkHint')" :checked="isChecked(item)" :disabled="saving" @click.stop @change="toggleFile(item)" />
           <button class="remove" :title="t('image.remove')" @click.stop="remove(item)"><X :size="11" /></button>
         </figure>
@@ -702,8 +736,13 @@ h3 {
   align-items: center;
   gap: 12px;
 }
+.rotate-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
 .slider span {
-  flex: 0 0 40px;
+  min-width: 40px;
 }
 .tip {
   margin: -4px 0 0;
