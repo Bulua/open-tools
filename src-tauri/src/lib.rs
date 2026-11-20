@@ -85,6 +85,8 @@ pub fn run() {
             mqtt::mqtt_publish,
             notebook::notebook_read,
             notebook::notebook_write,
+            notebook::notebook_save_image,
+            notebook::notebook_read_image,
             #[cfg(windows)]
             notebook::notebook_reveal,
             ip_lookup::local_ip,

@@ -8,10 +8,14 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
+use super::{
+    assets::{self, AssetCopy},
+    paths::{check_link, invalid, notes_path, path_key, remove_empty_dir},
+};
+
 const INDEX: &str = "index.json";
 const LEGACY: &str = "notebook.json";
 const PENDING: &str = "pending.json";
-const NOTES: &str = "notes";
 
 #[derive(Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -80,6 +84,8 @@ impl<T> Entry<T> {
 struct Plan {
     index: Book<Checksum>,
     create_dirs: Vec<PathBuf>,
+    #[serde(default)]
+    asset_copies: Vec<AssetCopy>,
     writes: Vec<Write>,
     remove_files: Vec<Removal>,
     remove_dirs: Vec<PathBuf>,
@@ -96,10 +102,6 @@ struct Write {
 struct Removal {
     path: PathBuf,
     digest: String,
-}
-
-fn invalid(message: impl Into<String>) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, message.into())
 }
 
 fn digest(text: &str) -> String {
@@ -241,10 +243,6 @@ fn stored_layout(book: &Book<Checksum>) -> io::Result<Vec<PathBuf>> {
     })
 }
 
-fn path_key(path: &Path) -> String {
-    path.to_string_lossy().to_uppercase()
-}
-
 fn read_optional(path: &Path) -> io::Result<Option<String>> {
     match fs::read_to_string(path) {
         Ok(text) => Ok(Some(text)),
@@ -271,39 +269,6 @@ fn write_atomic(path: &Path, data: &[u8]) -> io::Result<()> {
     temp.as_file().sync_all()?;
     temp.persist(path)?;
     Ok(())
-}
-
-fn check_link(path: &Path) -> io::Result<()> {
-    match fs::symlink_metadata(path) {
-        Ok(metadata) => {
-            #[cfg(windows)]
-            {
-                use std::os::windows::fs::MetadataExt;
-                if metadata.file_attributes() & 0x400 != 0 {
-                    return Err(invalid("Notebook paths cannot contain reparse points"));
-                }
-            }
-            if metadata.is_symlink() {
-                return Err(invalid("Notebook paths cannot contain symbolic links"));
-            }
-            Ok(())
-        }
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error),
-    }
-}
-
-fn notes_path(dir: &Path, relative: &Path) -> io::Result<PathBuf> {
-    let mut path = dir.join(NOTES);
-    check_link(&path)?;
-    for part in relative.components() {
-        let Component::Normal(part) = part else {
-            return Err(invalid("Invalid notebook path"));
-        };
-        path.push(part);
-        check_link(&path)?;
-    }
-    Ok(path)
 }
 
 fn prepare(dir: &Path, book: Book<Text>, previous: Option<&Book<Checksum>>) -> io::Result<Plan> {
@@ -366,6 +331,8 @@ fn prepare(dir: &Path, book: Book<Text>, previous: Option<&Book<Checksum>>) -> i
         unreachable!()
     })?;
     let mut writes = Vec::new();
+    let mut asset_copies = Vec::new();
+    let mut copied_assets = HashSet::new();
     let mut create_dirs = Vec::new();
     let mut remove_files = Vec::new();
     let mut remove_dirs = Vec::new();
@@ -428,6 +395,15 @@ fn prepare(dir: &Path, book: Book<Text>, previous: Option<&Book<Checksum>>) -> i
                     }
                     _ => body.markdown.clone(),
                 };
+                if let Some((_, old_path)) = previous {
+                    asset_copies.extend(assets::plan_image_copies(
+                        dir,
+                        old_path,
+                        &path,
+                        &markdown,
+                        &mut copied_assets,
+                    )?);
+                }
                 writes.push(Write {
                     path: path.clone(),
                     markdown,
@@ -449,6 +425,7 @@ fn prepare(dir: &Path, book: Book<Text>, previous: Option<&Book<Checksum>>) -> i
             nodes,
         },
         create_dirs,
+        asset_copies,
         writes,
         remove_files,
         remove_dirs,
@@ -461,6 +438,8 @@ fn apply(dir: &Path, plan: &Plan) -> io::Result<()> {
         for path in &plan.create_dirs {
             fs::create_dir_all(notes_path(dir, path)?)?;
         }
+        // 先在新目录建立附件，索引提交后再检查旧附件能否移除。
+        assets::copy_images(dir, &plan.asset_copies)?;
         for write in &plan.writes {
             let path = notes_path(dir, &write.path)?;
             let current = read_optional(&path)?;
@@ -485,20 +464,19 @@ fn apply(dir: &Path, plan: &Plan) -> io::Result<()> {
             fs::remove_file(path)?;
         }
     }
+    if !plan.asset_copies.is_empty() {
+        let managed_dirs: HashSet<_> = plan
+            .index
+            .nodes
+            .iter()
+            .zip(stored_layout(&plan.index)?)
+            .filter(|(entry, _)| entry.is_folder())
+            .map(|(_, path)| path_key(&path))
+            .collect();
+        assets::remove_unused_moved_images(dir, &plan.asset_copies, &managed_dirs)?;
+    }
     for relative in &plan.remove_dirs {
-        let path = notes_path(dir, relative)?;
-        match fs::remove_dir(path) {
-            Ok(()) => (),
-            Err(error)
-                if matches!(
-                    error.kind(),
-                    io::ErrorKind::NotFound | io::ErrorKind::DirectoryNotEmpty
-                ) =>
-            {
-                ()
-            }
-            Err(error) => return Err(error),
-        }
+        remove_empty_dir(&notes_path(dir, relative)?)?;
     }
     fs::remove_file(dir.join(PENDING))
 }
@@ -582,8 +560,7 @@ pub(super) fn write(dir: &Path, data: &str) -> io::Result<()> {
     commit(dir, serde_json::from_str(data)?)
 }
 
-#[cfg(windows)]
-pub(super) fn entry_path(dir: &Path, id: &str) -> io::Result<(PathBuf, bool)> {
+fn entry_relative_path(dir: &Path, id: &str) -> io::Result<(PathBuf, bool)> {
     check_link(dir)?;
     recover(dir)?;
     let index: Book<Checksum> =
@@ -594,10 +571,87 @@ pub(super) fn entry_path(dir: &Path, id: &str) -> io::Result<(PathBuf, bool)> {
         .zip(stored_layout(&index)?)
         .find(|(entry, _)| entry.id == id)
         .ok_or_else(|| invalid("Notebook entry not found"))?;
+    Ok((path, entry.is_folder()))
+}
+
+fn image_note_path(dir: &Path, id: &str) -> io::Result<PathBuf> {
+    let (path, is_folder) = entry_relative_path(dir, id)?;
+    if is_folder {
+        return Err(invalid("Invalid notebook image reference"));
+    }
+    Ok(path)
+}
+
+pub(super) fn save_image(dir: &Path, id: &str, data: &[u8]) -> io::Result<String> {
+    assets::save_image(dir, data, || image_note_path(dir, id))
+}
+
+pub(super) fn read_image(dir: &Path, id: &str, name: &str) -> io::Result<Vec<u8>> {
+    assets::read_image(dir, &image_note_path(dir, id)?, name)
+}
+
+#[cfg(windows)]
+pub(super) fn entry_path(dir: &Path, id: &str) -> io::Result<(PathBuf, bool)> {
+    let (path, is_folder) = entry_relative_path(dir, id)?;
     let path = notes_path(dir, &path)?;
     let metadata = fs::metadata(&path)?;
-    if (entry.is_folder() && !metadata.is_dir()) || (!entry.is_folder() && !metadata.is_file()) {
+    if (is_folder && !metadata.is_dir()) || (!is_folder && !metadata.is_file()) {
         return Err(invalid("Unexpected notebook entry type"));
     }
-    Ok((path, entry.is_folder()))
+    Ok((path, is_folder))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn moving_notes_removes_the_old_image_only_after_its_last_reference_moves() {
+        let temp = tempfile::tempdir().unwrap();
+        let dir = temp.path();
+        let mut snapshot = serde_json::json!({
+            "version": 1,
+            "selectedId": "note",
+            "nodes": [
+                { "id": "folder", "parentId": null, "name": "old", "kind": "folder", "collapsed": false },
+                { "id": "note", "parentId": "folder", "name": "note", "kind": "note", "markdown": "" },
+                { "id": "other", "parentId": "folder", "name": "other", "kind": "note", "markdown": "" }
+            ]
+        });
+        write(dir, &snapshot.to_string()).unwrap();
+        let png = b"\x89PNG\r\n\x1a\n";
+        let reference = save_image(dir, "note", png).unwrap();
+        let name = reference.strip_prefix("assets/").unwrap();
+        assert_eq!(save_image(dir, "other", png).unwrap(), reference);
+        snapshot["nodes"][1]["markdown"] = format!("![]({reference})").into();
+        snapshot["nodes"][2]["markdown"] = format!("![同一张图]({reference})").into();
+        write(dir, &snapshot.to_string()).unwrap();
+
+        snapshot["nodes"][1]["parentId"] = serde_json::Value::Null;
+        write(dir, &snapshot.to_string()).unwrap();
+        assert_eq!(fs::read(dir.join("notes").join(&reference)).unwrap(), png);
+        assert_eq!(
+            fs::read(dir.join("notes/old").join(&reference)).unwrap(),
+            png
+        );
+
+        snapshot["nodes"][0]["name"] = "new".into();
+        write(dir, &snapshot.to_string()).unwrap();
+        assert!(!dir.join("notes/old").exists());
+        assert_eq!(
+            fs::read(dir.join("notes/new").join(&reference)).unwrap(),
+            png
+        );
+        assert_eq!(read_image(dir, "other", name).unwrap(), png);
+
+        snapshot["nodes"][1]["parentId"] = "folder".into();
+        write(dir, &snapshot.to_string()).unwrap();
+        assert!(!dir.join("notes").join(&reference).exists());
+        assert_eq!(read_image(dir, "note", name).unwrap(), png);
+        assert_eq!(
+            fs::read_to_string(dir.join("notes/new/note.md")).unwrap(),
+            format!("![]({reference})")
+        );
+        assert!(read_image(dir, "note", "../note.md").is_err());
+    }
 }
