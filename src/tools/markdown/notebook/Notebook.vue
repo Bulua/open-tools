@@ -1,16 +1,21 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from "vue";
+import { computed, nextTick, onDeactivated, ref, watch } from "vue";
+import { isTauri } from "@tauri-apps/api/core";
 import { useI18n } from "vue-i18n";
-import { ChevronLeft, ChevronRight, CodeXml, FilePlus2, FolderOpen, Trash2 } from "lucide-vue-next";
+import { ChevronDown, ChevronLeft, ChevronRight, CodeXml, FilePlus2, FolderOpen, ListTodo, Minus, Quote, SquareCode, Table2, Trash2 } from "lucide-vue-next";
 import AppSelect from "@/components/common/AppSelect.vue";
 import { useToolUsage } from "@/composables/useToolUsage";
 import { usePanelResize } from "@/composables/usePanelResize";
+import { usePopover } from "@/composables/usePopover";
 import { useWindowEvent } from "@/composables/useWindowEvent";
 import NotebookEditor from "./components/NotebookEditor.vue";
+import NotebookTableGrid from "./components/NotebookTableGrid.vue";
 import NotebookDirectory from "./components/NotebookDirectory.vue";
 import { directoryRows, moveEntry, subtree, type DirectoryDrop, type Node } from "./notebook";
 import { markdownOutline, scrollSourceToHeading, type OutlineHeading } from "./outline";
-import { useNotebook } from "./storage";
+import { clipboardImageFiles } from "./images";
+import { savePastedImages, useNotebook } from "./storage";
+import { tableMarkdown } from "./tables";
 
 const { t } = useI18n();
 const label = (key: string) => t(`markdown.notebook.${key}`);
@@ -161,6 +166,71 @@ const sourceInput = ref<HTMLTextAreaElement>();
 const writingScroll = ref<HTMLElement>();
 const liveEditor = ref<InstanceType<typeof NotebookEditor>>();
 let pendingScroll: { scroller: HTMLElement; progress: number } | undefined;
+const tablePickerTrigger = ref<HTMLButtonElement>();
+const tablePickerPanel = ref<HTMLElement>();
+const tableGrid = ref<InstanceType<typeof NotebookTableGrid>>();
+const { open: tablePickerOpen, style: tablePickerStyle, show: showTablePicker, close: closeTablePicker } =
+  usePopover(tablePickerTrigger, tablePickerPanel, { minWidth: 218, maxHeight: 284, ignoreEscape: () => true });
+watch(() => note.value?.id, closeTablePicker);
+onDeactivated(closeTablePicker);
+
+async function toggleTablePicker() {
+  if (tablePickerOpen.value) {
+    closeTablePicker();
+    return;
+  }
+  await showTablePicker();
+  tableGrid.value?.focusCell();
+}
+
+function createTable(rows: number, columns: number) {
+  closeTablePicker();
+  insertMarkup(tableMarkdown(rows, columns));
+}
+
+function closeTablePickerAndFocus() {
+  closeTablePicker();
+  tablePickerTrigger.value?.focus();
+}
+
+const inserts = [
+  { key: "insertTask", icon: ListTodo, markdown: () => `- [ ] ${label("taskText")}` },
+  { key: "insertCode", icon: SquareCode, markdown: () => "```\n\n```" },
+  { key: "insertQuote", icon: Quote, markdown: () => `> ${label("quoteText")}` },
+  { key: "insertRule", icon: Minus, markdown: () => "***" },
+];
+
+function insertMarkup(markdown: string) {
+  const input = sourceInput.value;
+  if (!sourceMode.value || !input) {
+    liveEditor.value?.insert(markdown);
+    return;
+  }
+  const { value, selectionStart, selectionEnd } = input;
+  const before = value.slice(0, selectionStart);
+  const after = value.slice(selectionEnd);
+  const prefix = !before || before.endsWith("\n\n") ? "" : before.endsWith("\n") ? "\n" : "\n\n";
+  const suffix = after.startsWith("\n\n") ? "" : after.startsWith("\n") ? "\n" : "\n\n";
+  input.setRangeText(prefix + markdown + suffix, selectionStart, selectionEnd, "end");
+  source.value = input.value;
+  input.focus();
+}
+
+function pasteSourceImage(event: ClipboardEvent) {
+  const input = sourceInput.value;
+  const id = note.value?.id;
+  if (!isTauri() || !input || !id || !event.clipboardData) return;
+  const images = clipboardImageFiles(event.clipboardData);
+  if (!images.length) return;
+  event.preventDefault();
+  const { value, selectionStart, selectionEnd } = input;
+  void savePastedImages(id, images, () => sourceInput.value === input && note.value?.id === id, paths => {
+    const start = input.value === value ? selectionStart : input.selectionEnd;
+    const end = input.value === value ? selectionEnd : start;
+    input.setRangeText(paths.map(path => `![](${path})`).join("\n"), start, end, "end");
+    updateNote(id, input.value);
+  });
+}
 
 function goToHeading(heading: OutlineHeading) {
   if (sourceMode.value) {
@@ -238,10 +308,20 @@ useWindowEvent("keydown", event => {
         <span v-else role="status" class="save-state">{{ label(saveState) }}</span>
         <button v-if="selected" class="icon-btn" :title="label('delete')" :aria-label="label('delete')" @click="openDialog('delete', selected)"><Trash2 :size="15" /></button>
       </header>
+      <div v-if="note" class="note-inserts" role="group" :aria-label="label('insertContents')">
+        <button ref="tablePickerTrigger" type="button" class="btn small subtle" aria-haspopup="dialog" :aria-expanded="tablePickerOpen"
+          @mousedown.prevent @click="toggleTablePicker">
+          <Table2 :size="15" />{{ label("insertTable") }}<ChevronDown :size="12" />
+        </button>
+        <button v-for="item in inserts" :key="item.key" type="button" class="btn small subtle"
+          @mousedown.prevent @click="insertMarkup(item.markdown())">
+          <component :is="item.icon" :size="15" />{{ label(item.key) }}
+        </button>
+      </div>
       <div v-if="note" :key="note.id" class="writing" :style="{ '--writing-width': `${fittedWritingWidth}px` }">
         <div ref="writingScroll" class="writing-scroll" :class="{ 'source-scroll': sourceMode }">
           <textarea v-if="sourceMode" ref="sourceInput" v-model="source" class="source"
-            :aria-label="label('source')" :placeholder="label('placeholder')" spellcheck="false" />
+            :aria-label="label('source')" :placeholder="label('placeholder')" spellcheck="false" @paste="pasteSourceImage" />
           <div v-else class="writing-frame">
             <NotebookEditor ref="liveEditor" :id="note.id" :markdown="note.markdown" @edit="updateNote" @failed="fallbackToSource" />
           </div>
@@ -272,6 +352,13 @@ useWindowEvent("keydown", event => {
       </footer>
     </section>
   </div>
+
+  <Teleport to="body">
+    <div v-if="tablePickerOpen" ref="tablePickerPanel" class="table-picker" :style="tablePickerStyle"
+      role="dialog" :aria-label="label('tableDimensions')" @keydown.esc.stop.prevent="closeTablePickerAndFocus">
+      <NotebookTableGrid ref="tableGrid" :rows="3" :columns="3" :action="label('tableInsertConfirm')" @choose="createTable" />
+    </div>
+  </Teleport>
 
   <dialog ref="dialog" class="entry-dialog" :aria-label="dialogLabel">
     <form @submit.prevent="applyDialog">
@@ -309,6 +396,22 @@ useWindowEvent("keydown", event => {
 .btn.source-toggle { padding-inline: 5px; }
 .note-head { display: flex; align-items: center; gap: 4px; height: 46px; flex-shrink: 0; padding: 0 9px 0 14px; border-bottom: 1px solid var(--border); }
 .note-head h2 { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; font-size: 14px; font-weight: 600; }
+.note-inserts { display: flex; flex-shrink: 0; gap: 3px; overflow-x: auto; padding: 4px 8px; border-bottom: 1px solid var(--border); }
+.note-inserts .btn { flex: none; white-space: nowrap; }
+.table-picker {
+  position: fixed;
+  z-index: 300;
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+}
 .save-state { color: var(--text-2); font-size: 11px; margin-inline: 4px; white-space: nowrap; }
 .save-error, .destructive { color: var(--danger); }
 .writing { position: relative; display: flex; flex: 1; min-height: 0; }

@@ -1,5 +1,6 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { nextTick, readonly, ref, watch } from "vue";
+import { t } from "@/locales";
 import { showError } from "@/utils/errorToast";
 import { getAppPlatform } from "@/utils/platform";
 import { emptyNotebook, readNotebook, type Notebook } from "./notebook";
@@ -11,6 +12,8 @@ const saveState = ref<"saved" | "saving" | "error">("saved");
 let loading: Promise<void> | undefined;
 let writing: Promise<void> | undefined;
 let pending: string | undefined;
+let storingImages = false;
+let imageWrites = Promise.resolve();
 
 function load() {
   if (notebook.value || loading) return;
@@ -28,12 +31,46 @@ function load() {
 }
 
 function flush(): Promise<void> | undefined {
-  if (writing || pending === undefined) return writing;
+  if (storingImages || writing || pending === undefined) return writing;
   writing = savePending().finally(() => {
     writing = undefined;
     if (saveState.value === "saved") return flush();
   });
   return writing;
+}
+
+export function savePastedImages(
+  id: string,
+  images: readonly (Blob | string)[],
+  isCurrent: () => boolean,
+  insert: (paths: string[]) => void,
+) {
+  imageWrites = imageWrites.then(async () => {
+    if (!isCurrent()) return;
+    await nextTick();
+    await flush();
+    if (saveState.value !== "saved") throw new Error(t("markdown.notebook.saveError"));
+    if (!isCurrent()) return;
+
+    // 附件写入后先插入引用，再提交期间排队的正文或移动操作。
+    storingImages = true;
+    try {
+      const noteId = btoa(String.fromCharCode(...new TextEncoder().encode(id)));
+      const paths = [];
+      for (const image of images) {
+        const blob = typeof image === "string" ? await (await fetch(image)).blob() : image;
+        paths.push(await invoke<string>("notebook_save_image", await blob.arrayBuffer(), {
+          headers: { "x-note-id": noteId },
+        }));
+      }
+      if (isCurrent()) insert(paths);
+      await nextTick();
+    } finally {
+      storingImages = false;
+      void flush();
+    }
+  }).catch(showError);
+  return imageWrites;
 }
 
 async function savePending() {
@@ -61,6 +98,7 @@ async function savePending() {
 async function revealEntry(id: string) {
   // 新建或移动后可能还有保存正在进行，等磁盘路径更新后再打开。
   await nextTick();
+  await imageWrites;
   await flush();
   if (saveState.value !== "saved") return;
   try {

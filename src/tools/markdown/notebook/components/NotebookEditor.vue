@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from "vue";
+import { onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
 import { useI18n } from "vue-i18n";
-import { editorViewCtx } from "@milkdown/core";
+import { editorViewCtx, parserCtx, type Editor } from "@milkdown/core";
 import "@milkdown/prose/view/style/prosemirror.css";
 import "@milkdown/prose/tables/style/tables.css";
 import "katex/dist/katex.min.css";
 import { showError } from "@/utils/errorToast";
 import { prefersReducedMotion } from "@/utils/motion";
-import { makeNotebookEditor } from "../editor";
+import { insertNotebookBlock, makeNotebookEditor } from "../editor";
+import NotebookImageControls from "./NotebookImageControls.vue";
+import NotebookTableControls from "./NotebookTableControls.vue";
 
 const props = defineProps<{ id: string; markdown: string }>();
 const emit = defineEmits<{ edit: [id: string, markdown: string]; failed: [id: string] }>();
@@ -17,6 +19,10 @@ let disposed = false;
 let teardown: (() => void) | undefined;
 let focusEditor: (() => void) | undefined;
 let afterFocus: (() => void) | undefined;
+let insert: ((markdown: string) => void) | undefined;
+const activeEditor = shallowRef<Editor>();
+const imageControls = ref<InstanceType<typeof NotebookImageControls>>();
+const tableControls = ref<InstanceType<typeof NotebookTableControls>>();
 
 function focus(restoreScroll: () => void) {
   if (!focusEditor) {
@@ -32,19 +38,26 @@ function scrollToHeading(index: number) {
     ?.scrollIntoView?.({ block: "start", behavior: prefersReducedMotion() ? "auto" : "smooth" });
 }
 
-defineExpose({ focus, scrollToHeading });
+defineExpose({ focus, scrollToHeading, insert: (markdown: string) => insert?.(markdown) });
 
 onMounted(async () => {
   const id = props.id;
-  const editor = makeNotebookEditor(root.value!, props.markdown, () => t("markdown.notebook.editor"), markdown => {
+  const editor = makeNotebookEditor(root.value!, id, props.markdown, () => t("markdown.notebook.editor"), markdown => {
     if (!disposed) emit("edit", id, markdown);
-  }, () => t("markdown.notebook.task"), () => t("markdown.notebook.editFormula"), key => t(`markdown.notebook.${key}`));
+  }, () => t("markdown.notebook.task"), () => t("markdown.notebook.editFormula"), key => t(`markdown.notebook.${key}`),
+  (event, target) => { void imageControls.value?.open(event, target); },
+  (tool, trigger, getPosition) => tableControls.value?.runTableControl(tool, trigger, getPosition));
   try {
     await editor.create();
     teardown = () => { void editor.destroy().catch(showError); };
     if (disposed) teardown();
     else {
+      activeEditor.value = editor;
       focusEditor = () => editor.action(ctx => ctx.get(editorViewCtx).focus());
+      insert = markdown => editor.action(ctx => {
+        const block = ctx.get(parserCtx)(markdown).firstChild;
+        if (block) insertNotebookBlock(ctx.get(editorViewCtx), block);
+      });
       if (afterFocus) {
         const restoreScroll = afterFocus;
         afterFocus = undefined;
@@ -61,13 +74,17 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   disposed = true;
+  activeEditor.value = undefined;
   focusEditor = undefined;
   teardown?.();
 });
 </script>
 
 <template>
-  <div ref="root" class="note-editor" :class="{ empty: !markdown.trim() }" :data-placeholder="t('markdown.notebook.placeholder')" />
+  <div ref="root" class="note-editor" :class="{ empty: !markdown.trim() }" :data-placeholder="t('markdown.notebook.placeholder')"
+    @contextmenu="tableControls?.openCellMenu($event)" />
+  <NotebookTableControls ref="tableControls" :editor="activeEditor" :markdown="markdown" @edit="emit('edit', props.id, $event)" />
+  <NotebookImageControls ref="imageControls" :focus-editor="() => focusEditor?.()" />
 </template>
 
 <style scoped>
@@ -85,7 +102,7 @@ onBeforeUnmount(() => {
   font: 16px/1.72 var(--font-sans);
   pointer-events: none;
 }
-.note-editor { position: relative; }
+.note-editor { position: relative; --table-toolbar-space: 32px; }
 .note-editor :deep(.note-mermaid) { margin: 1em 0; }
 .note-editor :deep(.mermaid-frame) {
   --mermaid-height-limit: min(50vh, 480px);
@@ -167,7 +184,12 @@ onBeforeUnmount(() => {
 .note-editor :deep(code) { font: 0.88em/1.6 var(--font-mono); background: var(--hover); padding-inline: 0.22em; }
 .note-editor :deep(pre) { margin: 1em 0 1.2em; padding: 0.7em 0.95em; overflow: auto; white-space: pre; background: var(--bg-sunken); font: 0.88em/1.6 var(--font-mono); }
 .note-editor :deep(pre code) { background: none; padding: 0; font: inherit; }
-.note-editor :deep(.notebook-code) { position: relative; margin-block: 1em; }
+.note-editor :deep(.notebook-code) {
+  --code-language-height: 25px;
+  --code-language-offset: 4px;
+  position: relative;
+  margin-block: 1em calc(var(--code-language-height) + var(--code-language-offset) + 3px);
+}
 .note-editor :deep(.notebook-code-body) {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -192,7 +214,7 @@ onBeforeUnmount(() => {
 }
 .note-editor :deep(.notebook-code-actions) {
   position: absolute;
-  inset-block-start: calc(100% + 4px);
+  inset-block-start: calc(100% + var(--code-language-offset));
   inset-inline-end: 0;
   z-index: 1;
   width: clamp(5.5rem, 13%, 8rem);
@@ -210,7 +232,7 @@ onBeforeUnmount(() => {
 .note-editor :deep(.notebook-code-language) {
   display: block;
   width: 100%;
-  height: 25px;
+  height: var(--code-language-height);
   padding-inline: 6px;
   border-radius: 4px;
   background: var(--code-bg);
@@ -220,10 +242,15 @@ onBeforeUnmount(() => {
 .note-editor :deep(.notebook-code-language:focus) { box-shadow: none; }
 .note-editor :deep(pre[data-frontmatter]) { background: none; border-block: 1px solid var(--border); color: var(--text-2); padding-inline: 0; }
 .note-editor :deep(img) { max-width: 100%; height: auto; }
+.note-editor :deep(.ProseMirror :is(table, .notebook-table-toolbar-anchor)) { margin-block-start: var(--table-toolbar-space); }
+/* 工具栏出现时由零高度锚点承接同一段留白，表格上边线留在原位。 */
+.note-editor :deep(.ProseMirror .notebook-table-toolbar-anchor + table) { margin-block-start: 0; }
+.note-editor :deep(.notebook-table-toolbar-anchor) { position: relative; height: 0; z-index: 3; }
 .note-editor :deep(.tableWrapper) { overflow-x: auto; }
-.note-editor :deep(table) { width: 100%; border-collapse: collapse; margin-block: 0.85em 1.1em; }
-.note-editor :deep(th), .note-editor :deep(td) { border: 0; border-bottom: 1px solid var(--border); min-width: 5rem; padding: 0.32em 0.65em; vertical-align: top; }
-.note-editor :deep(th) { border-bottom-color: var(--border-strong); text-align: start; font-weight: 600; }
+.note-editor :deep(.ProseMirror table) { width: 100%; border-collapse: collapse; margin-block-end: 1.1em; background: var(--surface); }
+.note-editor :deep(.ProseMirror table :is(th, td)) { height: 38px; padding: 4px 12px; border: 1px solid var(--border); vertical-align: middle; }
+.note-editor :deep(.ProseMirror table tr:nth-child(odd) > :is(th, td)) { background: var(--hover); }
+.note-editor :deep(.ProseMirror table th) { font-weight: 600; }
 .note-editor :deep(td > :last-child), .note-editor :deep(th > :last-child) { margin-block-end: 0; }
 .note-editor :deep(.selectedCell::after) { background: var(--accent-soft); }
 .note-editor :deep(mark) { color: inherit; background: var(--warning-soft); box-shadow: inset 0 -2px var(--warning-soft); }

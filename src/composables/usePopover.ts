@@ -7,7 +7,7 @@ import { nextTick, onBeforeUnmount, ref, type Ref } from "vue";
 export function usePopover(
   trigger: Ref<HTMLElement | undefined>,
   panel: Ref<HTMLElement | undefined>,
-  options: { minWidth?: number; maxHeight?: number; side?: "right"; preserve?: () => boolean; ignoreEscape?: () => boolean } = {},
+  options: { minWidth?: number; maxHeight?: number; side?: "left" | "right"; preserve?: () => boolean; ignoreEscape?: () => boolean } = {},
 ) {
   const open = ref(false);
   const style = ref<Record<string, string>>({});
@@ -20,13 +20,15 @@ export function usePopover(
     const width = Math.max(r.width, options.minWidth ?? 0);
     const height = panel.value?.offsetHeight ?? options.maxHeight ?? 300;
     const panelWidth = Math.max(width, panel.value?.offsetWidth ?? 0);
-    if (options.side === "right") {
+    if (options.side) {
       const right = r.right + 6;
       const left = r.left - panelWidth - 6;
       const fitsRight = right + panelWidth <= window.innerWidth - 8;
-      const x = fitsRight ? right : left;
+      const preferLeft = options.side === "left" && left >= 8;
+      const useRight = !preferLeft && fitsRight;
+      const x = useRight ? right : left;
       if (x >= 8) {
-        placement.value = fitsRight ? "right" : "left";
+        placement.value = useRight ? "right" : "left";
         const top = Math.max(8, Math.min(r.top, window.innerHeight - height - 8));
         style.value = { top: `${top}px`, left: `${x}px`, minWidth: `${width}px` };
         return;
