@@ -48,7 +48,7 @@ const sortTools = (c: Category): Category => ({ ...c, tools: [...c.tools].sort((
 
 /** 顶部分类，数组顺序就是显示顺序 */
 export const categories: Category[] = [
-  { id: "developer", name: "开发工具", tools: [...json.tools, ...pick("base64", "text-escape", "hash", "jwt", "regex", "naming")] },
+  { id: "developer", name: "开发工具", tools: [...json.tools, ...pick("base64", "text-escape", "hash", "jwt", "regex", "naming", "mcp-inspector")] },
   { id: "daily", name: "日常工具", tools: pick("password", "password-vault", "clipboard-history", "screenshot-history", "id-card", "notebook") },
   { id: "time", name: "时间", tools: pick("timestamp", "timezone", "cron", "clock", "calendar") },
   { id: "calc", name: "计算换算", tools: pick("calculator", "units", "radix") },
@@ -60,7 +60,7 @@ export const categories: Category[] = [
     name: "文档与文件",
     tools: pick("large-file", "word-to-pdf", "word-to-markdown", "pdf-to-word", "word-watermark", "word-unwatermark", "pdf-content-editor", "pdf-page-manager", "pdf-unwatermark", "markdown-to-word", "archive", "extract"),
   },
-  { id: "network", name: "网络", tools: network.tools },
+  { id: "network", name: "网络", tools: network.tools.filter((tool) => tool.id !== "mcp-inspector") },
 ].map(sortTools);
 
 /** 按工具定义筛选平台可用项，保留分类及工具的显示顺序。 */

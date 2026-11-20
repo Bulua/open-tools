@@ -1,0 +1,126 @@
+type StringMap = Record<string, string>;
+
+export type McpConfig =
+  | { type: "stdio"; command: string; args?: string[]; env?: StringMap; env_vars?: string[]; cwd?: string }
+  | {
+      type: "http" | "sse";
+      url: string;
+      headers?: StringMap;
+      env_http_headers?: StringMap;
+      bearer_token_env_var?: string;
+    };
+
+export interface McpTool {
+  name: string;
+  title?: string;
+  description?: string;
+  inputSchema: Record<string, unknown>;
+  outputSchema?: Record<string, unknown>;
+}
+
+export interface McpToolList {
+  serverInfo?: { name: string; version: string };
+  protocolVersion: string;
+  tools: McpTool[];
+}
+
+type ParseError = "invalidJson" | "invalidConfig" | "invalidServer" | "unsupportedType" | "invalidUrl";
+type ParsedServers = { servers: Map<string, unknown> } | { error: ParseError };
+type ParsedServer = { config: McpConfig } | { error: ParseError };
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+export function parseToolArguments(text: string): Record<string, unknown> | undefined {
+  try {
+    const value: unknown = JSON.parse(text);
+    return isObject(value) ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function connectionTarget(config: McpConfig): string {
+  if (config.type === "stdio") return config.command;
+  const { host, pathname } = new URL(config.url);
+  return host + pathname;
+}
+
+export function defaultConnectionName(config: McpConfig): string {
+  if (config.type === "stdio") return config.command.split(/[\\/]/).pop() || config.command;
+  return new URL(config.url).host;
+}
+
+function isStringMap(value: unknown): value is StringMap {
+  return isObject(value) && Object.values(value).every((entry) => typeof entry === "string");
+}
+
+function isStringList(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
+}
+
+function isEnvName(value: unknown): value is string {
+  return typeof value === "string" && Boolean(value.trim()) && !/[=\x00]/.test(value);
+}
+
+export function parseMcpConfig(text: string): ParsedServers {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return { error: "invalidJson" };
+  }
+  if (!isObject(raw)) return { error: "invalidConfig" };
+  if ("command" in raw || "url" in raw || "type" in raw) {
+    return { servers: new Map([["", raw]]) };
+  }
+  const entries = raw.mcpServers ?? raw.servers;
+  if (!isObject(entries) || !Object.keys(entries).length) return { error: "invalidConfig" };
+  return { servers: new Map(Object.entries(entries)) };
+}
+
+export function parseMcpServer(raw: unknown): ParsedServer {
+  if (!isObject(raw)) return { error: "invalidServer" };
+  const type = raw.type ?? ("command" in raw ? "stdio" : "http");
+  if (type === "stdio") {
+    const { command, args, env, env_vars, cwd } = raw;
+    if (
+      "url" in raw ||
+      typeof command !== "string" || !command.trim() ||
+      (args !== undefined && !isStringList(args)) ||
+      (env !== undefined && !isStringMap(env)) ||
+      (env_vars !== undefined && (!isStringList(env_vars) || !env_vars.every(isEnvName))) ||
+      (cwd !== undefined && (typeof cwd !== "string" || !cwd.trim()))
+    ) return { error: "invalidServer" };
+    return { config: { type: "stdio", command: command.trim(), args, env, env_vars, cwd } };
+  }
+  if (type !== "sse" && type !== "http" && type !== "streamable-http" && type !== "streamableHttp") {
+    return { error: "unsupportedType" };
+  }
+  const { url, headers, http_headers, env_http_headers, bearer_token_env_var } = raw;
+  if (
+    "command" in raw || typeof url !== "string" ||
+    (headers !== undefined && !isStringMap(headers)) ||
+    (http_headers !== undefined && !isStringMap(http_headers)) ||
+    (env_http_headers !== undefined && (!isStringMap(env_http_headers) || !Object.values(env_http_headers).every(isEnvName))) ||
+    (bearer_token_env_var !== undefined && !isEnvName(bearer_token_env_var))
+  ) {
+    return { error: "invalidServer" };
+  }
+  try {
+    const parsed = new URL(url.trim());
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      return { config: {
+        type: type === "sse" ? "sse" : "http",
+        url: parsed.href,
+        headers: http_headers ? { ...http_headers, ...headers } : headers,
+        env_http_headers,
+        bearer_token_env_var,
+      } };
+    }
+  } catch {
+    return { error: "invalidUrl" };
+  }
+  return { error: "invalidUrl" };
+}
