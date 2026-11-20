@@ -10,6 +10,7 @@ export function attachLanguageSuggestions(input: HTMLInputElement, languages: st
   const menu = doc.createElement("div");
   menu.id = `notebook-language-${++menuCount}`;
   menu.className = "select-menu notebook-language-menu";
+  menu.tabIndex = -1;
   menu.setAttribute("role", "listbox");
   menu.setAttribute("aria-label", input.getAttribute("aria-label") ?? "");
   input.setAttribute("role", "combobox");
@@ -63,20 +64,24 @@ export function attachLanguageSuggestions(input: HTMLInputElement, languages: st
       option.setAttribute("aria-selected", String(i === active));
       if (i === active) {
         input.setAttribute("aria-activedescendant", option.id);
-        option.scrollIntoView?.({ block: "nearest" });
+        const optionRect = option.getBoundingClientRect();
+        const menuTop = menu.getBoundingClientRect().top + menu.clientTop;
+        const menuBottom = menuTop + menu.clientHeight;
+        if (optionRect.top < menuTop) menu.scrollTop -= menuTop - optionRect.top;
+        else if (optionRect.bottom > menuBottom) menu.scrollTop += optionRect.bottom - menuBottom;
       }
     });
   }
 
   function choose(value: string) {
+    if (doc.activeElement === menu) input.focus({ preventScroll: true });
     input.value = value;
     close();
     commit();
   }
 
-  function show() {
-    const query = input.value.trim().toLowerCase();
-    matches = languages.filter(language => language.startsWith(query) || aliases[language]?.startsWith(query)).slice(0, 7);
+  function show(query = "") {
+    matches = languages.filter(language => language.startsWith(query) || aliases[language]?.startsWith(query));
     if (!matches.length) { close(); return; }
     active = -1;
     input.removeAttribute("aria-activedescendant");
@@ -91,13 +96,14 @@ export function attachLanguageSuggestions(input: HTMLInputElement, languages: st
       return option;
     }));
     if (!menu.isConnected) doc.body.append(menu);
+    menu.scrollTop = 0;
     menu.removeAttribute("aria-hidden");
     const rect = input.getBoundingClientRect();
     const width = Math.min(win.innerWidth - 16, Math.max(rect.width, 116));
     menu.style.width = `${width}px`;
     const below = win.innerHeight - rect.bottom - 9;
     const above = rect.top - 9;
-    menu.style.maxHeight = `${Math.max(0, Math.max(below, above))}px`;
+    menu.style.maxHeight = `${Math.max(0, Math.min(240, Math.max(below, above)))}px`;
     const openBelow = below >= menu.offsetHeight || below >= above;
     aboveInput = !openBelow;
     menu.style.left = `${Math.max(8, Math.min(rect.right - width, win.innerWidth - width - 8))}px`;
@@ -109,20 +115,33 @@ export function attachLanguageSuggestions(input: HTMLInputElement, languages: st
     win.addEventListener("resize", close);
   }
 
-  input.addEventListener("focus", show);
+  function filter() {
+    show(input.value.trim().toLowerCase());
+  }
+
+  function onBlur(event: FocusEvent) {
+    const next = event.relatedTarget;
+    // 操作滚动条可能把焦点移到列表里，只有离开整个控件时才收起。
+    if (next === input || next === menu) return;
+    close();
+    commit();
+  }
+
+  input.addEventListener("focus", () => { if (!opened) show(); });
   input.addEventListener("click", () => { if (!opened) show(); });
-  input.addEventListener("input", event => { if (!(event as InputEvent).isComposing) show(); });
-  input.addEventListener("compositionend", show);
-  input.addEventListener("change", commit);
-  input.addEventListener("blur", () => { close(); commit(); });
-  input.addEventListener("keydown", event => {
+  input.addEventListener("input", event => { if (!(event as InputEvent).isComposing) filter(); });
+  input.addEventListener("compositionend", filter);
+  input.addEventListener("blur", onBlur);
+  menu.addEventListener("blur", onBlur);
+  function onKeyDown(event: KeyboardEvent) {
     if (event.isComposing) return;
     if (event.key === "Enter") {
       event.preventDefault();
       if (active >= 0) choose(matches[active]);
-      else { close(); commit(); }
+      else { choose(input.value); }
     } else if (event.key === "Escape" && opened) {
       event.preventDefault();
+      if (doc.activeElement === menu) input.focus({ preventScroll: true });
       close();
     } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       if (!opened) show();
@@ -132,7 +151,9 @@ export function attachLanguageSuggestions(input: HTMLInputElement, languages: st
         : (active + (event.key === "ArrowDown" ? 1 : -1) + matches.length) % matches.length;
       mark(next);
     }
-  });
+  }
+  input.addEventListener("keydown", onKeyDown);
+  menu.addEventListener("keydown", onKeyDown);
   return () => {
     close();
     animation?.cancel();

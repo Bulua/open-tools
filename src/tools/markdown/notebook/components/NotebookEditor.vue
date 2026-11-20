@@ -280,7 +280,9 @@ onBeforeUnmount(() => {
 <style>
 .select-menu.notebook-language-menu {
   gap: 1px;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 3px;
   border-radius: 6px;
   box-shadow: var(--shadow);
