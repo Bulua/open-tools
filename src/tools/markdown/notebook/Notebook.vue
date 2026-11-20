@@ -2,7 +2,7 @@
 import { computed, nextTick, onDeactivated, ref, watch } from "vue";
 import { isTauri } from "@tauri-apps/api/core";
 import { useI18n } from "vue-i18n";
-import { ChevronDown, ChevronLeft, ChevronRight, CodeXml, FilePlus2, FolderOpen, ListTodo, Minus, Quote, SquareCode, Table2, Trash2 } from "lucide-vue-next";
+import { ChevronDown, ChevronLeft, ChevronRight, CodeXml, FolderOpen, ListTodo, Minus, Quote, SquareCode, Table2, Trash2 } from "lucide-vue-next";
 import AppSelect from "@/components/common/AppSelect.vue";
 import { useToolUsage } from "@/composables/useToolUsage";
 import { usePanelResize } from "@/composables/usePanelResize";
@@ -11,7 +11,7 @@ import { useWindowEvent } from "@/composables/useWindowEvent";
 import NotebookEditor from "./components/NotebookEditor.vue";
 import NotebookTableGrid from "./components/NotebookTableGrid.vue";
 import NotebookDirectory from "./components/NotebookDirectory.vue";
-import { directoryRows, moveEntry, subtree, type DirectoryDrop, type Node } from "./notebook";
+import { directoryRows, moveEntry, subtree, uniqueNoteName, type DirectoryDrop, type Node, type Note } from "./notebook";
 import { markdownOutline, scrollSourceToHeading, type OutlineHeading } from "./outline";
 import { clipboardImageFiles } from "./images";
 import { savePastedImages, useNotebook } from "./storage";
@@ -22,6 +22,7 @@ const label = (key: string) => t(`markdown.notebook.${key}`);
 const { notebook, loadState, saveState, retryLoad, retrySave, canReveal, revealEntry } = useNotebook();
 const { track } = useToolUsage();
 const directoryOpen = ref(true);
+const directory = ref<InstanceType<typeof NotebookDirectory>>();
 const sidebarView = ref<"files" | "outline">("files");
 const directoryLabel = computed(() => label(directoryOpen.value ? "hideDirectory" : "showDirectory"));
 const workspace = ref<HTMLElement>();
@@ -63,12 +64,11 @@ const source = computed({
   get: () => note.value?.markdown ?? "",
   set: (markdown: string) => { if (note.value) updateNote(note.value.id, markdown); },
 });
-const currentFolder = computed(() => selected.value?.kind === "folder" ? selected.value.id : selected.value?.parentId ?? null);
 
 const dialog = ref<HTMLDialogElement>();
 const nameInput = ref<HTMLInputElement>();
-const operation = ref<"note" | "folder" | "delete">("note");
-const dialogLabel = computed(() => label(operation.value === "delete" ? "delete" : operation.value === "note" ? "addNote" : "addFolder"));
+const operation = ref<"folder" | "delete">("folder");
+const dialogLabel = computed(() => label(operation.value === "delete" ? "delete" : "addFolder"));
 const targetId = ref<string>();
 const name = ref("");
 const destination = ref("");
@@ -95,13 +95,12 @@ function toggleFolder(node: Node) {
   }
 }
 
-async function openDialog(kind: typeof operation.value, item?: Node, parentId?: string | null) {
+async function openDialog(kind: typeof operation.value, item?: Node, parentId: string | null = null) {
   if (!notebook.value || !dialog.value) return;
   operation.value = kind;
   targetId.value = item?.id;
-  name.value = item?.name ?? label(kind === "folder" ? "newFolder" : "untitled");
-  const folder = parentId === undefined ? (item ? item.parentId : currentFolder.value) : parentId;
-  destination.value = folder ?? "";
+  name.value = item?.name ?? label("newFolder");
+  destination.value = parentId ?? "";
   await nextTick();
   dialog.value?.showModal();
   if (kind !== "delete") {
@@ -112,7 +111,23 @@ async function openDialog(kind: typeof operation.value, item?: Node, parentId?: 
 
 function rename(id: string, name: string) {
   const node = index.value.get(id);
-  if (node) node.name = name;
+  const state = notebook.value;
+  if (!node || !state || node.name === name) return;
+  node.name = node.kind === "note" ? uniqueNoteName(state.nodes, node.parentId, name, id) : name;
+}
+
+function addNote(parentId: string | null) {
+  const state = notebook.value;
+  if (!state || (parentId !== null && index.value.get(parentId)?.kind !== "folder")) return;
+  const item: Note = {
+    id: crypto.randomUUID(), parentId,
+    name: uniqueNoteName(state.nodes, parentId, label("untitled")),
+    kind: "note", markdown: "",
+  };
+  state.nodes.push(item);
+  state.selectedId = item.id;
+  revealParent(parentId);
+  void directory.value?.beginRename(item);
 }
 
 function relocate(id: string, drop: DirectoryDrop) {
@@ -140,10 +155,7 @@ function applyDialog() {
   } else {
     if (!name.value.trim() || !folders.value.some(folder => folder.value === destination.value)) return;
     const parentId = destination.value || null;
-    const base = { id: crypto.randomUUID(), name: name.value.trim(), parentId };
-    const item: Node = operation.value === "note"
-      ? { ...base, kind: "note", markdown: "" }
-      : { ...base, kind: "folder", collapsed: false };
+    const item: Node = { id: crypto.randomUUID(), name: name.value.trim(), parentId, kind: "folder", collapsed: false };
     state.nodes.push(item);
     state.selectedId = item.id;
     revealParent(parentId);
@@ -289,9 +301,9 @@ useWindowEvent("keydown", event => {
     <Transition name="notebook-sidebar">
       <div v-if="directoryOpen" class="sidebar-frame" :style="{ '--sidebar-width': `${fitted + 1}px` }">
         <div class="sidebar-content">
-          <NotebookDirectory v-model:view="sidebarView" :nodes="notebook?.nodes ?? []" :selected-id="notebook?.selectedId ?? null"
+          <NotebookDirectory ref="directory" v-model:view="sidebarView" :nodes="notebook?.nodes ?? []" :selected-id="notebook?.selectedId ?? null"
             :width="fitted" :can-reveal="canReveal" :has-note="Boolean(note)" :headings="headings"
-            @select="select" @toggle="toggleFolder" @add="(kind, parentId) => openDialog(kind, undefined, parentId)"
+            @select="select" @toggle="toggleFolder" @add-note="addNote" @add-folder="parentId => openDialog('folder', undefined, parentId)"
             @rename="rename" @delete="node => openDialog('delete', node)" @move="relocate" @reveal="revealEntry" @go-to-heading="goToHeading" />
           <div class="directory-resizer" role="separator" tabindex="0" aria-orientation="vertical" :aria-label="label('resizeDirectory')"
             :aria-valuemin="min" :aria-valuemax="max" :aria-valuenow="Math.round(fitted)"
@@ -336,7 +348,6 @@ useWindowEvent("keydown", event => {
       <div v-else class="notice">
         <FolderOpen :size="28" />
         <span>{{ label(selected ? "folderHint" : "empty") }}</span>
-        <button class="btn primary" @click="openDialog('note')"><FilePlus2 :size="15" />{{ label("addNote") }}</button>
       </div>
       <footer class="workspace-actions">
         <button type="button" class="icon-btn" :aria-expanded="directoryOpen" :aria-label="directoryLabel"

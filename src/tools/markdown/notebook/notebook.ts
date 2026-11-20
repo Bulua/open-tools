@@ -15,6 +15,17 @@ export interface Notebook {
 
 export const emptyNotebook = (): Notebook => ({ version: 1, selectedId: null, nodes: [] });
 
+export function uniqueNoteName(nodes: Node[], parentId: string | null, name: string, currentId?: string): string {
+  const stem = name.replace(/\.md$/i, "");
+  const extension = name.slice(stem.length);
+  const siblings = new Set(nodes
+    .filter(node => node.kind === "note" && node.parentId === parentId && node.id !== currentId)
+    .map(node => node.name.replace(/\.md$/i, "").toUpperCase()));
+  let candidate = stem;
+  for (let number = 2; siblings.has(candidate.toUpperCase()); number++) candidate = `${stem} (${number})`;
+  return candidate + extension;
+}
+
 function indexChildren(nodes: Node[]) {
   const children = new Map<string | null, Node[]>();
   for (const node of nodes) {

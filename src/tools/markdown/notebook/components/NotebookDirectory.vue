@@ -14,7 +14,8 @@ const view = defineModel<"files" | "outline">("view", { default: "files" });
 const emit = defineEmits<{
   select: [node: Node];
   toggle: [node: Node];
-  add: [kind: "note" | "folder", parentId: string | null];
+  addNote: [parentId: string | null];
+  addFolder: [parentId: string | null];
   rename: [id: string, name: string];
   delete: [node: Node];
   move: [id: string, drop: DirectoryDrop];
@@ -79,6 +80,7 @@ function menuKey(event: KeyboardEvent) {
 
 const editingId = ref<string>();
 const draftName = ref("");
+defineExpose({ beginRename });
 
 async function beginRename(node: Node) {
   closeMenu();
@@ -233,15 +235,16 @@ onDeactivated(() => { closeMenu(); finishDrag(); });
           <button v-if="canReveal" role="menuitem" @click="closeMenu(); returnFocus?.focus(); emit('reveal', menuNode.id)">
             <FolderOpen :size="14" />{{ label("reveal") }}
           </button>
-          <button v-if="menuNode.kind === 'folder'" role="menuitem" @click="closeMenu(); emit('add', 'folder', menuNode.id)">
-            <FolderPlus :size="15" />{{ label("addFolder") }}
-          </button>
+          <template v-if="menuNode.kind === 'folder'">
+            <button role="menuitem" @click="closeMenu(); emit('addFolder', menuNode.id)"><FolderPlus :size="15" />{{ label("addFolder") }}</button>
+            <button role="menuitem" @click="closeMenu(); emit('addNote', menuNode.id)"><FilePlus2 :size="15" />{{ label("addNote") }}</button>
+          </template>
           <button role="menuitem" @click="beginRename(menuNode)"><Pencil :size="14" />{{ label("rename") }}</button>
           <button role="menuitem" @click="closeMenu(); emit('delete', menuNode)"><Trash2 :size="14" />{{ label("delete") }}</button>
         </template>
         <template v-else>
-          <button role="menuitem" @click="closeMenu(); emit('add', 'folder', null)"><FolderPlus :size="15" />{{ label("addFolder") }}</button>
-          <button role="menuitem" @click="closeMenu(); emit('add', 'note', null)"><FilePlus2 :size="15" />{{ label("addNote") }}</button>
+          <button role="menuitem" @click="closeMenu(); emit('addFolder', null)"><FolderPlus :size="15" />{{ label("addFolder") }}</button>
+          <button role="menuitem" @click="closeMenu(); emit('addNote', null)"><FilePlus2 :size="15" />{{ label("addNote") }}</button>
         </template>
       </div>
     </Teleport>
