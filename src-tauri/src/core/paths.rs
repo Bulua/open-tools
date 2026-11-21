@@ -1,7 +1,6 @@
 //! 程序数据的存放位置：密码本、倒计时、AI 模型与运行环境、远程图标等都放在这里。
 //! - Windows：安装目录下的 data 文件夹，跟着程序走；安装目录没有写权限（如装在 Program Files）时，
 //!   退回到系统给程序的数据目录（%LOCALAPPDATA%\com.opentools.app）
-//! - 其他平台（以后的安卓、苹果等）不能往安装位置写文件，直接用系统给程序的数据目录
 //!
 //! 界面设置（主题、语言等）由 WebView2 保存在它自己的数据目录里，不在这里。
 
@@ -28,18 +27,12 @@ pub fn sub_dir<R: Runtime>(app: &AppHandle<R>, name: &str) -> Result<PathBuf, St
     Ok(dir)
 }
 
-#[cfg(windows)]
 fn pick_data_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
     if let Some(dir) = install_dir().map(|d| d.join("data")) {
         if writable(&dir) {
             return Ok(dir);
         }
     }
-    system_data_dir(app)
-}
-
-#[cfg(not(windows))]
-fn pick_data_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
     system_data_dir(app)
 }
 
@@ -55,7 +48,6 @@ fn install_dir() -> Option<PathBuf> {
 }
 
 /// 能否在这个文件夹里创建文件（不存在时先创建文件夹）
-#[cfg(windows)]
 fn writable(dir: &Path) -> bool {
     if std::fs::create_dir_all(dir).is_err() {
         return false;

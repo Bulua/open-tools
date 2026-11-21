@@ -38,7 +38,6 @@ pub async fn douyin_capture(app: AppHandle, id: String, kind: String) -> Result<
         // 隐藏的页面会被当作在后台，注入的脚本让页面认为自己可见，以免有的内容不加载
         .visible(false)
         .inner_size(1280.0, 800.0);
-    #[cfg(desktop)]
     let builder = builder.skip_taskbar(true).focused(false);
     let window = builder
         .on_navigation(move |u: &Url| {

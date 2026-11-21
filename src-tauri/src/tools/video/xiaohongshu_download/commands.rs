@@ -36,7 +36,6 @@ pub async fn xiaohongshu_capture(app: AppHandle, url: String) -> Result<String, 
         .initialization_script(SCRIPT)
         .visible(false)
         .inner_size(1280.0, 800.0);
-    #[cfg(desktop)]
     let builder = builder.skip_taskbar(true).focused(false);
     let window = builder
         .on_navigation(move |u: &Url| {

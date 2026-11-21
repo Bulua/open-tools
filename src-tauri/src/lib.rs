@@ -2,7 +2,6 @@ mod core;
 mod tools;
 
 use crate::core::{branding, paths, tray};
-#[cfg(desktop)]
 use crate::tools::network::mcp_inspector::{commands as mcp, store as mcp_store};
 use crate::tools::{
     audio::tts::commands as tts,
@@ -31,11 +30,9 @@ use crate::tools::{
     image::screenshot_history::{commands as screenshot, windows as screenshot_windows},
 };
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default().manage(tools::network::mqtt_client::commands::MqttState::default());
 
-    #[cfg(desktop)]
     let builder = builder
         // 必须最先注册：再次打开程序时显示已有窗口，而不是启动第二个
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -51,7 +48,6 @@ pub fn run() {
         // HTTP 请求工具：由 Rust 发出请求
         .plugin(tauri_plugin_http::init());
 
-    #[cfg(desktop)]
     let builder = builder
         .manage(mcp::McpSessions::default())
         // 在线更新：检查、下载、安装新版本；安装后重启程序
@@ -81,23 +77,14 @@ pub fn run() {
             large_file::large_text_close,
             large_file::large_text_exit,
             ping::ping_once,
-            #[cfg(desktop)]
             mcp::mcp_connect,
-            #[cfg(desktop)]
             mcp_store::mcp_read_connections,
-            #[cfg(desktop)]
             mcp_store::mcp_save_connections,
-            #[cfg(desktop)]
             mcp::mcp_disconnect,
-            #[cfg(desktop)]
             mcp::mcp_active_sessions,
-            #[cfg(desktop)]
             mcp::mcp_list_entries,
-            #[cfg(desktop)]
             mcp::mcp_call_tool,
-            #[cfg(desktop)]
             mcp::mcp_get_prompt,
-            #[cfg(desktop)]
             mcp::mcp_read_resource,
             mqtt::mqtt_connect,
             mqtt::mqtt_disconnect,
@@ -189,7 +176,6 @@ pub fn run() {
             paths::migrate(app.handle());
             #[cfg(windows)]
             clipboard::start(app.handle());
-            #[cfg(desktop)]
             tray::setup(
                 app,
                 #[cfg(windows)]
@@ -206,7 +192,6 @@ pub fn run() {
             Ok(())
         });
 
-    #[cfg(desktop)]
     let builder = builder.on_window_event(|window, event| {
         tray::on_window_event(window, event);
         #[cfg(windows)]
@@ -220,7 +205,6 @@ pub fn run() {
             if let tauri::RunEvent::ExitRequested { api, code, .. } = &event {
                 if large_file_service::has_sessions() {
                     api.prevent_exit();
-                    #[cfg(desktop)]
                     tray::show_main(app);
                     use tauri::Emitter;
                     let _ = app.emit_to("main", "large-text-exit-requested", code);
