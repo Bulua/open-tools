@@ -21,7 +21,6 @@ pub(crate) enum McpConfig {
         cwd: Option<String>,
     },
     Http(HttpConfig),
-    Sse(HttpConfig),
 }
 
 #[derive(Deserialize)]
@@ -156,16 +155,12 @@ mod tests {
     }
 
     #[test]
-    fn reads_http_fields_from_existing_sse_configs() {
+    fn rejects_legacy_sse_transport() {
         let settings = json!({
             "type": "sse",
             "url": "http://localhost:3000/sse",
             "headers": {"Authorization": "Bearer example-token"}
         });
-        let McpConfig::Sse(config) = serde_json::from_value(settings).unwrap() else {
-            panic!("Expected SSE settings");
-        };
-        let (_, headers) = prepare_http(config, |_| panic!("Unexpected variable lookup")).unwrap();
-        assert_eq!(headers[&AUTHORIZATION], "Bearer example-token");
+        assert!(serde_json::from_value::<McpConfig>(settings).is_err());
     }
 }

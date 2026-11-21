@@ -50,8 +50,6 @@ ort = { version = "=2.0.0-rc.15", default-features = false, features = ["std", "
 rmcp = { version = "3.11", default-features = false, features = ["client", "reqwest-tls-no-provider", "transport-streamable-http-client-reqwest", "which-command"] }
 reqwest = { version = "0.13", default-features = false }
 process-wrap = { version = "10", features = ["tokio1"] }
-futures-util = "0.3"
-sse-stream = "0.2.6"
 
 # 录屏前临时关闭屏幕 HDR（Windows 显示设置接口）；指定 AI 运行库所在的文件夹（LibraryLoader）
 [target.'cfg(windows)'.dependencies]

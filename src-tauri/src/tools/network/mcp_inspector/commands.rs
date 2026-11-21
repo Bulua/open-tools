@@ -5,9 +5,9 @@ use reqwest::Client;
 use rmcp::{
     model::{
         CallToolRequestParams, CallToolResult, ClientCapabilities, ClientConfig, Implementation,
-        JsonObject, ProtocolVersion, Tool,
+        JsonObject, Tool,
     },
-    service::{serve_client_with_lifecycle, ClientLifecycleMode, RoleClient, RunningService},
+    service::{RoleClient, RunningService},
     transport::{
         streamable_http_client::{
             StreamableHttpClientTransport, StreamableHttpClientTransportConfig,
@@ -19,10 +19,7 @@ use rmcp::{
 use serde::Serialize;
 use tokio::time::timeout;
 
-use super::{
-    config::{prepare_http, prepare_stdio, McpConfig},
-    legacy_sse::LegacySseTransport,
-};
+use super::config::{prepare_http, prepare_stdio, McpConfig};
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(45);
 type McpService = RunningService<RoleClient, ClientConfig>;
@@ -88,7 +85,6 @@ async fn with_connection<T>(
 }
 
 async fn connect(info: ClientConfig, config: McpConfig) -> Result<McpService, String> {
-    let legacy_sse = matches!(config, McpConfig::Sse(_));
     let service = match config {
         McpConfig::Stdio {
             command,
@@ -123,7 +119,7 @@ async fn connect(info: ClientConfig, config: McpConfig) -> Result<McpService, St
                 .map_err(|err| format!("Could not start the MCP server: {err}"))?;
             info.serve(transport).await
         }
-        McpConfig::Http(config) | McpConfig::Sse(config) => {
+        McpConfig::Http(config) => {
             let (url, headers) = prepare_http(config, |name| {
                 std::env::var(name)
                     .map_err(|_| format!("Environment variable {name} is missing or unreadable."))
@@ -134,17 +130,10 @@ async fn connect(info: ClientConfig, config: McpConfig) -> Result<McpService, St
                 .redirect(reqwest::redirect::Policy::none())
                 .build()
                 .map_err(|err| format!("Could not initialize the HTTP client: {err}"))?;
-            if legacy_sse {
-                let transport =
-                    LegacySseTransport::connect(client, url, headers.into_iter().collect()).await?;
-                let info = info.with_protocol_version(ProtocolVersion::V_2024_11_05);
-                serve_client_with_lifecycle(info, transport, ClientLifecycleMode::Initialize).await
-            } else {
-                let config = StreamableHttpClientTransportConfig::with_uri(url.as_str())
-                    .custom_headers(headers);
-                info.serve(StreamableHttpClientTransport::with_client(client, config))
-                    .await
-            }
+            let config =
+                StreamableHttpClientTransportConfig::with_uri(url.as_str()).custom_headers(headers);
+            info.serve(StreamableHttpClientTransport::with_client(client, config))
+                .await
         }
     };
     service.map_err(|err| format!("Could not connect to the MCP server: {err}"))
