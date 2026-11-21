@@ -259,7 +259,7 @@ const css = (c: Rgba | PaletteColor) => toRgb({ a: 1, ...c });
   background: var(--surface);
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
   pointer-events: none;
   white-space: nowrap;

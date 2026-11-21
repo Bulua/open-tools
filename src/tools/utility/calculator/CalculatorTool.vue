@@ -201,7 +201,8 @@ useToolResult(() => live.value.ok && live.value.text ? `${expr.value}|${angle.va
   outline: none;
   background: none;
   text-align: right;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 24px;
   color: var(--text);
 }
@@ -213,7 +214,8 @@ useToolResult(() => live.value.ok && live.value.text ? `${expr.value}|${angle.va
 .live {
   min-height: 24px;
   margin-top: 4px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 16px;
   color: var(--text-2);
   word-break: break-all;
@@ -296,7 +298,7 @@ useToolResult(() => live.value.ok && live.value.text ? `${expr.value}|${angle.va
   padding: 0;
   border: none;
   background: none;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   text-align: right;
   word-break: break-all;
 }

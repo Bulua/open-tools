@@ -103,7 +103,7 @@ useToolResult(() => output.value);
   <div class="headers">
     <section class="card bar">
       <AppSelect v-model="method" class="method" :options="METHODS.map((m) => ({ value: m, label: m }))" />
-      <input v-model="url" class="field mono" spellcheck="false" :placeholder="t('network.urlPlaceholder')" />
+      <input v-model="url" class="field small-text" spellcheck="false" :placeholder="t('network.urlPlaceholder')" />
       <span class="summary" :class="{ error: parsed.error }">{{ parsed.error || summary }}</span>
     </section>
 
@@ -150,7 +150,7 @@ useToolResult(() => output.value);
   flex: 0 0 110px;
   font-weight: 600;
 }
-.bar .mono {
+.bar .small-text {
   flex: 1;
   height: 34px;
 }

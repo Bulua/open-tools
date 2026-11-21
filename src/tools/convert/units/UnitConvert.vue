@@ -120,7 +120,7 @@ useToolResult(() => value.value !== null ? `${input.value}|${from.value}|${quant
 }
 .field.big {
   height: 44px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 20px;
 }
 /* 单位用一组按钮选择，比下拉框更直观 */

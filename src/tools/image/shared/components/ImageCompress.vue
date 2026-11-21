@@ -436,7 +436,7 @@ h3 em {
   padding-bottom: 14px;
 }
 .saving {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 40px;
   line-height: 1.1;
   color: var(--success);

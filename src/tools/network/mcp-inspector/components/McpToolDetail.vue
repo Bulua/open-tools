@@ -191,7 +191,7 @@ async function testTool() {
 .form-mode .argument-actions { display: grid; grid-template-columns: var(--argument-columns); column-gap: var(--argument-column-gap); }
 .argument-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 0 2px; border-top: 1px solid var(--border); }
 .form-mode .argument-buttons { grid-column: -2 / -1; margin-inline-end: var(--argument-warning-space); }
-.argument-buttons kbd { margin-inline-start: auto; color: var(--text-2); font: 11px var(--font-mono); }
+.argument-buttons kbd { margin-inline-start: auto; color: var(--text-2); font: 11px var(--font-sans); }
 .empty-form .argument-actions { display: flex; justify-content: center; }
 .empty-form .argument-buttons { justify-content: center; margin-inline-end: 0; }
 .empty-form .argument-buttons kbd { margin-inline-start: 0; }

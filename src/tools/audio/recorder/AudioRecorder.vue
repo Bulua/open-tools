@@ -254,7 +254,7 @@ h3 {
   height: 56px;
 }
 .clock {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 44px;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;

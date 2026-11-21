@@ -186,7 +186,7 @@ defineExpose({ open });
       <div v-if="mode === 'stdio'" class="transport-fields">
         <label class="form-field">
           {{ t("network.mcp.command") }}
-          <input v-model="command" class="field line-field mono" placeholder="node" spellcheck="false" autocomplete="off" />
+          <input v-model="command" class="field line-field small-text" placeholder="node" spellcheck="false" autocomplete="off" />
         </label>
         <McpConfigRows
           v-model="args"
@@ -218,7 +218,7 @@ defineExpose({ open });
         </div>
         <label class="form-field">
           {{ t("network.mcp.cwd") }}
-          <input v-model="cwd" class="field line-field mono" placeholder="./mcp-server" spellcheck="false" autocomplete="off" />
+          <input v-model="cwd" class="field line-field small-text" placeholder="./mcp-server" spellcheck="false" autocomplete="off" />
         </label>
       </div>
       <div v-else class="transport-fields">
@@ -226,7 +226,7 @@ defineExpose({ open });
           {{ t("network.mcp.url") }}
           <input
             v-model="url"
-            class="field line-field mono"
+            class="field line-field small-text"
             type="url"
             placeholder="https://mcp.example.com/mcp"
             spellcheck="false"
@@ -235,7 +235,7 @@ defineExpose({ open });
         </label>
         <label class="form-field">
           {{ t("network.mcp.bearerEnv") }}
-          <input v-model="bearer" class="field line-field mono" placeholder="MCP_BEARER_TOKEN" spellcheck="false" autocomplete="off" />
+          <input v-model="bearer" class="field line-field small-text" placeholder="MCP_BEARER_TOKEN" spellcheck="false" autocomplete="off" />
         </label>
         <McpConfigRows
           v-model="headers"
@@ -301,7 +301,7 @@ defineExpose({ open });
   border-bottom: 1px solid var(--border);
 }
 .dialog-footer { justify-content: flex-end; border-top: 1px solid var(--border); }
-h2 { margin: 0; font-family: var(--font-serif); font-size: 21px; font-weight: 400; }
+h2 { margin: 0; font-family: var(--font-sans); font-size: 21px; font-weight: 400; }
 .modes button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; }
 .modes button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .form-body {

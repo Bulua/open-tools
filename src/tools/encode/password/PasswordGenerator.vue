@@ -214,7 +214,7 @@ h3 {
 }
 .toggle code {
   margin-left: auto;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   color: var(--text-3);
 }
@@ -257,7 +257,7 @@ h3 {
   gap: 16px;
 }
 .pw {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 30px;
   line-height: 1.35;
   letter-spacing: 1px;
@@ -359,7 +359,7 @@ h3 {
 .items code {
   flex: 1;
   min-width: 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 13.5px;
   word-break: break-all;
 }

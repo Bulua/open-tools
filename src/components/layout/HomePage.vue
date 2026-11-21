@@ -154,7 +154,7 @@ onMounted(() => void loadCalendarNotes().catch(showError));
   margin: 0 0 12px;
 }
 h1 {
-  font: 400 32px/1.35 var(--font-serif);
+  font: 400 32px/1.35 var(--font-sans);
   margin: 0 0 10px;
 }
 .intro {

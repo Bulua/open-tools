@@ -31,7 +31,7 @@ defineProps<{ title: string; description: string }>();
 }
 h3 {
   margin: 0 0 8px;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 22px;
   font-weight: 400;
 }

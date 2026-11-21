@@ -78,7 +78,7 @@ const COUNTS = computed(() => [
     <section class="card controls">
       <input
         v-model="host"
-        class="field mono host"
+        class="field small-text host"
         :class="{ invalid: host.trim() && !valid }"
         spellcheck="false"
         :placeholder="t('network.hostPlaceholder')"
@@ -193,7 +193,7 @@ const COUNTS = computed(() => [
   color: var(--text-3);
 }
 .stat-value {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 28px;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;

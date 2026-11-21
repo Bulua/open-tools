@@ -667,9 +667,9 @@ onBeforeUnmount(() => {
 .overlay { background: transparent; cursor: crosshair; user-select: none; }
 canvas { touch-action: none; }
 .rotation-control { position: fixed; z-index: 4; width: 22px; height: 22px; padding: 0; transform: translate(-50%, -50%); display: grid; place-items: center; border: 1px solid var(--accent); border-radius: 50%; background: var(--surface); color: var(--accent); cursor: grab; touch-action: none; }
-.text-editor { position: fixed; z-index: 4; padding: 0; margin: 0; border: 1px dashed var(--accent); outline: none; border-radius: 2px; background: var(--surface); font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif; resize: none; overflow: hidden; white-space: pre; user-select: text; cursor: text; }
+.text-editor { position: fixed; z-index: 4; padding: 0; margin: 0; border: 1px dashed var(--accent); outline: none; border-radius: 2px; background: var(--surface); font-family: var(--font-sans); resize: none; overflow: hidden; white-space: pre; user-select: text; cursor: text; }
 .hint { position: fixed; left: 50%; top: 28px; transform: translateX(-50%); display: flex; align-items: center; gap: 7px; padding: 8px 13px; border-radius: 8px; color: #fff; background: rgba(20,20,20,.84); box-shadow: 0 6px 24px rgba(0,0,0,.25); font-size: 13px; }
-.size-label { position: fixed; padding: 3px 7px; color: #fff; background: rgba(0,0,0,.72); border-radius: 4px; font: 12px var(--font-mono); pointer-events: none; }
+.size-label { position: fixed; padding: 3px 7px; color: #fff; background: rgba(0,0,0,.72); border-radius: 4px; font: 12px var(--font-sans); pointer-events: none; }
 .shot-toolbar { position: fixed; z-index: 3; height: 46px; padding: 5px 6px; display: flex; align-items: center; gap: 2px; border: 1px solid rgba(255,255,255,.16); border-radius: 9px; background: #262626; color: #eee; box-shadow: 0 10px 32px rgba(0,0,0,.35); cursor: default; }
 .shot-toolbar button { width: 34px; height: 34px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: #d6d6d6; }
 .shot-toolbar button:hover, .shot-toolbar button.on { background: #414141; color: #fff; }

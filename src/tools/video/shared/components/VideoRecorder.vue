@@ -415,7 +415,7 @@ const statusText = computed(() =>
   align-items: center;
   gap: 8px;
   margin: 0 0 2px;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 19px;
   font-weight: 400;
 }
@@ -479,7 +479,7 @@ const statusText = computed(() =>
   padding: 12px 14px;
 }
 .clock {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 26px;
   line-height: 1;
   font-variant-numeric: tabular-nums;

@@ -284,7 +284,7 @@ useToolResult(() => result.value.ok ? `${expr.value}|${dialect.value}` : "");
 }
 .meaning {
   margin: 0;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 22px;
   line-height: 1.4;
   color: var(--text);
@@ -479,7 +479,7 @@ useToolResult(() => result.value.ok ? `${expr.value}|${dialect.value}` : "");
   text-align: right;
 }
 .time {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
 }
 .week {

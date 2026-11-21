@@ -79,7 +79,7 @@ const { copied, copy } = useClipboard();
       </div>
 
       <div class="search">
-        <input v-model="query" class="field mono" spellcheck="false" :placeholder="t('network.ipPlaceholder')" @keydown.enter="run(query)" />
+        <input v-model="query" class="field small-text" spellcheck="false" :placeholder="t('network.ipPlaceholder')" @keydown.enter="run(query)" />
         <button class="btn primary" :disabled="loading || !query.trim()" @click="run(query)"><Search :size="14" />{{ t("network.query") }}</button>
         <button class="btn" :disabled="loading" :title="t('network.selfTitle')" @click="query = ''; run()"><RefreshCw :size="14" />{{ t("network.self") }}</button>
       </div>
@@ -124,7 +124,7 @@ const { copied, copy } = useClipboard();
   margin-top: 4px;
 }
 .ip-value {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 32px;
   letter-spacing: 0.5px;
   word-break: break-all;

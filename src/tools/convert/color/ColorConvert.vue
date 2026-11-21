@@ -42,7 +42,7 @@ useToolResult(() => color.value ? input.value : "");
       <div class="picker-body">
         <input
           v-model="input"
-          class="field mono"
+          class="field small-text"
           :class="{ invalid: !color && input.trim() }"
           spellcheck="false"
           placeholder="#c96442、rgb(201, 100, 66)、hsl(15, 56%, 52%)"

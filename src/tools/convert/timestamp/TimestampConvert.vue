@@ -76,7 +76,7 @@ useToolResult(() => parsed.value.ok ? `${input.value}|${unit.value}` : "");
       <div class="input-row">
         <input
           v-model="input"
-          class="field mono big"
+          class="field small-text big"
           :class="{ invalid: !parsed.ok && parsed.message }"
           spellcheck="false"
           :placeholder="t('convert.timePlaceholder')"
@@ -145,7 +145,7 @@ useToolResult(() => parsed.value.ok ? `${input.value}|${unit.value}` : "");
   padding: 16px 16px 6px;
 }
 .clock-sec {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 30px;
   letter-spacing: 0.5px;
   font-variant-numeric: tabular-nums;

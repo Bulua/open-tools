@@ -360,7 +360,7 @@ onBeforeUnmount(() => {
             <span class="push link-text">{{ showLogin ? t("video.collapse") : t("video.settings") }}</span>
           </h3>
           <template v-if="showLogin">
-            <input v-model="sessdata" class="field mono" type="password" :placeholder="t('video.sessdataPlaceholder')" spellcheck="false" autocomplete="off" />
+            <input v-model="sessdata" class="field small-text" type="password" :placeholder="t('video.sessdataPlaceholder')" spellcheck="false" autocomplete="off" />
             <p class="tip">
               {{ t("video.sessdataTip") }}
             </p>

@@ -225,7 +225,7 @@ const keydown = async (event: KeyboardEvent, node: TreeNode) => {
 .directory-head { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; height: var(--mqtt-header-height); padding: 0 14px; border-bottom: 1px solid var(--border); font-size: 16px; font-weight: 600; }
 .directory-head > div { display: flex; align-items: center; gap: 2px; }
 .node-label { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; }
-.node-label small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); font: 11px var(--font-mono); }
+.node-label small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); font: 11px var(--font-sans); }
 .directory-tree { flex: 1; min-height: 0; overflow: auto; padding: 6px 0 28px; }
 .tree-row { display: flex; align-items: center; gap: 6px; min-height: var(--mqtt-row-height); padding-inline-end: 10px; border-block: 2px solid transparent; font-size: 14px; color: var(--text-2); cursor: pointer; }
 /* 文件夹展开与收起只改变行高和裁剪，保持文字尺寸不变。 */

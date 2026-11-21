@@ -102,10 +102,10 @@ const removeTopic = (topic: string) => {
       <MqttConnectionForm v-else-if="creating" v-model:name="connectionName" :config="config" :disabled="status !== 'disconnected'" />
       <fieldset v-else class="connection-fields compact-fields" :disabled="status !== 'disconnected'">
         <label class="connection-name"><span>{{ t("network.mqtt.connectionName") }}</span><input v-model="connectionName" class="field" maxlength="100" required /></label>
-        <label><span>{{ t("network.mqtt.clientId") }}</span><div class="compact-input-action"><input v-model="config.clientId" class="field mono" spellcheck="false" /><button type="button" class="icon-btn" :aria-label="t('network.mqtt.regenerateId')" :title="t('network.mqtt.regenerateId')" @click="regenerateId"><RefreshCw :size="14" /></button></div></label>
+        <label><span>{{ t("network.mqtt.clientId") }}</span><div class="compact-input-action"><input v-model="config.clientId" class="field small-text" spellcheck="false" /><button type="button" class="icon-btn" :aria-label="t('network.mqtt.regenerateId')" :title="t('network.mqtt.regenerateId')" @click="regenerateId"><RefreshCw :size="14" /></button></div></label>
         <label><span>{{ t("network.mqtt.username") }}</span><input v-model="config.username" class="field" :placeholder="t('network.mqtt.optional')" autocomplete="off" /></label>
         <label class="connection-password"><span>{{ t("network.mqtt.password") }}</span><input v-model="config.password" class="field" type="password" :placeholder="t('network.mqtt.optional')" autocomplete="new-password" /></label>
-        <label><span>{{ t("network.mqtt.keepAlive") }}</span><input v-model.number="config.keepAlive" class="field mono" type="number" min="5" max="65535" /></label>
+        <label><span>{{ t("network.mqtt.keepAlive") }}</span><input v-model.number="config.keepAlive" class="field small-text" type="number" min="5" max="65535" /></label>
         <div class="compact-field"><span>{{ t("network.mqtt.mqttVersion") }}</span><AppSelect v-model="config.protocolVersion" :options="versionOptions" :disabled="status !== 'disconnected'" :aria-label="t('network.mqtt.mqttVersion')" /></div>
         <label><span>{{ t("network.mqtt.cleanSession") }}</span><span class="check compact-check"><input v-model="config.cleanSession" type="checkbox" />{{ t("network.mqtt.enabled") }}</span></label>
       </fieldset>
@@ -160,7 +160,7 @@ const removeTopic = (topic: string) => {
 .connection-toggle span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .connection-toggle svg { flex-shrink: 0; transition: transform var(--dur) var(--ease-out); }
 .connection-toggle svg.collapsed { transform: rotate(-90deg); }
-.connection-address { color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11px var(--font-mono); }
+.connection-address { color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11px var(--font-sans); }
 .connection-edit { margin-inline-start: auto; flex-shrink: 0; }
 .status { display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 11px; white-space: nowrap; }
 .status i { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); }
@@ -180,7 +180,7 @@ const removeTopic = (topic: string) => {
 .subscription-filter.selected { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .subscription-filter:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .subscription-filter.selected small { color: var(--accent); }
-code { font: 12px var(--font-mono); overflow-wrap: anywhere; }
+code { font: 12px var(--font-sans); overflow-wrap: anywhere; }
 .traffic-page { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
 .creating { background: var(--surface); }
 .creating .connection { display: flex; flex-direction: column; flex: 1; min-height: 0; width: 100%; margin: 0; padding: 0; overflow: hidden; border: 0; background: none; }

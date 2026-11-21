@@ -220,7 +220,7 @@ button.compression-source:hover {
   color: var(--text-3);
 }
 
-/* 单行输入框；.field.mono 使用等宽字体，.field.invalid 标红 */
+/* 单行输入框。需要紧凑文字时用 .small-text，需要等宽内容时用 .mono。 */
 .field {
   height: 36px;
   width: 100%;
@@ -237,9 +237,12 @@ button.compression-source:hover {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
+.field.small-text,
+.field.mono {
+  font-size: 13px;
+}
 .field.mono {
   font-family: var(--font-mono);
-  font-size: 13px;
 }
 .field.invalid {
   border-color: var(--danger);

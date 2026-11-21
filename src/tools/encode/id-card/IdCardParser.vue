@@ -153,7 +153,7 @@ useToolResult(() => parsed.value?.ok ? info.value?.id18 : "");
           <input
             ref="inputEl"
             v-model="input"
-            class="field mono"
+            class="field small-text"
             maxlength="40"
             spellcheck="false"
             autocomplete="off"
@@ -280,7 +280,7 @@ useToolResult(() => parsed.value?.ok ? info.value?.id18 : "");
   gap: 2px;
 }
 .record .number {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 13px;
   color: var(--text);
 }
@@ -311,7 +311,7 @@ useToolResult(() => parsed.value?.ok ? info.value?.id18 : "");
   gap: 10px;
   padding: 12px 14px;
 }
-.field.mono {
+.field.small-text {
   font-size: 16px;
   letter-spacing: 0.04em;
 }

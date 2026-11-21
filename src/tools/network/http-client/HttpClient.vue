@@ -234,7 +234,7 @@ const copyCurl = () => {
                 <button :class="{ on: req.auth.type === 'basic' }" @click="req.auth.type = 'basic'">{{ t("network.basic") }}</button>
               </div>
               <template v-if="req.auth.type === 'bearer'">
-                <input v-model="req.auth.token" class="field mono" :placeholder="t('network.tokenPlaceholder')" spellcheck="false" />
+                <input v-model="req.auth.token" class="field small-text" :placeholder="t('network.tokenPlaceholder')" spellcheck="false" />
                 <p class="hint">{{ t("network.bearerHint") }}</p>
               </template>
               <template v-else-if="req.auth.type === 'basic'">
@@ -360,12 +360,12 @@ const copyCurl = () => {
 .method :deep(.app-select) {
   color: inherit;
   font-weight: 600;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
 }
 .url {
   flex: 1;
   min-width: 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 13px;
 }
 .send {
@@ -543,7 +543,7 @@ const copyCurl = () => {
 }
 .history-item .m {
   flex: 0 0 56px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-weight: 600;
   font-size: 11.5px;
 }
@@ -566,11 +566,11 @@ const copyCurl = () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   color: var(--text);
 }
 .history-item .code {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11.5px;
 }
 .history-item .code.good {

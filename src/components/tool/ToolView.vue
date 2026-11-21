@@ -135,7 +135,7 @@ const renameSession = (id: number, name: string) => {
 h1 {
   flex-shrink: 0;
   margin: 0;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 19px;
   font-weight: 400;
   letter-spacing: -0.2px;

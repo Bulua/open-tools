@@ -255,7 +255,7 @@ useToolResult(() => JSON.stringify([baseInput.value, baseZone.value, zones.value
 }
 .big-time {
   margin-top: 6px;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 44px;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
@@ -331,7 +331,7 @@ useToolResult(() => JSON.stringify([baseInput.value, baseZone.value, zones.value
   flex-direction: column;
 }
 .time {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 22px;
   font-variant-numeric: tabular-nums;
 }

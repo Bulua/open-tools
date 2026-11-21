@@ -75,7 +75,7 @@ async function load() {
 .content-detail { display: flex; flex: 1; flex-direction: column; min-height: 0; gap: 14px; }
 .entry-form { display: grid; justify-items: start; gap: 12px; max-width: 640px; }
 .argument { display: grid; gap: 5px; width: 100%; min-width: 0; font-size: 13px; }
-code { color: var(--text-2); font: 12px var(--font-mono); overflow-wrap: anywhere; }
+code { color: var(--text-2); font: 12px var(--font-sans); overflow-wrap: anywhere; }
 .message { margin: 0; color: var(--text-2); font-size: 13px; overflow-wrap: anywhere; }
 .required { color: var(--danger); }
 .preview { min-height: 220px; }

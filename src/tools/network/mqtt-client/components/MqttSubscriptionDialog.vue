@@ -42,7 +42,7 @@ defineExpose({ open });
   <dialog v-panel-dismiss ref="subscriptionDialog" class="subscription-dialog panel-dialog" @cancel.prevent="closeSubscription()" :aria-label="t('network.mqtt.subscribe')">
     <form class="subscription-form" @submit.prevent="submit">
       <h2>{{ t("network.mqtt.subscribe") }}</h2>
-      <label>{{ t("network.mqtt.topic") }}<input ref="subscriptionInput" v-model="filterTopic" class="field mono" :aria-invalid="!filterValid" :title="!filterValid ? t('network.mqtt.filterError') : undefined" :placeholder="t('network.mqtt.filterHint')" spellcheck="false" /></label>
+      <label>{{ t("network.mqtt.topic") }}<input ref="subscriptionInput" v-model="filterTopic" class="field small-text" :aria-invalid="!filterValid" :title="!filterValid ? t('network.mqtt.filterError') : undefined" :placeholder="t('network.mqtt.filterHint')" spellcheck="false" /></label>
       <p class="hint">{{ t("network.mqtt.wildcardHint") }}</p>
       <label>{{ t("network.mqtt.qos") }}<AppSelect v-model="subscriptionQos" :options="qosOptions" :teleport-to="subscriptionDialog" /></label>
       <footer><button type="button" class="btn" @click="closeSubscription()">{{ t("network.mqtt.cancelAction") }}</button><button class="btn primary" :disabled="!canSubmit || !filterValid">{{ t(connected ? "network.mqtt.subscribe" : "network.mqtt.addTopic") }}</button></footer>

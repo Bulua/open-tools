@@ -32,7 +32,7 @@ function remove(index: number, keepRow: boolean) {
       <input
         v-if="keyLabel"
         v-model="row[0]"
-        class="field line-field mono"
+        class="field line-field small-text"
         :aria-label="keyLabel"
         :placeholder="keyExample || keyLabel"
         spellcheck="false"
@@ -40,7 +40,7 @@ function remove(index: number, keepRow: boolean) {
       />
       <input
         v-model="row[keyLabel ? 1 : 0]"
-        class="field line-field mono"
+        class="field line-field small-text"
         :aria-label="valueLabel || label"
         :placeholder="valueExample || valueLabel"
         spellcheck="false"

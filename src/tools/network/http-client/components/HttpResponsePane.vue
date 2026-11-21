@@ -193,7 +193,7 @@ const KIND_LABEL = computed(() => ({
 .status {
   padding: 2px 8px;
   border-radius: 6px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 600;
 }

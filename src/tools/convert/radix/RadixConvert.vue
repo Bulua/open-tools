@@ -85,7 +85,7 @@ useToolResult(() => !error.value && value.value !== null ? `${value.value}|${cus
           </label>
           <div class="input-wrap">
             <input
-              class="field mono"
+              class="field small-text"
               :class="{ invalid: error?.base === row.base }"
               :value="display(row.base)"
               spellcheck="false"

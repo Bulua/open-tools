@@ -219,7 +219,7 @@ watch(
   flex-basis: 56px;
 }
 .name {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 17px;
   letter-spacing: -0.2px;
 }

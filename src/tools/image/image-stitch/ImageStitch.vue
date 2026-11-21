@@ -571,7 +571,7 @@ const toNumber = (e: Event, max: number) => Math.min(max, Math.max(0, Math.round
         <h3>{{ t("image.background") }}</h3>
         <div class="row">
           <ColorPicker v-model="background" :disabled="transparent" />
-          <span class="mono">{{ transparent ? t("image.transparent") : background }}</span>
+          <span>{{ transparent ? t("image.transparent") : background }}</span>
           <label class="check push"><input v-model="transparent" type="checkbox" />{{ t("image.transparent") }}</label>
         </div>
       </section>
@@ -732,9 +732,6 @@ h3 {
 .free-box:hover .handle,
 .free-box.selected .handle {
   opacity: 1;
-}
-.mono {
-  font-family: var(--font-mono);
 }
 .push {
   margin-left: auto;

@@ -121,11 +121,11 @@ ul { margin: 0; padding: 0; list-style: none; }
   transition: color var(--dur) var(--ease-out);
 }
 .entry:hover { background: var(--hover); }
-.entry-number { grid-area: 1 / 1; color: var(--text-2); font: 11px/18px var(--font-mono); }
+.entry-number { grid-area: 1 / 1; color: var(--text-2); font: 11px/18px var(--font-sans); }
 .entry[aria-current] { color: var(--accent); background: var(--accent-soft); }
 .list-items.gliding .entry[aria-current] { background: transparent; }
 .list-items :deep(.glide-mcp-entry) { border-radius: 6px; background: var(--accent-soft); }
 .entry strong, .entry small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .entry strong { grid-area: 1 / 2; font-size: 13px; font-weight: 500; line-height: 18px; }
-.entry small { grid-column: 2; color: var(--text-2); font: 11px var(--font-mono); }
+.entry small { grid-column: 2; color: var(--text-2); font: 11px var(--font-sans); }
 </style>

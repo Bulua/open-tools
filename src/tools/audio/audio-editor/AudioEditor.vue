@@ -289,7 +289,7 @@ h3 {
   background: var(--accent-hover);
 }
 .time {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 15px;
   font-variant-numeric: tabular-nums;
 }

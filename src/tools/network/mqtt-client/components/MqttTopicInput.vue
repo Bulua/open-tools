@@ -65,14 +65,14 @@ onDeactivated(close);
 
 <template>
   <div ref="trigger" class="topic-combobox" @focusout="blur">
-    <input ref="input" v-model="model" class="field mono publish-topic" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" :aria-expanded="open" :aria-controls="open ? `${id}-topics` : undefined" :aria-activedescendant="activeId" :aria-invalid="!validTopic(model)" :aria-label="t('network.mqtt.topic')" :title="t('network.mqtt.topic')" :placeholder="t('network.mqtt.publishHint')" spellcheck="false" autocomplete="off" @input="search" @keydown="keydown" />
+    <input ref="input" v-model="model" class="field small-text publish-topic" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" :aria-expanded="open" :aria-controls="open ? `${id}-topics` : undefined" :aria-activedescendant="activeId" :aria-invalid="!validTopic(model)" :aria-label="t('network.mqtt.topic')" :title="t('network.mqtt.topic')" :placeholder="t('network.mqtt.publishHint')" spellcheck="false" autocomplete="off" @input="search" @keydown="keydown" />
     <button type="button" class="icon-btn topic-toggle" :aria-label="t('network.mqtt.chooseTopic')" :title="t('network.mqtt.chooseTopic')" :aria-expanded="open" @pointerdown.prevent @click="toggle"><ChevronDown :size="14" :class="{ expanded: open }" /></button>
   </div>
   <Teleport to="body">
     <Transition name="pop">
       <div v-if="open" ref="panel" class="select-menu topic-menu" :style="style" @pointerdown.prevent>
         <div :id="`${id}-topics`" class="options" role="listbox" :aria-label="t('network.mqtt.chooseTopic')">
-          <div v-for="(topic, index) in options" :id="`${id}-option-${index}`" :key="topic" class="option" :class="{ active: cursor === index, selected: model === topic }" role="option" :aria-selected="model === topic" @mouseenter="cursor = index" @click="pick(topic)"><span class="text mono" :title="topic">{{ topic }}</span></div>
+          <div v-for="(topic, index) in options" :id="`${id}-option-${index}`" :key="topic" class="option" :class="{ active: cursor === index, selected: model === topic }" role="option" :aria-selected="model === topic" @mouseenter="cursor = index" @click="pick(topic)"><span class="text" :title="topic">{{ topic }}</span></div>
           <p v-if="!options.length" class="empty">{{ t("network.mqtt.noTopics") }}</p>
         </div>
       </div>

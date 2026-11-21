@@ -139,7 +139,7 @@ const close = () => !busy() && emit("close");
 }
 h2 {
   margin: 0;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 19px;
   font-weight: 400;
 }

@@ -65,7 +65,7 @@ defineProps<{ leaving: boolean }>();
   align-items: center;
   gap: 14px;
   color: var(--text);
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 28px;
   font-weight: 500;
 }

@@ -323,7 +323,7 @@ const formatDate = (ms: number) => new Date(ms).toLocaleString(locale.value, { h
             </dd>
             <dt>{{ t("encode.password") }}</dt>
             <dd>
-              <span class="value mono">{{ !e.password ? "—" : revealed.has(e.id) ? e.password : "••••••••" }}</span>
+              <span class="value">{{ !e.password ? "—" : revealed.has(e.id) ? e.password : "••••••••" }}</span>
               <template v-if="e.password">
                 <button class="icon-btn" :title="revealed.has(e.id) ? t('encode.hide') : t('encode.show')" @click.stop="toggleReveal(e.id)">
                   <EyeOff v-if="revealed.has(e.id)" :size="13" /><Eye v-else :size="13" />
@@ -384,7 +384,7 @@ const formatDate = (ms: number) => new Date(ms).toLocaleString(locale.value, { h
                 <label>
                   <span>{{ t("encode.password") }}</span>
                   <div class="with-actions">
-                    <input v-model="editing.draft.password" class="field mono" :type="showPassword ? 'text' : 'password'" autocomplete="off" />
+                    <input v-model="editing.draft.password" class="field small-text" :type="showPassword ? 'text' : 'password'" autocomplete="off" />
                     <button type="button" class="icon-btn" :title="showPassword ? t('encode.hide') : t('encode.show')" @click="showPassword = !showPassword">
                       <EyeOff v-if="showPassword" :size="14" /><Eye v-else :size="14" />
                     </button>
@@ -623,9 +623,6 @@ const formatDate = (ms: number) => new Date(ms).toLocaleString(locale.value, { h
   white-space: nowrap;
   color: var(--text-2);
 }
-.value.mono {
-  font-family: var(--font-mono);
-}
 .blank {
   grid-column: 1 / -1;
   display: flex;
@@ -679,7 +676,7 @@ const formatDate = (ms: number) => new Date(ms).toLocaleString(locale.value, { h
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 19px;
   font-weight: 400;
 }

@@ -212,7 +212,7 @@ const show = (s: string | undefined) => (s === undefined ? t("utility.unmatched"
   gap: 6px;
 }
 .slash {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 18px;
   color: var(--text-3);
 }
@@ -236,7 +236,7 @@ const show = (s: string | undefined) => (s === undefined ? t("utility.unmatched"
   border: 1px solid transparent;
   border-radius: 6px;
   background: none;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 13px;
   color: var(--text-3);
 }

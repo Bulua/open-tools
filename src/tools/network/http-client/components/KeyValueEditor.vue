@@ -84,7 +84,7 @@ const isEmpty = (r: KeyValue, i: number) => i === rows.value.length - 1 && !r.ke
   min-width: 0;
   height: 32px;
   padding: 0 10px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12.5px;
 }
 .file {

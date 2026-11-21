@@ -314,7 +314,7 @@ h3 {
 
 .saving {
   color: var(--success);
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 40px;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;

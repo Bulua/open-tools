@@ -43,8 +43,7 @@
   --dur: 200ms;
   --dur-slow: 300ms;
 
-  --font-sans: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
-  --font-serif: Georgia, "Times New Roman", "Microsoft YaHei UI", serif;
+  --font-sans: "Times New Roman", "Microsoft YaHei UI", system-ui, sans-serif;
   --font-mono: "Cascadia Mono", Consolas, "Microsoft YaHei UI", monospace;
   color-scheme: light;
 }

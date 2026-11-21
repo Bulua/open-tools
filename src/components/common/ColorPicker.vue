@@ -269,7 +269,7 @@ const eyeDrop = async () => {
   border-radius: 6px;
   background: var(--surface);
   color: var(--text);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
   -moz-appearance: textfield;
   appearance: textfield;

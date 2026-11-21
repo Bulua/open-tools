@@ -6,8 +6,8 @@ export const MARKDOWN_CSS = `
 .md-body > :first-child { margin-top: 0 !important; }
 .md-body > :last-child { margin-bottom: 0 !important; }
 .md-body h1, .md-body h2, .md-body h3, .md-body h4, .md-body h5, .md-body h6 { margin: 1.6em 0 0.6em; font-weight: 600; line-height: 1.35; scroll-margin-top: 12px; }
-.md-body h1 { font-family: var(--font-serif); font-size: 1.9em; font-weight: 500; padding-bottom: 0.3em; border-bottom: 1px solid var(--border); }
-.md-body h2 { font-family: var(--font-serif); font-size: 1.5em; font-weight: 500; padding-bottom: 0.25em; border-bottom: 1px solid var(--border); }
+.md-body h1 { font-family: var(--font-sans); font-size: 1.9em; font-weight: 500; padding-bottom: 0.3em; border-bottom: 1px solid var(--border); }
+.md-body h2 { font-family: var(--font-sans); font-size: 1.5em; font-weight: 500; padding-bottom: 0.25em; border-bottom: 1px solid var(--border); }
 .md-body h3 { font-size: 1.22em; }
 .md-body h4 { font-size: 1.05em; }
 .md-body h5, .md-body h6 { font-size: 0.95em; color: var(--text-2); }
@@ -30,7 +30,7 @@ export const MARKDOWN_CSS = `
 .md-body code { padding: 0.15em 0.4em; border-radius: 4px; background: var(--active); font-family: var(--font-mono); font-size: 0.87em; }
 .md-body pre { position: relative; padding: 14px 16px; overflow: auto; border-radius: 8px; background: var(--bg-sunken); border: 1px solid var(--border); line-height: 1.6; }
 .md-body pre code { padding: 0; background: none; font-size: 13px; white-space: pre; }
-.md-body .code-lang { position: absolute; top: 6px; right: 10px; font-size: 11px; color: var(--text-3); font-family: var(--font-mono); }
+.md-body .code-lang { position: absolute; top: 6px; right: 10px; font-size: 11px; color: var(--text-3); font-family: var(--font-sans); }
 .md-body .hljs-comment, .md-body .hljs-quote { color: var(--text-3); font-style: italic; }
 .md-body .hljs-keyword, .md-body .hljs-selector-tag, .md-body .hljs-built_in, .md-body .hljs-meta .hljs-keyword { color: var(--syntax-literal); }
 .md-body .hljs-string, .md-body .hljs-regexp, .md-body .hljs-addition, .md-body .hljs-meta .hljs-string { color: var(--syntax-string); }

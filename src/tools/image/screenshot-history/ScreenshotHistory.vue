@@ -222,7 +222,7 @@ onDeactivated(() => {
       <button class="btn primary" @click="capture"><Camera :size="16" />{{ t("image.screenshotNow") }}</button>
       <label class="shortcut-field">
         <span>{{ t("image.screenshotShortcut") }}</span>
-        <input v-if="editingShortcut" ref="shortcutInput" :value="shortcutPreview || shortcut" class="field mono" :class="{ recording }" :title="t('image.screenshotShortcutRecordHint')" :aria-label="t('image.screenshotShortcutRecordHint')" :disabled="savingShortcut" readonly spellcheck="false" @focus="recordingFocus" @blur="recordingBlur" @keydown="recordShortcut" @keyup.stop="shortcutPreview = ''" />
+        <input v-if="editingShortcut" ref="shortcutInput" :value="shortcutPreview || shortcut" class="field small-text" :class="{ recording }" :title="t('image.screenshotShortcutRecordHint')" :aria-label="t('image.screenshotShortcutRecordHint')" :disabled="savingShortcut" readonly spellcheck="false" @focus="recordingFocus" @blur="recordingBlur" @keydown="recordShortcut" @keyup.stop="shortcutPreview = ''" />
         <span v-else class="shortcut-value">{{ savedShortcut }}</span>
       </label>
       <button v-if="!editingShortcut" class="btn" @click="startEditingShortcut"><Pencil :size="14" />{{ t("image.screenshotShortcutEdit") }}</button>
@@ -308,7 +308,7 @@ onDeactivated(() => {
 .screenshot-history { height: 100%; min-height: 0; display: flex; flex-direction: column; gap: 14px; }
 .capture-bar { flex-shrink: 0; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
 .shortcut-field { display: flex; align-items: center; gap: 8px; color: var(--text-2); font-size: 13px; }
-.shortcut-value { font-family: var(--font-mono); color: var(--text); }
+.shortcut-value { font-family: var(--font-sans); color: var(--text); }
 .shortcut-field .field { width: 190px; height: 32px; cursor: pointer; }
 .shortcut-field .field.recording { border-color: var(--accent); background: var(--accent-soft); }
 .recording-hint { color: var(--text-2); }
@@ -335,7 +335,7 @@ h3 { margin: 0 0 8px; color: var(--text-2); font-size: 13px; font-weight: 600; }
 .thumb { height: 132px; display: grid; place-items: center; overflow: hidden; background: var(--bg-sunken); color: var(--text-3); font-size: 12px; }
 .thumb img { width: 100%; height: 100%; object-fit: contain; }
 .shot-card footer { height: 36px; padding: 0 6px 0 10px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--border); }
-time { color: var(--text-2); font-family: var(--font-mono); font-size: 12px; }
+time { color: var(--text-2); font-size: 12px; font-variant-numeric: tabular-nums; }
 .shot-actions { display: flex; }
 .shot-actions button { width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--text-3); }
 .shot-actions button:hover { background: var(--hover); color: var(--text); }

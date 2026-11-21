@@ -61,7 +61,7 @@ watch([visible, follow], async () => {
 .summary-line > svg { color: var(--success); flex-shrink: 0; }
 .sent .summary-line > svg { color: var(--accent); }
 .summary-line small, .binary-label { color: var(--text-3); font-size: 10px; }
-.message-summary code { overflow-wrap: anywhere; font: 12px var(--font-mono); }
+.message-summary code { overflow-wrap: anywhere; font: 12px var(--font-sans); }
 .message-summary pre { margin: 10px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.7 var(--font-mono); max-height: 240px; overflow: auto; }
 .message-item footer { display: flex; gap: 10px; padding: 6px 3px 0; color: var(--text-3); font-size: 10px; }
 .sent footer { justify-content: flex-end; }

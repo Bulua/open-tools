@@ -309,7 +309,7 @@ watch(selected, () => { descriptionExpanded.value = true; });
 .connection-status { margin-inline-end: auto; }
 .connection-status.online { color: var(--success); }
 .connection-name { font-size: 15px; overflow-wrap: anywhere; }
-.address { font: 12px var(--font-mono); color: var(--text-2); overflow-wrap: anywhere; }
+.address { font: 12px var(--font-sans); color: var(--text-2); overflow-wrap: anywhere; }
 .error { margin: 0; color: var(--danger); font-size: 12px; overflow-wrap: anywhere; }
 .connection-add { width: 100%; height: 100%; align-items: center; justify-content: center; border-style: dashed; color: var(--text-2); }
 .connection-add:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
@@ -323,7 +323,7 @@ watch(selected, () => { descriptionExpanded.value = true; });
   border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
 }
 .entry-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 5px 8px; }
-.entry-head h3 { margin: 0; font: 600 15px/1.4 var(--font-mono); overflow-wrap: anywhere; }
+.entry-head h3 { margin: 0; font: 600 15px/1.4 var(--font-sans); overflow-wrap: anywhere; }
 .entry-head p { grid-column: 1 / -1; min-width: 0; margin: 0; color: var(--text-2); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .entry-head:has(+ .editing-arguments) p { max-height: min(24vh, 160px); overflow: auto; scrollbar-width: thin; }
 .description-toggle { grid-column: 2; }
