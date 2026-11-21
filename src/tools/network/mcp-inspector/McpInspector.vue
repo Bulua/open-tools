@@ -6,6 +6,7 @@ import { useI18n } from "vue-i18n";
 import { recordToolUsage } from "@/composables/toolLibrary";
 import { errorMessage, showError } from "@/utils/errorToast";
 import McpConnectionDialog from "./components/McpConnectionDialog.vue";
+import McpSchemaDetails from "./components/McpSchemaDetails.vue";
 import McpToolDetail from "./components/McpToolDetail.vue";
 import { connectionTarget, type McpConfig, type McpToolList } from "./config";
 import { connections, type McpConnection } from "./workspace";
@@ -25,6 +26,7 @@ const result = computed(() => state.value && "result" in state.value ? state.val
 const failure = computed(() => state.value && "failure" in state.value ? state.value.failure : "");
 const loading = computed(() => Boolean(state.value && "pending" in state.value));
 const selectedTool = computed(() => result.value?.tools.find((tool) => tool.name === selectedToolName.value));
+const toolDescription = computed(() => selectedTool.value?.description?.replace(/`+/g, "").replace(/\s+/g, " ").trim());
 const pageKey = computed(() => JSON.stringify([selectedId.value, selectedTool.value?.name]));
 const pageTitle = computed(() => {
   const tool = selectedTool.value;
@@ -44,7 +46,6 @@ const visibleTools = computed(() => {
 const transportLabels: Record<McpConfig["type"], string> = {
   stdio: "stdio",
   http: "Streamable HTTP",
-  sse: "HTTP + SSE",
 };
 
 let active = true;
@@ -82,12 +83,12 @@ function back() {
   focusPage();
 }
 
-function saveConnections(items: McpConnection[]) {
-  const saved = new Map(connections.value.map((item) => [item.id, item]));
-  for (const item of items) saved.set(item.id, item);
-  connections.value = [...saved.values()];
-  const current = items.find((item) => item.id === selectedId.value);
-  if (current) {
+function saveConnection(connection: McpConnection) {
+  const existing = connections.value.some((item) => item.id === connection.id);
+  connections.value = existing
+    ? connections.value.map((item) => item.id === connection.id ? connection : item)
+    : [...connections.value, connection];
+  if (connection.id === selectedId.value) {
     selectedToolName.value = "";
     filter.value = "";
     // 编辑只保存配置，由用户手动重新连接。
@@ -121,16 +122,39 @@ async function loadTools(item: McpConnection) {
 
 <template>
   <section class="card mcp-workspace">
-    <header class="mcp-header">
+    <header class="mcp-header" :class="{ 'tool-header': selectedTool }">
       <button v-if="connection" type="button" class="btn subtle small back" :title="backLabel" @click="back">
         <ArrowLeft :size="15" aria-hidden="true" />
         <span>{{ backLabel }}</span>
       </button>
-      <h2 ref="heading" class="page-title" tabindex="-1" :title="pageTitle">{{ pageTitle }}</h2>
+      <div class="header-info">
+        <h2 ref="heading" class="page-title" tabindex="-1">
+          <span class="title-name" :title="selectedTool?.name ?? pageTitle">{{ pageTitle }}</span>
+          <span v-if="result && !selectedTool" class="tool-count" :title="t('network.mcp.count', { count: result.tools.length })">
+            ({{ result.tools.length }})
+          </span>
+        </h2>
+        <p v-if="toolDescription" class="tool-description-line" :title="toolDescription">
+          {{ toolDescription }}
+        </p>
+      </div>
+      <div v-if="selectedTool" :key="selectedTool.name" class="schema-actions">
+        <McpSchemaDetails
+          :label="t('network.mcp.inputSchema')"
+          :button-label="t('network.mcp.inputSchemaAction')"
+          :schema="selectedTool.inputSchema"
+        />
+        <McpSchemaDetails
+          v-if="selectedTool.outputSchema"
+          :label="t('network.mcp.outputSchema')"
+          :button-label="t('network.mcp.outputSchemaAction')"
+          :schema="selectedTool.outputSchema"
+        />
+      </div>
     </header>
 
     <div class="mcp-stage">
-      <div :key="pageKey" class="mcp-content" :class="direction && 'mcp-' + direction">
+      <div :key="pageKey" class="mcp-content" :class="[direction && 'mcp-' + direction, { 'detail-content': selectedTool }]">
         <template v-if="!connection">
           <ul class="connection-grid">
             <li v-for="item in connections" :key="item.id" class="connection-card">
@@ -176,6 +200,16 @@ async function loadTools(item: McpConnection) {
                 <span v-if="result">{{ t("network.mcp.protocol", { version: result.protocolVersion }) }}</span>
               </p>
               <div class="heading-actions">
+                <label v-if="result?.tools.length" class="search">
+                  <Search :size="15" aria-hidden="true" />
+                  <input
+                    v-model="filter"
+                    class="field line-field"
+                    type="search"
+                    :placeholder="t('network.mcp.filter')"
+                    :aria-label="t('network.mcp.filter')"
+                  />
+                </label>
                 <button type="button" class="btn" @click="dialog?.open(connection)">
                   <Pencil :size="14" aria-hidden="true" />
                   {{ t("network.mcp.edit") }}
@@ -189,19 +223,6 @@ async function loadTools(item: McpConnection) {
             <p v-if="loading" class="state" role="status">{{ t("network.mcp.loading") }}</p>
             <p v-else-if="failure" class="state error" role="alert">{{ failure }}</p>
             <template v-else-if="result">
-              <div class="tool-toolbar">
-                <p>{{ t("network.mcp.count", { count: result.tools.length }) }}</p>
-                <label v-if="result.tools.length" class="search">
-                  <Search :size="15" aria-hidden="true" />
-                  <input
-                    v-model="filter"
-                    class="field"
-                    type="search"
-                    :placeholder="t('network.mcp.filter')"
-                    :aria-label="t('network.mcp.filter')"
-                  />
-                </label>
-              </div>
               <ul v-if="visibleTools.length" class="card-grid">
                 <li v-for="tool in visibleTools" :key="tool.name">
                   <button type="button" class="card-button tool-card" @click="openTool(tool.name)">
@@ -222,7 +243,7 @@ async function loadTools(item: McpConnection) {
         </template>
       </div>
     </div>
-    <McpConnectionDialog ref="dialog" @save="saveConnections" @remove="removeConnection" />
+    <McpConnectionDialog ref="dialog" @save="saveConnection" @remove="removeConnection" />
   </section>
 </template>
 
@@ -238,17 +259,35 @@ async function loadTools(item: McpConnection) {
   padding: 10px 20px;
   border-bottom: 1px solid var(--border);
 }
-.page-title {
+.header-info {
   grid-column: 2;
   grid-row: 1;
-  overflow: hidden;
+  min-width: 0;
+}
+.page-title {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  text-align: center;
+  white-space: nowrap;
+}
+.tool-header { grid-template-columns: minmax(110px, auto) minmax(0, 1fr) auto; }
+.tool-header .page-title { justify-content: flex-start; font: 600 16px/1.35 var(--font-mono); }
+.tool-description-line {
+  margin: 3px 0 0;
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.schema-actions { grid-area: 1 / 3; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.title-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tool-count { flex: none; color: var(--text-2); }
 .page-title:focus { outline: none; }
 .back {
   grid-column: 1;
@@ -260,6 +299,7 @@ async function loadTools(item: McpConnection) {
 }
 .back svg { flex: none; }
 .back span { overflow: hidden; text-overflow: ellipsis; }
+.tool-header .back { max-width: min(100%, 220px); }
 .mcp-stage { display: flex; flex: 1; min-height: 0; overflow: clip; }
 .mcp-content {
   display: flex;
@@ -272,15 +312,22 @@ async function loadTools(item: McpConnection) {
   padding: 20px;
   background: var(--surface);
 }
-.page-heading, .heading-actions, .meta, .tool-toolbar, .search {
+.detail-content { padding: 12px 16px 16px; }
+@container (max-width: 760px) {
+  .tool-header { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; }
+  .tool-header .header-info { grid-area: 2 / 1 / 3 / -1; }
+  .schema-actions { grid-area: 1 / 2; justify-content: flex-end; }
+}
+.page-heading, .heading-actions, .meta, .search {
   display: flex;
   align-items: center;
   gap: 8px 12px;
 }
-.page-heading, .tool-toolbar { justify-content: space-between; flex-wrap: wrap; }
+.page-heading { justify-content: space-between; flex-wrap: wrap; }
 .heading-actions, .meta { flex-wrap: wrap; }
+.heading-actions { min-width: 0; }
 .meta { flex: 1 1 220px; min-width: 0; margin: 0; overflow-wrap: anywhere; }
-.meta, .state, .tool-toolbar { color: var(--text-2); font-size: 13px; }
+.meta, .state { color: var(--text-2); font-size: 13px; }
 .target, code { font-family: var(--font-mono); overflow-wrap: anywhere; }
 .state {
   margin: 0;
@@ -290,10 +337,8 @@ async function loadTools(item: McpConnection) {
   overflow-wrap: anywhere;
 }
 .error { color: var(--danger); }
-.tool-toolbar { padding-top: 6px; border-top: 1px solid var(--border); }
-.tool-toolbar p { margin: 0; }
-.search input { min-width: 0; }
-.search svg { flex-shrink: 0; }
+.search { width: 220px; max-width: 100%; gap: 8px; }
+.search svg { flex: none; }
 .card-grid, .connection-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr));

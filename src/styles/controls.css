@@ -245,6 +245,26 @@ button.compression-source:hover {
   border-color: var(--danger);
 }
 
+/* 下划线输入框 */
+.field.line-field {
+  height: 32px;
+  padding: 0 0 3px;
+  border: 0;
+  border-radius: 0;
+  background:
+    linear-gradient(var(--accent), var(--accent)) center bottom / 0 2px no-repeat,
+    linear-gradient(var(--border-strong), var(--border-strong)) center bottom / 100% 1px no-repeat;
+  transition: background-size var(--dur) var(--ease-out);
+}
+.field.line-field:focus {
+  background-size: 100% 2px, 100% 1px;
+  box-shadow: none;
+}
+@media (forced-colors: active) {
+  .field.line-field { border-bottom: 1px solid currentColor; }
+  .field.line-field:focus { outline: 2px solid currentColor; outline-offset: 2px; }
+}
+
 /* 日期和提醒选择器共用的时间滚动列 */
 .time-option-list {
   position: relative;

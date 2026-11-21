@@ -63,24 +63,26 @@ onBeforeUnmount(() => { disposed = true; });
 <template>
   <Teleport to="body">
     <span ref="imageAnchor" class="menu-anchor" :style="imagePosition" aria-hidden="true" />
-    <form v-if="imageMenuOpen" ref="imagePanel" class="image-menu" :style="imageMenuStyle"
-      role="dialog" :aria-label="t('markdown.notebook.imageSize')" @submit.prevent="submitWidth"
-      @keydown.esc.stop.prevent="closeAndFocus" @focusout="closeWhenFocusLeaves">
-      <fieldset v-if="imageTarget?.naturalWidth" class="image-scale">
-        <legend>{{ t("markdown.notebook.imageScale") }}</legend>
-        <div class="image-presets">
-          <button v-for="scale in scales" :key="scale" class="btn small" type="button" @click="applyScale(scale)">{{ scale }}%</button>
+    <Transition name="pop">
+      <form v-if="imageMenuOpen" ref="imagePanel" class="image-menu" :style="imageMenuStyle"
+        role="dialog" :aria-label="t('markdown.notebook.imageSize')" @submit.prevent="submitWidth"
+        @keydown.esc.stop.prevent="closeAndFocus" @focusout="closeWhenFocusLeaves">
+        <fieldset v-if="imageTarget?.naturalWidth" class="image-scale">
+          <legend>{{ t("markdown.notebook.imageScale") }}</legend>
+          <div class="image-presets">
+            <button v-for="scale in scales" :key="scale" class="btn small" type="button" @click="applyScale(scale)">{{ scale }}%</button>
+          </div>
+        </fieldset>
+        <label class="image-width">
+          <span>{{ t("markdown.notebook.imageWidth") }}</span>
+          <input v-model.number="widthInput" class="field" type="number" min="1" step="1" required />
+        </label>
+        <div class="image-menu-actions">
+          <button class="btn small subtle" type="button" @click="applyWidth(null)">{{ t("markdown.notebook.imageAuto") }}</button>
+          <button class="btn small primary" type="submit">{{ t("markdown.notebook.imageApply") }}</button>
         </div>
-      </fieldset>
-      <label class="image-width">
-        <span>{{ t("markdown.notebook.imageWidth") }}</span>
-        <input v-model.number="widthInput" class="field" type="number" min="1" step="1" required />
-      </label>
-      <div class="image-menu-actions">
-        <button class="btn small subtle" type="button" @click="applyWidth(null)">{{ t("markdown.notebook.imageAuto") }}</button>
-        <button class="btn small primary" type="submit">{{ t("markdown.notebook.imageApply") }}</button>
-      </div>
-    </form>
+      </form>
+    </Transition>
   </Teleport>
 </template>
 

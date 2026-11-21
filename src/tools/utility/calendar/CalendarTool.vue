@@ -390,9 +390,9 @@ async function moveSelection(event: KeyboardEvent) {
     </div>
 
     <Teleport to="body">
-      <Transition name="calendar-popup">
+      <Transition name="pop">
         <aside v-if="popup.open.value" ref="popupPanel" class="date-popup" :style="popup.style.value"
-          :class="{ 'date-popup-pinned': pinned, 'date-popup-left': popup.placement.value === 'left' }"
+          :class="{ 'date-popup-pinned': pinned }"
           :role="pinned ? 'dialog' : 'tooltip'"
           :aria-label="fullDate.format(popupDate)" tabindex="-1"
           @pointerenter="keepPopupOpen" @pointerleave="leavePopup">
@@ -587,7 +587,6 @@ async function moveSelection(event: KeyboardEvent) {
   gap: 6px;
 }
 .date-popup {
-  --date-popup-collapsed: inset(0 100% 100% 0);
   position: fixed;
   z-index: 101;
   display: grid;
@@ -602,24 +601,6 @@ async function moveSelection(event: KeyboardEvent) {
   box-shadow: var(--shadow-lg);
   overflow: auto;
   outline: none;
-}
-.date-popup-left {
-  --date-popup-collapsed: inset(0 0 100% 100%);
-}
-.calendar-popup-enter-active {
-  transition: clip-path var(--dur) var(--ease-out);
-}
-.calendar-popup-leave-active {
-  transition: clip-path calc(var(--dur-fast) * 0.65) ease-in;
-  pointer-events: none;
-}
-.calendar-popup-enter-from,
-.calendar-popup-leave-to {
-  clip-path: var(--date-popup-collapsed);
-}
-.calendar-popup-enter-to,
-.calendar-popup-leave-from {
-  clip-path: inset(-32px);
 }
 .date-popup-pinned {
   width: min(360px, calc(100vw - 16px));

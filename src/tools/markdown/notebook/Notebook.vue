@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onDeactivated, ref, watch } from "vue";
+import { closePanelDialog, vPanelDismiss } from "@/utils/panelDialog";
 import { isTauri } from "@tauri-apps/api/core";
 import { useI18n } from "vue-i18n";
 import { ChevronDown, ChevronLeft, ChevronRight, CodeXml, FolderOpen, ListTodo, Minus, Quote, SquareCode, Table2, Trash2 } from "lucide-vue-next";
@@ -160,7 +161,7 @@ function applyDialog() {
     state.selectedId = item.id;
     revealParent(parentId);
   }
-  dialog.value?.close();
+  closePanelDialog(dialog.value);
 }
 
 function updateNote(id: string, markdown: string) {
@@ -184,7 +185,10 @@ const tableGrid = ref<InstanceType<typeof NotebookTableGrid>>();
 const { open: tablePickerOpen, style: tablePickerStyle, show: showTablePicker, close: closeTablePicker } =
   usePopover(tablePickerTrigger, tablePickerPanel, { minWidth: 218, maxHeight: 284, ignoreEscape: () => true });
 watch(() => note.value?.id, closeTablePicker);
-onDeactivated(closeTablePicker);
+onDeactivated(() => {
+  closeTablePicker();
+  closePanelDialog(dialog.value, true);
+});
 
 async function toggleTablePicker() {
   if (tablePickerOpen.value) {
@@ -365,13 +369,15 @@ useWindowEvent("keydown", event => {
   </div>
 
   <Teleport to="body">
-    <div v-if="tablePickerOpen" ref="tablePickerPanel" class="table-picker" :style="tablePickerStyle"
-      role="dialog" :aria-label="label('tableDimensions')" @keydown.esc.stop.prevent="closeTablePickerAndFocus">
-      <NotebookTableGrid ref="tableGrid" :rows="3" :columns="3" :action="label('tableInsertConfirm')" @choose="createTable" />
-    </div>
+    <Transition name="pop">
+      <div v-if="tablePickerOpen" ref="tablePickerPanel" class="table-picker" :style="tablePickerStyle"
+        role="dialog" :aria-label="label('tableDimensions')" @keydown.esc.stop.prevent="closeTablePickerAndFocus">
+        <NotebookTableGrid ref="tableGrid" :rows="3" :columns="3" :action="label('tableInsertConfirm')" @choose="createTable" />
+      </div>
+    </Transition>
   </Teleport>
 
-  <dialog ref="dialog" class="entry-dialog" :aria-label="dialogLabel">
+  <dialog v-panel-dismiss ref="dialog" class="entry-dialog panel-dialog" :aria-label="dialogLabel" @cancel.prevent="closePanelDialog(dialog)">
     <form @submit.prevent="applyDialog">
       <h2>{{ dialogLabel }}</h2>
       <p v-if="operation === 'delete'">{{ t(target?.kind === 'folder' ? 'markdown.notebook.deleteFolder' : 'markdown.notebook.deleteNote', { name: target?.name }) }}</p>
@@ -383,7 +389,7 @@ useWindowEvent("keydown", event => {
         </div>
       </template>
       <footer>
-        <button type="button" class="btn" :autofocus="operation === 'delete'" @click="dialog?.close()">{{ label("cancel") }}</button>
+        <button type="button" class="btn" :autofocus="operation === 'delete'" @click="closePanelDialog(dialog)">{{ label("cancel") }}</button>
         <button class="btn" :class="{ primary: operation !== 'delete', destructive: operation === 'delete' }"
           :disabled="operation !== 'delete' && !name.trim()">{{ label(operation === 'delete' ? 'delete' : 'confirm') }}</button>
       </footer>

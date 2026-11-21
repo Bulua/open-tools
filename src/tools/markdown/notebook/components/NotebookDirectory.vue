@@ -230,23 +230,25 @@ onDeactivated(() => { closeMenu(); finishDrag(); });
     </template>
     <Teleport to="body">
       <span ref="menuAnchor" class="context-anchor" :style="menuPosition" aria-hidden="true" />
-      <div v-if="menuOpen" ref="menuPanel" class="directory-menu" :style="menuStyle" role="menu" @keydown="menuKey">
-        <template v-if="menuNode">
-          <button v-if="canReveal" role="menuitem" @click="closeMenu(); returnFocus?.focus(); emit('reveal', menuNode.id)">
-            <FolderOpen :size="14" />{{ label("reveal") }}
-          </button>
-          <template v-if="menuNode.kind === 'folder'">
-            <button role="menuitem" @click="closeMenu(); emit('addFolder', menuNode.id)"><FolderPlus :size="15" />{{ label("addFolder") }}</button>
-            <button role="menuitem" @click="closeMenu(); emit('addNote', menuNode.id)"><FilePlus2 :size="15" />{{ label("addNote") }}</button>
+      <Transition name="pop">
+        <div v-if="menuOpen" ref="menuPanel" class="directory-menu" :style="menuStyle" role="menu" @keydown="menuKey">
+          <template v-if="menuNode">
+            <button v-if="canReveal" role="menuitem" @click="closeMenu(); returnFocus?.focus(); emit('reveal', menuNode.id)">
+              <FolderOpen :size="14" />{{ label("reveal") }}
+            </button>
+            <template v-if="menuNode.kind === 'folder'">
+              <button role="menuitem" @click="closeMenu(); emit('addFolder', menuNode.id)"><FolderPlus :size="15" />{{ label("addFolder") }}</button>
+              <button role="menuitem" @click="closeMenu(); emit('addNote', menuNode.id)"><FilePlus2 :size="15" />{{ label("addNote") }}</button>
+            </template>
+            <button role="menuitem" @click="beginRename(menuNode)"><Pencil :size="14" />{{ label("rename") }}</button>
+            <button role="menuitem" @click="closeMenu(); emit('delete', menuNode)"><Trash2 :size="14" />{{ label("delete") }}</button>
           </template>
-          <button role="menuitem" @click="beginRename(menuNode)"><Pencil :size="14" />{{ label("rename") }}</button>
-          <button role="menuitem" @click="closeMenu(); emit('delete', menuNode)"><Trash2 :size="14" />{{ label("delete") }}</button>
-        </template>
-        <template v-else>
-          <button role="menuitem" @click="closeMenu(); emit('addFolder', null)"><FolderPlus :size="15" />{{ label("addFolder") }}</button>
-          <button role="menuitem" @click="closeMenu(); emit('addNote', null)"><FilePlus2 :size="15" />{{ label("addNote") }}</button>
-        </template>
-      </div>
+          <template v-else>
+            <button role="menuitem" @click="closeMenu(); emit('addFolder', null)"><FolderPlus :size="15" />{{ label("addFolder") }}</button>
+            <button role="menuitem" @click="closeMenu(); emit('addNote', null)"><FilePlus2 :size="15" />{{ label("addNote") }}</button>
+          </template>
+        </div>
+      </Transition>
     </Teleport>
   </aside>
 </template>

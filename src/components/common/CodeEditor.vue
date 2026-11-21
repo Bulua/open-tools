@@ -8,7 +8,7 @@ export interface EditorError {
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { EditorState, type Extension } from "@codemirror/state";
+import { Compartment, EditorState, type Extension } from "@codemirror/state";
 import {
   EditorView,
   drawSelection,
@@ -33,6 +33,7 @@ import { setDiagnostics, type Diagnostic } from "@codemirror/lint";
 import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
 import { editorTheme, highlightStyle } from "./codeEditorTheme";
+import { jsonInputEditor } from "./jsonInputEditor";
 import { errorLineField, foldFirstLevel, marksField, setErrorLine, setMarks, type TextMark } from "./codeEditorExtensions";
 
 /**
@@ -44,6 +45,9 @@ const props = withDefaults(
     language?: "json" | "markdown" | "text";
     readonly?: boolean;
     placeholder?: string;
+    /** 隐藏边栏折叠箭头 */
+    hideFoldGutter?: boolean;
+    labelledBy?: string;
     /** 标记错误：所在行变红，出错处显示波浪线，鼠标悬停显示提示 */
     error?: EditorError | null;
     /** 长行自动换行 */
@@ -58,7 +62,7 @@ const model = defineModel<string>({ default: "" });
 const host = ref<HTMLDivElement>();
 let view: EditorView | undefined;
 
-const languageExtension = (): Extension => (props.language === "json" ? json() : props.language === "markdown" ? markdown() : []);
+const languageMode = new Compartment();
 
 const foldMarker = (open: boolean) => {
   const el = document.createElement("span");
@@ -67,6 +71,15 @@ const foldMarker = (open: boolean) => {
     '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
   return el;
 };
+
+const languageExtensions = (): Extension => [
+  props.language === "json" ? [json(), jsonInputEditor] : [
+    props.language === "markdown" ? markdown() : [],
+    syntaxHighlighting(highlightStyle),
+  ],
+  props.hideFoldGutter ? [] : foldGutter({ markerDOM: foldMarker }),
+  props.wrap ? EditorView.lineWrapping : [],
+];
 
 const showError = () => {
   if (!view) return;
@@ -93,7 +106,6 @@ onMounted(() => {
       doc: model.value,
       extensions: [
         lineNumbers(),
-        foldGutter({ markerDOM: foldMarker }),
         // 只读的结果框不需要高亮当前行
         props.readonly ? [] : [highlightActiveLineGutter(), highlightActiveLine()],
         errorLineField,
@@ -104,7 +116,6 @@ onMounted(() => {
         bracketMatching(),
         closeBrackets(),
         highlightSelectionMatches(),
-        syntaxHighlighting(highlightStyle),
         keymap.of([
           ...closeBracketsKeymap,
           ...defaultKeymap,
@@ -113,10 +124,10 @@ onMounted(() => {
           ...searchKeymap,
           indentWithTab,
         ]),
-        languageExtension(),
-        props.wrap ? EditorView.lineWrapping : [],
+        languageMode.of(languageExtensions()),
         placeholderExt(props.placeholder),
         EditorState.readOnly.of(props.readonly),
+        props.labelledBy ? EditorView.contentAttributes.of({ "aria-labelledby": props.labelledBy }) : [],
         editorTheme,
         EditorView.updateListener.of((update) => {
           if (update.docChanged) model.value = update.state.doc.toString();
@@ -129,6 +140,10 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => view?.destroy());
+
+watch([() => props.language, () => props.hideFoldGutter, () => props.wrap], () => {
+  view?.dispatch({ effects: languageMode.reconfigure(languageExtensions()) });
+});
 
 // 外部修改内容（粘贴按钮、结果更新）时同步到编辑器
 watch(model, (value) => {

@@ -9,5 +9,5 @@ const localized = computed(() => localizeTool(tool, locale.value));
 </script>
 
 <template>
-  <TextTransform :actions="localized.actions!" :placeholder="localized.inputPlaceholder" />
+  <TextTransform :actions="localized.actions!" :placeholder="localized.inputPlaceholder" highlight-json />
 </template>

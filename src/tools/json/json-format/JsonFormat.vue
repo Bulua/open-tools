@@ -91,7 +91,7 @@ useToolResult(() => output.value ? JSON.stringify([input.value, mode.value, inde
       </template>
 
       <template #right>
-        <TextPane :model-value="output" class="output" :label="t('json.result')" readonly nowrap language="json" :placeholder="t('json.resultPlaceholder')">
+        <TextPane :model-value="output" class="output" :label="t('json.result')" readonly language="json" :placeholder="t('json.resultPlaceholder')">
           <template #actions>
             <div class="seg">
               <button :class="{ on: view === 'code' }" @click="view = 'code'">{{ t("json.code") }}</button>

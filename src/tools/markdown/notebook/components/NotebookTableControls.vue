@@ -5,6 +5,7 @@ import { editorViewCtx, type Editor } from "@milkdown/core";
 import { Selection } from "@milkdown/prose/state";
 import { isInTable, selectedRect, TableMap } from "@milkdown/prose/tables";
 import { showError } from "@/utils/errorToast";
+import { closePanelDialog, vPanelDismiss } from "@/utils/panelDialog";
 import { usePopover } from "@/composables/usePopover";
 import { useClipboard } from "@/composables/useClipboard";
 import {
@@ -56,7 +57,7 @@ async function openTableMenu(x: number, y: number) {
 
 function confirmTableResize() {
   const action = pendingResize;
-  resizeConfirm.value?.close();
+  closePanelDialog(resizeConfirm.value);
   action?.();
 }
 
@@ -173,7 +174,7 @@ defineExpose({ runTableControl, openCellMenu });
 onDeactivated(() => {
   closeTableMenu();
   closeTableSize();
-  resizeConfirm.value?.close();
+  closePanelDialog(resizeConfirm.value, true);
 });
 onBeforeUnmount(() => { disposed = true; });
 </script>
@@ -181,27 +182,31 @@ onBeforeUnmount(() => { disposed = true; });
 <template>
   <Teleport to="body">
     <span ref="tableAnchor" class="menu-anchor" :style="tablePosition" aria-hidden="true" />
-    <div v-if="tableMenuOpen" ref="tablePanel" class="table-menu" :style="tableMenuStyle"
-      role="menu" :aria-label="t('markdown.notebook.editTable')" @keydown="tableMenuKey">
-      <div v-for="group in tableActionGroups" :key="group[0]" class="table-menu-group" role="group">
-        <button v-for="action in group" :key="action" class="btn small subtle" type="button" role="menuitem"
-          :disabled="!enabledTableActions.has(action)" @click="applyTableAction(action)">
-          <span>{{ t(`markdown.notebook.${action}`) }}</span>
-          <kbd v-if="tableShortcuts[action]">{{ tableShortcuts[action] }}</kbd>
-        </button>
+    <Transition name="pop">
+      <div v-if="tableMenuOpen" ref="tablePanel" class="table-menu" :style="tableMenuStyle"
+        role="menu" :aria-label="t('markdown.notebook.editTable')" @keydown="tableMenuKey">
+        <div v-for="group in tableActionGroups" :key="group[0]" class="table-menu-group" role="group">
+          <button v-for="action in group" :key="action" class="btn small subtle" type="button" role="menuitem"
+            :disabled="!enabledTableActions.has(action)" @click="applyTableAction(action)">
+            <span>{{ t(`markdown.notebook.${action}`) }}</span>
+            <kbd v-if="tableShortcuts[action]">{{ tableShortcuts[action] }}</kbd>
+          </button>
+        </div>
       </div>
-    </div>
-    <div v-if="tableSizeOpen" ref="tableSizePanel" class="table-size-panel" :style="tableSizeStyle"
-      role="dialog" :aria-label="t('markdown.notebook.tableSize')" @keydown.esc.stop.prevent="closeTableSize(); focusEditor()">
-      <NotebookTableGrid ref="tableGrid" :rows="tableSize.rows" :columns="tableSize.columns"
-        :action="t('markdown.notebook.imageApply')" @choose="applyTableSize" />
-    </div>
-    <dialog ref="resizeConfirm" class="table-resize-confirm" :aria-label="t('markdown.notebook.tableSize')"
-      @close="closeResizeConfirmation">
+    </Transition>
+    <Transition name="pop">
+      <div v-if="tableSizeOpen" ref="tableSizePanel" class="table-size-panel" :style="tableSizeStyle"
+        role="dialog" :aria-label="t('markdown.notebook.tableSize')" @keydown.esc.stop.prevent="closeTableSize(); focusEditor()">
+        <NotebookTableGrid ref="tableGrid" :rows="tableSize.rows" :columns="tableSize.columns"
+          :action="t('markdown.notebook.imageApply')" @choose="applyTableSize" />
+      </div>
+    </Transition>
+    <dialog v-panel-dismiss ref="resizeConfirm" class="table-resize-confirm panel-dialog" :aria-label="t('markdown.notebook.tableSize')"
+      @cancel.prevent="closePanelDialog(resizeConfirm)" @close="closeResizeConfirmation">
       <form @submit.prevent="confirmTableResize">
         <p>{{ t("markdown.notebook.tableResizeConfirm") }}</p>
         <div>
-          <button class="btn small" type="button" autofocus @click="resizeConfirm?.close()">{{ t("markdown.notebook.cancel") }}</button>
+          <button class="btn small" type="button" autofocus @click="closePanelDialog(resizeConfirm)">{{ t("markdown.notebook.cancel") }}</button>
           <button class="btn small primary" type="submit">{{ t("markdown.notebook.confirm") }}</button>
         </div>
       </form>

@@ -100,7 +100,7 @@ const KIND_LABEL = computed(() => ({
 
       <!-- 预览 -->
       <template v-if="resTab === 'preview' && kind">
-        <TextPane v-if="kind.kind === 'json' || kind.kind === 'xml' || kind.kind === 'text'" :model-value="previewText" class="res-body" :label="t('network.content')" :language="kind.kind === 'json' ? 'json' : 'text'" readonly nowrap />
+        <TextPane v-if="kind.kind === 'json' || kind.kind === 'xml' || kind.kind === 'text'" :model-value="previewText" class="res-body" :label="t('network.content')" :language="kind.kind === 'json' ? 'json' : 'text'" :nowrap="kind.kind !== 'json'" readonly />
         <!-- 网页：不运行脚本，只显示页面 -->
         <iframe v-else-if="kind.kind === 'html'" class="frame" sandbox="" :srcdoc="text" :title="t('network.webPreview')" />
         <div v-else-if="kind.kind === 'image'" class="media checker">

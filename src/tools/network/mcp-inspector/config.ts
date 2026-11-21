@@ -3,7 +3,7 @@ type StringMap = Record<string, string>;
 export type McpConfig =
   | { type: "stdio"; command: string; args?: string[]; env?: StringMap; env_vars?: string[]; cwd?: string }
   | {
-      type: "http" | "sse";
+      type: "http";
       url: string;
       headers?: StringMap;
       env_http_headers?: StringMap;
@@ -24,8 +24,7 @@ export interface McpToolList {
   tools: McpTool[];
 }
 
-type ParseError = "invalidJson" | "invalidConfig" | "invalidServer" | "unsupportedType" | "invalidUrl";
-type ParsedServers = { servers: Map<string, unknown> } | { error: ParseError };
+type ParseError = "invalidServer" | "unsupportedType" | "invalidUrl";
 type ParsedServer = { config: McpConfig } | { error: ParseError };
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -64,25 +63,9 @@ function isEnvName(value: unknown): value is string {
   return typeof value === "string" && Boolean(value.trim()) && !/[=\x00]/.test(value);
 }
 
-export function parseMcpConfig(text: string): ParsedServers {
-  let raw: unknown;
-  try {
-    raw = JSON.parse(text);
-  } catch {
-    return { error: "invalidJson" };
-  }
-  if (!isObject(raw)) return { error: "invalidConfig" };
-  if ("command" in raw || "url" in raw || "type" in raw) {
-    return { servers: new Map([["", raw]]) };
-  }
-  const entries = raw.mcpServers ?? raw.servers;
-  if (!isObject(entries) || !Object.keys(entries).length) return { error: "invalidConfig" };
-  return { servers: new Map(Object.entries(entries)) };
-}
-
 export function parseMcpServer(raw: unknown): ParsedServer {
   if (!isObject(raw)) return { error: "invalidServer" };
-  const type = raw.type ?? ("command" in raw ? "stdio" : "http");
+  const type = raw.type;
   if (type === "stdio") {
     const { command, args, env, env_vars, cwd } = raw;
     if (
@@ -95,14 +78,11 @@ export function parseMcpServer(raw: unknown): ParsedServer {
     ) return { error: "invalidServer" };
     return { config: { type: "stdio", command: command.trim(), args, env, env_vars, cwd } };
   }
-  if (type !== "sse" && type !== "http" && type !== "streamable-http" && type !== "streamableHttp") {
-    return { error: "unsupportedType" };
-  }
-  const { url, headers, http_headers, env_http_headers, bearer_token_env_var } = raw;
+  if (type !== "http") return { error: "unsupportedType" };
+  const { url, headers, env_http_headers, bearer_token_env_var } = raw;
   if (
     "command" in raw || typeof url !== "string" ||
     (headers !== undefined && !isStringMap(headers)) ||
-    (http_headers !== undefined && !isStringMap(http_headers)) ||
     (env_http_headers !== undefined && (!isStringMap(env_http_headers) || !Object.values(env_http_headers).every(isEnvName))) ||
     (bearer_token_env_var !== undefined && !isEnvName(bearer_token_env_var))
   ) {
@@ -112,9 +92,9 @@ export function parseMcpServer(raw: unknown): ParsedServer {
     const parsed = new URL(url.trim());
     if (parsed.protocol === "http:" || parsed.protocol === "https:") {
       return { config: {
-        type: type === "sse" ? "sse" : "http",
+        type: "http",
         url: parsed.href,
-        headers: http_headers ? { ...http_headers, ...headers } : headers,
+        headers,
         env_http_headers,
         bearer_token_env_var,
       } };

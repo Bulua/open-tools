@@ -102,9 +102,9 @@ const saving = ref(false);
 const grid = ref<HTMLElement | null>(null);
 const cardOf = (id: string) => grid.value?.querySelector<HTMLElement>(`[data-id="${id}"]`) ?? null;
 
-const clickCard = (e: VaultEntry, ev: MouseEvent) => {
+const clickCard = (e: VaultEntry) => {
   if (picking.value) return togglePick(e.id);
-  openDialog(e, ev.currentTarget as HTMLElement);
+  openDialog(e);
 };
 
 const toggleReveal = (id: string) => {
@@ -139,30 +139,10 @@ const dirty = computed(() => !!editing.value && JSON.stringify(editing.value.dra
 const dialogError = ref("");
 const showPassword = ref(false);
 const confirmRemove = ref(false);
-const closing = ref(false);
-const overlayEl = ref<HTMLElement | null>(null);
 const dialogEl = ref<HTMLElement | null>(null);
 const titleInput = ref<HTMLInputElement | null>(null);
 
-const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-// 先快后慢、不回弹的曲线，停下时很平稳
-const EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
-
-/**
- * 弹窗缩成卡片时的样子：平移到卡片中心，再从四周裁掉多出来的部分。
- * 用裁剪代替缩放，文字和圆角不会被拉伸；展开后裁剪框留出 48px 给阴影。
- */
-const morphFrom = (card: DOMRect, dialog: DOMRect) => {
-  const dx = card.left + card.width / 2 - (dialog.left + dialog.width / 2);
-  const dy = card.top + card.height / 2 - (dialog.top + dialog.height / 2);
-  const ix = (dialog.width - card.width) / 2;
-  const iy = (dialog.height - card.height) / 2;
-  return { transform: `translate(${dx}px, ${dy}px)`, clipPath: `inset(${iy}px ${ix}px round 10px)` };
-};
-const MORPH_OPEN = { transform: "none", clipPath: "inset(-48px round 62px)" };
-
-const openDialog = async (entry: VaultEntry | null, origin: HTMLElement | null) => {
-  if (closing.value) return;
+const openDialog = async (entry: VaultEntry | null) => {
   editing.value = { draft: entry ? { ...entry } : newEntry(), isNew: !entry };
   initial.value = JSON.stringify(editing.value.draft);
   dialogError.value = "";
@@ -173,29 +153,10 @@ const openDialog = async (entry: VaultEntry | null, origin: HTMLElement | null) 
   // 焦点放进弹窗里，Esc 才能关闭
   if (entry) dialog?.focus({ preventScroll: true });
   else titleInput.value?.focus({ preventScroll: true });
-  if (!dialog || !origin || reduceMotion()) return;
-  const from = morphFrom(origin.getBoundingClientRect(), dialog.getBoundingClientRect());
-  overlayEl.value?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 380, easing: EASE });
-  dialog.animate([from, MORPH_OPEN], { duration: 380, easing: EASE });
 };
 
-/** 关闭弹窗；target 是要缩回去的卡片，找不到时原地淡出 */
-const closeDialog = async (target: HTMLElement | null) => {
-  const dialog = dialogEl.value;
-  if (!editing.value || closing.value) return;
-  if (dialog && !reduceMotion()) {
-    closing.value = true;
-    target?.scrollIntoView({ block: "nearest" });
-    const frames = target
-      ? [MORPH_OPEN, morphFrom(target.getBoundingClientRect(), dialog.getBoundingClientRect())]
-      : [
-          { transform: "none", opacity: 1 },
-          { transform: "scale(0.9)", opacity: 0 },
-        ];
-    overlayEl.value?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 320, easing: EASE, fill: "forwards" });
-    await dialog.animate(frames, { duration: 320, easing: EASE, fill: "forwards" }).finished.catch(() => {});
-    closing.value = false;
-  }
+const closeDialog = (target: HTMLElement | null) => {
+  target?.scrollIntoView({ block: "nearest" });
   editing.value = null;
 };
 
@@ -239,9 +200,8 @@ const generate = () => {
   showPassword.value = true;
 };
 
-const addButton = ref<HTMLElement | null>(null);
 const add = () => {
-  openDialog(null, addButton.value);
+  openDialog(null);
 };
 
 // ---------- 删除：勾选卡片右上角的框，再在工具栏点两次删除 ----------
@@ -316,7 +276,7 @@ const formatDate = (ms: number) => new Date(ms).toLocaleString(locale.value, { h
           <Search :size="14" />
           <input v-model="query" :placeholder="t('encode.searchPlaceholder')" />
         </div>
-        <button ref="addButton" class="btn primary" @click="add"><Plus :size="14" />{{ t("encode.add") }}</button>
+        <button class="btn primary" @click="add"><Plus :size="14" />{{ t("encode.add") }}</button>
         <button
           class="btn"
           :class="{ 'danger-solid': picking }"
@@ -344,7 +304,7 @@ const formatDate = (ms: number) => new Date(ms).toLocaleString(locale.value, { h
           :data-id="e.id"
           class="card item"
           :class="{ picking, picked: picked.has(e.id), lifted: editing?.draft.id === e.id }"
-          @click="clickCard(e, $event)"
+          @click="clickCard(e)"
         >
           <div class="summary">
             <span class="avatar">{{ (e.title || "?").slice(0, 1).toUpperCase() }}</span>
@@ -390,74 +350,76 @@ const formatDate = (ms: number) => new Date(ms).toLocaleString(locale.value, { h
       </div>
 
       <!-- 新增 / 编辑弹窗 -->
-      <div v-if="editing" ref="overlayEl" class="overlay" @mousedown.self="cancel()" @keydown.esc="cancel()">
-        <form ref="dialogEl" class="dialog" tabindex="-1" role="dialog" :aria-label="editing.isNew ? t('encode.newAccount') : t('encode.editAccount')" @submit.prevent="save">
-          <div class="content">
-            <header>
-              <h2>{{ editing.isNew ? t("encode.newAccount") : editing.draft.title || t("encode.editAccount") }}</h2>
-              <span v-if="original" class="updated">{{ t("encode.updatedAt", { time: formatDate(original.updatedAt) }) }}</span>
-            </header>
-            <div class="form">
-              <label>
-                <span>{{ t("encode.name") }}</span>
-                <input ref="titleInput" v-model="editing.draft.title" class="field" :placeholder="t('encode.namePlaceholder')" />
-              </label>
-              <label>
-                <span>{{ t("encode.url") }}</span>
-                <div class="with-actions">
-                  <input v-model="editing.draft.url" class="field" placeholder="https://" />
-                  <button type="button" class="icon-btn" :title="t('encode.openInBrowser')" :disabled="!isUrl(editing.draft.url)" @click="openExternal(editing.draft.url)">
-                    <ExternalLink :size="14" />
-                  </button>
-                </div>
-              </label>
-              <label>
-                <span>{{ t("encode.account") }}</span>
-                <div class="with-actions">
-                  <input v-model="editing.draft.username" class="field" autocomplete="off" :placeholder="t('encode.accountPlaceholder')" />
-                  <button type="button" class="icon-btn" :class="{ ok: isCopied('edit:user') }" :title="t('encode.copyAccount')" @click="copy('edit:user', editing.draft.username)">
-                    <Check v-if="isCopied('edit:user')" :size="14" /><Copy v-else :size="14" />
-                  </button>
-                </div>
-              </label>
-              <label>
-                <span>{{ t("encode.password") }}</span>
-                <div class="with-actions">
-                  <input v-model="editing.draft.password" class="field mono" :type="showPassword ? 'text' : 'password'" autocomplete="off" />
-                  <button type="button" class="icon-btn" :title="showPassword ? t('encode.hide') : t('encode.show')" @click="showPassword = !showPassword">
-                    <EyeOff v-if="showPassword" :size="14" /><Eye v-else :size="14" />
-                  </button>
-                  <button type="button" class="icon-btn" :title="t('encode.generatePassword')" @click="generate"><RefreshCw :size="14" /></button>
-                  <button type="button" class="icon-btn" :class="{ ok: isCopied('edit:pass') }" :title="t('encode.copyPassword')" @click="copy('edit:pass', editing.draft.password)">
-                    <Check v-if="isCopied('edit:pass')" :size="14" /><Copy v-else :size="14" />
-                  </button>
-                </div>
-              </label>
-              <label class="wide">
-                <span>{{ t("encode.note") }}</span>
-                <textarea v-model="editing.draft.note" class="field note" rows="4" :placeholder="t('encode.notePlaceholder')" />
-              </label>
+      <Transition name="modal">
+        <div v-if="editing" class="overlay" @mousedown.self="cancel()" @keydown.esc="cancel()">
+          <form ref="dialogEl" class="dialog" tabindex="-1" role="dialog" :aria-label="editing.isNew ? t('encode.newAccount') : t('encode.editAccount')" @submit.prevent="save">
+            <div class="content">
+              <header>
+                <h2>{{ editing.isNew ? t("encode.newAccount") : editing.draft.title || t("encode.editAccount") }}</h2>
+                <span v-if="original" class="updated">{{ t("encode.updatedAt", { time: formatDate(original.updatedAt) }) }}</span>
+              </header>
+              <div class="form">
+                <label>
+                  <span>{{ t("encode.name") }}</span>
+                  <input ref="titleInput" v-model="editing.draft.title" class="field" :placeholder="t('encode.namePlaceholder')" />
+                </label>
+                <label>
+                  <span>{{ t("encode.url") }}</span>
+                  <div class="with-actions">
+                    <input v-model="editing.draft.url" class="field" placeholder="https://" />
+                    <button type="button" class="icon-btn" :title="t('encode.openInBrowser')" :disabled="!isUrl(editing.draft.url)" @click="openExternal(editing.draft.url)">
+                      <ExternalLink :size="14" />
+                    </button>
+                  </div>
+                </label>
+                <label>
+                  <span>{{ t("encode.account") }}</span>
+                  <div class="with-actions">
+                    <input v-model="editing.draft.username" class="field" autocomplete="off" :placeholder="t('encode.accountPlaceholder')" />
+                    <button type="button" class="icon-btn" :class="{ ok: isCopied('edit:user') }" :title="t('encode.copyAccount')" @click="copy('edit:user', editing.draft.username)">
+                      <Check v-if="isCopied('edit:user')" :size="14" /><Copy v-else :size="14" />
+                    </button>
+                  </div>
+                </label>
+                <label>
+                  <span>{{ t("encode.password") }}</span>
+                  <div class="with-actions">
+                    <input v-model="editing.draft.password" class="field mono" :type="showPassword ? 'text' : 'password'" autocomplete="off" />
+                    <button type="button" class="icon-btn" :title="showPassword ? t('encode.hide') : t('encode.show')" @click="showPassword = !showPassword">
+                      <EyeOff v-if="showPassword" :size="14" /><Eye v-else :size="14" />
+                    </button>
+                    <button type="button" class="icon-btn" :title="t('encode.generatePassword')" @click="generate"><RefreshCw :size="14" /></button>
+                    <button type="button" class="icon-btn" :class="{ ok: isCopied('edit:pass') }" :title="t('encode.copyPassword')" @click="copy('edit:pass', editing.draft.password)">
+                      <Check v-if="isCopied('edit:pass')" :size="14" /><Copy v-else :size="14" />
+                    </button>
+                  </div>
+                </label>
+                <label class="wide">
+                  <span>{{ t("encode.note") }}</span>
+                  <textarea v-model="editing.draft.note" class="field note" rows="4" :placeholder="t('encode.notePlaceholder')" />
+                </label>
+              </div>
+              <p v-if="dialogError" class="error">{{ dialogError }}</p>
+              <footer>
+                <button
+                  v-if="!editing.isNew"
+                  type="button"
+                  class="btn subtle danger"
+                  :disabled="saving"
+                  :title="confirmRemove ? t('encode.confirmRemoveTitle') : t('encode.removeTitle')"
+                  @click="removeEditing"
+                  @blur="confirmRemove = false"
+                >
+                  <Trash2 :size="14" />{{ confirmRemove ? t("encode.confirmDelete") : t("encode.delete") }}
+                </button>
+                <span class="grow" />
+                <button type="button" class="btn subtle" :disabled="saving" @click="cancel(true)">{{ t("encode.cancel") }}</button>
+                <button type="submit" class="btn primary" :disabled="saving || !dirty">{{ saving ? t("encode.saving") : t("encode.save") }}</button>
+              </footer>
             </div>
-            <p v-if="dialogError" class="error">{{ dialogError }}</p>
-            <footer>
-              <button
-                v-if="!editing.isNew"
-                type="button"
-                class="btn subtle danger"
-                :disabled="saving"
-                :title="confirmRemove ? t('encode.confirmRemoveTitle') : t('encode.removeTitle')"
-                @click="removeEditing"
-                @blur="confirmRemove = false"
-              >
-                <Trash2 :size="14" />{{ confirmRemove ? t("encode.confirmDelete") : t("encode.delete") }}
-              </button>
-              <span class="grow" />
-              <button type="button" class="btn subtle" :disabled="saving" @click="cancel(true)">{{ t("encode.cancel") }}</button>
-              <button type="submit" class="btn primary" :disabled="saving || !dirty">{{ saving ? t("encode.saving") : t("encode.save") }}</button>
-            </footer>
-          </div>
-        </form>
-      </div>
+          </form>
+        </div>
+      </Transition>
     </template>
   </div>
 </template>

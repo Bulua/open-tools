@@ -1,48 +1,68 @@
 /*
  * 全局动效：弹出层、对话框、选中滑块。切换工具时工作区的上滑见 ToolView.vue。
- * 风格：平滑减速、不回弹；内容本身不做淡入淡出，用裁剪「展开」，遮罩可以渐变。
+ * 弹出层整体从上方进入并淡入，离开时上移并淡出。普通内容切换各自处理。
  * 时长和曲线见 theme.css 的 --ease-out / --dur-*。
  */
 
-/* 下拉、日期、颜色等弹出层（<Transition name="pop">）：从顶部向下展开 */
-.pop-enter-active {
-  transition: clip-path var(--dur) var(--ease-out), transform var(--dur) var(--ease-out);
-}
-.pop-leave-active {
-  transition: clip-path var(--dur-fast) ease-in, transform var(--dur-fast) ease-in;
-}
-.pop-enter-from,
-.pop-leave-to {
-  clip-path: inset(0 0 100% 0 round 8px);
-  transform: translateY(-4px);
-}
-/* 展开后的裁剪框比面板大一圈，阴影不会被裁掉 */
-.pop-enter-to,
-.pop-leave-from {
-  clip-path: inset(-32px round 40px);
+:root {
+  --panel-offset: -8px;
+  --panel-enter-duration: var(--dur);
+  --panel-leave-duration: var(--dur-fast);
 }
 
-/* 对话框（<Transition name="modal">，遮罩是根元素，对话框是它的第一个子元素）：遮罩渐暗，对话框从中间展开 */
+/* pop 直接移动浮层，modal 只移动遮罩内的面板，遮罩留在原位。 */
+.pop-enter-active,
 .modal-enter-active,
 .modal-enter-active > * {
-  transition: opacity var(--dur-slow) var(--ease-out), clip-path var(--dur-slow) var(--ease-out), transform var(--dur-slow) var(--ease-out);
+  transition: opacity var(--panel-enter-duration) var(--ease-out), translate var(--panel-enter-duration) var(--ease-out);
 }
+.pop-leave-active,
 .modal-leave-active,
 .modal-leave-active > * {
-  transition: opacity var(--dur) ease-in, clip-path var(--dur) ease-in, transform var(--dur) ease-in;
+  transition: opacity var(--panel-leave-duration) ease-in, translate var(--panel-leave-duration) ease-in;
 }
+.pop-leave-active,
+.modal-leave-active {
+  pointer-events: none;
+}
+.pop-enter-from,
+.pop-leave-to,
 .modal-enter-from,
 .modal-leave-to {
   opacity: 0;
 }
+.pop-enter-from,
+.pop-leave-to,
 .modal-enter-from > *,
 .modal-leave-to > * {
-  clip-path: inset(30% 20% round 14px);
-  transform: translateY(12px);
+  translate: 0 var(--panel-offset);
 }
-.modal-enter-to > *,
-.modal-leave-from > * {
-  clip-path: inset(-48px round 62px);
+
+/* 原生对话框在退场动画结束前保留顶层和内容。 */
+.panel-dialog[open] {
+  animation: panel-in var(--panel-enter-duration) var(--ease-out);
+}
+.panel-dialog[open]::backdrop {
+  animation: panel-scrim-in var(--panel-enter-duration) var(--ease-out);
+}
+.panel-dialog[open].panel-closing {
+  animation: panel-out var(--panel-leave-duration) ease-in forwards;
+}
+.panel-dialog[open].panel-closing::backdrop {
+  animation: panel-scrim-in var(--panel-leave-duration) ease-in reverse forwards;
+}
+
+@keyframes panel-in {
+  from { opacity: 0; translate: 0 var(--panel-offset); }
+  to { opacity: 1; translate: 0 0; }
+}
+@keyframes panel-out {
+  from { opacity: var(--panel-start-opacity, 1); translate: var(--panel-start-translate, 0 0); }
+  to { opacity: 0; translate: 0 var(--panel-offset); }
+}
+@keyframes panel-scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* 时间目录与历史日组共用高度过渡，裁剪内容避免缩放文字或卡片。 */

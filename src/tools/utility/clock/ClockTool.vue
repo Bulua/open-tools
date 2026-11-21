@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref } from "vue";
+import { closePanelDialog, vPanelDismiss } from "@/utils/panelDialog";
 import { useI18n } from "vue-i18n";
 import { AlarmClock, Flag, Pause, Pencil, Play, Plus, RotateCcw, Timer, Trash2, X } from "lucide-vue-next";
 import { recordToolUsage } from "@/composables/toolLibrary";
@@ -59,7 +60,7 @@ async function editAlarm(item?: CountdownItem) {
   minuteWheel.value?.reset();
 }
 function closeAlarm() {
-  dialog.value?.close();
+  closePanelDialog(dialog.value);
 }
 function submitAlarm() {
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time.value)) { error.value = t("clock.invalidTime"); return; }
@@ -78,7 +79,7 @@ function startRefresh() {
   tick.value = performance.now();
   refresh = setInterval(() => { tick.value = performance.now(); }, 30);
 }
-function stopRefresh() { clearInterval(refresh); refresh = undefined; closeAlarm(); }
+function stopRefresh() { clearInterval(refresh); refresh = undefined; closePanelDialog(dialog.value, true); }
 function toggleStopwatch() {
   const current = performance.now();
   if (stopwatch.running) stopwatch.pause(current);
@@ -140,7 +141,7 @@ onBeforeUnmount(stopRefresh);
     <div v-show="tab === 'timer'" id="clock-page-timer" role="tabpanel" aria-labelledby="clock-tab-timer" class="clock-content timer-page"><TimerPanel /></div>
   </section>
   <Teleport to="body">
-    <dialog ref="dialog" class="alarm-dialog" aria-labelledby="alarm-dialog-title" @cancel.prevent="closeAlarm">
+    <dialog v-panel-dismiss ref="dialog" class="alarm-dialog panel-dialog" aria-labelledby="alarm-dialog-title" @cancel.prevent="closeAlarm">
       <form @submit.prevent="submitAlarm">
         <header><h2 id="alarm-dialog-title">{{ t(editing ? 'clock.editAlarm' : 'clock.addAlarm') }}</h2><button class="icon-btn" type="button" :aria-label="t('clock.cancel')" @click="closeAlarm"><X :size="18" /></button></header>
         <div class="alarm-time-picker" role="group" :aria-label="t('clock.time')">

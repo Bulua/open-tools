@@ -109,14 +109,14 @@ useToolResult(() => output.value);
 
     <SplitPane storage-key="headers" :default-ratio="0.45">
       <template #left>
-        <TextPane v-model="input" :label="t('network.input')" language="text" :placeholder="t('network.headersPlaceholder')">
+        <TextPane v-model="input" :label="t('network.input')" :language="input.trimStart().startsWith('{') ? 'json' : 'text'" :placeholder="t('network.headersPlaceholder')">
           <template #actions>
             <button v-if="!input" class="btn small subtle" @click="input = SAMPLE">{{ t("network.sample") }}</button>
           </template>
         </TextPane>
       </template>
       <template #right>
-        <TextPane :model-value="output" :label="t('network.result')" readonly nowrap :language="target === 'json' ? 'json' : 'text'" :placeholder="t('network.resultPlaceholder')">
+        <TextPane :model-value="output" :label="t('network.result')" readonly :nowrap="target !== 'json'" :language="target === 'json' ? 'json' : 'text'" :placeholder="t('network.resultPlaceholder')">
           <template #actions>
             <div v-if="target === 'curl'" class="seg">
               <button :class="{ on: shell === 'bash' }" title="macOS、Linux、Git Bash" @click="shell = 'bash'">bash</button>

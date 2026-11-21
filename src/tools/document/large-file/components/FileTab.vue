@@ -44,11 +44,13 @@ onDeactivated(menu.close);
     <button class="tab-close icon-btn" :title="t('largeText.close')" :aria-label="t('largeText.closeTab', { name: filename(tab.controller.state.info?.path ?? '') })" :disabled="disabled || tab.controller.state.busy" @click="emit('close', 'current')"><X :size="12" /></button>
   </div>
   <Teleport to="body">
-    <div v-if="menu.open.value" ref="panel" class="tab-popup" :style="menu.style.value" role="menu" :aria-label="t('largeText.tabMenu')" @keydown="menuKey">
-      <button role="menuitem" :disabled="disabled || tab.controller.state.busy" @click="choose('current')">{{ t('largeText.closeCurrent') }}</button>
-      <button role="menuitem" :disabled="disabled || !hasLeft" @click="choose('left')">{{ t('largeText.closeLeft') }}</button>
-      <button role="menuitem" :disabled="disabled || !hasRight" @click="choose('right')">{{ t('largeText.closeRight') }}</button>
-    </div>
+    <Transition name="pop">
+      <div v-if="menu.open.value" ref="panel" class="tab-popup" :style="menu.style.value" role="menu" :aria-label="t('largeText.tabMenu')" @keydown="menuKey">
+        <button role="menuitem" :disabled="disabled || tab.controller.state.busy" @click="choose('current')">{{ t('largeText.closeCurrent') }}</button>
+        <button role="menuitem" :disabled="disabled || !hasLeft" @click="choose('left')">{{ t('largeText.closeLeft') }}</button>
+        <button role="menuitem" :disabled="disabled || !hasRight" @click="choose('right')">{{ t('largeText.closeRight') }}</button>
+      </div>
+    </Transition>
   </Teleport>
 </template>
 

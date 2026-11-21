@@ -61,6 +61,7 @@ export function usePopover(
     place();
     await nextTick();
     if (!open.value) return;
+    if (panel.value) panel.value.inert = false;
     // 第一次放置时还不知道弹出层的高度，渲染后再算一次
     place();
     document.addEventListener("pointerdown", onDocDown, true);
@@ -71,6 +72,8 @@ export function usePopover(
   function close() {
     if (!open.value) return;
     open.value = false;
+    // Vue 在退场期间还保留面板，及时退出键盘和点击交互。
+    if (panel.value) panel.value.inert = true;
     document.removeEventListener("pointerdown", onDocDown, true);
     document.removeEventListener("keydown", onKey, true);
     window.removeEventListener("resize", onLayoutChange);

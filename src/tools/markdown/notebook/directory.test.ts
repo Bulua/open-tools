@@ -23,7 +23,8 @@ test("从目录空白和折叠文件夹右键新建笔记，自动编号并聚�
 
   async function create(origin: Element) {
     origin.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
-    const item = () => [...document.querySelectorAll<HTMLButtonElement>(".directory-menu button")].find(button => button.textContent?.trim() === "新建笔记");
+    const item = () => [...document.querySelectorAll<HTMLButtonElement>(".directory-menu:not([inert]):not(.pop-leave-active) button")]
+      .find(button => button.textContent?.trim() === "新建笔记");
     await vi.waitFor(() => expect(item()).toBeDefined());
     item()!.click();
     await vi.waitFor(() => {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onDeactivated, ref } from "vue";
+import { closePanelDialog, vPanelDismiss } from "@/utils/panelDialog";
 import { useI18n } from "vue-i18n";
 import { ChevronRight, Folder, FolderOpen, FolderPlus, Pencil, Plus, Radio, Trash2 } from "lucide-vue-next";
 import { usePopover } from "@/composables/usePopover";
@@ -108,21 +109,26 @@ const updateDraft = (id: string, draft: MqttDraft) => {
 };
 const deleteDialog = ref<HTMLDialogElement>();
 const deletingId = ref("");
-const deleting = computed(() => tree.value.nodes.find(node => node.id === deletingId.value));
-const deleteCount = computed(() => { const ids = descendants(tree.value.nodes, deletingId.value); return tree.value.nodes.filter(node => node.kind === "session" && ids.has(node.id)).length; });
+const deletePrompt = ref({ name: "", n: 0 });
+onDeactivated(() => closePanelDialog(deleteDialog.value, true));
 const performDelete = () => {
   if (!deletingId.value) return;
   const removed = descendants(tree.value.nodes, deletingId.value);
   removeNode(tree.value, deletingId.value);
   for (const id of removed) { visited.value.delete(id); delete statuses.value[id]; }
   if (tree.value.activeId) visited.value.add(tree.value.activeId);
-  selectedId.value = tree.value.activeId; deletingId.value = ""; deleteDialog.value?.close();
+  selectedId.value = tree.value.activeId; deletingId.value = ""; closePanelDialog(deleteDialog.value);
 };
 const requestDelete = () => {
   if (!selected.value) return;
   deletingId.value = selected.value.id;
-  if (selected.value.kind === "folder" && descendants(tree.value.nodes, selected.value.id).size > 1) deleteDialog.value?.showModal();
-  else performDelete();
+  const ids = descendants(tree.value.nodes, deletingId.value);
+  if (selected.value.kind !== "folder" || ids.size <= 1) {
+    performDelete();
+    return;
+  }
+  deletePrompt.value = { name: selected.value.name, n: tree.value.nodes.filter(node => node.kind === "session" && ids.has(node.id)).length };
+  deleteDialog.value?.showModal();
 };
 const draggingId = ref("");
 const dropId = ref("");
@@ -193,20 +199,22 @@ const keydown = async (event: KeyboardEvent, node: TreeNode) => {
     </main>
     <Teleport to="body">
       <span ref="menuAnchor" class="context-anchor" :style="menuPosition" aria-hidden="true" />
-      <div v-if="menuOpen" ref="menuPanel" class="directory-menu" :style="menuStyle" role="menu" @keydown="menuKey">
-        <template v-if="menuKind === 'node'">
-          <button role="menuitem" @click="closeMenu(); beginRename()"><Pencil :size="14" />{{ t("network.mqtt.rename") }}</button>
-          <button role="menuitem" @click="closeMenu(); requestDelete()"><Trash2 :size="14" />{{ t("network.mqtt.deleteNode") }}</button>
-        </template>
-        <template v-else>
-          <button role="menuitem" @click="closeMenu(); add('folder')"><FolderPlus :size="15" />{{ t("network.mqtt.newFolder") }}</button>
-          <button role="menuitem" @click="closeMenu(); add('session')"><Plus :size="15" />{{ t("network.mqtt.newSession") }}</button>
-        </template>
-      </div>
+      <Transition name="pop">
+        <div v-if="menuOpen" ref="menuPanel" class="directory-menu" :style="menuStyle" role="menu" @keydown="menuKey">
+          <template v-if="menuKind === 'node'">
+            <button role="menuitem" @click="closeMenu(); beginRename()"><Pencil :size="14" />{{ t("network.mqtt.rename") }}</button>
+            <button role="menuitem" @click="closeMenu(); requestDelete()"><Trash2 :size="14" />{{ t("network.mqtt.deleteNode") }}</button>
+          </template>
+          <template v-else>
+            <button role="menuitem" @click="closeMenu(); add('folder')"><FolderPlus :size="15" />{{ t("network.mqtt.newFolder") }}</button>
+            <button role="menuitem" @click="closeMenu(); add('session')"><Plus :size="15" />{{ t("network.mqtt.newSession") }}</button>
+          </template>
+        </div>
+      </Transition>
     </Teleport>
-    <dialog ref="deleteDialog" class="mqtt-dialog" :aria-label="t('network.mqtt.deleteNode')"><form @submit.prevent="performDelete">
-      <h2>{{ t("network.mqtt.deleteNode") }}</h2><p>{{ t("network.mqtt.deleteFolderConfirm", { name: deleting?.name, n: deleteCount }) }}</p>
-      <footer><button type="button" class="btn" @click="deleteDialog?.close()">{{ t("network.mqtt.cancelAction") }}</button><button class="btn primary">{{ t("network.mqtt.deleteNode") }}</button></footer>
+    <dialog v-panel-dismiss ref="deleteDialog" class="mqtt-dialog panel-dialog" :aria-label="t('network.mqtt.deleteNode')" @cancel.prevent="closePanelDialog(deleteDialog)"><form @submit.prevent="performDelete">
+      <h2>{{ t("network.mqtt.deleteNode") }}</h2><p>{{ t("network.mqtt.deleteFolderConfirm", deletePrompt) }}</p>
+      <footer><button type="button" class="btn" @click="closePanelDialog(deleteDialog)">{{ t("network.mqtt.cancelAction") }}</button><button class="btn primary">{{ t("network.mqtt.deleteNode") }}</button></footer>
     </form></dialog>
   </div>
 </template>
@@ -247,16 +255,11 @@ const keydown = async (event: KeyboardEvent, node: TreeNode) => {
 .resizing, .resizing :deep(*) { cursor: col-resize !important; user-select: none !important; }
 .context-anchor { position: fixed; width: 0; height: 0; pointer-events: none; }
 .directory-menu { position: fixed; z-index: 1000; padding: 4px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); box-shadow: var(--shadow-lg); }
-.directory-menu { animation: mqtt-menu-open var(--dur-fast) var(--ease-out); }
-@keyframes mqtt-menu-open { from { clip-path: inset(0 0 100% round 8px); transform: translateY(-4px); } to { clip-path: inset(-32px round 40px); transform: translateY(0); } }
 .directory-menu button { display: flex; align-items: center; gap: 8px; width: 100%; height: 32px; padding: 0 10px; border: 0; border-radius: 5px; background: none; color: var(--text); text-align: start; font-size: 12px; }
 .directory-menu button:hover, .directory-menu button:focus-visible { background: var(--hover); outline: none; }
 .empty-workspace { display: grid; place-content: center; flex: 1; }
 .mqtt-dialog { width: min(420px, calc(100vw - 32px)); padding: 22px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); color: var(--text); box-shadow: var(--shadow-lg); }
 .mqtt-dialog::backdrop { background: var(--modal-scrim); }
-.mqtt-dialog { clip-path: inset(12% 0 round var(--radius)); transform: translateY(10px); transition: clip-path var(--dur) var(--ease-out), transform var(--dur) var(--ease-out), display var(--dur) allow-discrete, overlay var(--dur) allow-discrete; }
-.mqtt-dialog[open] { clip-path: inset(-48px round var(--radius)); transform: translateY(0); }
-@starting-style { .mqtt-dialog[open] { clip-path: inset(12% 0 round var(--radius)); transform: translateY(10px); } }
 .mqtt-dialog form, .mqtt-dialog label { display: flex; flex-direction: column; gap: 10px; }
 .mqtt-dialog form { gap: 18px; }
 .mqtt-dialog h2, .mqtt-dialog p { margin: 0; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
