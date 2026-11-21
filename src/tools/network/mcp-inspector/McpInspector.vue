@@ -75,13 +75,14 @@ let checking = false;
 let visible = false;
 async function checkSessions() {
   if (checking || !connected.value.length) return;
-  const snapshot = connected.value.map(({ id }) => [id, sessions.get(id)] as const);
+  const snapshot = connected.value.map(({ id, name }) => ({ id, name, session: sessions.get(id) }));
   checking = true;
   try {
     const active = new Set(await invoke<string[]>("mcp_active_sessions"));
-    for (const [id, session] of snapshot) {
+    for (const { id, name, session } of snapshot) {
       if (session?.status === "connected" && sessions.get(id) === session && !active.has(session.sessionId)) {
-        sessions.set(id, { status: "failed", error: t("network.mcp.connectionLost") });
+        sessions.set(id, { status: "failed" });
+        if (visible) showError(t("network.mcp.connectionLost"), name);
       }
     }
   } catch {
@@ -129,7 +130,7 @@ async function connectServer(item: McpConnection) {
     sessions.set(item.id, { status: "connected", sessionId, info });
     if (visible && tab.value === "servers") browse(item);
   } catch (issue) {
-    sessions.set(item.id, { status: "failed", error: errorMessage(issue) });
+    sessions.set(item.id, { status: "failed" });
     if (visible) showError(issue, t("network.mcp.failed"));
   }
 }
@@ -190,11 +191,6 @@ async function persistConnections(next: McpConnection[]) {
   }
 }
 
-function sessionError(id: string) {
-  const session = sessions.get(id);
-  return session?.status === "failed" ? session.error : undefined;
-}
-
 const description = computed(() => {
   const entry = selected.value;
   const text = entry?.value.description?.replace(/\x60+/g, "").trim();
@@ -238,7 +234,6 @@ watch(selected, () => { descriptionExpanded.value = true; });
           </div>
           <strong class="connection-name" :title="serverInfo(item.id)">{{ item.name }}</strong>
           <code class="address">{{ connectionTarget(item.config) }}</code>
-          <p v-if="sessionError(item.id)" class="error" role="alert">{{ sessionError(item.id) }}</p>
           <div class="card-bottom">
             <span class="connection-status" :class="{ online: sessions.get(item.id)?.status === 'connected' }">
               {{ t(`network.mcp.connection.${sessions.get(item.id)?.status ?? 'disconnected'}`) }}
@@ -319,16 +314,18 @@ watch(selected, () => { descriptionExpanded.value = true; });
 .connection-add { width: 100%; height: 100%; align-items: center; justify-content: center; border-style: dashed; color: var(--text-2); }
 .connection-add:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 .catalog {
-  display: grid; grid-template-columns: clamp(190px, 27%, 290px) minmax(0, 1fr); gap: 12px; background: var(--bg);
+  display: grid; grid-template-columns: clamp(190px, 27%, 290px) minmax(0, 1fr); gap: 12px; background: var(--surface);
 }
 .catalog-details {
-  display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0; padding: 14px;
+  --mcp-details-padding: 14px;
+  display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0; padding: var(--mcp-details-padding);
   overflow: auto; container: mcp-details / inline-size;
   border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
 }
 .entry-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 5px 8px; }
 .entry-head h3 { margin: 0; font: 600 15px/1.4 var(--font-mono); overflow-wrap: anywhere; }
 .entry-head p { grid-column: 1 / -1; min-width: 0; margin: 0; color: var(--text-2); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.entry-head:has(+ .editing-arguments) p { max-height: min(24vh, 160px); overflow: auto; scrollbar-width: thin; }
 .description-toggle { grid-column: 2; }
 .description-toggle svg { transition: transform var(--dur-fast) var(--ease-out); }
 .description-toggle[aria-expanded="false"] svg { transform: rotate(-90deg); }

@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { expect, test, vi } from "vitest";
 import { createApp, nextTick } from "vue";
 import { createI18n, type I18nOptions } from "vue-i18n";
+import { dismissToast, toasts } from "@/utils/errorToast";
 import McpInspector from "./McpInspector.vue";
 import locales from "./locales";
 import { connections, sessions, type McpConnection } from "./workspace";
@@ -11,6 +12,8 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
 test("通过卡片连接后浏览三个目录，关闭开关则断开连接", async () => {
   const mock = vi.mocked(invoke);
+  const connectError = "连接被拒绝，无法完成初始化";
+  let failConnection = true;
   let persisted: McpConnection[] = [{
     id: "saved", name: "已保存的服务", config: { type: "http", url: "https://example.com/mcp" },
   }];
@@ -20,7 +23,10 @@ test("通过卡片连接后浏览三个目录，关闭开关则断开连接", as
       persisted = args.connections as McpConnection[];
       return undefined;
     }
-    if (command === "mcp_connect") return { protocolVersion: "2025-11-25" };
+    if (command === "mcp_connect") {
+      if (failConnection) throw new Error(connectError);
+      return { protocolVersion: "2025-11-25" };
+    }
     if (command === "mcp_disconnect") return undefined;
     if (command === "mcp_get_prompt") return { messages: [{ role: "user", content: { type: "text", text: "Hello" } }] };
     if (command === "mcp_read_resource") return { contents: [{ uri: "guide://start", text: "Guide contents" }] };
@@ -70,6 +76,14 @@ test("通过卡片连接后浏览三个目录，关闭开关则断开连接", as
     expect(persisted.map((item) => item.name)).toEqual(["已保存的服务", "本地示例"]);
     expect(tab("工具")).toBeUndefined();
     toggleNew()!.click();
+    const failedCard = toggleNew()!.closest(".connection-card")!;
+    await vi.waitFor(() => expect(failedCard.querySelector(".connection-status")?.textContent).toContain("连接失败"));
+    expect(failedCard.textContent).not.toContain(connectError);
+    expect(toasts.value).toContainEqual(expect.objectContaining({
+      kind: "error", title: "连接 MCP 服务器失败", message: connectError,
+    }));
+    failConnection = false;
+    toggleNew()!.click();
     await vi.waitFor(() => expect(host.querySelector(".entry-head h3")?.textContent).toBe("add"));
     expect(host.querySelector(".catalog-list h3")).toBeNull();
     expect(host.querySelector(".catalog-list .entry-number")?.textContent).toBe("1.");
@@ -88,8 +102,9 @@ test("通过卡片连接后浏览三个目录，关闭开关则断开连接", as
     expect(description.textContent).toBe("Add two values.\n\nReturns the total.");
     expect(host.querySelector(".workspace-head [aria-haspopup]")).toBeNull();
     expect(host.querySelector('.entry-head [aria-haspopup="dialog"]')).toBeNull();
-    expect(host.querySelector('.argument-head [aria-haspopup="dialog"]')).not.toBeNull();
-    expect(host.querySelector('.output-head [aria-haspopup="dialog"]')).not.toBeNull();
+    expect(host.querySelector('.argument-head [aria-haspopup="dialog"]')).toBeNull();
+    expect(host.querySelector(".argument-head")?.textContent?.trim()).toBe("编辑 JSON");
+    expect(host.querySelector(".output-panel")).toBeNull();
     disclosure.click();
     await nextTick();
     expect(disclosure.getAttribute("aria-expanded")).toBe("false");
@@ -107,6 +122,8 @@ test("通过卡片连接后浏览三个目录，关闭开关则断开连接", as
       otherTool.click();
       await nextTick();
       expect(host.querySelector(".entry-head h3")?.textContent).toBe("subtract");
+      expect(host.querySelector(".empty-form .argument-form .hint")?.textContent).toBe("此工具没有声明表单字段。");
+      expect(host.querySelector(".empty-form .argument-footer .primary")).not.toBeNull();
       expect(host.querySelector(".list-items.gliding > .glide-mcp-entry")).not.toBeNull();
       expect(animate).toHaveBeenCalledWith(
         [expect.objectContaining({ top: "0px" }), expect.objectContaining({ top: "28px" })],
@@ -168,5 +185,6 @@ test("通过卡片连接后浏览三个目录，关闭开关则断开连接", as
     connections.value = [];
     sessions.clear();
     mock.mockReset();
+    for (const item of toasts.value.filter(({ message }) => message === connectError)) dismissToast(item.id);
   }
 });

@@ -12,6 +12,6 @@ export const connections = shallowRef<McpConnection[]>([]);
 export type McpSession =
   | { status: "connecting" | "disconnecting"; sessionId: string }
   | { status: "connected"; sessionId: string; info: McpServerInfo }
-  | { status: "failed"; error: string };
+  | { status: "failed" };
 export const sessions = shallowReactive(new Map<string, McpSession>());
 export const testing = ref(false);

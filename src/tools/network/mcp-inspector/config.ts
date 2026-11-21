@@ -49,9 +49,17 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+export function parseFiniteJson(text: string): unknown {
+  return JSON.parse(text, (_key, value: unknown) => {
+    // 避免序列化时将溢出的数字悄悄转换为 null。
+    if (typeof value === "number" && !Number.isFinite(value)) throw new RangeError("Number is out of range");
+    return value;
+  });
+}
+
 export function parseToolArguments(text: string): Record<string, unknown> | undefined {
   try {
-    const value: unknown = JSON.parse(text);
+    const value = parseFiniteJson(text);
     return isObject(value) ? value : undefined;
   } catch {
     return undefined;
