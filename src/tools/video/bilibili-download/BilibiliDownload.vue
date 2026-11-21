@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, markRaw, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { isTauri } from "@tauri-apps/api/core";
 import {
   ChevronDown,
   ChevronUp,
@@ -24,11 +23,9 @@ import ProcessingMascot from "@/components/common/ProcessingMascot.vue";
 import ProgressBar from "@/components/common/ProgressBar.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { useWindowEvent } from "@/composables/useWindowEvent";
-import { downloadBaseName, releaseSavedMedia, revealDownloadedMedia, saveDownloadedMedia, type SavedMedia } from "../shared/downloadStorage";
+import { downloadBaseName, revealDownloadedMedia, saveDownloadedMedia, type SavedMedia } from "../shared/downloadStorage";
 import { formatBytes } from "@/utils/format";
-import { sendMode } from "@/tools/network/shared/transport";
 import { showError } from "@/utils/errorToast";
-import { isAndroidApp } from "@/utils/platform";
 import { formatDuration } from "../shared/media";
 import {
   CODEC_PREFERENCES,
@@ -57,8 +54,6 @@ import {
  * 多 P 视频在卡片里展开勾选要下载的分 P。画面和声音下载后直接合并为 MP4，不重新编码。
  * 点封面优先播放下载好的本地文件；尚未下载时在线播放，多 P 可以切换。
  */
-const mode = sendMode();
-const desktop = isTauri() && !isAndroidApp();
 
 // ---------- 登录（可选） ----------
 const sessdata = useStoredRef("bilibili.sessdata", "");
@@ -68,7 +63,6 @@ const checkingLogin = ref(false);
 const showLogin = ref(true);
 let loginTimer: ReturnType<typeof setTimeout> | undefined;
 const checkLogin = async () => {
-  if (mode === "browser") return;
   checkingLogin.value = true;
   try {
     login.value = await getLoginInfo(session.value);
@@ -117,7 +111,6 @@ const entries = ref<Entry[]>([]);
 const batch = ref(false);
 const busy = computed(() => batch.value || entries.value.some((e) => e.status === "working"));
 let disposed = false;
-const releaseEntry = (e: Entry) => e.parts.forEach((p) => releaseSavedMedia(p.files));
 const savedFile = (e: Entry) => e.parts.flatMap((p) => p.files).find((f) => f.path);
 const reveal = async (e: Entry) => {
   try { const file = savedFile(e); if (file) await revealDownloadedMedia(file); }
@@ -125,7 +118,6 @@ const reveal = async (e: Entry) => {
 };
 const clearEntries = () => {
   closePlayer();
-  entries.value.forEach(releaseEntry);
   entries.value = [];
 };
 
@@ -189,7 +181,6 @@ const pasteAndParse = async () => {
 const removeEntry = (e: Entry) => {
   e.controller?.abort();
   if (player.value?.entry === e) closePlayer();
-  releaseEntry(e);
   entries.value = entries.value.filter((x) => x !== e);
 };
 
@@ -212,15 +203,13 @@ const download = async (e: Entry) => {
   const save = async (part: Part, name: string, data: Uint8Array) => {
     if (signal.aborted) throw new Error(t("video.cancelled"));
     const file = await saveDownloadedMedia("bilibili", name, data, "video");
-    if (disposed || !entries.value.includes(e)) releaseSavedMedia([file]);
-    else part.files.push(file);
+    if (!disposed && entries.value.includes(e)) part.files.push(file);
     if (signal.aborted) throw new Error(t("video.cancelled"));
   };
   try {
     for (const [index, part] of parts.entries()) {
       if (signal.aborted) throw new Error(t("video.cancelled"));
       part.status = "working";
-      releaseSavedMedia(part.files);
       part.files = [];
       const prefix = parts.length > 1 ? t("video.partPrefix", { page: part.page, i: index + 1, n: parts.length }) : "";
       const setProgress = (p: number) => e.progress = (index + p) / parts.length;
@@ -329,7 +318,7 @@ onBeforeUnmount(() => {
   disposed = true;
   clearTimeout(loginTimer);
   closePlayer();
-  entries.value.forEach((e) => { e.controller?.abort(); releaseEntry(e); });
+  entries.value.forEach((e) => e.controller?.abort());
 });
 </script>
 
@@ -350,7 +339,6 @@ onBeforeUnmount(() => {
         <Search v-else :size="14" />{{ t("video.parse") }}
       </button>
     </div>
-    <p v-if="mode === 'browser'" class="banner warn">{{ t("video.biliBrowser") }}</p>
 
     <div class="main">
       <aside class="card panel">
@@ -386,7 +374,7 @@ onBeforeUnmount(() => {
         <div class="card-title">
           {{ t("video.videos") }}<span v-if="entries.length" class="count">{{ t("video.countN", { n: entries.length }) }}</span>
           <div class="push actions">
-            <button v-if="entries.length > 1" class="btn small subtle" :disabled="busy || mode === 'browser'" @click="downloadAll"><Download :size="13" />{{ t("video.downloadAll") }}</button>
+            <button v-if="entries.length > 1" class="btn small subtle" :disabled="busy" @click="downloadAll"><Download :size="13" />{{ t("video.downloadAll") }}</button>
             <button v-if="entries.length" class="btn small subtle" :disabled="busy" @click="clearEntries">{{ t("video.clear") }}</button>
           </div>
         </div>
@@ -461,13 +449,13 @@ onBeforeUnmount(() => {
                   <button
                     v-else
                     class="btn small primary"
-                    :disabled="!e.selected.length || mode === 'browser'"
+                    :disabled="!e.selected.length"
                     @click="download(e)"
                   >
                     <Download :size="13" /><span>{{ e.status === "done" ? t("video.redownload") : e.parts.length > 1 ? t("video.downloadParts", { n: e.selected.length }) : t("video.download") }}</span>
                   </button>
                   <button class="btn small subtle" :title="t('video.play')" @click="openPlayer(e)"><Play :size="13" /><span>{{ t("video.play") }}</span></button>
-                  <button v-if="desktop && e.status !== 'working' && savedFile(e)" class="btn small subtle" :title="t('video.openFolder')" @click="reveal(e)"><ExternalLink :size="13" /><span>{{ t("video.openFolder") }}</span></button>
+                  <button v-if="e.status !== 'working' && savedFile(e)" class="btn small subtle" :title="t('video.openFolder')" @click="reveal(e)"><ExternalLink :size="13" /><span>{{ t("video.openFolder") }}</span></button>
                 </div>
               </div>
             </article>

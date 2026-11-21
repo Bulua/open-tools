@@ -1,5 +1,5 @@
 import { computed, onBeforeUnmount, reactive, ref } from "vue";
-import { Channel, invoke, isTauri } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import { recordToolUsage } from "@/composables/toolLibrary";
 import { showError } from "@/utils/errorToast";
 import { createConnectionConfig, appendMessage, decodePayload, type ConnectionStatus, type Message, type MqttNotice, type QoS, type SentPayload } from "./mqtt";
@@ -13,7 +13,6 @@ export function useMqtt() {
   const topics = ref<{ topic: string; qos: QoS }[]>([]);
   const messages = ref<Message[]>([]);
   const busy = ref(false);
-  const supported = isTauri();
   let sessionId = "";
   let sequence = 0;
   let disposed = false;
@@ -86,7 +85,7 @@ export function useMqtt() {
     }
   };
   const connect = async () => {
-    if (!supported || status.value !== "disconnected") return;
+    if (status.value !== "disconnected") return;
     wanted = true; outageReported = false;
     await openConnection();
   };
@@ -138,5 +137,5 @@ export function useMqtt() {
     disposed = true; wanted = false; clearReconnect();
     if (sessionId) void invoke("mqtt_disconnect", { id: sessionId }).catch(showError);
   });
-  return { config, status, connected, subscriptions, topics, messages, busy, supported, connect, disconnect, subscribe, unsubscribe, publish };
+  return { config, status, connected, subscriptions, topics, messages, busy, connect, disconnect, subscribe, unsubscribe, publish };
 }

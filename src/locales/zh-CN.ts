@@ -1,6 +1,6 @@
 /**
  * 公共部分的中文文案：顶栏、侧栏、搜索窗口、更新对话框、公共控件。
- * 各工具界面的文案放在各自模块的 locales.ts 里，见 docs/DEVELOPMENT.md「多语言文案」。
+ * 各工具界面的文案放在各自模块的 locales.ts 里，见 docs/development/I18N.md「多语言文案」。
  */
 const zhCN = {
   home: {
@@ -73,16 +73,6 @@ const zhCN = {
     expand: "展开侧栏",
     collapse: "收起侧栏",
   },
-  mobile: {
-    tools: "工具",
-    about: "关于",
-    navigation: "主导航",
-    searchPlaceholder: "搜索所有工具",
-    allCategories: "全部类别",
-    toolCount: "{n} 个工具",
-    noResults: "没有找到匹配的工具",
-    back: "返回",
-  },
   palette: {
     placeholder: "搜索所有工具…",
     none: "没有找到「{keyword}」相关的工具",
@@ -93,9 +83,7 @@ const zhCN = {
     recheck: "重新检查",
     close: "关闭",
     current: "当前版本",
-    devPreview: "开发预览",
     checkedAt: "· {time} 检查",
-    unsupported: "在线更新只在安装后的桌面版中可用。",
     checking: "正在检查新版本…",
     upToDate: "已是最新版本",
     currentNotes: "本版本更新内容",

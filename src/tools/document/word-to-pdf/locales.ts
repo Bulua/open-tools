@@ -20,7 +20,6 @@ export default defineModuleLocales({
       "document": {
         "wordToPdfZip": "Word 转 PDF.zip",
         "downloadPdf": "下载这个 PDF",
-        "browserNoWord": "浏览器中无法调用 Word，请使用安装后的桌面版；也可以用下方的「打印为 PDF」。",
         "detectingOffice": "正在检测本机的 Office 软件…",
         "engineNote": "使用本机的 {engine} 转换，效果与在其中「另存为 PDF」相同。转换时会在后台打开文档，请稍候。",
         "noOffice": "没有找到 Microsoft Word、WPS 或 LibreOffice。安装其中之一即可一键转换，也可以用下方的「打印为 PDF」。",
@@ -36,7 +35,6 @@ export default defineModuleLocales({
       "document": {
         "wordToPdfZip": "Word to PDF.zip",
         "downloadPdf": "Download this PDF",
-        "browserNoWord": "Word can't be used from the browser — use the installed desktop app, or “Print to PDF” below.",
         "detectingOffice": "Looking for Office apps on this computer…",
         "engineNote": "Converts with {engine} on this computer, the same as “Save as PDF” there. Documents open in the background, so please wait.",
         "noOffice": "Microsoft Word, WPS or LibreOffice wasn't found. Install one of them for one-click conversion, or use “Print to PDF” below.",
@@ -52,7 +50,6 @@ export default defineModuleLocales({
       "document": {
         "wordToPdfZip": "Word から PDF.zip",
         "downloadPdf": "この PDF をダウンロード",
-        "browserNoWord": "ブラウザでは Word を使えません。インストール版のデスクトップアプリを使うか、下の「PDF として印刷」を使ってください。",
         "detectingOffice": "この PC の Office ソフトを確認中…",
         "engineNote": "この PC の {engine} で変換します。そのアプリで「PDF として保存」した場合と同じ結果になります。変換時にバックグラウンドで文書を開くので、しばらくお待ちください。",
         "noOffice": "Microsoft Word・WPS・LibreOffice が見つかりません。いずれかをインストールすればワンクリックで変換できます。下の「PDF として印刷」も使えます。",

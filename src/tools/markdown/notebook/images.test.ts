@@ -6,7 +6,6 @@ import type { ImageSizeTarget } from "./images";
 import { savePastedImages } from "./storage";
 
 vi.mock("@tauri-apps/api/core", () => ({
-  isTauri: () => true,
   invoke: async () => new ArrayBuffer(0),
 }));
 vi.mock("./storage", () => ({

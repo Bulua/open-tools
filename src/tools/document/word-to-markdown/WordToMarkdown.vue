@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, shallowRef } from "vue";
 import { useI18n } from "vue-i18n";
-import { isTauri } from "@tauri-apps/api/core";
 import { Download, FileText, RotateCcw } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import TextPane from "@/components/common/TextPane.vue";
@@ -13,7 +12,6 @@ import { recordToolUsage } from "@/composables/toolLibrary";
 import { convertDocx, MAX_WORD_BYTES, type WordMarkdownResult } from "./conversion";
 
 const { t } = useI18n();
-const desktop = isTauri();
 const file = shallowRef<File>();
 const result = shallowRef<WordMarkdownResult>();
 const busy = ref(false);
@@ -29,7 +27,7 @@ onBeforeUnmount(() => { disposed = true; });
 
 async function convert() {
   const source = file.value;
-  if (!source || busy.value || saving.value || !desktop) return;
+  if (!source || busy.value || saving.value) return;
   busy.value = true;
   result.value = undefined;
   try {
@@ -45,7 +43,7 @@ async function convert() {
 }
 
 function addFiles(files: File[]) {
-  if (busy.value || saving.value || !desktop || !files[0]) return;
+  if (busy.value || saving.value || !files[0]) return;
   const source = files[0];
   validation.value = !/\.docx$/i.test(source.name) ? t("document.wordMarkdown.invalid")
     : source.size > MAX_WORD_BYTES ? t("document.wordMarkdown.tooLarge") : "";
@@ -72,10 +70,10 @@ async function download() {
           <FileText :size="20" />
           <div><strong :title="file.name">{{ file.name }}</strong><small>{{ formatBytes(file.size) }}</small></div>
         </div>
-        <FileDropZone v-if="desktop && !busy && !saving && file" compact accept=".docx" :paste="false" :title="t('document.wordMarkdown.replace')" @files="addFiles" />
+        <FileDropZone v-if="!busy && !saving && file" compact accept=".docx" :paste="false" :title="t('document.wordMarkdown.replace')" @files="addFiles" />
         <p v-if="validation" class="error">{{ validation }}</p>
         <p class="note">{{ t("document.wordMarkdown.structure") }}</p>
-        <p class="note">{{ t(desktop ? "document.wordMarkdown.local" : "document.wordMarkdown.browser") }}</p>
+        <p class="note">{{ t("document.wordMarkdown.local") }}</p>
         <button v-if="file && !result" class="btn full" :disabled="busy || saving" @click="convert">
           <RotateCcw :size="14" />{{ t(busy ? "document.wordMarkdown.converting" : "document.wordMarkdown.convert") }}
         </button>
@@ -90,8 +88,7 @@ async function download() {
     </section>
     <TextPane v-else-if="result" :model-value="result.markdown" :label="t('document.wordMarkdown.output')" language="markdown" readonly />
     <section v-else class="card stage">
-      <FileDropZone v-if="desktop" class="drop" accept=".docx" :paste="false" :title="t('document.wordMarkdown.drop')" :hint="t('document.wordMarkdown.hint')" @files="addFiles" />
-      <p v-else class="empty">{{ t("document.wordMarkdown.browser") }}</p>
+      <FileDropZone class="drop" accept=".docx" :paste="false" :title="t('document.wordMarkdown.drop')" :hint="t('document.wordMarkdown.hint')" @files="addFiles" />
     </section>
   </div>
 </template>

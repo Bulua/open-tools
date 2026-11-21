@@ -12,7 +12,6 @@ import {
   FRAME_RATES,
   QUALITY_OPTIONS,
   disableHdr,
-  hdrControllable,
   hdrEnabled,
   openCapture,
   pickFormat,
@@ -95,7 +94,7 @@ const start = async () => {
   elapsed.value = 0;
   format = pickFormat();
   if (!format) return showError(t("video.noRecorder"));
-  if (source.value === "screen" && hdrControllable && (await hdrEnabled())) {
+  if (source.value === "screen" && (await hdrEnabled())) {
     const choice = hdrChoice.value || (await askHdr());
     if (!choice) return;
     if (choice === "disable") {
@@ -212,13 +211,6 @@ const save = async (r: Recording) => {
   }
 };
 
-// 网页版不能开关 HDR：屏幕开着 HDR 时提醒用户录制前自己关掉
-const hdrQuery = window.matchMedia("(dynamic-range: high)");
-const hdr = ref(hdrQuery.matches);
-const onHdrChange = (e: MediaQueryListEvent) => (hdr.value = e.matches);
-hdrQuery.addEventListener("change", onHdrChange);
-onBeforeUnmount(() => hdrQuery.removeEventListener("change", onHdrChange));
-
 const busy = computed(() => state.value !== "idle");
 const statusText = computed(() =>
   state.value === "starting"
@@ -237,13 +229,6 @@ const statusText = computed(() =>
   <div class="video-recorder">
     <div class="side">
       <aside class="card panel">
-        <section v-if="source === 'screen' && hdr && !hdrControllable" class="section hdr">
-          <h3><TriangleAlert :size="14" />{{ t("video.hdrWarn") }}</h3>
-          <Translation keypath="video.hdrSteps" tag="p" class="tip">
-            <template #path><b>{{ t("video.hdrPath") }}</b></template>
-            <template #option><b>{{ t("video.hdrOption") }}</b></template>
-          </Translation>
-        </section>
         <section class="section">
           <h3>{{ t("video.quality") }}</h3>
           <div class="seg fill">
@@ -405,19 +390,6 @@ const statusText = computed(() =>
   width: 100%;
   height: 100%;
   object-fit: contain;
-}
-.hdr {
-  background: var(--warning-soft);
-}
-.hdr h3 {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--warning);
-}
-.hdr b {
-  font-weight: 500;
-  color: var(--text-2);
 }
 .overlay {
   position: fixed;

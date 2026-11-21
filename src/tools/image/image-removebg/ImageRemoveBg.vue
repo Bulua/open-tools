@@ -13,7 +13,7 @@ import { saveFile } from "@/utils/saveFile";
 import { toHex } from "@/utils/color";
 import { canvasToBytes, createCanvas, loadImage } from "../shared/utils";
 import type { Rgb } from "../shared/effects";
-import { AI_MODELS, AI_SOURCES, aiStatus, canDownload, deleteModel, downloadModel, modelById, type AiModel, type AiSource, type AiStatus } from "../shared/aiModels";
+import { AI_MODELS, AI_SOURCES, aiStatus, deleteModel, downloadModel, modelById, type AiModel, type AiSource, type AiStatus } from "../shared/aiModels";
 import { segment } from "./segment";
 import { formatBytes } from "@/utils/format";
 import { showError } from "@/utils/errorToast";
@@ -309,15 +309,14 @@ const save = async () => {
                 <!-- 右侧操作：未下载时下载，已下载时悬停显示删除 -->
                 <template v-if="progress[m.id] === undefined">
                   <button v-if="isReady(m)" class="icon-btn act del" :title="t('image.deleteModel')" @click.stop="remove(m)"><Trash2 :size="13" /></button>
-                  <button v-else-if="canDownload()" class="icon-btn act" :title="t('image.downloadModel')" @click.stop="download(m)"><Download :size="13" /></button>
+                  <button v-else class="icon-btn act" :title="t('image.downloadModel')" @click.stop="download(m)"><Download :size="13" /></button>
                 </template>
               </div>
               <p>{{ modelDesc(m) }}</p>
               <ProgressBar v-if="progress[m.id] !== undefined" :value="progress[m.id]" />
-              <span v-else-if="!isReady(m) && !canDownload()" class="hint-text">{{ t("image.desktopOnly") }}</span>
             </div>
           </div>
-          <div v-if="canDownload()" class="source">
+          <div class="source">
             <span>{{ t("image.downloadSource") }}</span>
             <div class="seg">
               <button v-for="s in AI_SOURCES" :key="s" :class="{ on: downloadSource === s }" :title="sourceTitle(s)" @click="downloadSource = s">
@@ -325,12 +324,10 @@ const save = async () => {
               </button>
             </div>
           </div>
-          <template v-if="canDownload()">
-            <p v-if="!status.runtimeReady" class="tip">
-              {{ status.runtimeSize ? t("image.runtimeTip", { size: formatBytes(status.runtimeSize) }) : t("image.runtimeTipNoSize") }}
-            </p>
-            <p v-else-if="!currentModel" class="tip">{{ t("image.noModel") }}</p>
-          </template>
+          <p v-if="!status.runtimeReady" class="tip">
+            {{ status.runtimeSize ? t("image.runtimeTip", { size: formatBytes(status.runtimeSize) }) : t("image.runtimeTipNoSize") }}
+          </p>
+          <p v-else-if="!currentModel" class="tip">{{ t("image.noModel") }}</p>
         </template>
         <p v-else class="tip">{{ t("image.aiOff") }}</p>
       </section>

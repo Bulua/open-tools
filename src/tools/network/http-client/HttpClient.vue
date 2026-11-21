@@ -16,7 +16,6 @@ import HttpResponsePane from "./components/HttpResponsePane.vue";
 import KeyValueEditor from "./components/KeyValueEditor.vue";
 import { parseInput } from "../shared/parseRequest";
 import { METHODS, applyQuery, emptyRow, forHistory, fromParsed, newRequest, parseQuery, prettyJson, sendRequest, toCurlCommand, type BodyType, type HistoryEntry, type HttpResponse, type RequestModel } from "./http";
-import { sendMode } from "../shared/transport";
 
 /**
  * HTTP 请求：发送任意 HTTP 请求，查看响应。
@@ -104,7 +103,6 @@ const pickBinary = (e: Event) => {
   req.value.binary = input.files?.[0] ?? null;
   input.value = "";
 };
-const mode = sendMode();
 
 // ---------- 发送 ----------
 const response = shallowRef<HttpResponse | null>(null);
@@ -225,7 +223,6 @@ const copyCurl = () => {
             <template v-else-if="tab === 'headers'">
               <p class="hint">
                 {{ t("network.headersHint") }}
-                <template v-if="mode === 'browser'">{{ t("network.browserHeadersHint") }}</template>
               </p>
               <KeyValueEditor v-model="req.headers" :key-placeholder="t('network.headerName')" :value-placeholder="t('network.value')" :suggestions="COMMON_HEADERS" />
             </template>
@@ -295,17 +292,11 @@ const copyCurl = () => {
                 <span>{{ t("network.seconds") }}</span>
               </div>
               <label class="check"><input v-model="req.followRedirects" type="checkbox" />{{ t("network.followRedirects") }}</label>
-              <label class="check" :class="{ disabled: mode !== 'desktop' }">
-                <input v-model="req.insecure" type="checkbox" :disabled="mode !== 'desktop'" />{{ t("network.insecure") }}
+              <label class="check">
+                <input v-model="req.insecure" type="checkbox" />{{ t("network.insecure") }}
               </label>
               <p class="hint">
-                {{
-                  mode === "desktop"
-                    ? t("network.modeDesktop")
-                    : mode === "dev-proxy"
-                      ? t("network.modeProxy")
-                      : t("network.modeBrowser")
-                }}
+                {{ t("network.modeDesktop") }}
               </p>
               <button class="btn small subtle" @click="req = newRequest()"><Trash2 :size="13" />{{ t("network.resetAll") }}</button>
             </template>

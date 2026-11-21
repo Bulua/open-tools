@@ -1,4 +1,4 @@
-import { isTauri, invoke } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 import { fetchBytes } from "@/tools/network/shared/transport";
 import { t } from "@/locales";
 import { safeFileName } from "../shared/fileName";
@@ -159,7 +159,6 @@ export async function getXiaohongshuItem(input: string): Promise<XiaohongshuItem
     return parseXiaohongshuPage(new TextDecoder().decode(response.data), resolved.id);
   } catch (e) {
     // 部分分享页需要在真实 WebView 中加载，使用原始分享链接，避免丢失校验参数。
-    if (!isTauri()) throw e;
     const result = JSON.parse(await invoke<string>("xiaohongshu_capture", { url: ref.url })) as { id: string; state: unknown; error?: string };
     if (result.error) throw new Error(t("video.xhsUnavailable"));
     return xiaohongshuItem(result.state, result.id);

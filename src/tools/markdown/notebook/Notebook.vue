@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onDeactivated, ref, watch } from "vue";
 import { closePanelDialog, vPanelDismiss } from "@/utils/panelDialog";
-import { isTauri } from "@tauri-apps/api/core";
 import { useI18n } from "vue-i18n";
 import { ChevronDown, ChevronLeft, ChevronRight, CodeXml, FolderOpen, ListTodo, Minus, Quote, SquareCode, Table2, Trash2 } from "lucide-vue-next";
 import AppSelect from "@/components/common/AppSelect.vue";
@@ -20,7 +19,7 @@ import { tableMarkdown } from "./tables";
 
 const { t } = useI18n();
 const label = (key: string) => t(`markdown.notebook.${key}`);
-const { notebook, loadState, saveState, retryLoad, retrySave, canReveal, revealEntry } = useNotebook();
+const { notebook, loadState, saveState, retryLoad, retrySave, revealEntry } = useNotebook();
 const { track } = useToolUsage();
 const directoryOpen = ref(true);
 const directory = ref<InstanceType<typeof NotebookDirectory>>();
@@ -235,7 +234,7 @@ function insertMarkup(markdown: string) {
 function pasteSourceImage(event: ClipboardEvent) {
   const input = sourceInput.value;
   const id = note.value?.id;
-  if (!isTauri() || !input || !id || !event.clipboardData) return;
+  if (!input || !id || !event.clipboardData) return;
   const images = clipboardImageFiles(event.clipboardData);
   if (!images.length) return;
   event.preventDefault();
@@ -306,7 +305,7 @@ useWindowEvent("keydown", event => {
       <div v-if="directoryOpen" class="sidebar-frame" :style="{ '--sidebar-width': `${fitted + 1}px` }">
         <div class="sidebar-content">
           <NotebookDirectory ref="directory" v-model:view="sidebarView" :nodes="notebook?.nodes ?? []" :selected-id="notebook?.selectedId ?? null"
-            :width="fitted" :can-reveal="canReveal" :has-note="Boolean(note)" :headings="headings"
+            :width="fitted" :has-note="Boolean(note)" :headings="headings"
             @select="select" @toggle="toggleFolder" @add-note="addNote" @add-folder="parentId => openDialog('folder', undefined, parentId)"
             @rename="rename" @delete="node => openDialog('delete', node)" @move="relocate" @reveal="revealEntry" @go-to-heading="goToHeading" />
           <div class="directory-resizer" role="separator" tabindex="0" aria-orientation="vertical" :aria-label="label('resizeDirectory')"

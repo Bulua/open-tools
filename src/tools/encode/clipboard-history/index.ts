@@ -8,7 +8,6 @@ const tool: Tool = {
   desc: "自动记录复制过的纯文本，按日期查找并再次复制",
   icon: ClipboardList,
   component: defineAsyncComponent(() => import("./ClipboardHistory.vue")),
-  platforms: ["desktop"],
 };
 
 export default tool;

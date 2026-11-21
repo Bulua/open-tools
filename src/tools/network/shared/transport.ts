@@ -1,9 +1,4 @@
-import { isTauri } from "@tauri-apps/api/core";
 import { t } from "@/locales";
-export type SendMode = "desktop" | "dev-proxy" | "browser";
-export const sendMode = (): SendMode => (isTauri() ? "desktop" : import.meta.env.DEV ? "dev-proxy" : "browser");
-
-export const PROXY_PATH = "/__open_tools_proxy";
 
 /** 常见的网络错误换成容易看懂的说明 */
 export function friendlyError(message: string): string {
@@ -53,44 +48,22 @@ async function readBody(res: Response, total: number, onProgress?: FetchOptions[
 }
 
 /**
- * GET 下载，返回内容和响应头。和 HTTP 请求工具一样：桌面版由 Rust 发出、开发时经开发服务器转发，
- * 所以可以设置 Referer、Cookie 等浏览器不允许设置的请求头。状态码不是 2xx 时抛出错误。
+ * 通过 Tauri HTTP 插件下载，返回内容和响应头，支持 Referer、Cookie 等请求头。
  */
 export async function fetchBytes(url: string, o: FetchOptions = {}): Promise<{ data: Uint8Array; headers: [string, string][]; url: string }> {
   const headers = o.headers ?? [];
-  const mode = sendMode();
   let res: Response;
   let total = 0;
   let list: [string, string][] = [];
   /** 跟随跳转后的地址 */
   let finalUrl = url;
   try {
-    if (mode === "dev-proxy") {
-      res = await fetch(PROXY_PATH, {
-        method: "POST",
-        headers: {
-          "x-ot-url": encodeURIComponent(url),
-          "x-ot-method": "GET",
-          "x-ot-headers": encodeURIComponent(JSON.stringify(headers)),
-          "x-ot-timeout": String(30 * 60 * 1000),
-        },
-        signal: o.signal,
-      });
-      const error = res.headers.get("x-ot-error");
-      if (error !== null) throw new Error(friendlyError(decodeURIComponent(error)));
-      const status = Number(res.headers.get("x-ot-status"));
-      if (status < 200 || status >= 300) throw new FriendlyError(t("network.downloadFailed", { status }));
-      total = Number(res.headers.get("x-ot-length")) || 0;
-      list = JSON.parse(decodeURIComponent(res.headers.get("x-ot-headers") ?? "[]"));
-      finalUrl = decodeURIComponent(res.headers.get("x-ot-final-url") ?? "") || url;
-    } else {
-      const doFetch = mode === "desktop" ? (await import("@tauri-apps/plugin-http")).fetch : fetch;
-      res = await doFetch(url, { headers, signal: o.signal });
-      if (!res.ok) throw new FriendlyError(t("network.downloadFailed", { status: res.status }));
-      total = Number(res.headers.get("content-length")) || 0;
-      res.headers.forEach((v, k) => list.push([k, v]));
-      finalUrl = res.url || url;
-    }
+    const { fetch } = await import("@tauri-apps/plugin-http");
+    res = await fetch(url, { headers, signal: o.signal });
+    if (!res.ok) throw new FriendlyError(t("network.downloadFailed", { status: res.status }));
+    total = Number(res.headers.get("content-length")) || 0;
+    res.headers.forEach((v, k) => list.push([k, v]));
+    finalUrl = res.url || url;
   } catch (e) {
     if (o.signal?.aborted) throw new Error(t("network.cancelled"));
     if (e instanceof FriendlyError) throw e;

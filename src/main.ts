@@ -1,9 +1,12 @@
+import { isTauri } from "@tauri-apps/api/core";
 import { createApp, defineAsyncComponent } from "vue";
 import App from "./App.vue";
 import ScreenshotWindow from "./tools/image/screenshot-history/components/ScreenshotWindow.vue";
 import "./styles/index.css";
 import { installSegGlide } from "./utils/motion";
 import { i18n, initLocale } from "./locales";
+
+if (!isTauri()) throw new Error("Open Tools must run inside the Windows app.");
 
 const windowKind = new URLSearchParams(location.search).get("window");
 initLocale(windowKind === null);

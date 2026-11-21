@@ -1,5 +1,3 @@
-import { isTauri } from "@tauri-apps/api/core";
-
 /**
  * 远程图标：不发新版本也能换程序图标。
  *
@@ -71,7 +69,6 @@ async function download(fetchFn: typeof fetch, url: string, sha256: string) {
 
 /** 读取远程配置，图标变了就换上。网络不通、配置写错时保持现在的图标 */
 export async function syncBranding() {
-  if (!isTauri()) return;
   const { fetch } = await import("@tauri-apps/plugin-http");
   const { invoke } = await import("@tauri-apps/api/core");
   for (const url of BRANDING_URLS) {
@@ -102,7 +99,6 @@ export async function syncBranding() {
 
 /** 启动几秒后检查一次，之后定时检查 */
 export function startBrandingSync() {
-  if (!isTauri()) return;
   setTimeout(syncBranding, 3000);
   setInterval(syncBranding, CHECK_INTERVAL);
 }

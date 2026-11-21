@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onActivated, onBeforeUnmount, onDeactivated, onMounted, computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { isTauri } from "@tauri-apps/api/core";
 import { FileText, Plus } from "lucide-vue-next";
 import { useUpdater } from "@/composables/useUpdater";
 import { showError } from "@/utils/errorToast";
@@ -11,17 +10,15 @@ import { closeTabGroup, confirming, initializeLargeText, openFile } from "./useL
 import { textWorkspace } from "./workspace";
 
 const { t } = useI18n();
-const supported = isTauri();
 const updater = useUpdater();
 const workspace = textWorkspace;
-const canOpen = computed(() => supported && !workspace.opening.value && !confirming.value && !["downloading", "installing"].includes(updater.status.value));
+const canOpen = computed(() => !workspace.opening.value && !confirming.value && !["downloading", "installing"].includes(updater.status.value));
 const chooseFile = () => { if (canOpen.value) void openFile("auto"); };
 let visible = true;
 let disposed = false;
 let unlisten: (() => void) | undefined;
 onMounted(async () => {
   await initializeLargeText();
-  if (!supported) return;
   try {
     const { getCurrentWebviewWindow } = await import("@tauri-apps/api/webviewWindow");
     const stop = await getCurrentWebviewWindow().onDragDropEvent((event) => {
@@ -49,7 +46,7 @@ onBeforeUnmount(() => { disposed = true; unlisten?.(); });
       <FileText :size="42" :stroke-width="1.3" />
       <h2>{{ t("largeText.emptyTitle") }}</h2>
       <p>{{ t("largeText.emptyDescription") }}</p>
-      <small>{{ supported ? t("largeText.drop") : t("largeText.desktopOnly") }}</small>
+      <small>{{ t("largeText.drop") }}</small>
     </section>
   </div>
 </template>

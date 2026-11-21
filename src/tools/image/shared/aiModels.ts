@@ -1,4 +1,4 @@
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 
 /**
  * AI 抠图模型（来自开源项目 rembg，均可免费商用）。
@@ -73,12 +73,11 @@ export interface AiStatus {
   dir: string;
 }
 
-export const canDownload = () => isTauri();
 
 /** 模型和运行环境的下载情况 */
 export async function aiStatus(): Promise<AiStatus> {
   const empty: AiStatus = { models: [], runtimeReady: false, runtimeSize: 0, dir: "" };
-  return isTauri() ? invoke<AiStatus>("ai_status").catch(() => empty) : empty;
+  return invoke<AiStatus>("ai_status").catch(() => empty);
 }
 
 /** 下载模型（运行环境缺少的文件一起下载）；onProgress 收到 0～1 的进度。抠图、修补等各类模型都可以用 */

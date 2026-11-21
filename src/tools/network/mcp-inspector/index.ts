@@ -7,7 +7,6 @@ const tool: Tool = {
   name: "MCP 工具查看器",
   desc: "管理 MCP 连接、浏览工具并测试调用",
   icon: Plug,
-  platforms: ["desktop"],
   component: defineAsyncComponent(() => import("./McpInspector.vue")),
 };
 export default tool;

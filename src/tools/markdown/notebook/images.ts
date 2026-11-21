@@ -1,4 +1,4 @@
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 import { Fragment, Slice, type Node as ProseNode } from "@milkdown/prose/model";
 import { Plugin, type SelectionBookmark } from "@milkdown/prose/state";
 import type { EditorView } from "@milkdown/prose/view";
@@ -61,7 +61,7 @@ export function notebookImageView(
   }
 
   if (/^https?:\/\/[^/]/i.test(src) || embeddedImage.test(src)) img.src = src;
-  const asset = isTauri() && assetImage.exec(src);
+  const asset = assetImage.exec(src);
 
   let url: string | undefined;
   let destroyed = false;
@@ -114,7 +114,7 @@ export function notebookImagePaste(id: string) {
     },
     props: {
       handlePaste(view, event, slice) {
-        if (!isTauri() || !event.clipboardData || view.state.selection.$from.parent.type.spec.code) return false;
+        if (!event.clipboardData || view.state.selection.$from.parent.type.spec.code) return false;
         const embedded = new Set<string>();
         slice.content.descendants(node => {
           if (node.type.name === "image" && embeddedImage.test(node.attrs.src)) embedded.add(node.attrs.src);

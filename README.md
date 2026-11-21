@@ -6,7 +6,7 @@
 
 English | [简体中文](README.zh-CN.md) | [日本語](README.ja.md)
 
-**A developer toolbox for Windows, with an Android test build**
+**A developer toolbox for Windows**
 
 JSON, encoding, conversion, image, audio, and document utilities in one desktop app. Most processing happens locally, without uploading your files.
 
@@ -35,19 +35,19 @@ Formatting JSON, decoding Base64, converting timestamps, or compressing images o
 
 ## Features
 
-9 categories and 71 tools:
+9 categories and 74 tools:
 
 | Category | Tools |
 | --- | --- |
-| Developer tools | JSON formatting and validation (code/tree views), comparison, escaping, YAML conversion and TypeScript type generation; Base64, URL/Unicode/HTML encoding, hashes, JWT decoding, regex testing, naming convention conversion |
-| Daily tools | Password generation, password vault, clipboard history (Windows), screenshots and desktop pinning (Windows), ID number parsing |
+| Developer tools | JSON formatting and validation (code/tree views), comparison, escaping, YAML conversion and TypeScript type generation; Base64, URL/Unicode/HTML encoding, hashes, JWT decoding, regex testing, naming convention conversion, MCP Tool Viewer |
+| Daily tools | Password generation, password vault, clipboard history, screenshots and desktop pinning, ID number parsing, Notebook |
 | Time | Timestamp conversion, time zones and world clocks, cron expressions, clock (alarms with weekday repeats, stopwatch laps, multiple timers), calendar (Gregorian/lunar dates, holidays, notes and Windows desktop reminders) |
 | Calculators & converters | Calculator, unit conversion, number bases |
 | Images | Compression, format conversion, cropping, rotation, color adjustment, stitching, mosaic, watermarks, background removal (including AI subject detection), watermark removal (AI inpainting), image color picker, color conversion, DPI change, ICO generation |
 | Audio | Compression, format conversion (including extracting audio from video), trimming, joining, recording, text to speech |
-| Video | Video compression, Bilibili video download (with in-app playback), Douyin download without watermark, RedNote video and photo download (desktop, automatic content detection and local playback), video to audio (copy the original track or convert to MP3/M4A/WAV), video to GIF, video trimming (length and picture), video concatenation, background music, screen recording, camera recording |
-| Documents & files | Large-text editing (multiple tabs and continuous scrolling), Word to PDF, PDF to Word, Word watermarks and watermark removal, PDF content editing (existing text, added text, images, signatures and markup), PDF page management, PDF watermark removal, Markdown to Word conversion, archiving and extraction |
-| Network | HTTP request client, IP address and location lookup, ping, MQTT (TCP/TLS), HTTP headers to JSON/cURL |
+| Video | Video compression, Bilibili video download (with in-app playback), Douyin download without watermark, RedNote video and photo download (automatic content detection and local playback), X video download, video to audio (copy the original track or convert to MP3/M4A/WAV), video to GIF, video trimming (length and picture), video concatenation, background music, screen recording, camera recording |
+| Documents & files | Large-text editing (multiple tabs and continuous scrolling), Word to PDF, Word to Markdown, PDF to Word, Word watermarks and watermark removal, PDF content editing (existing text, added text, images, signatures and markup), PDF page management, PDF watermark removal, Markdown to Word conversion, archiving and extraction |
+| Network | HTTP request client, IP address and location lookup, ping, MQTT (TCP/TLS and WebSocket), HTTP headers to JSON/cURL |
 
 ## Download and install
 
@@ -64,10 +64,6 @@ Formatting JSON, decoding Base64, converting timestamps, or compressing images o
 #### Windows Updates
 
 The app checks for updates shortly after startup and opens an update dialog for new versions you have not skipped. Use Check for updates or the new-version entry at the bottom of the sidebar to view release notes, download, and install. Update checks try Gitee first, then GitHub.
-
-### Android test build
-
-Download `OpenTools_<version>_arm64-v8a.apk` for ARM64 devices from [GitHub Releases](https://github.com/Bulua/open-tools/releases/latest). The APK uses a debug signature. Some Windows tools are unavailable on Android. Download and install a newer APK manually to update.
 
 ## Tips
 
@@ -97,9 +93,17 @@ Processing is local unless a feature explicitly needs network access:
 - **IP lookup:** Query public services (ip-api.com, ipwho.is, then ipapi.co). The queried IP is sent to the provider; ip-api.com uses unencrypted HTTP.
 - **HTTP requests:** Send the configured headers, parameters, and request body to the server you specify.
 - **Ping:** Send a ping to the host you enter.
+- **MQTT:** Connect to the broker you specify and send connection credentials, subscriptions, and published messages. Connection passwords and message logs are kept in memory.
+- **MCP Tool Viewer:** Connect to the configured MCP server over HTTP or launch the configured local program over stdio.
 - **Video downloads:** Contact the selected video platform and its media servers. If a direct RedNote request fails, the desktop app loads the share page in a hidden window; share URL parameters are sent to RedNote.
 - **AI model downloads (background removal and inpainting):** Download a model only when you request it (the AI runtime, ONNX Runtime, ships with the installer), from ModelScope first and Hugging Face if that fails. Your images are processed locally.
 - **Remote images in Markdown:** When exporting Markdown that references an HTTP(S) image to Word, the app fetches that image from its URL.
+
+Some tools retain local history and connection settings. See [Data storage](docs/development/STORAGE.md) for locations and formats.
+
+## Development
+
+See the [development guide](docs/DEVELOPMENT.md) for Windows development, tool documentation, and packaging. The guides are written in Chinese.
 
 ## Star history
 

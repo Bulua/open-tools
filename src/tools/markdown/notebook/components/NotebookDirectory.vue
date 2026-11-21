@@ -7,7 +7,7 @@ import { directoryRows, subtree, type DirectoryDrop, type Node } from "../notebo
 import type { OutlineHeading } from "../outline";
 
 const props = defineProps<{
-  nodes: Node[]; selectedId: string | null; width: number; canReveal?: boolean;
+  nodes: Node[]; selectedId: string | null; width: number;
   hasNote?: boolean; headings?: OutlineHeading[];
 }>();
 const view = defineModel<"files" | "outline">("view", { default: "files" });
@@ -233,7 +233,7 @@ onDeactivated(() => { closeMenu(); finishDrag(); });
       <Transition name="pop">
         <div v-if="menuOpen" ref="menuPanel" class="directory-menu" :style="menuStyle" role="menu" @keydown="menuKey">
           <template v-if="menuNode">
-            <button v-if="canReveal" role="menuitem" @click="closeMenu(); returnFocus?.focus(); emit('reveal', menuNode.id)">
+            <button role="menuitem" @click="closeMenu(); returnFocus?.focus(); emit('reveal', menuNode.id)">
               <FolderOpen :size="14" />{{ label("reveal") }}
             </button>
             <template v-if="menuNode.kind === 'folder'">

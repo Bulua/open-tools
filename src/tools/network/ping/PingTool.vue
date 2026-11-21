@@ -2,7 +2,6 @@
 import { recordToolUsage } from "@/composables/toolLibrary";
 import { computed, nextTick, onBeforeUnmount, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { isTauri } from "@tauri-apps/api/core";
 import { Play, Square, Trash2 } from "lucide-vue-next";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { isValidHost, parsePingOutput, pingStats, type PingReply } from "./ping";
@@ -12,7 +11,6 @@ import { isValidHost, parsePingOutput, pingStats, type PingReply } from "./ping"
  * 浏览器里无法发送 ICMP，由桌面端调用系统自带的 ping 命令完成，只能在桌面版使用。
  */
 const { t } = useI18n();
-const supported = isTauri();
 const host = useStoredRef("ping.host", "www.baidu.com");
 /** 次数，0 表示一直 ping 直到停止 */
 const count = useStoredRef("ping.count", 4);
@@ -92,10 +90,9 @@ const COUNTS = computed(() => [
           {{ c.label }}
         </button>
       </div>
-      <button v-if="!running" class="btn primary" :disabled="!supported || !valid" @click="start"><Play :size="14" />{{ t("network.start") }}</button>
+      <button v-if="!running" class="btn primary" :disabled="!valid" @click="start"><Play :size="14" />{{ t("network.start") }}</button>
       <button v-else class="btn" @click="stop"><Square :size="13" />{{ t("network.stop") }}</button>
-      <p v-if="!supported" class="notice">{{ t("network.pingDesktop") }}</p>
-      <p v-else-if="host.trim() && !valid" class="notice error">{{ t("network.badHost") }}</p>
+      <p v-if="host.trim() && !valid" class="notice error">{{ t("network.badHost") }}</p>
     </section>
 
     <!-- 统计 -->

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { recordToolUsage } from "@/composables/toolLibrary";
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
-import { isTauri } from "@tauri-apps/api/core";
+import { computed, onMounted, ref, shallowRef, watch } from "vue";
+import { invoke } from "@tauri-apps/api/core";
 import { Download, Gauge, Play, Square } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
 import { locale } from "@/locales";
@@ -16,15 +16,13 @@ import { useOutputFormat } from "../shared/useOutputFormat";
 
 /**
  * 文字转语音：使用 Windows 自带的语音朗读，可以保存成音频文件（不需要联网）。
- * 浏览器预览时使用浏览器的朗读功能，只能播放，不能保存。
  */
 const { t } = useI18n();
-const desktop = isTauri();
 const text = useStoredRef("tts.text", "");
 const voice = useStoredRef("tts.voice", "");
 const rate = useStoredRef("tts.rate", 0);
 
-/** 本机的一个语音；culture 是语言代码（如 zh-CN），gender 只有桌面版有 */
+/** 本机的一个语音；culture 是语言代码（如 zh-CN） */
 interface Voice {
   name: string;
   label: string;
@@ -46,22 +44,13 @@ const voices = computed(() =>
 );
 
 onMounted(async () => {
-  if (desktop) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    const list = await invoke<{ name: string; culture: string; gender: string }[]>("tts_voices").catch(() => []);
-    rawVoices.value = list.map((v) => ({
-      name: v.name,
-      label: v.name.replace(/^Microsoft\s+/, "").replace(/\s+Desktop$/, ""),
-      culture: v.culture,
-      gender: v.gender,
-    }));
-  } else {
-    const load = () => {
-      rawVoices.value = speechSynthesis.getVoices().map((v) => ({ name: v.name, label: v.name.replace(/^Microsoft\s+/, ""), culture: v.lang }));
-    };
-    load();
-    speechSynthesis.onvoiceschanged = load;
-  }
+  const list = await invoke<{ name: string; culture: string; gender: string }[]>("tts_voices").catch(() => []);
+  rawVoices.value = list.map((v) => ({
+    name: v.name,
+    label: v.name.replace(/^Microsoft\s+/, "").replace(/\s+Desktop$/, ""),
+    culture: v.culture,
+    gender: v.gender,
+  }));
 });
 // 没有选过或选过的语音不在了：优先选中文
 watch(rawVoices, (list) => {
@@ -73,14 +62,12 @@ const RATE_LABEL = computed(() => (rate.value === 0 ? t("audio.rateNormal") : ra
 // ---------- 生成与朗读 ----------
 const player = usePlayer();
 const busy = ref(false);
-const speaking = ref(false);
 /** 最近生成的语音，文字和设置没变时直接复用 */
 const cache = shallowRef<{ key: string; pcm: Pcm } | null>(null);
 const cacheKey = computed(() => `${voice.value}|${rate.value}|${text.value}`);
 
 const synthesize = async (): Promise<Pcm> => {
   if (cache.value?.key === cacheKey.value) return cache.value.pcm;
-  const { invoke } = await import("@tauri-apps/api/core");
   const wav = await invoke<ArrayBuffer>("tts_synthesize", { text: text.value, voice: voice.value, rate: rate.value });
   const pcm = await decodeFile(new Blob([wav]));
   cache.value = { key: cacheKey.value, pcm };
@@ -89,18 +76,6 @@ const synthesize = async (): Promise<Pcm> => {
 
 const speak = async () => {
   if (!text.value.trim()) return;
-  if (!desktop) {
-    const u = new SpeechSynthesisUtterance(text.value);
-    const v = speechSynthesis.getVoices().find((x) => x.name === voice.value);
-    if (v) u.voice = v;
-    u.rate = rate.value >= 0 ? 1 + rate.value / 10 : 1 + rate.value / 20;
-    u.onend = u.onerror = () => (speaking.value = false);
-    u.onstart = () => recordToolUsage();
-    speechSynthesis.cancel();
-    speechSynthesis.speak(u);
-    speaking.value = true;
-    return;
-  }
   busy.value = true;
   try {
     player.play(await synthesize());
@@ -111,15 +86,8 @@ const speak = async () => {
     busy.value = false;
   }
 };
-const stopSpeaking = () => {
-  if (desktop) player.stop();
-  else {
-    speechSynthesis.cancel();
-    speaking.value = false;
-  }
-};
-const isPlaying = computed(() => (desktop ? player.playing.value : speaking.value));
-onBeforeUnmount(() => !desktop && speechSynthesis.cancel());
+const stopSpeaking = () => player.stop();
+const isPlaying = player.playing;
 
 const { format, quality } = useOutputFormat();
 const saving = ref(false);
@@ -159,13 +127,10 @@ const save = async () => {
 
       <section class="section">
         <h3>{{ t("audio.saveAsAudio") }}</h3>
-        <template v-if="desktop">
-          <OutputFormat />
-          <button class="btn primary full" :disabled="!text.trim() || saving" @click="save">
-            <Download :size="14" />{{ saving ? t("audio.generating") : t("audio.saveAudio") }}
-          </button>
-        </template>
-        <p v-else class="tip">{{ t("audio.browserOnly") }}</p>
+        <OutputFormat />
+        <button class="btn primary full" :disabled="!text.trim() || saving" @click="save">
+          <Download :size="14" />{{ saving ? t("audio.generating") : t("audio.saveAudio") }}
+        </button>
       </section>
     </aside>
 

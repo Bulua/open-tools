@@ -8,6 +8,5 @@ const tool: Tool = {
   desc: "分块查看和编辑大型 TXT、LOG 文件，支持查找、跳转、撤销重做，保存回原文件",
   icon: FilePenLine,
   component: defineAsyncComponent(() => import("./LargeFileEditor.vue")),
-  platforms: ["desktop"],
 };
 export default tool;

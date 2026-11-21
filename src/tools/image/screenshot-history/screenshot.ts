@@ -1,5 +1,4 @@
-import { invoke, isTauri } from "@tauri-apps/api/core";
-import { isAndroidApp } from "@/utils/platform";
+import { invoke } from "@tauri-apps/api/core";
 import { showError } from "@/utils/errorToast";
 
 export interface ScreenshotItem {
@@ -48,7 +47,6 @@ export async function beginScreenshot(): Promise<void> {
 }
 
 export async function registerScreenshotShortcut(shortcut = screenshotShortcut()): Promise<void> {
-  if (!isTauri() || isAndroidApp()) return;
   await invoke("screenshot_prepare");
   const { isRegistered, register, unregister } = await import("@tauri-apps/plugin-global-shortcut");
   if (await isRegistered(shortcut)) {

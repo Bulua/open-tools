@@ -13,7 +13,7 @@ import { countdownTitle, formatRemaining } from "@/tools/utility/clock/reminders
 import { calendarNotes, loadCalendarNotes } from "@/tools/utility/calendar/calendarStore";
 import { calendarDateKey, calendarNotesOn, localCalendarDate } from "@/tools/utility/calendar/calendar";
 import { showError } from "@/utils/errorToast";
-const props = defineProps<{ categories: Category[]; embedded?: boolean }>();
+const props = defineProps<{ categories: Category[] }>();
 const emit = defineEmits<{ select: [categoryId: string, toolId: string]; search: [] }>();
 const { t, locale } = useI18n();
 const deadlineFormat = computed(() => new Intl.DateTimeFormat(locale.value, {
@@ -39,7 +39,7 @@ onMounted(() => void loadCalendarNotes().catch(showError));
 </script>
 
 <template>
-  <div class="home" :class="{ embedded }">
+  <div class="home">
     <div class="home-inner">
       <header class="welcome">
         <div class="welcome-main">
@@ -448,11 +448,10 @@ button:focus-visible {
   .welcome-activity { grid-column: 1 / -1; grid-row: 2; }
 }
 @media (max-width: 720px) {
-  .home-inner, .embedded .home-inner { padding: 12px 0 24px; }
+  .home-inner { padding: 12px 0 24px; }
   .welcome { padding-bottom: 20px; margin-bottom: 24px; }
   h1 { font-size: 25px; }
   .intro { font-size: 13px; margin-bottom: 16px; }
-  .embedded { overflow: visible; }
 }
 @media (max-width: 620px) {
   .tool-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

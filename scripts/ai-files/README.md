@@ -31,4 +31,4 @@ All files are redistributed unmodified under their original licenses; see [LICEN
 | `models/lama.onnx` | 图片去水印（精细）/ Watermark removal (fine) | [LaMa](https://github.com/advimman/lama) · ONNX: [Carve/LaMa-ONNX](https://huggingface.co/Carve/LaMa-ONNX)（`lama_fp32.onnx`） | Apache-2.0 |
 | `models/migan.onnx` | 图片去水印（轻量）/ Watermark removal (light) | [MI-GAN](https://github.com/Picsart-AI-Research/MI-GAN) · ONNX: [andraniksargsyan/migan](https://huggingface.co/andraniksargsyan/migan) | MIT |
 | `runtime/<version>/win-x64/onnxruntime.dll` | AI 运行环境 / AI runtime | [ONNX Runtime](https://github.com/microsoft/onnxruntime)（NuGet `Microsoft.ML.OnnxRuntime.DirectML`） | MIT |
-| `runtime/<version>/win-x64/DirectML.dll` | 显卡加速 / GPU acceleration | [DirectML](https://github.com/microsoft/DirectML)（NuGet `Microsoft.AI.DirectML`） | Microsoft DirectML License |
+| `runtime/<version>/win-x64/DirectML.dll` | 随包运行库依赖 / Bundled runtime dependency | [DirectML](https://github.com/microsoft/DirectML)（NuGet `Microsoft.AI.DirectML`） | Microsoft DirectML License |

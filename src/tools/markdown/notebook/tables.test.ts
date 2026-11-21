@@ -12,6 +12,15 @@ import NotebookEditor from "./components/NotebookEditor.vue";
 import editorComponentSource from "./components/NotebookEditor.vue?raw";
 import { formatSelectedTable, runTableAction, selectTableCell, tableActionEnabled, tableMarkdown } from "./tables";
 
+let stored: string | null = null;
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: async (command: string, args?: { data: string }) => {
+    if (command === "notebook_read") return stored;
+    if (command === "notebook_write" && args) { stored = args.data; return; }
+    throw new Error(command);
+  },
+}));
+
 test("编辑器实际渲染的表格应用完整网格线和隔行底色", async () => {
   const host = document.body.appendChild(document.createElement("div"));
   const app = createApp(NotebookEditor, {
@@ -138,11 +147,10 @@ test("右键菜单操作的是点击的单元格所在行", async () => {
 });
 
 test("正文插表和表内调尺寸都可以直接点击网格", async () => {
-  const key = "open-tools.notebook.v1";
-  localStorage.setItem(key, JSON.stringify({
+  stored = JSON.stringify({
     version: 1, selectedId: "note",
     nodes: [{ id: "note", parentId: null, name: "笔记", kind: "note", markdown: "" }],
-  }));
+  });
   const host = document.body.appendChild(document.createElement("div"));
   const app = createApp(Notebook).use(i18n);
   app.mount(host);
@@ -167,7 +175,6 @@ test("正文插表和表内调尺寸都可以直接点击网格", async () => {
   } finally {
     app.unmount();
     host.remove();
-    localStorage.removeItem(key);
   }
 });
 

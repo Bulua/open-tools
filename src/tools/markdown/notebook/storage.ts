@@ -1,11 +1,9 @@
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 import { nextTick, readonly, ref, watch } from "vue";
 import { t } from "@/locales";
 import { showError } from "@/utils/errorToast";
-import { getAppPlatform } from "@/utils/platform";
 import { emptyNotebook, readNotebook, type Notebook } from "./notebook";
 
-const STORAGE_KEY = "open-tools.notebook.v1";
 const notebook = ref<Notebook>();
 const loadState = ref<"loading" | "error" | "ready">("loading");
 const saveState = ref<"saved" | "saving" | "error">("saved");
@@ -20,7 +18,7 @@ function load() {
   loadState.value = "loading";
   loading = (async () => {
     try {
-      const raw = isTauri() ? await invoke<string | null>("notebook_read") : localStorage.getItem(STORAGE_KEY);
+      const raw = await invoke<string | null>("notebook_read");
       notebook.value = raw === null ? emptyNotebook() : readNotebook(raw);
       loadState.value = "ready";
     } catch (error) {
@@ -81,8 +79,7 @@ async function savePending() {
       const snapshot = pending;
       pending = undefined;
       try {
-        if (isTauri()) await invoke("notebook_write", { data: snapshot });
-        else localStorage.setItem(STORAGE_KEY, snapshot);
+        await invoke("notebook_write", { data: snapshot });
       } catch (error) {
         pending ??= snapshot;
         throw error;
@@ -119,7 +116,6 @@ export function useNotebook() {
   load();
   return {
     notebook, loadState: readonly(loadState), saveState: readonly(saveState), retryLoad: load, retrySave: flush,
-    canReveal: getAppPlatform() === "desktop" && /Windows/i.test(navigator.userAgent),
     revealEntry,
   };
 }

@@ -1,4 +1,4 @@
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 
 export interface SystemFont {
   id: number;
@@ -24,7 +24,6 @@ export function matchingSystemFonts(fonts: SystemFont[], name: string, bold = fa
 }
 
 export async function listSystemFonts(): Promise<SystemFont[]> {
-  if (!isTauri()) return [];
   return invoke<SystemFont[]>("pdf_system_fonts");
 }
 

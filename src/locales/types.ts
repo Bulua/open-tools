@@ -1,5 +1,5 @@
 /**
- * 支持的界面语言。新增语言时在这里加上，再按 docs/DEVELOPMENT.md「新增一种语言」补齐文案。
+ * 支持的界面语言。新增语言时在这里加上，再按 docs/development/I18N.md「新增一种语言」补齐文案。
  * 这个文件不依赖其他模块，后台线程（worker）里也可以引用。
  */
 export type Locale = "zh-CN" | "en" | "ja";

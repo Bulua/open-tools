@@ -1,4 +1,4 @@
-import { isTauri, invoke } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 import { t } from "@/locales";
 import { recordToolUsage } from "@/composables/toolLibrary";
 import { showError, showNotice } from "@/utils/errorToast";
@@ -84,7 +84,7 @@ export async function changeEncoding(largeText: TextController, encoding: string
   finally { confirming.value = false; }
 }
 export async function initializeLargeText(): Promise<void> {
-  if (initialized || !isTauri()) return;
+  if (initialized) return;
   initialized = true;
   registerExitGuard("large-file", closeAllFiles);
   const { listen } = await import("@tauri-apps/api/event");

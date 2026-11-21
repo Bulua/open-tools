@@ -30,7 +30,6 @@ export default defineModuleLocales({
         "generating": "正在生成…",
         "speak": "朗读",
         "saveAsAudio": "保存为音频",
-        "browserOnly": "浏览器中只能朗读；保存音频请使用安装后的桌面版。",
         "text": "文字",
         "chars": "{n} 字",
         "textPlaceholder": "在这里输入或粘贴要朗读的文字"
@@ -50,7 +49,6 @@ export default defineModuleLocales({
         "generating": "Generating…",
         "speak": "Read aloud",
         "saveAsAudio": "Save as audio",
-        "browserOnly": "The browser can only read aloud; use the installed desktop app to save audio.",
         "text": "Text",
         "chars": "{n} characters",
         "textPlaceholder": "Type or paste the text to read aloud"
@@ -70,7 +68,6 @@ export default defineModuleLocales({
         "generating": "生成中…",
         "speak": "読み上げ",
         "saveAsAudio": "音声として保存",
-        "browserOnly": "ブラウザでは読み上げのみ可能です。音声の保存はインストール版のデスクトップアプリを使ってください。",
         "text": "テキスト",
         "chars": "{n} 文字",
         "textPlaceholder": "読み上げるテキストを入力または貼り付け"

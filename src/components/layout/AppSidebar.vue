@@ -10,7 +10,7 @@ import { boxOf, glide } from "@/utils/motion";
 const props = defineProps<{ category: Category; activeId?: string; collapsed: boolean }>();
 defineEmits<{ select: [id: string]; toggle: []; openUpdate: [] }>();
 const { t } = useI18n();
-const { supported: updaterSupported, status: updateStatus, newVersion } = useUpdater();
+const { status: updateStatus, newVersion } = useUpdater();
 
 const keyword = ref("");
 watch(
@@ -70,7 +70,6 @@ const filtered = computed(() => {
     <!-- 底部：左边是更新（有新版本时醒目提示），右边是收起侧栏；收起时上下排列 -->
     <div class="footer">
       <button
-        v-if="updaterSupported"
         class="update"
         :class="{ available: updateStatus === 'available' }"
         :title="updateStatus === 'available' ? t('header.newVersion', { version: newVersion }) : t('header.checkUpdate')"
@@ -289,57 +288,5 @@ const filtered = computed(() => {
 .update.available:hover {
   background: var(--accent-hover);
   color: #fff;
-}
-
-@media (max-width: 720px) {
-  .sidebar,
-  .sidebar.collapsed {
-    width: 100%;
-    height: 56px;
-    flex-direction: row;
-    padding: 7px 8px;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-    transition: none;
-  }
-  .filter,
-  .footer,
-  .empty {
-    display: none;
-  }
-  .list {
-    width: 100%;
-    flex-direction: row;
-    gap: 6px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-    scroll-snap-type: x proximity;
-  }
-  .list::-webkit-scrollbar {
-    display: none;
-  }
-  .list li {
-    flex-shrink: 0;
-    scroll-snap-align: center;
-  }
-  .item,
-  .collapsed .item {
-    width: auto;
-    height: 40px;
-    justify-content: flex-start;
-    gap: 7px;
-    padding: 0 12px;
-    border-radius: 10px;
-    font-size: 13px;
-  }
-  .collapsed .label,
-  .collapsed .soon {
-    display: inline;
-  }
-  .label {
-    flex: none;
-    max-width: 132px;
-  }
 }
 </style>

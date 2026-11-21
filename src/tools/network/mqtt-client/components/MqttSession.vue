@@ -17,7 +17,7 @@ const props = defineProps<{ session: SessionNode; active: boolean; creating?: bo
 const emit = defineEmits<{ draft: [id: string, value: MqttDraft]; status: [id: string, value: string]; create: [name: string, draft: MqttDraft]; cancel: []; rename: [id: string, name: string] }>();
 const { t } = useI18n();
 const versionOptions = computed(() => MQTT_VERSIONS.map(({ value, labelKey }) => ({ value, label: t(labelKey) })));
-const { config, status, connected, subscriptions, topics, messages, busy, supported, connect, disconnect, subscribe, unsubscribe, publish } = useMqtt();
+const { config, status, connected, subscriptions, topics, messages, busy, connect, disconnect, subscribe, unsubscribe, publish } = useMqtt();
 const draft = props.session.draft;
 Object.assign(config, draft.config, { password: "" });
 topics.value = draft.topics.map(item => ({ ...item }));
@@ -69,7 +69,7 @@ const saveConnection = async () => {
   }
   emit("create", connectionName.value.trim(), snapshot());
   await nextTick();
-  if (supported) void connect();
+  void connect();
 };
 const addSubscription = async (topic: string, qos: QoS): Promise<boolean> => {
   if (busy.value) return false;
@@ -93,7 +93,7 @@ const removeTopic = (topic: string) => {
         <code class="connection-address">{{ connectionAddress(config) }}</code>
         <button type="button" class="icon-btn connection-edit" :disabled="status !== 'disconnected'" :title="t('network.mqtt.editConnection')" :aria-label="t('network.mqtt.editConnection')" @click="startEditing"><Pencil :size="14" /></button>
         <span class="status" :class="{ online: connected }" role="status"><i />{{ t(`network.mqtt.${status}`) }}</span>
-        <button v-if="status === 'disconnected'" class="btn primary" :disabled="!supported || !configValid" :title="!configValid ? configHint : !supported ? t('network.mqtt.nativeOnly') : undefined" @click="connect"><Plug :size="14" />{{ t("network.mqtt.connect") }}</button>
+        <button v-if="status === 'disconnected'" class="btn primary" :disabled="!configValid" :title="!configValid ? configHint : undefined" @click="connect"><Plug :size="14" />{{ t("network.mqtt.connect") }}</button>
         <button v-else class="btn" :disabled="status === 'disconnecting'" @click="disconnect"><Unplug :size="14" />{{ t(status === 'connecting' ? 'network.mqtt.cancel' : 'network.mqtt.disconnect') }}</button>
       </header>
       <div class="connection-details" :class="{ 'creation-scroll': configuring, 'history-fold': !configuring, 'is-collapsed': !configuring && !connectionExpanded }" :aria-hidden="!configuring && !connectionExpanded" :inert="!configuring && !connectionExpanded ? true : undefined">

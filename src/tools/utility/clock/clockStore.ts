@@ -1,5 +1,4 @@
 import { ref, watch } from "vue";
-import { isTauri } from "@tauri-apps/api/core";
 import { countdownTitle, nextOccurrence, type CountdownItem } from "./reminders";
 import { nextAlarmTarget, type AlarmSchedule } from "./alarm";
 import { showError } from "@/utils/errorToast";
@@ -9,13 +8,13 @@ import { locale, t } from "@/locales";
 /**
  * 闹钟、计时器和兼容的旧版提醒，整个程序共用一份：
  * - 保存在本地，关闭程序后仍然保留，直到用户删除。桌面版存在数据文件夹（安装目录下的 data）里，
- *   程序更新、卸载时都不会删除；浏览器中存在 localStorage
+ *   程序更新、卸载时都不会删除
  * - 程序启动后每秒检查一次，不打开时钟工具也会提醒；程序关闭期间到期的，下次打开时提醒
  */
 export const countdowns = ref<CountdownItem[]>([]);
 export const countdownsReady = ref(false);
 
-/** 浏览器中、以及旧版本桌面版保存数据的位置 */
+/** 旧版本保存数据的位置 */
 const WEB_KEY = "countdowns";
 
 function readLocal(): CountdownItem[] {
@@ -43,11 +42,6 @@ function keepInLocal() {
 /** 读取保存的倒计时，之后有改动时自动保存；旧版本存在 localStorage 里的，第一次运行时搬进文件 */
 async function load() {
   const local = readLocal();
-  if (!isTauri()) {
-    countdowns.value = local;
-    keepInLocal();
-    return;
-  }
   const { invoke } = await import("@tauri-apps/api/core");
   let data: string | null;
   try {
@@ -148,7 +142,6 @@ function beep() {
 
 /** 窗口隐藏在托盘或最小化时，把它显示出来 */
 async function bringToFront() {
-  if (!isTauri()) return;
   try {
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
     const win = getCurrentWindow();

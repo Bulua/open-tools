@@ -3,7 +3,6 @@ import { computed, ref } from "vue";
 import type { Update } from "@tauri-apps/plugin-updater";
 import { locale, t } from "@/locales";
 import { pickNotes } from "@/utils/releaseNotes";
-import { getAppPlatform } from "@/utils/platform";
 
 /**
  * 在线更新（只在桌面版可用）：
@@ -44,10 +43,9 @@ const readSkipped = () => {
 };
 
 // Rust 只在桌面端注册 updater 和 process 插件。
-const updaterSupported = getAppPlatform() === "desktop";
 
 async function loadCurrentVersion() {
-  if (currentVersion.value || !updaterSupported) return;
+  if (currentVersion.value) return;
   const { getVersion } = await import("@tauri-apps/api/app");
   currentVersion.value = await getVersion();
 }
@@ -57,7 +55,7 @@ async function loadCurrentVersion() {
  * prompt 为 true 时（只有程序启动时那一次）发现没跳过的新版本会弹出更新对话框。
  */
 async function checkForUpdate(silent = false, prompt = false) {
-  if (!updaterSupported || status.value === "checking" || status.value === "downloading") return;
+  if (status.value === "checking" || status.value === "downloading") return;
   status.value = "checking";
   error.value = "";
   lastAttempt = Date.now();
@@ -101,7 +99,7 @@ const MANIFEST_URLS = ["https://gitee.com/bulua/open-tools/raw/updater/latest.js
 
 /** 读取当前版本的更新说明：最新的更新文件就是当前版本时，取其中的说明 */
 async function loadCurrentNotes() {
-  if (!updaterSupported || currentNotesRaw.value) return;
+  if (currentNotesRaw.value) return;
   await loadCurrentVersion();
   const { fetch } = await import("@tauri-apps/plugin-http");
   for (const url of MANIFEST_URLS) {
@@ -119,7 +117,7 @@ async function loadCurrentNotes() {
 
 /** 下载并安装新版本，完成后重启程序 */
 async function installUpdate() {
-  if (!updaterSupported || !pending) return;
+  if (!pending) return;
   status.value = "downloading";
   progress.value = 0;
   receivedBytes.value = 0;
@@ -156,7 +154,7 @@ let autoStarted = false;
  * 已经发现新版本或正在更新时不再检查。
  */
 function startAutoCheck() {
-  if (!updaterSupported || autoStarted) return;
+  if (autoStarted) return;
   autoStarted = true;
   const due = (interval: number) => {
     if (["available", "checking", "downloading", "installing"].includes(status.value)) return;
@@ -172,7 +170,6 @@ function startAutoCheck() {
 
 export function useUpdater() {
   return {
-    supported: updaterSupported,
     status,
     currentVersion,
     newVersion,

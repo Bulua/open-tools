@@ -20,7 +20,6 @@ export default defineModuleLocales({
       "video": {
         "dyEmpty": "请粘贴抖音分享链接或作品链接",
         "dyNotFound": "没有找到抖音作品，请粘贴分享链接（v.douyin.com/…）或作品页面链接",
-        "dyDesktopOnly": "抖音需要在程序内打开作品页读取信息，只有桌面版支持",
         "dyNoVideo": "没有找到视频地址，可能是直播回放或已删除的作品",
         "dyNoUrl": "没有可以下载的地址",
         "dyEmptyFile": "下载的内容为空",
@@ -49,7 +48,6 @@ export default defineModuleLocales({
       "video": {
         "dyEmpty": "Paste a Douyin share link or post link",
         "dyNotFound": "No Douyin post found. Paste a share link (v.douyin.com/…) or the post page link",
-        "dyDesktopOnly": "Douyin needs to open the post page inside the app, so only the desktop app supports it",
         "dyNoVideo": "No video URL found — it may be a live replay or a deleted post",
         "dyNoUrl": "No downloadable URL",
         "dyEmptyFile": "The downloaded content is empty",
@@ -78,7 +76,6 @@ export default defineModuleLocales({
       "video": {
         "dyEmpty": "Douyin の共有リンクまたは投稿のリンクを貼り付けてください",
         "dyNotFound": "Douyin の投稿が見つかりません。共有リンク（v.douyin.com/…）または投稿ページのリンクを貼り付けてください",
-        "dyDesktopOnly": "Douyin はアプリ内で投稿ページを開いて情報を読み取るため、デスクトップ版でのみ利用できます",
         "dyNoVideo": "動画のアドレスが見つかりません。ライブのアーカイブか削除された投稿の可能性があります",
         "dyNoUrl": "ダウンロードできるアドレスがありません",
         "dyEmptyFile": "ダウンロードした内容が空です",

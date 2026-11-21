@@ -7,7 +7,6 @@ const tool: Tool = {
   name: "MQTT连接",
   desc: "连接 MQTT 服务器，订阅主题并收发消息",
   icon: Radio,
-  platforms: ["desktop", "web"],
   component: defineAsyncComponent(() => import("./MqttWorkspace.vue")),
 };
 export default tool;

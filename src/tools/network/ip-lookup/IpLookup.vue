@@ -2,7 +2,7 @@
 import { recordToolUsage } from "@/composables/toolLibrary";
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { isTauri } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 import { Check, Copy, MapPin, RefreshCw, Search } from "lucide-vue-next";
 import CopyList from "@/components/common/CopyList.vue";
 import { useClipboard } from "@/composables/useClipboard";
@@ -34,11 +34,7 @@ const run = async (ip = "", track = true) => {
 
 onMounted(async () => {
   run("", false);
-  // 局域网 IP 只有桌面版能拿到
-  if (isTauri()) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    localIp.value = (await invoke<string | null>("local_ip").catch(() => null)) ?? "";
-  }
+  localIp.value = (await invoke<string | null>("local_ip").catch(() => null)) ?? "";
 });
 
 const location = computed(() => {

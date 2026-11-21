@@ -5,7 +5,7 @@ import { ChevronRight, Download, File as FileIcon, Folder, FolderOpen, FolderPlu
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { formatBytes } from "@/utils/format";
-import { canSaveToFolder, saveFile, saveToFolder } from "@/utils/saveFile";
+import { saveFile, saveToFolder } from "@/utils/saveFile";
 import { errorMessage, showError } from "@/utils/errorToast";
 import { buildTree, buildZip, readArchive, safeRelativePath, type ArchiveEntry, type TreeNode } from "../archive";
 
@@ -111,14 +111,8 @@ const extractAll = async () => {
   extracting.value = true;
   extractDone.value = "";
   try {
-    if (canSaveToFolder()) {
-      const folder = await saveToFolder(files.value.map((f) => ({ parts: safeRelativePath(f.path), data: f.data })));
-      if (folder) extractDone.value = t("utility.extracted", { n: files.value.length, folder });
-    } else {
-      // 浏览器中无法写入文件夹，改为打包成 ZIP 下载
-      const zip = buildZip(files.value.map((f) => ({ path: safeRelativePath(f.path).join("/"), data: f.data })), 0);
-      await saveFile(zip, `${archiveName.value.replace(/\.(zip|tar|tgz|gz|tar\.gz)$/i, "")}.zip`);
-    }
+    const folder = await saveToFolder(files.value.map((f) => ({ parts: safeRelativePath(f.path), data: f.data })));
+    if (folder) extractDone.value = t("utility.extracted", { n: files.value.length, folder });
   } catch (e) {
     showError(t("utility.extractFailed", { error: errorMessage(e) }));
   } finally {
@@ -215,7 +209,7 @@ const closeArchive = () => {
       </section>
       <section class="section">
         <button class="btn primary full" :disabled="extracting || !entries.length" @click="extractAll">
-          <FolderOpen :size="14" />{{ extracting ? t("utility.extracting") : canSaveToFolder() ? t("utility.extractToFolder") : t("utility.downloadAllZip") }}
+          <FolderOpen :size="14" />{{ extracting ? t("utility.extracting") : t("utility.extractToFolder") }}
         </button>
         <p v-if="extractDone" class="tip ok">{{ extractDone }}</p>
         <p v-else class="tip">{{ t("utility.singleTip") }}</p>

@@ -7,10 +7,9 @@
  * - 缺的文案：英文回退到中文；以后加的其他语言先回退到英文，再回退到中文
  *
  * 组件里用 `const { t } = useI18n()`；普通 .ts 文件里用这里导出的 `t`。
- * 新增一种语言的步骤见 docs/DEVELOPMENT.md「新增一种语言」。
+ * 新增一种语言的步骤见 docs/development/I18N.md「新增一种语言」。
  */
 import { computed, watchEffect, type Ref } from "vue";
-import { isTauri } from "@tauri-apps/api/core";
 import { createI18n } from "vue-i18n";
 import { mergeMessages } from "./mergeMessages";
 import { useStoredRef } from "@/composables/useStoredRef";
@@ -84,7 +83,6 @@ export function useLocale() {
 
 /** 托盘菜单的文字由 Rust 显示，切换语言时把当前语言的文字传过去 */
 async function syncTray() {
-  if (!isTauri()) return;
   const { invoke } = await import("@tauri-apps/api/core");
   await invoke("set_tray_text", {
     show: t("tray.show"),

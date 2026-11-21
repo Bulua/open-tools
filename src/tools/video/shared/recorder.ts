@@ -1,4 +1,3 @@
-import { isTauri } from "@tauri-apps/api/core";
 import { t } from "@/locales";
 
 /**
@@ -186,10 +185,9 @@ export async function openCapture(o: RecordOptions): Promise<Capture> {
 
 // ---------- HDR ----------
 // 屏幕开着 HDR 时，浏览器截到的画面亮度被放大（浅色变成纯白），录出来整体发白，换截屏方式也一样。
-// 桌面版可以在录制期间临时关闭 HDR，录完恢复（Rust 调用 Windows 的显示设置接口）；网页版只能提醒用户自己关
+// 录制期间可以通过 Windows 显示设置接口临时关闭 HDR，结束后恢复
 
 /** 桌面版可以由程序开关 HDR */
-export const hdrControllable = isTauri();
 
 const invokeHdr = async <T>(cmd: string): Promise<T> => (await import("@tauri-apps/api/core")).invoke<T>(cmd);
 

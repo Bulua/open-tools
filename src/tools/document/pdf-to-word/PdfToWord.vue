@@ -2,7 +2,6 @@
 import { recordToolUsage } from "@/composables/toolLibrary";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { isTauri } from "@tauri-apps/api/core";
 import { CircleAlert, CircleCheck, Download, FileText, LoaderCircle, X } from "lucide-vue-next";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import CheckAll from "@/components/common/CheckAll.vue";
@@ -47,11 +46,9 @@ const selected = computed(() => items.value.find((i) => i.id === selectedId.valu
 const { isChecked, toggle, checkedItems, allChecked, partlyChecked, toggleAll } = useFileChecks(items);
 
 // ---------- 转换方式 ----------
-const desktop = isTauri();
 /** 本机是否装有 Word；null 表示还在检测 */
-const hasWord = ref<boolean | null>(desktop ? null : false);
+const hasWord = ref<boolean | null>(null);
 onMounted(async () => {
-  if (!desktop) return;
   const { invoke } = await import("@tauri-apps/api/core");
   const engines = await invoke<string[]>("office_engines").catch((): string[] => []);
   hasWord.value = engines.includes("Microsoft Word");
@@ -201,7 +198,7 @@ const downloadSelected = () => saveFiles(done.value.map((i) => ({ name: docxName
             {{ t("document.builtinNote") }}
           </p>
           <p v-if="!hasWord" class="note warn">
-            {{ desktop ? t("document.noWord") : t("document.noWordBrowser") }}
+            {{ t("document.noWord") }}
           </p>
         </template>
 

@@ -1,13 +1,9 @@
-import { sendMode, friendlyError, FriendlyError, PROXY_PATH } from "../shared/transport";
+import { friendlyError } from "../shared/transport";
 import { locale, t } from "@/locales";
 
 /**
  * HTTP 请求工具的核心逻辑：根据界面上的设置组装请求、发送、识别响应内容的类型。
- *
- * 发送方式：
- * - 桌面版：由 Rust 发出（Tauri HTTP 插件），不受跨域限制，可以设置任何请求头
- * - 网页版开发时：经开发服务器转发（见 scripts/devProxy.ts），同样不受跨域限制
- * - 其他情况：浏览器直接发送，受跨域限制
+ * 请求由 Tauri HTTP 插件发送，支持自定义请求头。
  */
 
 export interface KeyValue {
@@ -193,57 +189,24 @@ export async function sendRequest(m: RequestModel, signal?: AbortSignal): Promis
   const headers = [...req.headers];
   if (type && !hasHeader(headers, "content-type")) headers.push(["Content-Type", type]);
   const timeout = Math.max(1, m.timeout || 30) * 1000;
-  const mode = sendMode();
   const started = performance.now();
-
-  if (mode === "dev-proxy") {
-    const res = await fetch(PROXY_PATH, {
-      method: "POST",
-      headers: {
-        "x-ot-url": encodeURIComponent(req.url),
-        "x-ot-method": encodeURIComponent(req.method),
-        "x-ot-headers": encodeURIComponent(JSON.stringify(headers)),
-        "x-ot-timeout": String(timeout),
-        "x-ot-redirect": m.followRedirects ? "follow" : "manual",
-      },
-      body: bytes as Uint8Array<ArrayBuffer> | null,
-      signal,
-    });
-    const error = res.headers.get("x-ot-error");
-    if (error !== null) throw new FriendlyError(friendlyError(decodeURIComponent(error)));
-    const body = new Uint8Array(await res.arrayBuffer());
-    return {
-      status: Number(res.headers.get("x-ot-status")),
-      statusText: decodeURIComponent(res.headers.get("x-ot-status-text") ?? ""),
-      url: decodeURIComponent(res.headers.get("x-ot-final-url") ?? "") || req.url,
-      headers: JSON.parse(decodeURIComponent(res.headers.get("x-ot-headers") ?? "[]")),
-      body,
-      time: performance.now() - started,
-      requestSize: bytes?.length ?? 0,
-    };
-  }
 
   const timer = AbortSignal.timeout(timeout);
   const combined = signal ? AbortSignal.any([signal, timer]) : timer;
   const init: RequestInit = { method: req.method, headers, body: bytes as Uint8Array<ArrayBuffer> | null, signal: combined, redirect: m.followRedirects ? "follow" : "manual" };
   let res: Response;
   try {
-    if (mode === "desktop") {
-      const { fetch: tauriFetch } = await import("@tauri-apps/plugin-http");
-      res = await tauriFetch(req.url, {
-        ...init,
-        maxRedirections: m.followRedirects ? 10 : 0,
-        connectTimeout: timeout,
-        danger: m.insecure ? { acceptInvalidCerts: true, acceptInvalidHostnames: true } : undefined,
-      });
-    } else {
-      res = await fetch(req.url, init);
-    }
+    const { fetch: tauriFetch } = await import("@tauri-apps/plugin-http");
+    res = await tauriFetch(req.url, {
+      ...init,
+      maxRedirections: m.followRedirects ? 10 : 0,
+      connectTimeout: timeout,
+      danger: m.insecure ? { acceptInvalidCerts: true, acceptInvalidHostnames: true } : undefined,
+    });
   } catch (e) {
     if (timer.aborted) throw new Error(t("network.timeout"));
     if (signal?.aborted) throw new Error(t("network.cancelled"));
     const message = e instanceof Error ? e.message : String(e);
-    if (mode === "browser" && e instanceof TypeError) throw new Error(t("network.corsFailed", { error: message }));
     throw new Error(friendlyError(message));
   }
   const body = new Uint8Array(await res.arrayBuffer());

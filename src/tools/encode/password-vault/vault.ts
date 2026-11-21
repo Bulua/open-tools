@@ -1,4 +1,4 @@
-import { isTauri } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 import { t } from "@/locales";
 
 /**
@@ -6,7 +6,7 @@ import { t } from "@/locales";
  *
  * 用主密码经 PBKDF2-SHA256（60 万次）派生出 AES-256-GCM 密钥，加密整个条目列表。
  * 文件里只有盐、IV 和密文，没有主密码也没有明文；GCM 自带校验，主密码错误或文件被改动都会解密失败。
- * 桌面版存放在安装目录下的 vault.dat（由 Rust 读写），网页版存放在浏览器本地存储。
+ * 加密数据由 Rust 读写，保存在应用数据目录下的 vault.dat。
  */
 
 export interface VaultEntry {
@@ -91,23 +91,13 @@ export async function decryptVault(text: string, password: string): Promise<{ se
 
 // ---------- 存储 ----------
 
-const WEB_KEY = "vault.dat";
-
 /** 读取加密文件；还没有创建密码本时 data 为 null */
-export async function loadVaultFile(): Promise<{ path: string; data: string | null }> {
-  if (isTauri()) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    return invoke("vault_read");
-  }
-  return { path: t("encode.browserStorage"), data: localStorage.getItem(WEB_KEY) };
+export function loadVaultFile(): Promise<{ path: string; data: string | null }> {
+  return invoke("vault_read");
 }
 
-export async function saveVaultFile(data: string): Promise<void> {
-  if (isTauri()) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    return invoke("vault_write", { data });
-  }
-  localStorage.setItem(WEB_KEY, data);
+export function saveVaultFile(data: string): Promise<void> {
+  return invoke("vault_write", { data });
 }
 
 export const newEntry = (): VaultEntry => ({ id: crypto.randomUUID(), title: "", username: "", password: "", url: "", note: "", updatedAt: Date.now() });

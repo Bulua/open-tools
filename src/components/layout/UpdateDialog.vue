@@ -13,7 +13,6 @@ import { formatBytes } from "@/utils/format";
 const emit = defineEmits<{ close: [] }>();
 const { t } = useI18n();
 const {
-  supported,
   status,
   currentVersion,
   newVersion,
@@ -40,7 +39,7 @@ watch(status, (s) => s === "latest" && loadCurrentNotes(), { immediate: true });
 
 const busy = () => status.value === "downloading" || status.value === "installing";
 /** 可以手动重新检查：正在检查、下载、安装时不行 */
-const canRecheck = computed(() => supported && !busy() && status.value !== "checking");
+const canRecheck = computed(() => !busy() && status.value !== "checking");
 const checkedAt = computed(() => (lastChecked.value ? new Date(lastChecked.value).toLocaleTimeString(locale.value) : ""));
 const close = () => !busy() && emit("close");
 </script>
@@ -51,7 +50,7 @@ const close = () => !busy() && emit("close");
       <header class="head">
         <h2>{{ status === "available" ? t("update.found") : t("update.title") }}</h2>
         <div class="head-actions">
-          <button v-if="supported" class="icon-btn" :class="{ spinning: status === 'checking' }" :title="t('update.recheck')" :disabled="!canRecheck" @click="checkForUpdate()">
+          <button class="icon-btn" :class="{ spinning: status === 'checking' }" :title="t('update.recheck')" :disabled="!canRecheck" @click="checkForUpdate()">
             <RefreshCw :size="15" />
           </button>
           <button class="icon-btn" :title="t('update.close')" :disabled="busy()" @click="close"><X :size="16" /></button>
@@ -60,13 +59,11 @@ const close = () => !busy() && emit("close");
 
       <div class="body">
         <p class="version">
-          {{ t("update.current") }} <b>{{ supported ? `v${currentVersion || "…"}` : t("update.devPreview") }}</b>
+          {{ t("update.current") }} <b>{{ `v${currentVersion || "…"}` }}</b>
           <span v-if="checkedAt && status !== 'checking'" class="checked">{{ t("update.checkedAt", { time: checkedAt }) }}</span>
         </p>
 
-        <p v-if="!supported" class="state">{{ t("update.unsupported") }}</p>
-
-        <p v-else-if="status === 'checking'" class="state"><LoaderCircle :size="16" class="spin" />{{ t("update.checking") }}</p>
+        <p v-if="status === 'checking'" class="state"><LoaderCircle :size="16" class="spin" />{{ t("update.checking") }}</p>
 
         <template v-else-if="status === 'latest'">
           <p class="state ok"><CircleCheck :size="16" />{{ t("update.upToDate") }}</p>
@@ -108,7 +105,7 @@ const close = () => !busy() && emit("close");
         </template>
         <button v-else-if="status === 'error'" class="btn primary" @click="checkForUpdate()">{{ t("update.retry") }}</button>
         <template v-else-if="!busy()">
-          <button v-if="supported" class="btn subtle" :disabled="!canRecheck" @click="checkForUpdate()"><RefreshCw :size="14" />{{ t("update.recheck") }}</button>
+          <button class="btn subtle" :disabled="!canRecheck" @click="checkForUpdate()"><RefreshCw :size="14" />{{ t("update.recheck") }}</button>
           <button class="btn" @click="close">{{ t("update.close") }}</button>
         </template>
       </footer>

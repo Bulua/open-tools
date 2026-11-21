@@ -1,4 +1,3 @@
-import { isTauri } from "@tauri-apps/api/core";
 import { fetchBytes } from "@/tools/network/shared/transport";
 import { t } from "@/locales";
 import { safeFileName } from "../shared/fileName";
@@ -111,7 +110,6 @@ export function toItem(a: RawAweme): DouyinItem {
 
 /** 读取作品：先解析短链接，再由桌面版读取页面里的作品信息 */
 export async function getDouyinItem(input: string): Promise<DouyinItem> {
-  if (!isTauri()) throw new Error(t("video.dyDesktopOnly"));
   let ref = parseDouyinRef(input);
   if (ref.shortUrl) {
     const { url } = await fetchBytes(ref.shortUrl, { headers: [["User-Agent", UA]] });

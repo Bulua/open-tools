@@ -2,7 +2,6 @@
 import { recordToolUsage } from "@/composables/toolLibrary";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { Translation, useI18n } from "vue-i18n";
-import { isTauri } from "@tauri-apps/api/core";
 import { CircleAlert, CircleCheck, Download, FileText, LoaderCircle, Printer, X } from "lucide-vue-next";
 import CheckAll from "@/components/common/CheckAll.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
@@ -15,7 +14,7 @@ import { printDocx } from "./docxPrint";
 
 /**
  * Word 转 PDF：调用本机安装的 Word / WPS / LibreOffice 转换（与在 Word 里「另存为 PDF」效果相同）。
- * 没有安装这些软件、或在浏览器中预览时，可以用系统打印「另存为 PDF」作为备用。
+ * 没有安装这些软件时，可以用系统打印「另存为 PDF」作为备用。
  */
 const { t } = useI18n();
 const ACCEPT = ".docx,.doc,.docm,.rtf,.odt,.wps";
@@ -59,15 +58,13 @@ const loadPreview = async () => {
 watch(() => selected.value?.id, loadPreview);
 
 // ---------- 本机的转换软件 ----------
-const desktop = isTauri();
 const engines = ref<string[] | null>(null);
 onMounted(async () => {
-  if (!desktop) return;
   const { invoke } = await import("@tauri-apps/api/core");
   engines.value = await invoke<string[]>("office_engines").catch(() => []);
   void startAuto();
 });
-const canConvert = computed(() => desktop && !!engines.value?.length);
+const canConvert = computed(() => !!engines.value?.length);
 
 // ---------- 转换 ----------
 const converting = ref(false);
@@ -170,8 +167,7 @@ const downloadSelected = () => saveFiles(done.value.map((i) => ({ name: pdfName(
 
       <section class="section">
         <h3>{{ t("document.convertMode") }}</h3>
-        <p v-if="!desktop" class="note warn">{{ t("document.browserNoWord") }}</p>
-        <p v-else-if="engines === null" class="note">{{ t("document.detectingOffice") }}</p>
+        <p v-if="engines === null" class="note">{{ t("document.detectingOffice") }}</p>
         <Translation v-else-if="engines.length" keypath="document.engineNote" tag="p" class="note">
           <template #engine><b>{{ engines[0] }}</b></template>
         </Translation>

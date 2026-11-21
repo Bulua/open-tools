@@ -6,7 +6,7 @@
 - 读取地址：先 Gitee，再 GitHub
   - `https://gitee.com/bulua/open-tools/raw/master/branding/icon.json`
   - `https://raw.githubusercontent.com/Bulua/open-tools/master/branding/icon.json`
-- 推送到 GitHub 的 master 后，打包流程会把代码同步到 Gitee
+- 配置 `GITEE_TOKEN` 后，推送 GitHub 的 `master` 会触发代码同步。详见 [Gitee 同步](../docs/release/RELEASE.md#gitee-同步)。
 
 ## 文件
 
@@ -39,8 +39,16 @@ node scripts/branding.mjs use default
 | 桌面、开始菜单、固定到任务栏的快捷方式 | 能（改写快捷方式指向的图标） |
 | `.exe` 在资源管理器里的图标、安装包、「应用和功能」 | 不能，这些写在程序文件里，只能随新版本更换 |
 
-所以某次正常发版时，可以把 `src-tauri/icons` 也换成最新的图标，让上面不能远程换的地方跟上
-（`npx tauri icon branding/icons/<id>.png`）。
+## 更新内置 Windows 图标
+
+替换根目录 `app-icon.png`，使用正方形、四角透明的图片。先将图标生成到临时目录：
+
+```powershell
+$iconOutput = Join-Path ([IO.Path]::GetTempPath()) ("open-tools-icons-" + [guid]::NewGuid().ToString("N"))
+npm run tauri -- icon app-icon.png --output $iconOutput
+```
+
+从输出中更新 `src-tauri/icons/` 下的 `icon.ico`、`icon.png` 和现有 PNG 尺寸文件。同步更新 `src/assets/app-logo.png`（96×96）和 `public/favicon.png`（64×64）。生成器也会在临时目录生成其他平台图标，仓库只需要 Windows 用到的资源。
 
 ## 只有带这个功能的版本才会读取
 

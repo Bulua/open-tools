@@ -10,7 +10,7 @@ import { usePopover } from "@/composables/usePopover";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { showError } from "@/utils/errorToast";
 import { calendarDate, calendarDateKey, calendarFestivals, calendarNoteOccursOn, calendarNotesOn, compactLunarDate, localCalendarDate, monthDays } from "./calendar";
-import { calendarDesktop, calendarNotes, calendarNotesReady, calendarReminders, loadCalendarNotes, saveCalendarNote } from "./calendarStore";
+import { calendarNotes, calendarNotesReady, calendarReminders, loadCalendarNotes, saveCalendarNote } from "./calendarStore";
 import { centerCalendarDay } from "./calendarNavigation";
 
 const { t, locale } = useI18n();
@@ -373,7 +373,7 @@ async function moveSelection(event: KeyboardEvent) {
         <button type="button" class="btn small today-button" @click="goToday">{{ t("utility.calendar.today") }}</button>
         <ZoomControls class="calendar-zoom-controls" :zoom="zoom" :min="minZoom" :max="maxZoom"
           @zoom="resizeCalendar" @reset="resizeCalendar(1)" />
-        <button v-if="calendarDesktop" type="button" class="btn small subtle reminder-setting"
+        <button type="button" class="btn small subtle reminder-setting"
           :aria-pressed="calendarReminders" @click="calendarReminders = !calendarReminders">
           <Bell v-if="calendarReminders" :size="15" aria-hidden="true" />
           <BellOff v-else :size="15" aria-hidden="true" />

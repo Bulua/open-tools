@@ -7,9 +7,7 @@ import { useStoredRef } from "@/composables/useStoredRef";
 import { useTheme } from "@/composables/useTheme";
 import AppHeader from "@/components/layout/AppHeader.vue";
 import AppSidebar from "@/components/layout/AppSidebar.vue";
-import MobileNavigation, { type MobilePage } from "@/components/layout/MobileNavigation.vue";
 import LaunchIntro from "@/components/layout/LaunchIntro.vue";
-import HomePage from "@/components/layout/HomePage.vue";
 import { rememberRecentTool } from "@/composables/toolLibrary";
 import ToolWorkspace from "@/components/layout/ToolWorkspace.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
@@ -19,11 +17,10 @@ import { useUpdater } from "@/composables/useUpdater";
 import ClockAlerts from "@/components/layout/ClockAlerts.vue";
 import AppToast from "@/components/layout/AppToast.vue";
 import { startCountdownTicker } from "@/tools/utility/clock/clockStore";
-import { calendarDesktop, startCalendarReminders } from "@/tools/utility/calendar/calendarStore";
+import { startCalendarReminders } from "@/tools/utility/calendar/calendarStore";
 import { startBrandingSync } from "@/utils/branding";
-import { categories as allCategories, categoriesForPlatform } from "@/tools";
+import { categories as allCategories } from "@/tools";
 import { restoreCategorySelection } from "@/tools/categorySelection";
-import { getAppPlatform } from "@/utils/platform";
 import { registerScreenshotShortcut } from "@/tools/image/screenshot-history/screenshot";
 import { registerClipboardShortcut } from "@/tools/encode/clipboard-history/clipboardHistory";
 import { showError } from "@/utils/errorToast";
@@ -31,19 +28,9 @@ import { showError } from "@/utils/errorToast";
 const { t } = useI18n();
 const { theme, toggleTheme } = useTheme();
 
-const platform = getAppPlatform();
-const categories = computed(() => categoriesForPlatform(localizedCategories.value, platform));
-
-// 手机端使用独立的页面式导航，桌面端继续使用顶部分类 + 左侧工具栏。
-const mobileMedia = window.matchMedia("(max-width: 720px)");
-const isMobile = ref(mobileMedia.matches);
-const mobilePage = ref<MobilePage>("home");
+const categories = localizedCategories;
 const homeOpen = ref(true);
-const showingHome = computed(() => isMobile.value ? mobilePage.value === "home" : homeOpen.value);
-const openHome = () => { homeOpen.value = true; mobilePage.value = "home"; };
-const onMobileChange = (event: MediaQueryListEvent) => (isMobile.value = event.matches);
-onMounted(() => mobileMedia.addEventListener("change", onMobileChange));
-onBeforeUnmount(() => mobileMedia.removeEventListener("change", onMobileChange));
+const openHome = () => { homeOpen.value = true; };
 
 // ---------- 当前分类与工具（会被记住，下次打开时恢复） ----------
 const activeCategoryId = useStoredRef("category", categories.value[0].id);
@@ -69,7 +56,6 @@ const selectTool = (categoryId: string, toolId: string) => {
   activeCategoryId.value = categoryId;
   activeToolByCategory.value[categoryId] = toolId;
   homeOpen.value = false;
-  if (isMobile.value) mobilePage.value = "tool";
 };
 
 const selectCategory = (id: string) => {
@@ -77,7 +63,7 @@ const selectCategory = (id: string) => {
   homeOpen.value = false;
 };
 watch(
-  () => (!isMobile.value && !homeOpen.value || isMobile.value && mobilePage.value === "tool") ? activeTool.value?.id : undefined,
+  () => !homeOpen.value ? activeTool.value?.id : undefined,
   (id) => { if (id) rememberRecentTool(id); },
 );
 
@@ -123,15 +109,12 @@ onMounted(() => window.addEventListener("keydown", onKeydown));
 onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
 
 // ---------- 在线更新：启动几秒后在后台检查，之后定时检查，发现新版本时弹出更新对话框（见 useUpdater） ----------
-const { supported: updaterSupported, startAutoCheck, dialogOpen: updateOpen } = useUpdater();
+const { startAutoCheck, dialogOpen: updateOpen } = useUpdater();
 onMounted(startAutoCheck);
 
 // ---------- 倒计时：在后台每秒检查，到期时在任何工具里都会提醒 ----------
 onMounted(startCountdownTicker);
-if (calendarDesktop) {
-  const stopCalendarReminders = startCalendarReminders();
-  onBeforeUnmount(stopCalendarReminders);
-}
+onBeforeUnmount(startCalendarReminders());
 
 // ---------- 远程图标：不发新版本也能换图标，见 utils/branding.ts ----------
 onMounted(startBrandingSync);
@@ -140,22 +123,20 @@ onMounted(startBrandingSync);
 onMounted(() => void registerScreenshotShortcut().catch(() => undefined));
 
 // ---------- Windows 剪贴板历史入口 ----------
-if (platform === "desktop") {
-  let removeTrayListener = () => {};
-  let disposed = false;
-  onMounted(() => {
-    void registerClipboardShortcut().catch(() => undefined);
-    void getCurrentWebviewWindow().listen<string>("clipboard-history-tray-error", ({ payload }) => showError(payload))
-      .then((unlisten) => {
-        if (disposed) unlisten();
-        else removeTrayListener = unlisten;
-      }).catch(showError);
-  });
-  onBeforeUnmount(() => {
-    disposed = true;
-    removeTrayListener();
-  });
-}
+let removeTrayListener = () => {};
+let disposed = false;
+onMounted(() => {
+  void registerClipboardShortcut().catch(() => undefined);
+  void getCurrentWebviewWindow().listen<string>("clipboard-history-tray-error", ({ payload }) => showError(payload))
+    .then((unlisten) => {
+      if (disposed) unlisten();
+      else removeTrayListener = unlisten;
+    }).catch(showError);
+});
+onBeforeUnmount(() => {
+  disposed = true;
+  removeTrayListener();
+});
 </script>
 
 <template>
@@ -163,15 +144,15 @@ if (platform === "desktop") {
     <AppHeader
       :inert="introPhase !== 'done'"
       :categories="categories"
-      :active-id="showingHome ? 'home' : activeCategory.id"
+      :active-id="homeOpen ? 'home' : activeCategory.id"
       :theme="theme"
-      :compact="!showingHome && sidebarCollapsed"
+      :compact="!homeOpen && sidebarCollapsed"
       @select="selectCategory"
       @home="openHome"
       @toggle-theme="toggleTheme"
       @open-search="searchOpen = true"
     />
-    <div v-if="!isMobile" class="body" :inert="introPhase !== 'done'">
+    <div class="body" :inert="introPhase !== 'done'">
       <div class="sidebar-region" :class="{ compact: sidebarCollapsed, hidden: homeOpen }" :inert="homeOpen" :aria-hidden="homeOpen">
         <AppSidebar
           :category="activeCategory"
@@ -198,21 +179,6 @@ if (platform === "desktop") {
         />
       </main>
     </div>
-    <MobileNavigation
-      v-else
-      v-model:page="mobilePage"
-      :inert="introPhase !== 'done'"
-      :categories="categories"
-      :active-category-id="activeCategory.id"
-      :active-tool="activeTool"
-      @select-category="activeCategoryId = $event"
-      @select-tool="selectTool"
-    >
-      <template #home>
-        <HomePage :categories="categories" embedded @select="selectTool" @search="searchOpen = true" />
-      </template>
-    </MobileNavigation>
-
     <Transition name="modal">
       <CommandPalette
         v-if="searchOpen"
@@ -223,7 +189,7 @@ if (platform === "desktop") {
     </Transition>
 
     <Transition name="modal">
-      <UpdateDialog v-if="updaterSupported && updateOpen" @close="updateOpen = false" />
+      <UpdateDialog v-if="updateOpen" @close="updateOpen = false" />
     </Transition>
     <ClockAlerts @open="openClock" />
     <!-- 各工具的报错统一在窗口上方提示，见 utils/errorToast.ts -->

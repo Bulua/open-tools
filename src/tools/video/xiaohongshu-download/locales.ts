@@ -30,7 +30,6 @@ export default defineModuleLocales({
         "xhsWantVideo": "视频（MP4）",
         "xhsTip": "直接保存平台提供的视频文件，不重新编码；优先选择兼容性较好的 H.264 视频。",
         "xhsAbout": "请使用小红书「分享 → 复制链接」，保留完整链接参数。普通请求失败时，桌面版会在后台打开笔记页读取信息；遇到登录或安全验证时可能无法解析。仅供个人保存，请尊重作者版权。",
-        "xhsWebTip": "推荐在桌面版使用；网页版受跨域限制，且无法在后台加载笔记页。",
         "xhsEmptyHint": "在小红书里点「分享」→「复制链接」，粘贴到上方后回车",
         "xhsEmptySub": "支持视频和图文笔记，自动识别内容并下载。",
         "xhsCantPlay": "无法在线播放，平台可能限制了播放请求；可以尝试下载后观看。"
@@ -50,7 +49,6 @@ export default defineModuleLocales({
         "xhsWantVideo": "Video (MP4)",
         "xhsTip": "Saves the video supplied by the platform without re-encoding; prefers H.264 for compatibility.",
         "xhsAbout": "Use Share → Copy link in RedNote and keep all URL parameters. If a direct request fails, the desktop app loads the post in the background. Sign-in or security checks may prevent parsing. For personal use; respect the creator's copyright.",
-        "xhsWebTip": "The desktop app is recommended. The web version has cross-origin restrictions and cannot load posts in a background window.",
         "xhsEmptyHint": "In RedNote, choose Share → Copy link, paste above and press Enter",
         "xhsEmptySub": "Supports video and photo posts, with automatic content detection and download.",
         "xhsCantPlay": "Online playback failed. The platform may restrict playback requests; try downloading the video to watch it."
@@ -70,7 +68,6 @@ export default defineModuleLocales({
         "xhsWantVideo": "動画（MP4）",
         "xhsTip": "プラットフォームが提供する動画を再エンコードせず保存します。互換性の高い H.264 を優先します。",
         "xhsAbout": "小紅書の「共有 → リンクをコピー」を使い、URL のパラメーターを残してください。直接取得できない場合、デスクトップ版はバックグラウンドで投稿を読み込みます。ログインや認証により解析できない場合があります。個人利用に限り、著作権を尊重してください。",
-        "xhsWebTip": "デスクトップ版を推奨します。ウェブ版にはクロスオリジン制限があり、バックグラウンドで投稿を開けません。",
         "xhsEmptyHint": "小紅書で「共有 → リンクをコピー」を選び、上に貼り付けて Enter",
         "xhsEmptySub": "動画と画像の投稿を自動判別してダウンロードします。",
         "xhsCantPlay": "オンライン再生ができません。再生リクエストが制限されている可能性があります。ダウンロードして視聴してください。"

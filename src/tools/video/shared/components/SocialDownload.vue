@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, markRaw, onBeforeUnmount, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { isTauri } from "@tauri-apps/api/core";
 import { ChevronLeft, ChevronRight, CircleAlert, ClipboardPaste, Download, ExternalLink, Images, LoaderCircle, Play, Search, Square, X } from "lucide-vue-next";
 import ProgressBar from "@/components/common/ProgressBar.vue";
 import AppSelect from "@/components/common/AppSelect.vue";
@@ -14,11 +13,10 @@ import { formatDuration } from "../media";
 import { codecLabel, pickVideoQuality, type VideoCodec } from "../videoQuality";
 import { createMediaPreviewCache } from "../mediaPreviewCache";
 import type { SocialDownloadAdapter, SocialMediaItem } from "../socialDownload";
-import { downloadBaseName, releaseSavedMedia, revealDownloadedMedia, saveDownloadedMedia, type SavedMedia } from "../downloadStorage";
+import { downloadBaseName, revealDownloadedMedia, saveDownloadedMedia, type SavedMedia } from "../downloadStorage";
 
 const props = defineProps<{ adapter: SocialDownloadAdapter }>();
 const { t, locale } = useI18n();
-const desktop = isTauri();
 const prefix = computed(() => props.adapter.platform === "douyin" ? "dy" : props.adapter.platform);
 const platform = computed(() => props.adapter.platform);
 type Item = SocialMediaItem;
@@ -112,13 +110,12 @@ const loadViewer = async (e: Entry, index: number) => {
 const openViewer = (e: Entry) => loadViewer(e, 0);
 const clearEntries = () => {
   closeViewer();
-  entries.value.forEach((e) => { releaseSavedMedia(e.files); e.previews.clear(); });
+  entries.value.forEach((e) => { e.previews.clear(); });
   entries.value = [];
 };
 const removeEntry = (e: Entry) => {
   e.controller?.abort();
   if (viewer.value?.entry === e) closeViewer();
-  releaseSavedMedia(e.files);
   e.previews.clear();
   entries.value = entries.value.filter((x) => x !== e);
 };
@@ -153,7 +150,6 @@ const download = async (e: Entry) => {
   if (e.status === "working" || disposed) return;
   const controller = markRaw(new AbortController());
   const signal = controller.signal;
-  releaseSavedMedia(e.files);
   Object.assign(e, { status: "working", controller, step: t("video.preparing"), progress: 0, message: "", result: "", files: [] });
   const item = e.item;
   const selected = selectedQuality(e);
@@ -172,8 +168,7 @@ const download = async (e: Entry) => {
   const save = async (name: string, data: Uint8Array, kind: SavedMedia["kind"]) => {
     if (signal.aborted) throw new Error(t("video.cancelled"));
     const file = await saveDownloadedMedia(props.adapter.platform, name, data, kind);
-    if (disposed || !entries.value.includes(e)) releaseSavedMedia([file]);
-    else e.files.push(file);
+    if (!disposed && entries.value.includes(e)) e.files.push(file);
     if (signal.aborted) throw new Error(t("video.cancelled"));
   };
   try {
@@ -239,7 +234,7 @@ useWindowEvent("keydown", (ev) => {
 onBeforeUnmount(() => {
   disposed = true;
   closeViewer();
-  entries.value.forEach((e) => { e.controller?.abort(); releaseSavedMedia(e.files); e.previews.clear(); });
+  entries.value.forEach((e) => { e.controller?.abort(); e.previews.clear(); });
 });
 </script>
 
@@ -250,8 +245,6 @@ onBeforeUnmount(() => {
       <button class="btn subtle" :title="t(`video.${prefix}PasteTitle`)" :disabled="parsing" @click="pasteAndParse"><ClipboardPaste :size="14" />{{ t("video.paste") }}</button>
       <button class="btn primary" :disabled="!link.trim() || parsing" @click="parse"><LoaderCircle v-if="parsing" :size="14" class="spin" /><Search v-else :size="14" />{{ parsing ? t("video.parsing") : t("video.parse") }}</button>
     </div>
-    <p v-if="platform === 'douyin' && !desktop" class="tip">{{ t("video.dyDesktopOnly") }}</p>
-    <p v-else-if="!desktop" class="tip">{{ t("video.xhsWebTip") }}</p>
     <div class="main">
     <aside class="card panel">
       <section class="section">

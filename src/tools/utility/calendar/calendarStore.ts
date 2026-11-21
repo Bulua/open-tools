@@ -1,15 +1,13 @@
 import { computed, ref, watch } from "vue";
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 import { locale, t } from "@/locales";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { showError } from "@/utils/errorToast";
 import { calendarDateKey, calendarFestivals, calendarNotesOn, calendarReminderSecond, isCalendarReminderTime, localCalendarDate, type CalendarNote, type CalendarNotes } from "./calendar";
 
-const notesKey = "calendar.notes";
 const notes = ref<CalendarNotes>({});
 export const calendarNotes = computed(() => notes.value);
 export const calendarNotesReady = ref(false);
-export const calendarDesktop = isTauri() && /Windows/i.test(navigator.userAgent);
 export const calendarReminders = useStoredRef("calendar.reminders", true);
 const sent = useStoredRef<{ date: string; ids: string[] }>("calendar.sent", { date: "", ids: [] });
 
@@ -17,7 +15,7 @@ let loading: Promise<void> | undefined;
 let writing: Promise<void> = Promise.resolve();
 export function loadCalendarNotes() {
   loading ??= (async () => {
-    const raw = isTauri() ? await invoke<string | null>("calendar_read") : localStorage.getItem(notesKey);
+    const raw = await invoke<string | null>("calendar_read");
     const stored: CalendarNotes = raw === null ? {} : JSON.parse(raw);
     if (!stored || typeof stored !== "object" || Array.isArray(stored)
       || Object.values(stored).some((note) => !note || typeof note.text !== "string" || typeof note.annual !== "boolean"
@@ -41,8 +39,7 @@ export function saveCalendarNote(date: string, note: CalendarNote | null) {
     if (note) next[date] = note;
     else delete next[date];
     const raw = JSON.stringify(next);
-    if (isTauri()) await invoke("calendar_write", { data: raw });
-    else localStorage.setItem(notesKey, raw);
+    await invoke("calendar_write", { data: raw });
     notes.value = next;
   });
   writing = save.catch(() => {});
