@@ -27,9 +27,18 @@ npm run build      # 前端构建
 - **界面效果由用户自己验证**：改完界面不要用浏览器面板去截图检查，告诉用户改了什么、在哪里看即可。
 - **Rust 验证**：Windows 专用代码需要在 Windows 环境运行 `cargo test --locked --manifest-path src-tauri/Cargo.toml`，可由 GitHub Actions 验证；Linux 检查还需 GTK/WebKit 等开发依赖。改 Rust 前先跟用户说明改法；Rust 改动尽量单独一个提交，编译出错时容易单独修。
 - **换行符**：仓库统一 LF（见 `.gitattributes`），在 Windows 上编辑时不要引入 CRLF 差异。
-- **动效风格**：过渡要平滑（ease-out），不要回弹；内容不要淡入淡出或闪烁，不要拉伸文字。动效变量在 `src/styles/motion.css`，滑动高亮用 `src/utils/motion.ts`。
 - **数据和 AI 模型**：程序数据的位置统一用 `src-tauri/src/core/paths.rs`（Windows 上是安装目录下的 `data`）；AI 模型在 Rust 里推理。Windows 安装包附带运行库，模型按需下载。详见 `docs/DEVELOPMENT.md`「数据存放与 AI 模型」。
 - **样式**：颜色只用 `src/styles/theme.css` 里的 CSS 变量（深色模式自动适配）；按钮、分段选择、复选框等用 `src/styles/controls.css` 里的公共类。
+
+## 前端交互
+
+- **表单布局**。按字段内容限制表单宽度，标签靠近控件。长表单让字段区独立滚动，滚动条贴面板边缘，主要操作保持可见并与控件列对齐。无字段时，提示和操作区整体居中。
+- **控件与清空**。下拉框复用 `AppSelect`，可留空时可提供「未设置」选项。单行文本框有值时可显示内嵌清空图标，数字框和多行编辑器可直接删空，复选框使用自身的勾选交互。
+- **校验与报错**。字段校验就近显示，空间足够时放控件右侧，窄屏时放下方。连接失败等运行错误用 `showError` 在顶部通知，卡片只保留简短状态。
+- **模式与弹层动效**。表单与 JSON 等模式双向切换时用轻微位移和 `ease-out`，保持用户输入，避免回弹、闪烁、内容淡入淡出和文字缩放。可关闭的弹出面板从上方滑入并淡入，关闭时上移并淡出，点击外部可收起。复用 `src/styles/motion.css` 和 `src/utils/motion.ts` 中的动效，遵循系统「减少动态效果」设置。
+- **编辑与输出换行**。JSON 输入可按宽度软换行。调试结果、日志和原始响应默认保留行边界，长行可横向滚动。
+
+布局和交互示例见 [开发指南的前端交互设计](docs/DEVELOPMENT.md#前端交互设计)。
 
 ## Rust 目录约定
 
