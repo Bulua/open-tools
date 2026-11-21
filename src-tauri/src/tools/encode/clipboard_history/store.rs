@@ -1,13 +1,9 @@
 use std::path::PathBuf;
-use std::ptr::{null, null_mut};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
-use windows_sys::Win32::Foundation::LocalFree;
-use windows_sys::Win32::Security::Cryptography::{
-    CryptProtectData, CryptUnprotectData, CRYPTPROTECT_UI_FORBIDDEN, CRYPT_INTEGER_BLOB,
-};
+use crate::core::dpapi::protect;
 
 pub(super) const MAX_ENTRY_BYTES: usize = 256 * 1024;
 pub(super) const MAX_HISTORY_ITEMS: usize = 1000;
@@ -149,55 +145,6 @@ impl Store {
         self.history = history;
         Ok(())
     }
-}
-
-// 使用当前 Windows 用户的 DPAPI 保护历史，临时文件也只写入加密后的内容。
-fn protect(data: &[u8], encrypt: bool) -> Result<Vec<u8>, String> {
-    let input = CRYPT_INTEGER_BLOB {
-        cbData: u32::try_from(data.len()).map_err(|_| "Clipboard history is too large")?,
-        pbData: data.as_ptr().cast_mut(),
-    };
-    let mut output = CRYPT_INTEGER_BLOB::default();
-    let result = unsafe {
-        if encrypt {
-            CryptProtectData(
-                &input,
-                null(),
-                null(),
-                null(),
-                null(),
-                CRYPTPROTECT_UI_FORBIDDEN,
-                &mut output,
-            )
-        } else {
-            CryptUnprotectData(
-                &input,
-                null_mut(),
-                null(),
-                null(),
-                null(),
-                CRYPTPROTECT_UI_FORBIDDEN,
-                &mut output,
-            )
-        }
-    };
-    if result == 0 {
-        return Err(if encrypt {
-            "Can't encrypt clipboard history"
-        } else {
-            "Can't decrypt clipboard history"
-        }
-        .into());
-    }
-    if output.pbData.is_null() {
-        return Err("Windows returned an empty clipboard history blob".into());
-    }
-    let bytes = unsafe {
-        let bytes = std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec();
-        LocalFree(output.pbData.cast());
-        bytes
-    };
-    Ok(bytes)
 }
 
 #[cfg(test)]

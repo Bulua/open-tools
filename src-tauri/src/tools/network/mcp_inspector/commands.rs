@@ -1,159 +1,165 @@
-use std::{ops::AsyncFnOnce, process::Stdio, time::Duration};
+use std::{collections::HashMap, future::Future, time::Duration};
 
-use process_wrap::tokio::{CommandWrap, KillOnDrop};
-use reqwest::Client;
 use rmcp::{
     model::{
-        CallToolRequestParams, CallToolResult, ClientCapabilities, ClientConfig, Implementation,
-        JsonObject, Tool,
+        CallToolRequestParams, CallToolResult, ClientCapabilities, ClientConfig,
+        GetPromptRequestParams, GetPromptResult, Implementation, JsonObject,
+        ReadResourceRequestParams, ReadResourceResult,
     },
-    service::{RoleClient, RunningService},
-    transport::{
-        streamable_http_client::{
-            StreamableHttpClientTransport, StreamableHttpClientTransportConfig,
-        },
-        which_command, TokioChildProcess,
-    },
-    ServiceExt,
+    service::{Peer, RoleClient, ServiceError},
 };
-use serde::Serialize;
-use tokio::time::timeout;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use tokio::{sync::Mutex, time::timeout};
 
-use super::config::{prepare_http, prepare_stdio, McpConfig};
+use super::{
+    config::McpConfig,
+    transport::{connect, McpService},
+};
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(45);
-type McpService = RunningService<RoleClient, ClientConfig>;
+
+#[derive(Default)]
+pub(crate) struct McpSessions(Mutex<HashMap<String, McpService>>);
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct McpToolList {
-    #[serde(skip_serializing_if = "Option::is_none")]
+pub(crate) struct McpServerInfo {
     server_info: Option<Implementation>,
     protocol_version: String,
-    tools: Vec<Tool>,
+}
+
+impl McpSessions {
+    async fn peer(&self, id: &str) -> Result<Peer<RoleClient>, String> {
+        let sessions = self.0.lock().await;
+        sessions
+            .get(id)
+            .filter(|service| !service.is_closed() && !service.peer().is_transport_closed())
+            .map(|service| service.peer().clone())
+            .ok_or_else(|| "The MCP server is disconnected.".to_owned())
+    }
 }
 
 #[tauri::command]
-pub(crate) async fn mcp_list_tools(
+pub(crate) async fn mcp_connect(
     app: tauri::AppHandle,
+    sessions: tauri::State<'_, McpSessions>,
+    session_id: String,
     config: McpConfig,
-) -> Result<McpToolList, String> {
-    with_connection(app.package_info().version.to_string(), config, read_tools).await
+) -> Result<McpServerInfo, String> {
+    let info = ClientConfig::new(
+        ClientCapabilities::default(),
+        Implementation::new("open-tools", app.package_info().version.to_string()),
+    );
+    let service = timeout(REQUEST_TIMEOUT, connect(info, config))
+        .await
+        .map_err(|_| "The MCP connection timed out after 45 seconds.".to_owned())??;
+    let server = service
+        .peer_info()
+        .ok_or("Missing MCP server information.")?;
+    let mut active = sessions.0.lock().await;
+    if active.contains_key(&session_id) {
+        return Err("This MCP session is already connected.".to_owned());
+    }
+    active.insert(session_id, service);
+    Ok(McpServerInfo {
+        server_info: server.server_info.clone(),
+        protocol_version: server.protocol_version.to_string(),
+    })
+}
+
+#[tauri::command]
+pub(crate) async fn mcp_disconnect(
+    sessions: tauri::State<'_, McpSessions>,
+    session_id: String,
+) -> Result<(), String> {
+    let service = sessions.0.lock().await.remove(&session_id);
+    if let Some(mut service) = service {
+        let _ = service.close_with_timeout(Duration::from_secs(4)).await;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) async fn mcp_active_sessions(
+    sessions: tauri::State<'_, McpSessions>,
+) -> Result<Vec<String>, String> {
+    let mut active = sessions.0.lock().await;
+    active.retain(|_, service| !service.is_closed() && !service.peer().is_transport_closed());
+    Ok(active.keys().cloned().collect())
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) enum McpCatalog {
+    Tools,
+    Prompts,
+    Resources,
+    ResourceTemplates,
+}
+
+#[tauri::command]
+pub(crate) async fn mcp_list_entries(
+    sessions: tauri::State<'_, McpSessions>,
+    session_id: String,
+    catalog: McpCatalog,
+) -> Result<Value, String> {
+    let peer = sessions.peer(&session_id).await?;
+    let server = peer.peer_info().ok_or("Missing MCP server information.")?;
+    let capabilities = &server.capabilities;
+    let list = match catalog {
+        McpCatalog::Tools if capabilities.tools.is_some() => {
+            serde_json::to_value(request(peer.list_all_tools()).await?)
+        }
+        McpCatalog::Prompts if capabilities.prompts.is_some() => {
+            serde_json::to_value(request(peer.list_all_prompts()).await?)
+        }
+        McpCatalog::Resources if capabilities.resources.is_some() => {
+            serde_json::to_value(request(peer.list_all_resources()).await?)
+        }
+        McpCatalog::ResourceTemplates if capabilities.resources.is_some() => {
+            serde_json::to_value(request(peer.list_all_resource_templates()).await?)
+        }
+        _ => return Ok(Value::Array(Vec::new())),
+    };
+    list.map_err(|error| error.to_string())
 }
 
 #[tauri::command]
 pub(crate) async fn mcp_call_tool(
-    app: tauri::AppHandle,
-    config: McpConfig,
+    sessions: tauri::State<'_, McpSessions>,
+    session_id: String,
     name: String,
     arguments: JsonObject,
 ) -> Result<CallToolResult, String> {
-    let request = CallToolRequestParams::new(name).with_arguments(arguments);
-    with_connection(
-        app.package_info().version.to_string(),
-        config,
-        async |service: &McpService| {
-            service
-                .peer()
-                .call_tool(request)
-                .await
-                .map_err(|err| format!("Could not call the MCP tool: {err}"))
-        },
-    )
-    .await
+    let peer = sessions.peer(&session_id).await?;
+    request(peer.call_tool(CallToolRequestParams::new(name).with_arguments(arguments))).await
 }
 
-async fn with_connection<T>(
-    version: String,
-    config: McpConfig,
-    operation: impl AsyncFnOnce(&McpService) -> Result<T, String>,
-) -> Result<T, String> {
-    let info = ClientConfig::new(
-        ClientCapabilities::default(),
-        Implementation::new("open-tools", version),
-    );
-    let mut service = None;
-    let result = timeout(REQUEST_TIMEOUT, async {
-        let connection = service.insert(connect(info, config).await?);
-        operation(connection).await
-    })
-    .await;
-    if let Some(mut service) = service {
-        let _ = service.close_with_timeout(Duration::from_secs(4)).await;
-    }
-    result.map_err(|_| "The MCP request timed out after 45 seconds.".to_owned())?
+#[tauri::command]
+pub(crate) async fn mcp_get_prompt(
+    sessions: tauri::State<'_, McpSessions>,
+    session_id: String,
+    name: String,
+    arguments: JsonObject,
+) -> Result<GetPromptResult, String> {
+    let peer = sessions.peer(&session_id).await?;
+    request(peer.get_prompt(GetPromptRequestParams::new(name).with_arguments(arguments))).await
 }
 
-async fn connect(info: ClientConfig, config: McpConfig) -> Result<McpService, String> {
-    let service = match config {
-        McpConfig::Stdio {
-            command,
-            args,
-            env,
-            env_vars,
-            cwd,
-        } => {
-            let mut command = which_command(&command)
-                .map_err(|err| format!("Could not find the MCP server command: {err}"))?;
-            prepare_stdio(&mut command, &env_vars, env)?;
-            command.args(args);
-            if let Some(cwd) = cwd {
-                command.current_dir(cwd);
-            }
-            let mut command = CommandWrap::from(command);
-            // npx 等启动器还会创建子进程，关闭连接时一起清理。
-            #[cfg(windows)]
-            {
-                use process_wrap::tokio::{CreationFlags, JobObject};
-                use windows_sys::Win32::System::Threading::CREATE_NO_WINDOW;
-                let mut flags = CreationFlags(Default::default());
-                flags.0 .0 = CREATE_NO_WINDOW;
-                command.wrap(JobObject).wrap(flags);
-            }
-            #[cfg(unix)]
-            command.wrap(process_wrap::tokio::ProcessGroup::leader());
-            command.wrap(KillOnDrop);
-            let (transport, _) = TokioChildProcess::builder(command)
-                .stderr(Stdio::null())
-                .spawn()
-                .map_err(|err| format!("Could not start the MCP server: {err}"))?;
-            info.serve(transport).await
-        }
-        McpConfig::Http(config) => {
-            let (url, headers) = prepare_http(config, |name| {
-                std::env::var(name)
-                    .map_err(|_| format!("Environment variable {name} is missing or unreadable."))
-            })?;
-            let _ = rustls::crypto::ring::default_provider().install_default();
-            // 自定义请求头可能含凭据，不将它们转发到重定向地址。
-            let client = Client::builder()
-                .redirect(reqwest::redirect::Policy::none())
-                .build()
-                .map_err(|err| format!("Could not initialize the HTTP client: {err}"))?;
-            let config =
-                StreamableHttpClientTransportConfig::with_uri(url.as_str()).custom_headers(headers);
-            info.serve(StreamableHttpClientTransport::with_client(client, config))
-                .await
-        }
-    };
-    service.map_err(|err| format!("Could not connect to the MCP server: {err}"))
+#[tauri::command]
+pub(crate) async fn mcp_read_resource(
+    sessions: tauri::State<'_, McpSessions>,
+    session_id: String,
+    uri: String,
+) -> Result<ReadResourceResult, String> {
+    let peer = sessions.peer(&session_id).await?;
+    request(peer.read_resource(ReadResourceRequestParams::new(uri))).await
 }
 
-async fn read_tools(service: &McpService) -> Result<McpToolList, String> {
-    let server = service
-        .peer_info()
-        .ok_or("Missing MCP server information.")?;
-    let tools = if server.capabilities.tools.is_some() {
-        service
-            .list_all_tools()
-            .await
-            .map_err(|err| format!("Could not list MCP tools: {err}"))?
-    } else {
-        Vec::new()
-    };
-    Ok(McpToolList {
-        server_info: server.server_info.clone(),
-        protocol_version: server.protocol_version.to_string(),
-        tools,
-    })
+async fn request<T>(operation: impl Future<Output = Result<T, ServiceError>>) -> Result<T, String> {
+    timeout(REQUEST_TIMEOUT, operation)
+        .await
+        .map_err(|_| "The MCP request timed out after 45 seconds.".to_owned())?
+        .map_err(|error| error.to_string())
 }

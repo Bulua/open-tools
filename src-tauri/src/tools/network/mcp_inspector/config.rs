@@ -4,10 +4,10 @@ use reqwest::{
     header::{HeaderName, HeaderValue, AUTHORIZATION},
     Url,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::process::Command;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub(crate) enum McpConfig {
     Stdio {
@@ -23,7 +23,7 @@ pub(crate) enum McpConfig {
     Http(HttpConfig),
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub(crate) struct HttpConfig {
     url: String,
     #[serde(default)]

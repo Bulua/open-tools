@@ -3,7 +3,7 @@ mod tools;
 
 use crate::core::{branding, paths, tray};
 #[cfg(desktop)]
-use crate::tools::network::mcp_inspector::commands as mcp;
+use crate::tools::network::mcp_inspector::{commands as mcp, store as mcp_store};
 use crate::tools::{
     audio::tts::commands as tts,
     document::{
@@ -53,6 +53,7 @@ pub fn run() {
 
     #[cfg(desktop)]
     let builder = builder
+        .manage(mcp::McpSessions::default())
         // 在线更新：检查、下载、安装新版本；安装后重启程序
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init());
@@ -81,9 +82,23 @@ pub fn run() {
             large_file::large_text_exit,
             ping::ping_once,
             #[cfg(desktop)]
-            mcp::mcp_list_tools,
+            mcp::mcp_connect,
+            #[cfg(desktop)]
+            mcp_store::mcp_read_connections,
+            #[cfg(desktop)]
+            mcp_store::mcp_save_connections,
+            #[cfg(desktop)]
+            mcp::mcp_disconnect,
+            #[cfg(desktop)]
+            mcp::mcp_active_sessions,
+            #[cfg(desktop)]
+            mcp::mcp_list_entries,
             #[cfg(desktop)]
             mcp::mcp_call_tool,
+            #[cfg(desktop)]
+            mcp::mcp_get_prompt,
+            #[cfg(desktop)]
+            mcp::mcp_read_resource,
             mqtt::mqtt_connect,
             mqtt::mqtt_disconnect,
             mqtt::mqtt_subscribe,
