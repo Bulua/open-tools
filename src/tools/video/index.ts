@@ -4,6 +4,7 @@ import bilibiliDownload from "./bilibili-download";
 import douyinDownload from "./douyin-download";
 import xiaohongshuDownload from "./xiaohongshu-download";
 import xDownload from "./x-download";
+import weiboDownload from "./weibo-download";
 import videoToAudio from "./video-to-audio";
 import videoTrim from "./video-trim";
 import videoToGif from "./video-to-gif";
@@ -15,7 +16,7 @@ import cameraRecorder from "./camera-recorder";
 const video: Category = {
   id: "video",
   name: "视频",
-  tools: [videoCompress, bilibiliDownload, douyinDownload, xiaohongshuDownload, xDownload, videoToAudio, videoTrim, videoToGif, videoConcat, videoMusic, screenRecorder, cameraRecorder],
+  tools: [videoCompress, bilibiliDownload, douyinDownload, xiaohongshuDownload, xDownload, weiboDownload, videoToAudio, videoTrim, videoToGif, videoConcat, videoMusic, screenRecorder, cameraRecorder],
 };
 
 export default video;

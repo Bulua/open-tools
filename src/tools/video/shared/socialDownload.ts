@@ -22,5 +22,6 @@ export interface SocialDownloadAdapter {
   parse(input: string): Promise<SocialMediaItem | SocialMediaItem[]>;
   baseName(item: SocialMediaItem): string;
   imageExt(data: Uint8Array): string | undefined;
+  loadCover?(url: string, signal: AbortSignal): Promise<Blob>;
   download(urls: string[], kind: "video" | "image", onProgress?: (loaded: number, total: number) => void, signal?: AbortSignal): Promise<Uint8Array>;
 }

@@ -2,7 +2,7 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { saveIntoFolder } from "@/utils/saveFile";
 import { safeFileName } from "./fileName";
 
-export type DownloadPlatform = "douyin" | "bilibili" | "xhs" | "x";
+export type DownloadPlatform = "douyin" | "bilibili" | "xhs" | "x" | "weibo";
 export interface SavedMedia {
   name: string;
   kind: "video" | "image";

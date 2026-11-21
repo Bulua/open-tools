@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, CircleAlert, ClipboardPaste, Download, Exter
 import ProgressBar from "@/components/common/ProgressBar.vue";
 import AppSelect from "@/components/common/AppSelect.vue";
 import ProcessingMascot from "@/components/common/ProcessingMascot.vue";
+import SocialThumbnail from "./SocialThumbnail.vue";
 import { useWindowEvent } from "@/composables/useWindowEvent";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { formatBytes } from "@/utils/format";
@@ -19,6 +20,16 @@ const props = defineProps<{ adapter: SocialDownloadAdapter }>();
 const { t, locale } = useI18n();
 const prefix = computed(() => props.adapter.platform === "douyin" ? "dy" : props.adapter.platform);
 const platform = computed(() => props.adapter.platform);
+const qualityTip = computed(() => {
+  if (platform.value === "x") return "video.xQualityTip";
+  if (platform.value === "weibo") return "video.weiboQualityTip";
+  return "video.socialQualityTip";
+});
+const emptyDetail = computed(() => {
+  if (platform.value === "x") return "video.xEmptySub";
+  if (platform.value === "weibo") return "video.weiboEmptySub";
+  return "video.autoMediaEmpty";
+});
 type Item = SocialMediaItem;
 interface Entry {
   item: Item;
@@ -254,7 +265,7 @@ onBeforeUnmount(() => {
           <h3>{{ t("video.codec") }}</h3>
           <AppSelect v-model="codec" :options="codecOptions" />
         </template>
-        <p class="tip">{{ t(platform === "x" ? "video.xQualityTip" : "video.socialQualityTip") }}</p>
+        <p class="tip">{{ t(qualityTip) }}</p>
       </section>
     </aside>
     <section class="card list">
@@ -267,11 +278,11 @@ onBeforeUnmount(() => {
       </div>
       <div class="results">
         <ProcessingMascot v-if="parsing" class="results-overlay" :title="t('video.parse')" :detail="t('video.openingPage')" />
-        <div v-if="!entries.length && !parsing" class="empty"><p>{{ t(`video.${prefix}EmptyHint`) }}</p><p class="sub">{{ t(platform === "x" ? "video.xEmptySub" : "video.autoMediaEmpty") }}</p></div>
+        <div v-if="!entries.length && !parsing" class="empty"><p>{{ t(`video.${prefix}EmptyHint`) }}</p><p class="sub">{{ t(emptyDetail) }}</p></div>
         <div v-else-if="entries.length" class="grid">
           <article v-for="e in entries" :key="e.item.id" class="video" :class="e.status">
             <div class="thumb" :title="e.item.type === 'video' ? t('video.play') : t('video.browseImages')" @click="openViewer(e)">
-              <img :src="thumbnailSource(e)" alt="" referrerpolicy="no-referrer" loading="lazy" />
+              <SocialThumbnail :src="thumbnailSource(e)" :load-cover="adapter.loadCover" />
               <span class="play-icon"><Play v-if="e.item.type === 'video'" :size="22" /><Images v-else :size="22" /></span>
               <span class="badge left">{{ e.item.type === 'video' ? formatDuration(e.item.duration) : t("video.photoPost", { n: e.item.images.length }) }}</span>
               <button class="close" :title="t('video.remove')" @click.stop="removeEntry(e)"><X :size="13" /></button>
@@ -333,7 +344,7 @@ onBeforeUnmount(() => {
 .video.done { border-color: color-mix(in srgb, var(--success) 40%, var(--border)); }
 .video.error { border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); }
 .thumb { position: relative; aspect-ratio: 16 / 9; flex-shrink: 0; background: var(--bg-sunken); cursor: pointer; }
-.thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb :deep(img) { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .play-icon { position: absolute; inset: 0; margin: auto; width: 48px; height: 48px; display: grid; place-items: center; border-radius: 50%; background: var(--surface); color: var(--text); }
 .badge { position: absolute; bottom: 6px; padding: 1px 6px; border-radius: 4px; background: var(--surface); color: var(--text); font-size: 11px; }
 .badge.left { left: 6px; }
