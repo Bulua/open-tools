@@ -6,12 +6,13 @@ import { useI18n } from "vue-i18n";
 import { recordToolUsage } from "@/composables/toolLibrary";
 import { useWindowEvent } from "@/composables/useWindowEvent";
 import { errorMessage, showError } from "@/utils/errorToast";
-import { parseToolArguments, type McpConfig, type McpTool } from "../config";
+import { parseToolArguments, type McpTool } from "../config";
 import { testing } from "../workspace";
 import McpJsonInput from "./McpJsonInput.vue";
+import McpSchemaDetails from "./McpSchemaDetails.vue";
 import McpToolOutput from "./McpToolOutput.vue";
 
-const props = defineProps<{ config: McpConfig; tool: McpTool }>();
+const props = defineProps<{ sessionId: string; tool: McpTool }>();
 const { t } = useI18n();
 const input = ref("{}");
 const response = shallowRef<{ isError?: boolean; [key: string]: unknown }>();
@@ -44,7 +45,7 @@ async function testTool() {
   const start = performance.now();
   try {
     const result = await invoke<NonNullable<typeof response.value>>("mcp_call_tool", {
-      config: props.config,
+      sessionId: props.sessionId,
       name: props.tool.name,
       arguments: request,
     });
@@ -67,6 +68,7 @@ async function testTool() {
     <section class="argument-pane" :aria-label="t('network.mcp.arguments')">
       <header class="argument-head">
         <h3>{{ t("network.mcp.arguments") }}</h3>
+        <McpSchemaDetails :label="t('network.mcp.inputSchema')" :button-label="t('network.mcp.inputSchemaAction')" :schema="tool.inputSchema" />
       </header>
       <McpJsonInput v-model="input" :label="t('network.mcp.arguments')" hide-label />
       <footer class="argument-footer">
@@ -84,14 +86,14 @@ async function testTool() {
         </div>
       </footer>
     </section>
-    <McpToolOutput :response="response" :failure="failure" :running="running" :pending="testing" :elapsed="elapsed" />
+    <McpToolOutput :response="response" :failure="failure" :running="running" :pending="testing" :elapsed="elapsed" :schema="tool.outputSchema" />
   </div>
 </template>
 
 <style scoped>
 .detail {
   display: grid;
-  grid-template-columns: clamp(380px, 38%, 420px) minmax(0, 1fr);
+  grid-template-columns: minmax(160px, 38%) minmax(0, 1fr);
   flex: 1;
   min-width: 0;
   min-height: 320px;
@@ -111,6 +113,9 @@ async function testTool() {
   display: flex;
   flex: none;
   align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 5px 8px;
   min-height: 46px;
   padding: 6px 10px 6px 14px;
   border-bottom: 1px solid var(--border);
@@ -120,7 +125,7 @@ async function testTool() {
 .argument-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .argument-actions kbd { margin-inline-start: auto; color: var(--text-2); font: 11px var(--font-mono); }
 .error { margin: 0 0 6px; color: var(--danger); font-size: 12px; }
-@container (max-width: 760px) {
+@container mcp-details (max-width: 660px) {
   .detail { flex: none; grid-template-columns: minmax(0, 1fr); grid-auto-rows: clamp(280px, 52vh, 520px); }
 }
 </style>

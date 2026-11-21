@@ -19,10 +19,10 @@ test("左侧校验并提交 JSON 参数，调用成功后右侧显示结果", as
   const originalClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
   const writeText = vi.fn().mockResolvedValue(undefined);
   Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
-  const config = { type: "stdio" as const, command: "mock-server" };
+  const sessionId = "test-session";
   const app = createApp({
     render: () => h(McpToolDetail, {
-      config,
+      sessionId,
       tool: {
         name: "calculate",
         inputSchema: {
@@ -64,7 +64,7 @@ test("左侧校验并提交 JSON 参数，调用成功后右侧显示结果", as
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true }));
     await vi.waitFor(() => expect(host.querySelector(".output-panel .cm-content")?.textContent).toContain('"total": 3'));
     expect(invokeMock).toHaveBeenCalledWith("mcp_call_tool", {
-      config,
+      sessionId,
       name: "calculate",
       arguments: args,
     });

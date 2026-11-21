@@ -3,13 +3,13 @@ import { computed, onDeactivated, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { Globe, Terminal } from "lucide-vue-next";
 import { closePanelDialog, vPanelDismiss } from "@/utils/panelDialog";
-import { defaultConnectionName, parseMcpServer, type McpConfig } from "../config";
+import { parseMcpServer, type McpConfig } from "../config";
 import type { McpConnection } from "../workspace";
 import McpConfigRows from "./McpConfigRows.vue";
 
-const emit = defineEmits<{
-  save: [connection: McpConnection];
-  remove: [id: string];
+const props = defineProps<{
+  saveConnection: (connection: McpConnection) => Promise<void>;
+  removeConnection: (id: string) => Promise<void>;
 }>();
 
 const { t } = useI18n();
@@ -17,6 +17,7 @@ const dialog = ref<HTMLDialogElement>();
 const formBody = ref<HTMLElement>();
 const editing = ref<McpConnection>();
 const confirming = ref(false);
+const saving = ref(false);
 const name = ref("");
 const error = ref("");
 const mode = ref<McpConfig["type"]>("stdio");
@@ -35,7 +36,7 @@ const headers = ref<string[][]>([]);
 const headerVariables = ref<string[][]>([]);
 const title = computed(() => t(editing.value ? "network.mcp.edit" : "network.mcp.add"));
 const canSave = computed(() => Boolean(
-  (mode.value === "stdio" ? command.value : url.value).trim(),
+  name.value.trim() && (mode.value === "stdio" ? command.value : url.value).trim(),
 ));
 
 function withBlankRow(rows?: string[][]): string[][] {
@@ -64,6 +65,7 @@ function open(connection?: McpConnection) {
 }
 
 function close() {
+  if (saving.value) return;
   closePanelDialog(dialog.value);
 }
 
@@ -121,25 +123,36 @@ function formConfig(): McpConfig {
   };
 }
 
-function save() {
+async function save() {
+  if (!canSave.value || saving.value) return;
+  saving.value = true;
   try {
     const item = parseMcpServer(formConfig());
     if ("error" in item) throw new Error(t("network.mcp." + item.error));
-    emit("save", {
+    await props.saveConnection({
       id: editing.value?.id ?? crypto.randomUUID(),
-      name: name.value.trim() || defaultConnectionName(item.config),
+      name: name.value.trim(),
       config: item.config,
     });
-    close();
+    closePanelDialog(dialog.value);
   } catch (issue) {
     error.value = issue instanceof Error ? issue.message : String(issue);
+  } finally {
+    saving.value = false;
   }
 }
 
-function remove() {
-  if (!editing.value) return;
-  emit("remove", editing.value.id);
-  close();
+async function remove() {
+  if (!editing.value || saving.value) return;
+  saving.value = true;
+  try {
+    await props.removeConnection(editing.value.id);
+    closePanelDialog(dialog.value);
+  } catch (issue) {
+    error.value = issue instanceof Error ? issue.message : String(issue);
+  } finally {
+    saving.value = false;
+  }
 }
 
 onDeactivated(() => closePanelDialog(dialog.value, true));
@@ -156,6 +169,7 @@ defineExpose({ open });
           :key="item.id"
           type="button"
           :class="{ on: mode === item.id }"
+          :disabled="saving"
           :aria-pressed="mode === item.id"
           @click="selectMode(item.id)"
         >
@@ -164,10 +178,10 @@ defineExpose({ open });
         </button>
       </div>
     </header>
-    <div ref="formBody" class="form-body" @input="error = ''">
+    <div ref="formBody" class="form-body" :inert="saving" @input="error = ''">
       <label class="form-field">
         {{ t("network.mcp.connectionName") }}
-        <input v-model="name" class="field line-field" type="text" placeholder="my-mcp-server" autocomplete="off" />
+        <input v-model="name" class="field line-field" type="text" placeholder="my-mcp-server" autocomplete="off" required />
       </label>
       <div v-if="mode === 'stdio'" class="transport-fields">
         <label class="form-field">
@@ -244,16 +258,16 @@ defineExpose({ open });
           keep-row
         />
       </div>
-      <p v-if="error" class="hint error" role="alert">{{ error }}</p>
       <p v-if="confirming && editing" class="hint" role="status">{{ t("network.mcp.confirmRemove", { name: editing.name }) }}</p>
     </div>
+    <p v-if="error" class="hint error dialog-error" role="alert">{{ error }}</p>
     <footer class="dialog-footer">
-      <p v-if="!editing" class="hint session-note">{{ t("network.mcp.sessionOnly") }}</p>
-      <button v-else type="button" class="btn subtle remove" @click="confirming ? remove() : confirming = true">
+      <p v-if="!editing" class="hint session-note">{{ t("network.mcp.savedLocally") }}</p>
+      <button v-else type="button" class="btn subtle remove" :disabled="saving" @click="confirming ? remove() : confirming = true">
         {{ t(confirming ? "network.mcp.confirmRemoveAction" : "network.mcp.remove") }}
       </button>
-      <button type="button" class="btn" @click="close">{{ t("network.mcp.cancel") }}</button>
-      <button type="button" class="btn primary" :disabled="!canSave" @click="save">{{ t("network.mcp.save") }}</button>
+      <button type="button" class="btn" :disabled="saving" @click="close">{{ t("network.mcp.cancel") }}</button>
+      <button type="button" class="btn primary" :disabled="saving || !canSave" @click="save">{{ t("network.mcp.save") }}</button>
     </footer>
   </dialog>
 </template>
@@ -306,6 +320,7 @@ h2 { margin: 0; font-family: var(--font-serif); font-size: 21px; font-weight: 40
 .form-field .line-field { font-weight: 400; }
 .hint { margin: 0; color: var(--text-2); overflow-wrap: anywhere; }
 .error, .remove { color: var(--danger); }
+.dialog-error { padding: 0 20px 10px; }
 .remove, .session-note { margin-inline-end: auto; }
 @media (max-width: 480px) {
   .modes button { padding: 0 5px; }

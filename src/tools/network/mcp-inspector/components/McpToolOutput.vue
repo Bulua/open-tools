@@ -4,6 +4,7 @@ import { computed, defineAsyncComponent, ref, useId } from "vue";
 import { useI18n } from "vue-i18n";
 import { useClipboard } from "@/composables/useClipboard";
 import { showError } from "@/utils/errorToast";
+import McpSchemaDetails from "./McpSchemaDetails.vue";
 
 const props = defineProps<{
   response?: { isError?: boolean; [key: string]: unknown };
@@ -11,6 +12,7 @@ const props = defineProps<{
   running: boolean;
   pending: boolean;
   elapsed?: number;
+  schema?: Record<string, unknown>;
 }>();
 const { t, locale } = useI18n();
 const { copy, copied } = useClipboard();
@@ -45,6 +47,7 @@ async function copyOutput() {
     <header class="output-head">
       <h3 :id="id">{{ t("network.mcp.output") }}</h3>
       <div class="output-actions">
+        <McpSchemaDetails v-if="schema" :label="t('network.mcp.outputSchema')" :button-label="t('network.mcp.outputSchemaAction')" :schema="schema" />
         <span v-if="status" class="output-status" :class="status" role="status">{{ t(`network.mcp.${status}`) }}</span>
         <span v-if="elapsedText" class="elapsed" :title="t('network.mcp.outputElapsed')">{{ elapsedText }}</span>
         <div v-if="response" class="seg" role="group" :aria-label="t('network.mcp.outputView')">

@@ -18,10 +18,28 @@ export interface McpTool {
   outputSchema?: Record<string, unknown>;
 }
 
-export interface McpToolList {
-  serverInfo?: { name: string; version: string };
+export interface McpServerInfo {
+  serverInfo?: { name: string; version: string } | null;
   protocolVersion: string;
-  tools: McpTool[];
+}
+
+export interface McpPrompt {
+  name: string;
+  title?: string;
+  description?: string;
+  arguments?: { name: string; title?: string; description?: string; required?: boolean }[];
+}
+
+export interface McpResource {
+  uri: string;
+  name: string;
+  title?: string;
+  description?: string;
+  mimeType?: string;
+}
+
+export interface McpResourceTemplate extends Omit<McpResource, "uri"> {
+  uriTemplate: string;
 }
 
 type ParseError = "invalidServer" | "unsupportedType" | "invalidUrl";
@@ -44,11 +62,6 @@ export function connectionTarget(config: McpConfig): string {
   if (config.type === "stdio") return config.command;
   const { host, pathname } = new URL(config.url);
   return host + pathname;
-}
-
-export function defaultConnectionName(config: McpConfig): string {
-  if (config.type === "stdio") return config.command.split(/[\\/]/).pop() || config.command;
-  return new URL(config.url).host;
 }
 
 function isStringMap(value: unknown): value is StringMap {
