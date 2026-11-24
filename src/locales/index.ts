@@ -16,6 +16,7 @@ import { useStoredRef } from "@/composables/useStoredRef";
 import zhCN from "./zh-CN";
 import en from "./en";
 import ja from "./ja";
+import aiLocales from "@/ai/locales";
 import type { Locale, LocalePref, ModuleLocales, OtherLocale, ToolText, Translations } from "./types";
 
 export * from "./types";
@@ -36,7 +37,7 @@ const modules = import.meta.glob<ModuleLocales>("../tools/*/*/locales.ts", { eag
 const messages = Object.fromEntries(LOCALES.map(({ value }) => [value, { ...COMMON[value] }])) as Record<Locale, Record<string, any>>;
 /** 所有工具在工具列表里的翻译，按语言、再按工具 id 对应 */
 export const toolTexts: Translations<Record<string, ToolText>> = {};
-for (const m of Object.values(modules)) {
+for (const m of [...Object.values(modules), aiLocales]) {
   for (const [l, texts] of Object.entries(m.tools ?? {})) Object.assign((toolTexts[l as OtherLocale] ??= {}), texts);
   for (const [l, msgs] of Object.entries(m.messages ?? {})) mergeMessages(messages[l as Locale], msgs);
 }

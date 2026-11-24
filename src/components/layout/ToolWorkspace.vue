@@ -2,15 +2,18 @@
 import { onBeforeUnmount, ref, watch } from "vue";
 import type { Category, Tool } from "@/tools";
 import HomePage from "./HomePage.vue";
+import AiWorkspace from "@/ai/components/AiWorkspace.vue";
 import ToolView from "@/components/tool/ToolView.vue";
 
-const props = defineProps<{ home: boolean; categories: Category[]; tool?: Tool }>();
+export type WorkspacePage = "home" | "ai" | "tool";
+
+const props = defineProps<{ page: WorkspacePage; categories: Category[]; tool?: Tool }>();
 const emit = defineEmits<{ select: [categoryId: string, toolId: string]; search: [] }>();
 const workspace = ref<HTMLElement>();
 let animation: Animation | undefined;
 
 // 动画只作用于稳定的容器，不把离场钩子附着到 KeepAlive 缓存的工具上。
-watch(() => props.home, () => {
+watch(() => props.page, () => {
   animation?.cancel();
   if (!workspace.value?.animate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   animation = workspace.value.animate([
@@ -23,8 +26,9 @@ onBeforeUnmount(() => animation?.cancel());
 
 <template>
   <div ref="workspace" class="tool-workspace">
-    <KeepAlive :max="13">
-      <HomePage v-if="home" key="home" :categories="categories" @select="(categoryId, toolId) => emit('select', categoryId, toolId)" @search="emit('search')" />
+    <KeepAlive :max="14">
+      <HomePage v-if="page === 'home'" key="home" :categories="categories" @select="(categoryId, toolId) => emit('select', categoryId, toolId)" @search="emit('search')" />
+      <AiWorkspace v-else-if="page === 'ai'" key="ai" />
       <ToolView v-else-if="tool" :key="tool.id" :tool="tool" />
     </KeepAlive>
   </div>

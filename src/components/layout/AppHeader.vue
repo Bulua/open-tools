@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { Bug, Check, ChevronLeft, ChevronRight, Github, House, Languages, Moon, Sun } from "lucide-vue-next";
+import { Bug, Check, ChevronLeft, ChevronRight, Github, House, Languages, Moon, Sparkles, Sun } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
 import type { Category } from "@/tools";
 import { usePopover } from "@/composables/usePopover";
@@ -17,7 +17,7 @@ const props = defineProps<{
   /** 侧栏收起时品牌区跟着收窄，保持与侧栏对齐 */
   compact?: boolean;
 }>();
-defineEmits<{ home: []; select: [id: string]; toggleTheme: []; openSearch: [] }>();
+defineEmits<{ home: []; ai: []; select: [id: string]; toggleTheme: []; openSearch: [] }>();
 
 const { t } = useI18n();
 
@@ -124,6 +124,7 @@ watch(
       </button>
       <nav ref="scroller" class="tabs" @scroll="update" @wheel.prevent="onWheel">
         <button data-id="home" class="tab home-tab" :class="{ active: activeId === 'home' }" @click="$emit('home')"><House :size="15" />{{ t('home.title') }}</button>
+        <button data-id="ai" class="tab ai-tab" :class="{ active: activeId === 'ai' }" @click="$emit('ai')"><Sparkles :size="15" />{{ t('ai.navTitle') }}</button>
         <button
           v-for="c in categories"
           :key="c.id"
@@ -188,7 +189,8 @@ watch(
 </template>
 
 <style scoped>
-.home-tab { display: flex; align-items: center; gap: 7px; }
+.home-tab,
+.ai-tab { display: flex; align-items: center; gap: 7px; }
 .topbar {
   height: 52px;
   flex-shrink: 0;

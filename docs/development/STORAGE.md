@@ -15,6 +15,7 @@
 | 时钟 | `countdowns.json` | 闹钟、计时器和旧版提醒 |
 | 日历 | `calendar-notes.json` | 按日期保存备注和提醒事项 |
 | MCP 工具查看器 | `mcp-connections.dat` | 连接配置由当前 Windows 用户的 DPAPI 加密 |
+| AI 工作台 | `ai/config.dat`、`ai/conversations/` | 模型提供商与 API Key 由当前 Windows 用户的 DPAPI 加密；会话索引与单条历史独立存为 JSON |
 | B 站、抖音、小红书与 X 下载 | `videos/bilibili/`、`videos/douyin/`、`videos/xhs/`、`videos/x/` | 保存下载成品，播放器经 Tauri asset 协议读取 |
 | AI 模型与补下载的运行库 | `models/`、`runtime/<版本>/` | 按需下载并校验的文件 |
 | 远程图标 | `branding/` | 图标及当前图标记录 |

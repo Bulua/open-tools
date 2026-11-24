@@ -9,7 +9,7 @@ import AppHeader from "@/components/layout/AppHeader.vue";
 import AppSidebar from "@/components/layout/AppSidebar.vue";
 import LaunchIntro from "@/components/layout/LaunchIntro.vue";
 import { rememberRecentTool } from "@/composables/toolLibrary";
-import ToolWorkspace from "@/components/layout/ToolWorkspace.vue";
+import ToolWorkspace, { type WorkspacePage } from "@/components/layout/ToolWorkspace.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import CommandPalette from "@/components/common/CommandPalette.vue";
 import UpdateDialog from "@/components/layout/UpdateDialog.vue";
@@ -29,8 +29,10 @@ const { t } = useI18n();
 const { theme, toggleTheme } = useTheme();
 
 const categories = localizedCategories;
-const homeOpen = ref(true);
-const openHome = () => { homeOpen.value = true; };
+const activePage = ref<WorkspacePage>("home");
+const fullPanel = computed(() => activePage.value !== "tool");
+const openHome = () => { activePage.value = "home"; };
+const openAi = () => { activePage.value = "ai"; };
 
 // ---------- 当前分类与工具（会被记住，下次打开时恢复） ----------
 const activeCategoryId = useStoredRef("category", categories.value[0].id);
@@ -55,15 +57,15 @@ const activeTool = computed(() => {
 const selectTool = (categoryId: string, toolId: string) => {
   activeCategoryId.value = categoryId;
   activeToolByCategory.value[categoryId] = toolId;
-  homeOpen.value = false;
+  activePage.value = "tool";
 };
 
 const selectCategory = (id: string) => {
   activeCategoryId.value = id;
-  homeOpen.value = false;
+  activePage.value = "tool";
 };
 watch(
-  () => !homeOpen.value ? activeTool.value?.id : undefined,
+  () => activePage.value === "tool" ? activeTool.value?.id : undefined,
   (id) => { if (id) rememberRecentTool(id); },
 );
 
@@ -144,16 +146,17 @@ onBeforeUnmount(() => {
     <AppHeader
       :inert="introPhase !== 'done'"
       :categories="categories"
-      :active-id="homeOpen ? 'home' : activeCategory.id"
+      :active-id="activePage === 'tool' ? activeCategory.id : activePage"
       :theme="theme"
-      :compact="!homeOpen && sidebarCollapsed"
+      :compact="!fullPanel && sidebarCollapsed"
       @select="selectCategory"
       @home="openHome"
+      @ai="openAi"
       @toggle-theme="toggleTheme"
       @open-search="searchOpen = true"
     />
     <div class="body" :inert="introPhase !== 'done'">
-      <div class="sidebar-region" :class="{ compact: sidebarCollapsed, hidden: homeOpen }" :inert="homeOpen" :aria-hidden="homeOpen">
+      <div class="sidebar-region" :class="{ compact: sidebarCollapsed, hidden: fullPanel }" :inert="fullPanel" :aria-hidden="fullPanel">
         <AppSidebar
           :category="activeCategory"
           :active-id="activeTool?.id"
@@ -166,14 +169,14 @@ onBeforeUnmount(() => {
       <main class="main">
         <!-- 切换工具时保留之前工具的输入和结果，最多缓存 12 个 -->
         <ToolWorkspace
-          :home="homeOpen"
+          :page="activePage"
           :categories="categories"
           :tool="activeTool"
           @select="selectTool"
           @search="searchOpen = true"
         />
         <EmptyState
-          v-if="!homeOpen && !activeTool"
+          v-if="activePage === 'tool' && !activeTool"
           :title="t('app.comingSoonTitle', { name: activeCategory.name })"
           :description="t('app.comingSoonDesc')"
         />
