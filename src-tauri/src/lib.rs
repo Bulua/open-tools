@@ -2,6 +2,7 @@ mod core;
 mod tools;
 
 use crate::core::{branding, paths, tray};
+use crate::tools::ai::store as ai_store;
 use crate::tools::network::mcp_inspector::{commands as mcp, store as mcp_store};
 use crate::tools::{
     audio::tts::commands as tts,
@@ -86,6 +87,12 @@ pub fn run() {
             mcp::mcp_call_tool,
             mcp::mcp_get_prompt,
             mcp::mcp_read_resource,
+            ai_store::ai_read_config,
+            ai_store::ai_save_config,
+            ai_store::ai_list_conversations,
+            ai_store::ai_read_conversation,
+            ai_store::ai_save_conversation,
+            ai_store::ai_delete_conversation,
             mqtt::mqtt_connect,
             mqtt::mqtt_disconnect,
             mqtt::mqtt_subscribe,

@@ -1,3 +1,4 @@
+pub(crate) mod ai;
 pub(crate) mod audio;
 pub(crate) mod document;
 pub(crate) mod encode;
