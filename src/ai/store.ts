@@ -1,11 +1,13 @@
 import { computed, reactive, ref } from "vue";
 import { locale, t } from "@/locales";
 import { showError } from "@/utils/errorToast";
+import { hydrateTurnsForModel, persistAttachmentsToWorkspace } from "./attachments";
 import {
   checkBuiltinToolPath,
   invalidateLocalImageCache,
   invokeBuiltinTool,
   loadBuiltinAiContext,
+  resolveConversationWorkspaceDir,
   setBuiltinContextTestProvider,
   setBuiltinToolTestExecutor,
 } from "./builtinTools";
@@ -606,10 +608,10 @@ async function runAssistantTurn(conv: Conversation, fetchImpl?: typeof fetch): P
   const started = performance.now();
 
   try {
-    const turns = buildContextTurns(conv.messages, assistantMsg.id);
     // 系统提示词与已注册的内置工具声明统一由 Rust 后端返回
     const builtinCtx = await loadBuiltinAiContext(conv.id, conv.workspaceDir);
     const workspaceDir = builtinCtx.workspaceDir;
+    const turns = await hydrateTurnsForModel(buildContextTurns(conv.messages, assistantMsg.id), workspaceDir);
     const systemPrompt = builtinCtx.systemPrompt;
     const builtinByName = new Map(builtinCtx.tools.map((tool) => [tool.name, tool]));
     const builtinToolDefs: ToolDefinition[] = builtinCtx.tools.map(({ name, description, parameters }) => ({
@@ -845,7 +847,9 @@ export async function sendMessage(
   fetchImpl?: typeof fetch,
 ): Promise<boolean> {
   const trimmed = text.trim();
-  const files = attachments.filter((item) => Boolean(item.dataUrl || item.textContent !== undefined));
+  const files = attachments.filter((item) =>
+    Boolean(item.rawFile || item.filePath || item.dataUrl || item.textContent !== undefined),
+  );
   if (!trimmed && !files.length) return false;
 
   const model = findConfiguredModel(currentModelConfigId.value) ?? resolveFallbackModel();
@@ -883,12 +887,23 @@ export async function sendMessage(
     conv.title = initialTitle;
   }
 
+  let persistedFiles: ChatAttachment[] = [];
+  if (files.length) {
+    try {
+      const wsDir = await resolveConversationWorkspaceDir(conv.id, conv.workspaceDir);
+      persistedFiles = await persistAttachmentsToWorkspace(files, wsDir);
+    } catch (error) {
+      showError(error);
+      return false;
+    }
+  }
+
   conv.messages.push(
     reactive<ChatMessage>({
       id: makeEntityId("msg"),
       role: "user",
       content: trimmed,
-      ...(files.length ? { attachments: files } : {}),
+      ...(persistedFiles.length ? { attachments: persistedFiles } : {}),
       createdAt: now,
     }),
   );

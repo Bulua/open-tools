@@ -19,6 +19,7 @@ import { saveFile } from "@/utils/saveFile";
 import { readLocalImageForPreview, resolveConversationWorkspaceDir } from "../builtinTools";
 import { inferCodeFileName, renderChatMarkdown, type ParsedFileLink } from "../markdown";
 import type { ChatMessage, ChatMessagePart } from "../types";
+import AiToolCallItem from "./AiToolCallItem.vue";
 
 const props = defineProps<{
   message: ChatMessage;
@@ -47,56 +48,6 @@ const expandedGroups = reactive<Record<string, boolean>>({});
 const userToggledGroups = reactive<Record<string, boolean>>({});
 const expandedReasoning = reactive<Record<string, boolean>>({});
 const userToggledReasoning = reactive<Record<string, boolean>>({});
-const expandedTools = reactive<Record<string, boolean>>({});
-const copiedSection = ref("");
-let copiedSectionTimer = 0;
-
-/** 尝试将 JSON 字符串缩进美化，非 JSON 原样返回 */
-function formatStructuredText(raw?: string): string {
-  if (!raw) return "";
-  const trimmed = raw.trim();
-  if (!trimmed) return "";
-  if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
-    try {
-      return JSON.stringify(JSON.parse(trimmed), null, 2);
-    } catch {
-      return raw;
-    }
-  }
-  return raw;
-}
-
-/** 从工具调用参数中提取极简一行摘要，收起时也能一眼看清传参 */
-function summarizeToolArgs(raw?: string): string {
-  if (!raw) return "";
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return "";
-    const entries = Object.entries(parsed as Record<string, unknown>);
-    if (!entries.length) return "";
-    const preview = entries
-      .slice(0, 2)
-      .map(([k, v]) => {
-        const val = typeof v === "string" ? v : JSON.stringify(v);
-        const shortVal = val.length > 36 ? `${val.slice(0, 36)}…` : val;
-        return `${k}: ${shortVal}`;
-      })
-      .join(", ");
-    return entries.length > 2 ? `${preview}, …` : preview;
-  } catch {
-    return "";
-  }
-}
-
-async function copyToolText(key: string, text?: string) {
-  if (!text) return;
-  await copy(text);
-  copiedSection.value = key;
-  clearTimeout(copiedSectionTimer);
-  copiedSectionTimer = window.setTimeout(() => {
-    if (copiedSection.value === key) copiedSection.value = "";
-  }, 1400);
-}
 
 /** 按真实发生顺序排列的分段；旧版未记录 parts 的历史消息自动回退为兼容顺序 */
 const displayParts = computed<ChatMessagePart[]>(() => {
@@ -206,14 +157,37 @@ const toggleReasoning = (partId: string) => {
 const isReasoningItemStreaming = (blockIdx: number, itemIdx: number, itemsLen: number) =>
   isBlockStreaming(blockIdx) && itemIdx === itemsLen - 1;
 
-const toggleToolDetail = (id: string) => {
-  expandedTools[id] = !expandedTools[id];
-};
-
 const renderText = (source: string) => renderChatMarkdown(source);
 
 const assistantRef = ref<HTMLElement>();
+const userImageUrls = reactive<Record<string, string>>({});
 let hydrateSeq = 0;
+
+/** 为用户消息中已落盘的图片附件按需加载缩略图（避免在会话 JSON 里重复存储 base64） */
+async function hydrateUserAttachments() {
+  if (props.message.role !== "user" || !props.message.attachments?.length) return;
+  const targets = props.message.attachments.filter(
+    (att) => att.kind === "image" && !att.dataUrl && Boolean(att.filePath) && !userImageUrls[att.id],
+  );
+  if (!targets.length) return;
+  let wsDir: string;
+  try {
+    wsDir = await resolveConversationWorkspaceDir(props.conversationId || "draft", props.workspaceDir);
+  } catch {
+    return;
+  }
+  await Promise.all(
+    targets.map(async (att) => {
+      if (!att.filePath) return;
+      try {
+        const preview = await readLocalImageForPreview(wsDir, att.filePath);
+        userImageUrls[att.id] = preview.dataUrl;
+      } catch {
+        // 文件可能已被用户手动移走，忽略预览失败
+      }
+    }),
+  );
+}
 
 /** 将 Markdown 中引用的本地 file:// 图片通过后端读取并内联显示 */
 async function hydrateLocalImages() {
@@ -249,7 +223,15 @@ async function hydrateLocalImages() {
 
 onMounted(() => {
   void nextTick(hydrateLocalImages);
+  void hydrateUserAttachments();
 });
+
+watch(
+  [() => props.message.attachments?.map((a) => `${a.id}:${a.filePath ?? ""}`).join(","), () => props.workspaceDir],
+  () => {
+    void hydrateUserAttachments();
+  },
+);
 
 watch(
   [() => displayBlocks.value.map((b) => (b.kind === "text" ? b.text : "")).join("\0"), () => props.workspaceDir],
@@ -385,8 +367,26 @@ async function onMarkdownClick(event: MouseEvent) {
           <template v-else>
             <div v-if="message.attachments?.length" class="user-attachments">
               <div v-for="att in message.attachments" :key="att.id" class="user-att" :class="att.kind">
-                <img v-if="att.kind === 'image' && att.dataUrl" :src="att.dataUrl" :alt="att.name" class="user-att-img" />
-                <span v-else class="user-att-file">
+                <img
+                  v-if="att.kind === 'image' && (att.dataUrl || userImageUrls[att.id])"
+                  :src="att.dataUrl || userImageUrls[att.id]"
+                  :alt="att.name"
+                  :title="att.filePath || att.name"
+                  class="user-att-img"
+                  :class="{ clickable: Boolean(att.filePath) }"
+                  @click="att.filePath && emit('openFile', { path: att.filePath })"
+                />
+                <button
+                  v-else-if="att.filePath && att.kind === 'text'"
+                  type="button"
+                  class="user-att-file clickable"
+                  :title="att.filePath"
+                  @click="emit('openFile', { path: att.filePath })"
+                >
+                  <FileText :size="13" />
+                  <span>{{ att.name }}</span>
+                </button>
+                <span v-else class="user-att-file" :title="att.filePath || att.name">
                   <FileText :size="13" />
                   <span>{{ att.name }}</span>
                 </span>
@@ -485,62 +485,8 @@ async function onMarkdownClick(event: MouseEvent) {
                     </div>
                   </div>
 
-                  <!-- 子项：MCP 工具调用 -->
-                  <div v-else class="tool-call-item">
-                    <button
-                      type="button"
-                      class="tool-summary"
-                      :class="{ open: Boolean(expandedTools[item.call.id]), error: item.call.status === 'error' }"
-                      :aria-expanded="Boolean(expandedTools[item.call.id])"
-                      @click="toggleToolDetail(item.call.id)"
-                    >
-                      <LoaderCircle v-if="item.call.status === 'running'" :size="13" class="spin status-running" />
-                      <span v-else class="status-dot" :class="item.call.status" />
-                      <span class="tool-label">{{ item.call.toolName }}</span>
-                      <span v-if="summarizeToolArgs(item.call.argumentsText)" class="tool-args-preview">
-                        {{ summarizeToolArgs(item.call.argumentsText) }}
-                      </span>
-                      <span v-if="item.call.serverName" class="tool-server">{{ item.call.serverName }}</span>
-                      <ChevronRight :size="13" class="chevron" :class="{ open: Boolean(expandedTools[item.call.id]) }" />
-                    </button>
-
-                    <div class="fold-panel" :class="{ open: Boolean(expandedTools[item.call.id]) }">
-                      <div class="fold-inner">
-                        <div class="tool-card">
-                          <div class="tool-section">
-                            <div class="tool-section-head">
-                              <span class="tool-section-label">{{ t("ai.toolArgs") }}</span>
-                              <button
-                                type="button"
-                                class="tool-copy-btn"
-                                :class="{ ok: copiedSection === `${item.call.id}:args` }"
-                                @click="copyToolText(`${item.call.id}:args`, formatStructuredText(item.call.argumentsText))"
-                              >
-                                {{ copiedSection === `${item.call.id}:args` ? t("ai.copied") : t("common.copy") }}
-                              </button>
-                            </div>
-                            <pre class="tool-pre">{{ formatStructuredText(item.call.argumentsText) || "{}" }}</pre>
-                          </div>
-
-                          <div v-if="item.call.resultText !== undefined" class="tool-section" :class="{ 'is-error': item.call.status === 'error' }">
-                            <div class="tool-section-head">
-                              <span class="tool-section-label">{{ t("ai.toolResult") }}</span>
-                              <button
-                                v-if="item.call.resultText"
-                                type="button"
-                                class="tool-copy-btn"
-                                :class="{ ok: copiedSection === `${item.call.id}:res` }"
-                                @click="copyToolText(`${item.call.id}:res`, formatStructuredText(item.call.resultText))"
-                              >
-                                {{ copiedSection === `${item.call.id}:res` ? t("ai.copied") : t("common.copy") }}
-                              </button>
-                            </div>
-                            <pre class="tool-pre">{{ formatStructuredText(item.call.resultText) }}</pre>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <!-- 子项：工具调用 -->
+                  <AiToolCallItem v-else :call="item.call" />
                 </template>
               </div>
             </div>
@@ -631,6 +577,9 @@ async function onMarkdownClick(event: MouseEvent) {
   object-fit: cover;
   border: 1px solid var(--border);
 }
+.user-att-img.clickable {
+  cursor: zoom-in;
+}
 .user-att-file {
   display: inline-flex;
   align-items: center;
@@ -641,6 +590,14 @@ async function onMarkdownClick(event: MouseEvent) {
   border: 1px solid var(--border);
   font-size: 12px;
   color: var(--text-2);
+}
+.user-att-file.clickable {
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.user-att-file.clickable:hover {
+  border-color: var(--accent);
+  color: var(--text);
 }
 .user-text {
   font-size: 14.5px;
@@ -766,7 +723,7 @@ async function onMarkdownClick(event: MouseEvent) {
 }
 .reasoning-content {
   margin-top: 4px;
-  padding: 2px 0 2px 14px;
+  padding: 2px 6px 2px 14px;
   border-left: 2px solid var(--border);
   font-size: 13px;
   line-height: 1.7;
@@ -774,145 +731,13 @@ async function onMarkdownClick(event: MouseEvent) {
   white-space: pre-wrap;
   word-break: break-word;
   user-select: text;
-}
-
-/* MCP 工具调用：紧凑极简单行 + 单层细线结构卡片 */
-.tool-call-item {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-}
-.tool-call-item .fold-panel {
-  width: 100%;
-}
-
-.tool-summary {
-  max-width: 100%;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 4px 8px 4px 6px;
-  margin-left: -6px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-2);
-  font-size: 12.5px;
-  text-align: left;
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
-}
-.tool-summary:hover,
-.tool-summary.open {
-  background: var(--hover);
-  color: var(--text);
-}
-
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.status-dot.done {
-  background: var(--success);
-}
-.status-dot.error {
-  background: var(--danger);
+  max-height: 220px;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 .status-running {
   color: var(--accent);
   flex-shrink: 0;
-}
-
-.tool-label {
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--text);
-  flex-shrink: 0;
-}
-.tool-summary.error .tool-label {
-  color: var(--danger);
-}
-.tool-args-preview {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  color: var(--text-3);
-}
-.tool-server {
-  flex-shrink: 0;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: var(--bg-sunken);
-  border: 1px solid var(--border);
-  font-size: 10.5px;
-  color: var(--text-3);
-}
-
-.tool-card {
-  margin-top: 4px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg-sunken);
-  overflow: hidden;
-}
-.tool-section + .tool-section {
-  border-top: 1px solid var(--border);
-}
-.tool-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 10px 4px 12px;
-}
-.tool-section-label {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-3);
-}
-.tool-section.is-error .tool-section-label {
-  color: var(--danger);
-}
-.tool-copy-btn {
-  height: 20px;
-  padding: 0 6px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-3);
-  font-size: 11px;
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
-}
-.tool-copy-btn:hover {
-  background: var(--hover);
-  color: var(--text);
-}
-.tool-copy-btn.ok {
-  color: var(--success);
-}
-.tool-pre {
-  margin: 0;
-  padding: 2px 12px 10px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.55;
-  color: var(--text-2);
-  overflow-x: auto;
-  max-height: 240px;
-  white-space: pre;
-  user-select: text;
-}
-.tool-section.is-error .tool-pre {
-  color: var(--danger);
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 
 .assistant-foot {

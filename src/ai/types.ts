@@ -97,11 +97,19 @@ export interface ChatAttachment {
   name: string;
   mimeType: string;
   size: number;
-  kind: "image" | "text";
-  /** 图片类附件的 base64 Data URL */
+  kind: "image" | "text" | "file";
+  /** 落盘在当前会话工作目录 `uploads/` 中的完整路径 */
+  filePath?: string;
+  /** 兼容旧版会话或非桌面运行态的图片 base64 Data URL */
   dataUrl?: string;
-  /** 文本/代码类附件读取出的正文内容 */
+  /** 文本/代码类附件读取出的正文内容（超长时按上限截断） */
   textContent?: string;
+  /** 文本正文是否因超出上下文上限被截断 */
+  truncated?: boolean;
+  /** 仅用于输入框待发送缩略图预览的临时 blob URL（不持久化） */
+  previewUrl?: string;
+  /** 仅用于发送前无损落盘的原始 File 对象（不持久化） */
+  rawFile?: File;
 }
 
 export interface ChatMessage {

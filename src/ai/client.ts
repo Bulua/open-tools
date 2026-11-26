@@ -210,12 +210,35 @@ function splitDataUrl(dataUrl: string): { mimeType: string; base64: string } | n
   return { mimeType: match[1], base64: match[2] };
 }
 
+function formatAttachmentBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function buildTextWithFileAttachments(content: string, attachments?: ChatAttachment[]): string {
-  const textFiles = (attachments ?? []).filter((a) => a.kind === "text" && a.textContent !== undefined);
-  if (!textFiles.length) return content;
-  const blocks = textFiles.map(
-    (file) => `[File: ${file.name}]\n\`\`\`\n${file.textContent}\n\`\`\``,
-  );
+  if (!attachments?.length) return content;
+  const blocks: string[] = [];
+
+  for (const att of attachments) {
+    const pathPart = att.filePath ? `, local path: ${att.filePath}` : "";
+    if (att.kind === "text" && att.textContent !== undefined) {
+      const note = att.truncated
+        ? "\n(Content truncated due to length limit; use read_file on the local path above to inspect remaining lines.)"
+        : "";
+      blocks.push(`[File: ${att.name}${pathPart}]${note}\n\`\`\`\n${att.textContent}\n\`\`\``);
+    } else if (att.kind === "file") {
+      blocks.push(
+        `[Attached file: ${att.name} (type: ${att.mimeType || "application/octet-stream"}, size: ${formatAttachmentBytes(att.size)}${pathPart})]`,
+      );
+    } else if (att.kind === "image" && att.filePath) {
+      blocks.push(
+        `[Attached image: ${att.name} (size: ${formatAttachmentBytes(att.size)}${pathPart})]`,
+      );
+    }
+  }
+
+  if (!blocks.length) return content;
   return content.trim() ? `${blocks.join("\n\n")}\n\n${content}` : blocks.join("\n\n");
 }
 

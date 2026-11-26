@@ -23,6 +23,7 @@ import {
 } from "lucide-vue-next";
 import { usePopover } from "@/composables/usePopover";
 import { showError } from "@/utils/errorToast";
+import { parsePendingFiles, revokeAttachmentPreview } from "../attachments";
 import {
   isImageFilePath,
   pickWorkspaceFolder,
@@ -31,7 +32,6 @@ import {
   resolveConversationWorkspaceDir,
 } from "../builtinTools";
 import type { ParsedFileLink } from "../markdown";
-import { makeEntityId } from "../presets";
 import {
   createImageOutputFile,
   createOutputFileFromSnapshot,
@@ -53,10 +53,6 @@ import AiMessageItem from "./AiMessageItem.vue";
 import AiMessageTimeline from "./AiMessageTimeline.vue";
 import AiModelPicker from "./AiModelPicker.vue";
 import AiOutputsPane from "./AiOutputsPane.vue";
-
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
-const MAX_TEXT_BYTES = 2 * 1024 * 1024;
-const MAX_TEXT_CHARS = 100_000;
 
 const props = defineProps<{
   conversation: Conversation | null;
@@ -369,82 +365,13 @@ watch(
 onBeforeUnmount(() => {
   window.clearTimeout(highlightTimer);
   if (scrollSyncRaf) window.cancelAnimationFrame(scrollSyncRaf);
+  pendingFiles.value.forEach(revokeAttachmentPreview);
 });
 
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ""));
-    reader.onerror = () => reject(reader.error ?? new Error("Failed to read file"));
-    reader.readAsDataURL(file);
-  });
-}
-
-function readFileAsText(file: File): Promise<string> {
-  if (typeof file.text === "function") return file.text();
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ""));
-    reader.onerror = () => reject(reader.error ?? new Error("Failed to read file"));
-    reader.readAsText(file);
-  });
-}
-
-function looksBinary(text: string): boolean {
-  const limit = Math.min(text.length, 2048);
-  let bad = 0;
-  for (let i = 0; i < limit; i++) {
-    const code = text.charCodeAt(i);
-    if (code === 0) return true;
-    if (code < 9 || (code > 13 && code < 32)) bad++;
-  }
-  return limit > 0 && bad / limit > 0.1;
-}
-
 async function addFiles(fileList: FileList | File[]) {
-  for (const file of Array.from(fileList)) {
-    const mime = file.type || "";
-    const isImage = mime.startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp)$/i.test(file.name);
-    try {
-      if (isImage) {
-        if (file.size > MAX_IMAGE_BYTES) {
-          showError(t("ai.errors.fileTooLarge", { name: file.name, limit: "10 MB" }));
-          continue;
-        }
-        const dataUrl = await readFileAsDataUrl(file);
-        pendingFiles.value.push({
-          id: makeEntityId("att"),
-          name: file.name || t("common.pastedImage"),
-          mimeType: mime || "image/png",
-          size: file.size,
-          kind: "image",
-          dataUrl,
-        });
-      } else {
-        if (file.size > MAX_TEXT_BYTES) {
-          showError(t("ai.errors.fileTooLarge", { name: file.name, limit: "2 MB" }));
-          continue;
-        }
-        const rawText = await readFileAsText(file);
-        if (looksBinary(rawText)) {
-          showError(t("ai.errors.unsupportedBinaryFile", { name: file.name }));
-          continue;
-        }
-        const textContent = rawText.length > MAX_TEXT_CHARS
-          ? `${rawText.slice(0, MAX_TEXT_CHARS)}\n…`
-          : rawText;
-        pendingFiles.value.push({
-          id: makeEntityId("att"),
-          name: file.name,
-          mimeType: mime || "text/plain",
-          size: file.size,
-          kind: "text",
-          textContent,
-        });
-      }
-    } catch (error) {
-      showError(error);
-    }
+  const parsed = await parsePendingFiles(fileList);
+  if (parsed.length) {
+    pendingFiles.value.push(...parsed);
   }
 }
 
@@ -461,6 +388,8 @@ async function onFilePicked(event: Event) {
 }
 
 function removeAttachment(id: string) {
+  const target = pendingFiles.value.find((item) => item.id === id);
+  if (target) revokeAttachmentPreview(target);
   pendingFiles.value = pendingFiles.value.filter((item) => item.id !== id);
 }
 
@@ -683,7 +612,7 @@ defineExpose({ focusInput });
             <!-- 待发送附件预览条：仅显示缩略图或文件图标，悬停右上角露出删除按钮 -->
             <div v-if="pendingFiles.length" class="attachment-strip">
               <div v-for="att in pendingFiles" :key="att.id" class="att-chip" :class="att.kind" :title="att.name">
-                <img v-if="att.kind === 'image' && att.dataUrl" :src="att.dataUrl" :alt="att.name" class="att-thumb" />
+                <img v-if="att.kind === 'image' && (att.previewUrl || att.dataUrl)" :src="att.previewUrl || att.dataUrl" :alt="att.name" class="att-thumb" />
                 <FileText v-else :size="20" class="att-icon" />
                 <button
                   type="button"
