@@ -2,7 +2,7 @@ mod core;
 mod tools;
 
 use crate::core::{branding, paths, tray};
-use crate::tools::ai::store as ai_store;
+use crate::tools::ai::{commands as ai, registry as ai_registry, shell as ai_shell};
 use crate::tools::network::mcp_inspector::{commands as mcp, store as mcp_store};
 use crate::tools::{
     audio::tts::commands as tts,
@@ -51,6 +51,8 @@ pub fn run() {
 
     let builder = builder
         .manage(mcp::McpSessions::default())
+        .manage(ai_shell::AiCommandState::default())
+        .manage(ai_registry::AiToolRegistry::with_builtin_tools())
         // 在线更新：检查、下载、安装新版本；安装后重启程序
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init());
@@ -87,12 +89,22 @@ pub fn run() {
             mcp::mcp_call_tool,
             mcp::mcp_get_prompt,
             mcp::mcp_read_resource,
-            ai_store::ai_read_config,
-            ai_store::ai_save_config,
-            ai_store::ai_list_conversations,
-            ai_store::ai_read_conversation,
-            ai_store::ai_save_conversation,
-            ai_store::ai_delete_conversation,
+            ai::ai_read_config,
+            ai::ai_save_config,
+            ai::ai_list_conversations,
+            ai::ai_read_conversation,
+            ai::ai_save_conversation,
+            ai::ai_delete_conversation,
+            ai::ai_workspace_dir,
+            ai::ai_builtin_context,
+            ai::ai_tool_execute,
+            ai::ai_tool_check_path,
+            ai::ai_tool_list_dir,
+            ai::ai_tool_read_file,
+            ai::ai_tool_write_file,
+            ai::ai_tool_edit_file,
+            ai::ai_tool_run_command,
+            ai::ai_tool_cancel_command,
             mqtt::mqtt_connect,
             mqtt::mqtt_disconnect,
             mqtt::mqtt_subscribe,

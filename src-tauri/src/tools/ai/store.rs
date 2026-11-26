@@ -13,8 +13,10 @@ use serde_json::Value;
 use crate::core::dpapi::protect;
 use crate::core::paths;
 
+use super::paths::validate_conv_id;
+
 const AI_DIR: &str = "ai";
-const CONFIG_FILE: &str = "config.dat";
+pub(super) const CONFIG_FILE: &str = "config.dat";
 const CONVERSATIONS_DIR: &str = "conversations";
 const INDEX_FILE: &str = "index.json";
 
@@ -33,18 +35,6 @@ pub(crate) struct ConversationIndexEntry {
     pub(crate) updated_at: i64,
     #[serde(default)]
     pub(crate) message_count: usize,
-}
-
-fn validate_id(id: &str) -> Result<(), String> {
-    let valid = !id.is_empty()
-        && id.len() <= 64
-        && id
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
-    if !valid {
-        return Err("Invalid AI conversation ID.".into());
-    }
-    Ok(())
 }
 
 fn atomic_write(path: &Path, bytes: &[u8], label: &str) -> Result<(), String> {
@@ -69,7 +59,7 @@ fn atomic_write(path: &Path, bytes: &[u8], label: &str) -> Result<(), String> {
     result.map_err(|error| format!("Could not save {label}: {error}"))
 }
 
-fn read_config_from(dir: &Path) -> Result<Option<String>, String> {
+pub(super) fn read_config_from(dir: &Path) -> Result<Option<String>, String> {
     let path = dir.join(CONFIG_FILE);
     let data = match std::fs::read(&path) {
         Ok(data) => data,
@@ -85,7 +75,7 @@ fn read_config_from(dir: &Path) -> Result<Option<String>, String> {
     Ok(Some(text))
 }
 
-fn write_config_to(dir: &Path, data: &str) -> Result<(), String> {
+pub(super) fn write_config_to(dir: &Path, data: &str) -> Result<(), String> {
     serde_json::from_str::<Value>(data)
         .map_err(|error| format!("Invalid AI config JSON: {error}"))?;
     let bytes = data.as_bytes();
@@ -97,11 +87,11 @@ fn write_config_to(dir: &Path, data: &str) -> Result<(), String> {
     atomic_write(&dir.join(CONFIG_FILE), &bytes, "AI config")
 }
 
-fn conversations_dir(dir: &Path) -> PathBuf {
+pub(super) fn conversations_dir(dir: &Path) -> PathBuf {
     dir.join(CONVERSATIONS_DIR)
 }
 
-fn read_index(conv_dir: &Path) -> Result<Vec<ConversationIndexEntry>, String> {
+pub(super) fn read_index(conv_dir: &Path) -> Result<Vec<ConversationIndexEntry>, String> {
     let path = conv_dir.join(INDEX_FILE);
     let text = match std::fs::read_to_string(&path) {
         Ok(text) => text,
@@ -120,8 +110,8 @@ fn write_index(conv_dir: &Path, entries: &[ConversationIndexEntry]) -> Result<()
     atomic_write(&conv_dir.join(INDEX_FILE), &data, "AI conversation index")
 }
 
-fn read_conversation_from(dir: &Path, id: &str) -> Result<Option<String>, String> {
-    validate_id(id)?;
+pub(super) fn read_conversation_from(dir: &Path, id: &str) -> Result<Option<String>, String> {
+    validate_conv_id(id)?;
     let path = conversations_dir(dir).join(format!("{id}.json"));
     match std::fs::read_to_string(&path) {
         Ok(data) => Ok(Some(data)),
@@ -130,12 +120,12 @@ fn read_conversation_from(dir: &Path, id: &str) -> Result<Option<String>, String
     }
 }
 
-fn save_conversation_to(
+pub(super) fn save_conversation_to(
     dir: &Path,
     summary: ConversationIndexEntry,
     data: &str,
 ) -> Result<Vec<ConversationIndexEntry>, String> {
-    validate_id(&summary.id)?;
+    validate_conv_id(&summary.id)?;
     serde_json::from_str::<Value>(data)
         .map_err(|error| format!("Invalid AI conversation JSON: {error}"))?;
     let conv_dir = conversations_dir(dir);
@@ -153,11 +143,11 @@ fn save_conversation_to(
     Ok(index)
 }
 
-fn delete_conversation_from(
+pub(super) fn delete_conversation_from(
     dir: &Path,
     id: &str,
 ) -> Result<Vec<ConversationIndexEntry>, String> {
-    validate_id(id)?;
+    validate_conv_id(id)?;
     let conv_dir = conversations_dir(dir);
     let conv_path = conv_dir.join(format!("{id}.json"));
     match std::fs::remove_file(&conv_path) {
@@ -171,8 +161,7 @@ fn delete_conversation_from(
     Ok(index)
 }
 
-#[tauri::command]
-pub(crate) async fn ai_read_config(app: tauri::AppHandle) -> Result<Option<String>, String> {
+pub(super) async fn ai_read_config_impl(app: tauri::AppHandle) -> Result<Option<String>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let dir = paths::sub_dir(&app, AI_DIR)?;
         let _guard = AI_IO.lock().map_err(|e| e.to_string())?;
@@ -182,8 +171,7 @@ pub(crate) async fn ai_read_config(app: tauri::AppHandle) -> Result<Option<Strin
     .map_err(|error| error.to_string())?
 }
 
-#[tauri::command]
-pub(crate) async fn ai_save_config(app: tauri::AppHandle, data: String) -> Result<(), String> {
+pub(super) async fn ai_save_config_impl(app: tauri::AppHandle, data: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let dir = paths::sub_dir(&app, AI_DIR)?;
         let _guard = AI_IO.lock().map_err(|e| e.to_string())?;
@@ -193,8 +181,7 @@ pub(crate) async fn ai_save_config(app: tauri::AppHandle, data: String) -> Resul
     .map_err(|error| error.to_string())?
 }
 
-#[tauri::command]
-pub(crate) async fn ai_list_conversations(
+pub(super) async fn ai_list_conversations_impl(
     app: tauri::AppHandle,
 ) -> Result<Vec<ConversationIndexEntry>, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -206,8 +193,7 @@ pub(crate) async fn ai_list_conversations(
     .map_err(|error| error.to_string())?
 }
 
-#[tauri::command]
-pub(crate) async fn ai_read_conversation(
+pub(super) async fn ai_read_conversation_impl(
     app: tauri::AppHandle,
     id: String,
 ) -> Result<Option<String>, String> {
@@ -220,8 +206,7 @@ pub(crate) async fn ai_read_conversation(
     .map_err(|error| error.to_string())?
 }
 
-#[tauri::command]
-pub(crate) async fn ai_save_conversation(
+pub(super) async fn ai_save_conversation_impl(
     app: tauri::AppHandle,
     summary: ConversationIndexEntry,
     data: String,
@@ -235,8 +220,7 @@ pub(crate) async fn ai_save_conversation(
     .map_err(|error| error.to_string())?
 }
 
-#[tauri::command]
-pub(crate) async fn ai_delete_conversation(
+pub(super) async fn ai_delete_conversation_impl(
     app: tauri::AppHandle,
     id: String,
 ) -> Result<Vec<ConversationIndexEntry>, String> {
@@ -247,82 +231,4 @@ pub(crate) async fn ai_delete_conversation(
     })
     .await
     .map_err(|error| error.to_string())?
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn config_roundtrip_and_protects_api_key() {
-        let dir = tempfile::tempdir().unwrap();
-        assert_eq!(read_config_from(dir.path()).unwrap(), None);
-
-        let payload = r#"{"version":1,"providers":[{"id":"openai","apiKey":"sk-secret-key-999"}]}"#;
-        write_config_to(dir.path(), payload).unwrap();
-
-        #[cfg(windows)]
-        {
-            let raw = std::fs::read(dir.path().join(CONFIG_FILE)).unwrap();
-            assert!(!raw
-                .windows(b"sk-secret-key-999".len())
-                .any(|slice| slice == b"sk-secret-key-999"));
-        }
-
-        let restored = read_config_from(dir.path()).unwrap().unwrap();
-        assert_eq!(restored, payload);
-    }
-
-    #[test]
-    fn rejects_invalid_conversation_id() {
-        let dir = tempfile::tempdir().unwrap();
-        assert!(read_conversation_from(dir.path(), "../secret").is_err());
-        assert!(read_conversation_from(dir.path(), "").is_err());
-        assert!(delete_conversation_from(dir.path(), "a/b").is_err());
-    }
-
-    #[test]
-    fn conversation_crud_maintains_sorted_index() {
-        let dir = tempfile::tempdir().unwrap();
-        assert!(read_index(&conversations_dir(dir.path())).unwrap().is_empty());
-
-        let first = ConversationIndexEntry {
-            id: "conv_1".into(),
-            title: "First".into(),
-            provider_id: "openai".into(),
-            model_id: "gpt-4o".into(),
-            created_at: 100,
-            updated_at: 200,
-            message_count: 2,
-        };
-        let second = ConversationIndexEntry {
-            id: "conv_2".into(),
-            title: "Second".into(),
-            provider_id: "deepseek".into(),
-            model_id: "deepseek-chat".into(),
-            created_at: 150,
-            updated_at: 300,
-            message_count: 4,
-        };
-
-        save_conversation_to(dir.path(), first.clone(), r#"{"id":"conv_1","messages":[]}"#)
-            .unwrap();
-        let list = save_conversation_to(
-            dir.path(),
-            second.clone(),
-            r#"{"id":"conv_2","messages":[{"role":"user","content":"hi"}]}"#,
-        )
-        .unwrap();
-        assert_eq!(list.len(), 2);
-        assert_eq!(list[0].id, "conv_2");
-        assert_eq!(list[1].id, "conv_1");
-
-        let restored = read_conversation_from(dir.path(), "conv_2").unwrap().unwrap();
-        assert!(restored.contains("hi"));
-
-        let after_delete = delete_conversation_from(dir.path(), "conv_2").unwrap();
-        assert_eq!(after_delete.len(), 1);
-        assert_eq!(after_delete[0].id, "conv_1");
-        assert_eq!(read_conversation_from(dir.path(), "conv_2").unwrap(), None);
-    }
 }
