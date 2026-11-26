@@ -20,6 +20,9 @@ use crate::tools::markdown::notebook::ai_tools::{
 use crate::tools::network::mcp_inspector::ai_tools::{
     McpAddConnectionTool, McpInspectConnectionTool, McpListConnectionsTool,
 };
+use crate::tools::utility::clock::ai_tools::{
+    ClockListTool, ClockManageTool, ClockSetAlarmTool, ClockStartTimerTool,
+};
 
 use super::fs_tools::{EditFileTool, ListDirTool, ReadFileTool, WriteFileTool};
 use super::shell::{AiCommandState, RunCommandTool};
@@ -148,6 +151,10 @@ impl AiToolRegistry {
         registry.register(NotebookSaveTool);
         registry.register(NotebookDeleteTool);
         registry.register(ParseIdCardTool);
+        registry.register(ClockListTool);
+        registry.register(ClockSetAlarmTool);
+        registry.register(ClockStartTimerTool);
+        registry.register(ClockManageTool);
         registry
     }
 
