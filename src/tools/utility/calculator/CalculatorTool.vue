@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { useToolResult } from "@/composables/useToolUsage";
-import { computed, nextTick, ref } from "vue";
+import { nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Delete, Trash2 } from "lucide-vue-next";
 import ToolActions from "@/components/tool/ToolActions.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { useClipboard } from "@/composables/useClipboard";
-import { evaluate, formatResult, type AngleUnit } from "./calculator";
+import { showError } from "@/utils/errorToast";
+import { evaluateExpression, type AngleUnit, type LiveEval } from "./calculator";
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 /**
  * 计算器：可以直接用键盘输入整个算式，也可以点按键；输入时实时显示结果。
  * 回车或「=」把算式记入历史，点历史记录可以再次使用。
@@ -19,14 +20,25 @@ const history = useStoredRef<{ expr: string; result: string }[]>("calculator.his
 const expr = ref("");
 const inputEl = ref<HTMLInputElement>();
 
-const live = computed(() => {
-  if (!expr.value.trim()) return { ok: true as const, text: "" };
-  try {
-    return { ok: true as const, text: formatResult(evaluate(expr.value, angle.value)) };
-  } catch (e) {
-    return { ok: false as const, text: e instanceof Error ? e.message : String(e) };
-  }
-});
+const live = ref<LiveEval>({ ok: true, text: "" });
+let evalSeq = 0;
+
+watch(
+  [expr, angle, locale],
+  ([raw, unit]) => {
+    const seq = ++evalSeq;
+    if (!raw.trim()) {
+      live.value = { ok: true, text: "" };
+      return;
+    }
+    void evaluateExpression(raw, unit)
+      .then((res) => {
+        if (seq === evalSeq) live.value = res;
+      })
+      .catch(showError);
+  },
+  { immediate: true },
+);
 
 const focus = () => nextTick(() => inputEl.value?.focus());
 
@@ -69,12 +81,21 @@ const clear = () => {
 };
 
 /** 计算并记入历史，结果作为下一步的起点 */
-const equals = () => {
-  if (!expr.value.trim() || !live.value.ok) return;
-  const result = live.value.text;
-  history.value = [{ expr: expr.value, result }, ...history.value].slice(0, 50);
-  expr.value = result;
-  moveCaret(result.length);
+const equals = async () => {
+  const currentExpr = expr.value;
+  if (!currentExpr.trim()) return;
+  try {
+    const evaluated = await evaluateExpression(currentExpr, angle.value);
+    if (expr.value !== currentExpr) return;
+    live.value = evaluated;
+    if (!evaluated.ok || !evaluated.text) return;
+    const result = evaluated.text;
+    history.value = [{ expr: currentExpr, result }, ...history.value].slice(0, 50);
+    expr.value = result;
+    moveCaret(result.length);
+  } catch (e) {
+    showError(e);
+  }
 };
 
 const { copy } = useClipboard();
