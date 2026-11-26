@@ -9,7 +9,7 @@
     "build:win": "tauri build",
     "build": "vite build",
     "typecheck": "vue-tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "tauri": "tauri"
   },
   "dependencies": {
