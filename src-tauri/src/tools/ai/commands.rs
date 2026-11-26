@@ -6,7 +6,9 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use image::{GenericImageView, ImageFormat};
 use serde::Serialize;
 use serde_json::Value;
-use tauri::{AppHandle, State};
+use tauri::{ipc::Request, AppHandle, State};
+
+use super::attachments::{save_attachment_from_request, SavedAttachment};
 
 use super::fs_tools::{
     edit_file_impl, list_dir_impl, read_file_impl, write_file_impl, EditFileResult, ListDirResult,
@@ -82,6 +84,11 @@ pub(crate) async fn ai_delete_conversation(
 #[tauri::command]
 pub(crate) fn ai_workspace_dir(app: AppHandle, conversation_id: String) -> Result<String, String> {
     ensure_conversation_workspace_dir(&app, &conversation_id)
+}
+
+#[tauri::command]
+pub(crate) fn ai_save_attachment(request: Request<'_>) -> Result<SavedAttachment, String> {
+    save_attachment_from_request(request)
 }
 
 #[tauri::command]

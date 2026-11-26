@@ -99,6 +99,7 @@ pub fn run() {
             ai::ai_save_conversation,
             ai::ai_delete_conversation,
             ai::ai_workspace_dir,
+            ai::ai_save_attachment,
             ai::ai_builtin_context,
             ai::ai_tool_execute,
             ai::ai_tool_check_path,

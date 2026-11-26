@@ -155,6 +155,11 @@ pub(super) fn delete_conversation_from(
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => return Err(format!("Could not delete AI conversation: {error}")),
     }
+    // 同步清理程序内置的默认会话工作目录（不触碰用户自选的外部目录）
+    let default_ws = dir.join("workspaces").join(id);
+    if default_ws.is_dir() {
+        let _ = std::fs::remove_dir_all(&default_ws);
+    }
     let mut index = read_index(&conv_dir)?;
     index.retain(|item| item.id != id);
     write_index(&conv_dir, &index)?;

@@ -1,4 +1,5 @@
 pub(crate) mod args;
+pub(crate) mod attachments;
 pub(crate) mod commands;
 pub(crate) mod fs_tools;
 pub(crate) mod paths;
