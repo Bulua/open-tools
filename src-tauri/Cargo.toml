@@ -41,6 +41,8 @@ zip = { version = "9.2.2", default-features = false, features = ["deflate"] }
 encoding_rs = "0.8"
 # 校验下载的 AI 模型和运行环境
 sha2 = "0.10"
+# 图片编解码、缩放裁剪与格式转换（供 AI 图片工具复用）
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "bmp", "gif", "ico", "tiff"] }
 # 运行 AI 模型：运行库（onnxruntime.dll 等）随安装包放在安装目录的 ai-runtime 里，运行时动态加载（见 src/tools/image/shared/inference.rs）
 # api-24：运行库是 ONNX Runtime 1.24（带 DirectML 的最后一个版本），只用它支持的接口
 ort = { version = "=2.0.0-rc.15", default-features = false, features = ["std", "load-dynamic", "api-24"] }

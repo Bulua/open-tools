@@ -14,6 +14,9 @@ use serde_json::Value;
 use tauri::AppHandle;
 
 use crate::tools::encode::id_card::ai_tools::ParseIdCardTool;
+use crate::tools::image::shared::ai_tools::{
+    ImageInfoTool, ImageProcessTool, ImageRemoveBgTool, ImageStitchTool, ImageToIcoTool,
+};
 use crate::tools::markdown::notebook::ai_tools::{
     NotebookDeleteTool, NotebookListTool, NotebookReadTool, NotebookSaveTool,
 };
@@ -50,12 +53,16 @@ pub(crate) struct AiToolDefinition {
     pub(crate) approval: ToolApprovalPolicy,
 }
 
-/// 写/改文件类工具成功完成后附带的文件快照，供前端右侧「输出内容」自动展示
+/// 写/改文件或生成图片类工具成功完成后附带的文件快照，供前端右侧「输出内容」自动展示
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct AiToolOutputFile {
     pub(crate) path: String,
     pub(crate) content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) kind: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) size_bytes: Option<u64>,
 }
 
 /// 统一的工具执行返回结构
@@ -88,6 +95,25 @@ impl AiToolResult {
             output_file: Some(AiToolOutputFile {
                 path: path.into(),
                 content: content.into(),
+                kind: None,
+                size_bytes: None,
+            }),
+        }
+    }
+
+    pub(crate) fn ok_with_image(
+        text: impl Into<String>,
+        path: impl Into<String>,
+        size_bytes: u64,
+    ) -> Self {
+        Self {
+            text: text.into(),
+            is_error: false,
+            output_file: Some(AiToolOutputFile {
+                path: path.into(),
+                content: String::new(),
+                kind: Some("image"),
+                size_bytes: Some(size_bytes),
             }),
         }
     }
@@ -157,6 +183,11 @@ impl AiToolRegistry {
         registry.register(ClockStartTimerTool);
         registry.register(ClockManageTool);
         registry.register(CalculateTool);
+        registry.register(ImageInfoTool);
+        registry.register(ImageProcessTool);
+        registry.register(ImageStitchTool);
+        registry.register(ImageToIcoTool);
+        registry.register(ImageRemoveBgTool);
         registry
     }
 

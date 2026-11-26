@@ -104,6 +104,7 @@ pub fn run() {
             ai::ai_tool_check_path,
             ai::ai_tool_list_dir,
             ai::ai_tool_read_file,
+            ai::ai_tool_read_image,
             ai::ai_tool_write_file,
             ai::ai_tool_edit_file,
             ai::ai_tool_run_command,

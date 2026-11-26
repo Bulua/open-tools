@@ -1,5 +1,9 @@
 //! AI 模块所有 Tauri IPC 命令入口（持久化、系统提示词上下文、工具统一执行与工作区辅助）。
 
+use std::io::Cursor;
+
+use base64::{engine::general_purpose::STANDARD, Engine};
+use image::{GenericImageView, ImageFormat};
 use serde::Serialize;
 use serde_json::Value;
 use tauri::{AppHandle, State};
@@ -147,6 +151,124 @@ pub(crate) fn ai_tool_list_dir(
     max_entries: Option<usize>,
 ) -> Result<ListDirResult, String> {
     list_dir_impl(&workspace_dir, path.as_deref(), max_entries)
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ReadImageResult {
+    pub(crate) path: String,
+    pub(crate) mime_type: String,
+    /// 可直接用于 `<img>` 展示的 Data URL（TIFF 等浏览器不支持的格式会自动转为 PNG 预览）
+    pub(crate) data_url: String,
+    /// 原始文件字节的 Base64（用于下载原文件，留空时直接复用 `data_url`）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) raw_base64: Option<String>,
+    pub(crate) size_bytes: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) width: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) height: Option<u32>,
+}
+
+const MAX_PREVIEW_IMAGE_BYTES: u64 = 24 * 1024 * 1024;
+
+fn mime_for_image_ext(ext: &str) -> Option<&'static str> {
+    match ext {
+        "png" => Some("image/png"),
+        "jpg" | "jpeg" => Some("image/jpeg"),
+        "webp" => Some("image/webp"),
+        "gif" => Some("image/gif"),
+        "bmp" => Some("image/bmp"),
+        "ico" => Some("image/x-icon"),
+        "svg" => Some("image/svg+xml"),
+        "avif" => Some("image/avif"),
+        "tif" | "tiff" => Some("image/tiff"),
+        _ => None,
+    }
+}
+
+#[tauri::command]
+pub(crate) async fn ai_tool_read_image(
+    workspace_dir: String,
+    path: String,
+) -> Result<ReadImageResult, String> {
+    if path.trim().is_empty() {
+        return Err("Image path is required.".into());
+    }
+    let (_root, target, _outside) = resolve_target_path(&workspace_dir, Some(&path))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let meta = std::fs::metadata(&target)
+            .map_err(|err| format!("Could not access image {}: {err}", target.display()))?;
+        if meta.is_dir() {
+            return Err(format!("Path is a directory, not an image: {}", target.display()));
+        }
+        if meta.len() > MAX_PREVIEW_IMAGE_BYTES {
+            return Err(format!(
+                "Image is too large to preview ({} bytes, limit {} bytes).",
+                meta.len(),
+                MAX_PREVIEW_IMAGE_BYTES
+            ));
+        }
+        let bytes = std::fs::read(&target)
+            .map_err(|err| format!("Could not read image {}: {err}", target.display()))?;
+        let ext = target
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_ascii_lowercase())
+            .unwrap_or_default();
+        let guessed = image::guess_format(&bytes).ok();
+        let mime = match guessed {
+            Some(ImageFormat::Png) => "image/png",
+            Some(ImageFormat::Jpeg) => "image/jpeg",
+            Some(ImageFormat::WebP) => "image/webp",
+            Some(ImageFormat::Gif) => "image/gif",
+            Some(ImageFormat::Bmp) => "image/bmp",
+            Some(ImageFormat::Ico) => "image/x-icon",
+            Some(ImageFormat::Tiff) => "image/tiff",
+            _ => mime_for_image_ext(&ext)
+                .ok_or_else(|| format!("Unsupported image file: {}", target.display()))?,
+        };
+
+        let dims = image::image_dimensions(&target).ok();
+        let (width, height) = match dims {
+            Some((w, h)) => (Some(w), Some(h)),
+            None => (None, None),
+        };
+
+        // 浏览器无法直接渲染 TIFF，转成 PNG 供预览并保留原始字节供下载
+        let (data_url, raw_base64) = if mime == "image/tiff" {
+            let decoded = image::load_from_memory_with_format(&bytes, ImageFormat::Tiff)
+                .map_err(|e| format!("Failed to decode TIFF image: {e}"))?;
+            let (dw, dh) = decoded.dimensions();
+            let mut png = Vec::new();
+            decoded
+                .write_to(&mut Cursor::new(&mut png), ImageFormat::Png)
+                .map_err(|e| format!("Failed to render TIFF preview: {e}"))?;
+            return Ok(ReadImageResult {
+                path: target.to_string_lossy().to_string(),
+                mime_type: mime.to_string(),
+                data_url: format!("data:image/png;base64,{}", STANDARD.encode(&png)),
+                raw_base64: Some(STANDARD.encode(&bytes)),
+                size_bytes: bytes.len() as u64,
+                width: Some(dw),
+                height: Some(dh),
+            });
+        } else {
+            (format!("data:{mime};base64,{}", STANDARD.encode(&bytes)), None)
+        };
+
+        Ok(ReadImageResult {
+            path: target.to_string_lossy().to_string(),
+            mime_type: mime.to_string(),
+            data_url,
+            raw_base64,
+            size_bytes: bytes.len() as u64,
+            width,
+            height,
+        })
+    })
+    .await
+    .map_err(|e| format!("Failed to load image preview: {e}"))?
 }
 
 #[tauri::command]

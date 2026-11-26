@@ -187,6 +187,32 @@ pub async fn ai_run(app: AppHandle, request: Request<'_>) -> Result<Response, St
         .map(Response::new)
 }
 
+/// 供 Rust 内部模块（如 AI 抠图工具）直接复用的 float32 模型推理接口，共享同一份会话缓存。
+pub(crate) fn run_f32(
+    app: &AppHandle,
+    id: &str,
+    inputs: Vec<(Vec<usize>, Vec<f32>)>,
+) -> Result<Vec<f32>, String> {
+    let path = ai_models::model_path(app, id)?;
+    let env = environment(app)?;
+    let mut sessions = SESSIONS.lock().map_err(err)?;
+    let session = match sessions.entry(id.to_string()) {
+        Entry::Occupied(e) => e.into_mut(),
+        Entry::Vacant(e) => e.insert(load(env, &path)?),
+    };
+    let values = inputs
+        .into_iter()
+        .map(|(shape, data)| to_tensor(shape, Data::F32(data)).map(SessionInputValue::from))
+        .collect::<Result<Vec<_>, _>>()?;
+    let outputs = session
+        .run(values.as_slice())
+        .map_err(|e| format!("The model failed to run: {e}"))?;
+    let (_, data) = outputs[0]
+        .try_extract_tensor::<f32>()
+        .map_err(|e| format!("Expected float32 model output: {e}"))?;
+    Ok(data.to_vec())
+}
+
 /// 释放已加载的模型（删除模型文件前调用）
 pub fn unload(id: &str) {
     if let Ok(mut sessions) = SESSIONS.lock() {
