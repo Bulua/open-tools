@@ -1,6 +1,13 @@
 import { computed, reactive, ref } from "vue";
 import { locale, t } from "@/locales";
 import { showError } from "@/utils/errorToast";
+import {
+  checkBuiltinToolPath,
+  invokeBuiltinTool,
+  loadBuiltinAiContext,
+  setBuiltinContextTestProvider,
+  setBuiltinToolTestExecutor,
+} from "./builtinTools";
 import { streamChat, type PromptTurn, type ToolDefinition } from "./client";
 import {
   collectEnabledMcpTools,
@@ -29,6 +36,7 @@ import {
 } from "./storage";
 import type {
   AiConfig,
+  AiConversationMeta,
   AiFolder,
   ChatAttachment,
   ChatMessage,
@@ -37,11 +45,14 @@ import type {
   ConfiguredModel,
   Conversation,
   ConversationSummary,
+  ExecutionPolicy,
   ModelOption,
+  PendingToolApproval,
   ThinkingEffort,
+  ToolApprovalDecision,
 } from "./types";
 
-const MAX_TOOL_ROUNDS = 8;
+const MAX_TOOL_ROUNDS = 16;
 
 function makeTitleFromText(text: string): string {
   const clean = text.replace(/\s+/g, " ").trim();
@@ -55,13 +66,15 @@ const activeConversationId = ref<string>("");
 const conversationCache = reactive<Record<string, Conversation>>({});
 const streamingIds = reactive<Record<string, boolean>>({});
 const activeControllers = new Map<string, AbortController>();
+const pendingApprovals = reactive<Record<string, PendingToolApproval>>({});
+const approvalResolvers = new Map<string, (decision: ToolApprovalDecision) => void>();
+const sessionApprovals = reactive<Record<string, { allowCommand: boolean; allowExternalWrite: boolean }>>({});
 
 /** 尚未发送首条消息时的草稿会话设置 */
 const draft = reactive({
   modelConfigId: "",
-  promptPresetId: "",
-  systemPrompt: "",
-  temperature: null as number | null,
+  workspaceDir: "",
+  executionPolicy: "review" as ExecutionPolicy,
   pinned: false,
   folderId: "",
 });
@@ -122,37 +135,103 @@ export const currentModelConfigId = computed<string>(() => {
   return resolveFallbackModel()?.id ?? "";
 });
 
-export const currentPromptPresetId = computed<string>(() => {
-  const conv = activeConversation.value;
-  return conv ? (conv.promptPresetId ?? "") : draft.promptPresetId;
-});
-
-export const currentSystemPrompt = computed<string>(() => {
-  const conv = activeConversation.value;
-  return conv ? conv.systemPrompt : draft.systemPrompt;
-});
-
-export const currentTemperature = computed<number | null>(() => {
-  const conv = activeConversation.value;
-  return conv ? conv.temperature : draft.temperature;
-});
-
 export const isCurrentStreaming = computed<boolean>(() => {
   const id = activeConversationId.value;
   return Boolean(id && streamingIds[id]);
+});
+
+export const currentWorkspaceDir = computed<string>(() => {
+  const conv = activeConversation.value;
+  return conv ? (conv.workspaceDir ?? "") : draft.workspaceDir;
+});
+
+export const currentExecutionPolicy = computed<ExecutionPolicy>(() => {
+  const conv = activeConversation.value;
+  return conv ? (conv.executionPolicy ?? "review") : draft.executionPolicy;
+});
+
+export const currentPendingApproval = computed<PendingToolApproval | null>(() => {
+  const id = activeConversationId.value;
+  return id ? (pendingApprovals[id] ?? null) : null;
 });
 
 export function isConversationStreaming(id: string): boolean {
   return Boolean(streamingIds[id]);
 }
 
-function defaultSystemPromptText(): string {
-  const presetId = config.value.settings.defaultPromptId;
-  if (presetId) {
-    const preset = config.value.prompts.find((p) => p.id === presetId);
-    if (preset?.content.trim()) return preset.content.trim();
+function getSessionApproval(conversationId: string) {
+  if (!sessionApprovals[conversationId]) {
+    sessionApprovals[conversationId] = { allowCommand: false, allowExternalWrite: false };
   }
-  return config.value.settings.systemPrompt.trim();
+  return sessionApprovals[conversationId];
+}
+
+export function resolveToolApproval(conversationId: string, decision: ToolApprovalDecision): void {
+  const pending = pendingApprovals[conversationId];
+  if (pending && decision === "session") {
+    const perms = getSessionApproval(conversationId);
+    perms.allowCommand = true;
+    perms.allowExternalWrite = true;
+    const conv = conversationCache[conversationId];
+    if (conv && conv.executionPolicy !== "auto") {
+      conv.executionPolicy = "auto";
+      conv.updatedAt = Date.now();
+      void persistConversation(conv);
+    }
+  }
+  delete pendingApprovals[conversationId];
+  const resolver = approvalResolvers.get(conversationId);
+  if (resolver) {
+    approvalResolvers.delete(conversationId);
+    resolver(decision);
+  }
+}
+
+export async function setCurrentExecutionPolicy(policy: ExecutionPolicy): Promise<void> {
+  const conv = activeConversation.value;
+  if (!conv) {
+    draft.executionPolicy = policy;
+    return;
+  }
+  conv.executionPolicy = policy;
+  const perms = getSessionApproval(conv.id);
+  perms.allowCommand = policy === "auto";
+  perms.allowExternalWrite = policy === "auto";
+  if (policy === "auto" && pendingApprovals[conv.id]) {
+    resolveToolApproval(conv.id, "once");
+  }
+  conv.updatedAt = Date.now();
+  await persistConversation(conv);
+}
+
+function requestToolApproval(
+  approval: PendingToolApproval,
+  signal: AbortSignal,
+): Promise<ToolApprovalDecision> {
+  if (signal.aborted) return Promise.resolve("deny");
+  return new Promise((resolve) => {
+    const onAbort = () => {
+      resolveToolApproval(approval.conversationId, "deny");
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    approvalResolvers.set(approval.conversationId, (decision) => {
+      signal.removeEventListener("abort", onAbort);
+      resolve(decision);
+    });
+    pendingApprovals[approval.conversationId] = approval;
+  });
+}
+
+export async function setCurrentWorkspaceDir(dir: string): Promise<void> {
+  const trimmed = dir.trim();
+  const conv = activeConversation.value;
+  if (!conv) {
+    draft.workspaceDir = trimmed;
+    return;
+  }
+  conv.workspaceDir = trimmed || undefined;
+  conv.updatedAt = Date.now();
+  await persistConversation(conv);
 }
 
 export async function initAiStore(): Promise<void> {
@@ -170,9 +249,6 @@ export async function initAiStore(): Promise<void> {
       conversations.value = list;
       const fallback = resolveFallbackModel();
       draft.modelConfigId = fallback?.id ?? "";
-      draft.promptPresetId = config.value.settings.defaultPromptId;
-      draft.systemPrompt = "";
-      draft.temperature = null;
 
       if (list.length > 0) {
         await selectConversation(list[0].id);
@@ -218,9 +294,8 @@ export function startNewConversation(target?: { pinned?: boolean; folderId?: str
   activeConversationId.value = "";
   const fallback = resolveFallbackModel();
   draft.modelConfigId = fallback?.id ?? "";
-  draft.promptPresetId = config.value.settings.defaultPromptId;
-  draft.systemPrompt = "";
-  draft.temperature = null;
+  draft.workspaceDir = "";
+  draft.executionPolicy = "review";
   const folder = target?.folderId
     ? config.value.folders.find((f) => f.id === target.folderId)
     : undefined;
@@ -244,9 +319,6 @@ export async function createConversationInFolder(folderId: string): Promise<void
     modelConfigId: fallback?.id ?? "",
     providerId: fallback?.providerId ?? "",
     modelId: fallback?.modelId ?? "",
-    promptPresetId: config.value.settings.defaultPromptId,
-    systemPrompt: "",
-    temperature: null,
     createdAt: now,
     updatedAt: now,
     messageCount: 0,
@@ -288,11 +360,26 @@ export function toggleFolder(id: string): void {
   void persistConfig();
 }
 
+export function sortConversationsByMeta(
+  list: readonly ConversationSummary[],
+  metaMap: Readonly<Record<string, AiConversationMeta>>,
+): ConversationSummary[] {
+  return [...list].sort((a, b) => {
+    const oa = metaMap[a.id]?.order;
+    const ob = metaMap[b.id]?.order;
+    if (oa !== undefined && ob !== undefined && oa !== ob) return oa - ob;
+    if (oa !== undefined && ob === undefined) return -1;
+    if (oa === undefined && ob !== undefined) return 1;
+    return b.updatedAt - a.updatedAt;
+  });
+}
+
 export function deleteFolder(id: string): void {
   config.value.folders = config.value.folders.filter((f) => f.id !== id);
   for (const [convId, meta] of Object.entries(config.value.conversationMeta)) {
     if (meta.folderId === id) {
       delete meta.folderId;
+      delete meta.order;
       if (!meta.pinned) delete config.value.conversationMeta[convId];
     }
   }
@@ -314,14 +401,48 @@ export function togglePinConversation(id: string): void {
 
 export function moveConversation(
   id: string,
-  target: { pinned: boolean; folderId?: string },
+  target: { pinned: boolean; folderId?: string; beforeId?: string; afterId?: string },
 ): void {
   const folder = target.folderId
     ? config.value.folders.find((f) => f.id === target.folderId)
     : undefined;
   const pinned = folder ? folder.pinned : target.pinned;
   const folderId = folder?.id;
-  if (!pinned && !folderId) {
+
+  // 先取出目标分组中除当前项之外的已有会话（保持现有展示顺序）
+  const siblings = sortConversationsByMeta(
+    conversations.value.filter((item) => {
+      if (item.id === id) return false;
+      const meta = config.value.conversationMeta[item.id];
+      return Boolean(meta?.pinned) === pinned && (meta?.folderId ?? undefined) === folderId;
+    }),
+    config.value.conversationMeta,
+  );
+
+  const orderedIds = siblings.map((item) => item.id);
+  const beforeIdx = target.beforeId ? orderedIds.indexOf(target.beforeId) : -1;
+  const afterIdx = target.afterId ? orderedIds.indexOf(target.afterId) : -1;
+
+  if (beforeIdx >= 0) {
+    orderedIds.splice(beforeIdx, 0, id);
+  } else if (afterIdx >= 0) {
+    orderedIds.splice(afterIdx + 1, 0, id);
+  } else {
+    orderedIds.unshift(id);
+  }
+
+  // 是否需要写入显式排序（当存在目标定位或该分组内有多项时按新顺序固化）
+  const shouldWriteOrder = Boolean(target.beforeId || target.afterId) || orderedIds.some((cid) => config.value.conversationMeta[cid]?.order !== undefined);
+
+  if (shouldWriteOrder) {
+    orderedIds.forEach((cid, idx) => {
+      config.value.conversationMeta[cid] = {
+        ...(pinned ? { pinned: true } : {}),
+        ...(folderId ? { folderId } : {}),
+        order: idx,
+      };
+    });
+  } else if (!pinned && !folderId) {
     delete config.value.conversationMeta[id];
   } else {
     config.value.conversationMeta[id] = {
@@ -329,6 +450,7 @@ export function moveConversation(
       ...(folderId ? { folderId } : {}),
     };
   }
+
   if (folder?.collapsed) {
     folder.collapsed = false;
   }
@@ -350,25 +472,6 @@ export async function setCurrentModel(modelConfigId: string, effort?: ThinkingEf
   conv.modelConfigId = model.id;
   conv.providerId = model.providerId;
   conv.modelId = model.modelId;
-  conv.updatedAt = Date.now();
-  await persistConversation(conv);
-}
-
-export async function setCurrentConversationOverrides(patch: {
-  promptPresetId?: string;
-  systemPrompt?: string;
-  temperature?: number | null;
-}): Promise<void> {
-  const conv = activeConversation.value;
-  if (!conv) {
-    if (patch.promptPresetId !== undefined) draft.promptPresetId = patch.promptPresetId;
-    if (patch.systemPrompt !== undefined) draft.systemPrompt = patch.systemPrompt;
-    if (patch.temperature !== undefined) draft.temperature = patch.temperature;
-    return;
-  }
-  if (patch.promptPresetId !== undefined) conv.promptPresetId = patch.promptPresetId;
-  if (patch.systemPrompt !== undefined) conv.systemPrompt = patch.systemPrompt;
-  if (patch.temperature !== undefined) conv.temperature = patch.temperature;
   conv.updatedAt = Date.now();
   await persistConversation(conv);
 }
@@ -407,6 +510,7 @@ export async function renameConversation(id: string, title: string): Promise<voi
 export async function removeConversation(id: string): Promise<void> {
   stopStreaming(id);
   delete conversationCache[id];
+  delete sessionApprovals[id];
   if (config.value.conversationMeta[id]) {
     delete config.value.conversationMeta[id];
     void persistConfig();
@@ -425,6 +529,7 @@ export async function removeConversation(id: string): Promise<void> {
 
 export function stopStreaming(conversationId = activeConversationId.value): void {
   if (!conversationId) return;
+  resolveToolApproval(conversationId, "deny");
   const controller = activeControllers.get(conversationId);
   if (controller) {
     controller.abort();
@@ -436,22 +541,11 @@ function buildContextTurns(messages: ChatMessage[], excludeId: string): PromptTu
   const valid = messages.filter(
     (m) => m.id !== excludeId && !m.error && (m.content.trim().length > 0 || Boolean(m.attachments?.length)),
   );
-  const limit = config.value.settings.contextMessages;
-  const sliced = limit > 0 && valid.length > limit ? valid.slice(valid.length - limit) : valid;
-  return sliced.map((m) =>
+  return valid.map((m) =>
     m.role === "user"
       ? { role: "user", content: m.content, attachments: m.attachments }
       : { role: "assistant", content: m.content },
   );
-}
-
-function resolveConversationSystemPrompt(conv: Conversation): string {
-  if (conv.systemPrompt.trim()) return conv.systemPrompt.trim();
-  if (conv.promptPresetId) {
-    const preset = config.value.prompts.find((p) => p.id === conv.promptPresetId);
-    if (preset?.content.trim()) return preset.content.trim();
-  }
-  return defaultSystemPromptText();
 }
 
 function parseJsonObjectSafe(raw: string): Record<string, unknown> {
@@ -512,17 +606,26 @@ async function runAssistantTurn(conv: Conversation, fetchImpl?: typeof fetch): P
 
   try {
     const turns = buildContextTurns(conv.messages, assistantMsg.id);
-    const systemPrompt = resolveConversationSystemPrompt(conv);
-    const temperature = conv.temperature ?? config.value.settings.temperature;
+    // 系统提示词与已注册的内置工具声明统一由 Rust 后端返回
+    const builtinCtx = await loadBuiltinAiContext(conv.id, conv.workspaceDir);
+    const workspaceDir = builtinCtx.workspaceDir;
+    const systemPrompt = builtinCtx.systemPrompt;
+    const builtinByName = new Map(builtinCtx.tools.map((tool) => [tool.name, tool]));
+    const builtinToolDefs: ToolDefinition[] = builtinCtx.tools.map(({ name, description, parameters }) => ({
+      name,
+      description,
+      parameters,
+    }));
 
-    // 汇总已启用的 MCP 工具
+    // 汇总内置本地工具与已启用的 MCP 工具
     const mcpEntries: ActiveMcpToolEntry[] = await collectEnabledMcpTools(config.value.enabledMcpIds);
     const mcpByFn = new Map(mcpEntries.map((entry) => [entry.functionName, entry]));
-    const toolDefs: ToolDefinition[] = mcpEntries.map((entry) => ({
+    const mcpToolDefs: ToolDefinition[] = mcpEntries.map((entry) => ({
       name: entry.functionName,
       description: entry.tool.description || entry.tool.title || entry.tool.name,
       parameters: entry.tool.inputSchema ?? { type: "object", properties: {} },
     }));
+    const toolDefs: ToolDefinition[] = [...builtinToolDefs, ...mcpToolDefs];
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       let roundContent = "";
@@ -536,10 +639,8 @@ async function runAssistantTurn(conv: Conversation, fetchImpl?: typeof fetch): P
         modelId: model.modelId,
         messages: turns,
         systemPrompt: systemPrompt || undefined,
-        temperature,
-        maxTokens: config.value.settings.maxTokens,
+        maxTokens: model.maxTokens ?? null,
         thinkingEffort: resolveThinkingEffort(model),
-        stream: config.value.settings.stream,
         tools: toolDefs.length ? toolDefs : undefined,
         signal: controller.signal,
         fetchImpl,
@@ -566,6 +667,91 @@ async function runAssistantTurn(conv: Conversation, fetchImpl?: typeof fetch): P
 
       for (const call of result.toolCalls) {
         if (controller.signal.aborted) break;
+
+        const builtinTool = builtinByName.get(call.name);
+        if (builtinTool) {
+          const parsedArgs = parseJsonObjectSafe(call.argumentsText);
+          const uiCall = reactive<ChatToolCall>({
+            id: call.id,
+            serverId: "__builtin__",
+            serverName: t("ai.builtinToolBadge"),
+            toolName: call.name,
+            argumentsText: call.argumentsText || "{}",
+            status: "running",
+          });
+          assistantMsg.toolCalls!.push(uiCall);
+          assistantMsg.parts!.push({ id: makeEntityId("prt"), type: "tool", call: uiCall });
+
+          let toolResultText = "";
+          let approved = true;
+
+          // 按后端工具声明的 approval 策略进行安全确认，新扩展工具自动遵循同一链路
+          const autoAll = conv.executionPolicy === "auto";
+          if (builtinTool.approval === "command" && !autoAll && !sessionApprovals[conv.id]?.allowCommand) {
+            const cmdStr = typeof parsedArgs.command === "string" ? parsedArgs.command : call.argumentsText;
+            const shellStr = typeof parsedArgs.shell === "string" && parsedArgs.shell.trim() ? parsedArgs.shell.trim() : "powershell";
+            const cwdStr = typeof parsedArgs.cwd === "string" && parsedArgs.cwd.trim() ? parsedArgs.cwd.trim() : workspaceDir;
+            const decision = await requestToolApproval(
+              {
+                id: call.id,
+                conversationId: conv.id,
+                toolName: call.name,
+                kind: "command",
+                command: cmdStr,
+                shell: shellStr,
+                cwd: cwdStr,
+              },
+              controller.signal,
+            );
+            approved = decision !== "deny";
+          } else if (
+            builtinTool.approval === "externalWrite" &&
+            !autoAll &&
+            !sessionApprovals[conv.id]?.allowExternalWrite &&
+            typeof parsedArgs.path === "string" &&
+            parsedArgs.path.trim()
+          ) {
+            const check = await checkBuiltinToolPath(workspaceDir, parsedArgs.path);
+            if (check.outsideWorkspace) {
+              const decision = await requestToolApproval(
+                {
+                  id: call.id,
+                  conversationId: conv.id,
+                  toolName: call.name,
+                  kind: "externalWrite",
+                  targetPath: check.resolvedPath,
+                },
+                controller.signal,
+              );
+              approved = decision !== "deny";
+            }
+          }
+
+          if (!approved || controller.signal.aborted) {
+            uiCall.status = "error";
+            toolResultText = controller.signal.aborted
+              ? "Tool execution cancelled by user."
+              : "User denied permission to run this tool.";
+            uiCall.resultText = toolResultText;
+          } else {
+            const res = await invokeBuiltinTool(call.name, parsedArgs, workspaceDir, controller.signal);
+            toolResultText = res.text;
+            uiCall.status = res.isError ? "error" : "done";
+            uiCall.resultText = toolResultText;
+            if (!res.isError && res.outputFile) {
+              uiCall.outputFile = res.outputFile;
+            }
+          }
+
+          turns.push({
+            role: "tool",
+            toolCallId: call.id,
+            toolName: call.name,
+            content: toolResultText,
+          });
+          continue;
+        }
+
         const entry = mcpByFn.get(call.name);
         const uiCall = reactive<ChatToolCall>({
           id: call.id,
@@ -659,9 +845,8 @@ export async function sendMessage(
       modelConfigId: model.id,
       providerId: model.providerId,
       modelId: model.modelId,
-      promptPresetId: draft.promptPresetId,
-      systemPrompt: draft.systemPrompt,
-      temperature: draft.temperature,
+      ...(draft.workspaceDir ? { workspaceDir: draft.workspaceDir } : {}),
+      ...(draft.executionPolicy === "auto" ? { executionPolicy: "auto" as const } : {}),
       createdAt: now,
       updatedAt: now,
       messageCount: 0,
@@ -753,18 +938,23 @@ export async function clearConversationMessages(): Promise<void> {
 }
 
 export function resetAiStoreForTest(): void {
+  for (const id of Object.keys(pendingApprovals)) {
+    resolveToolApproval(id, "deny");
+  }
   for (const controller of activeControllers.values()) controller.abort();
   activeControllers.clear();
   for (const key of Object.keys(streamingIds)) delete streamingIds[key];
   for (const key of Object.keys(conversationCache)) delete conversationCache[key];
+  for (const key of Object.keys(sessionApprovals)) delete sessionApprovals[key];
+  setBuiltinToolTestExecutor(null);
+  setBuiltinContextTestProvider(null);
   resetMcpStateForTest();
   config.value = createDefaultConfig();
   conversations.value = [];
   activeConversationId.value = "";
   draft.modelConfigId = "";
-  draft.promptPresetId = "";
-  draft.systemPrompt = "";
-  draft.temperature = null;
+  draft.workspaceDir = "";
+  draft.executionPolicy = "review";
   draft.pinned = false;
   draft.folderId = "";
   initialized.value = false;
@@ -780,9 +970,9 @@ export function useAiStore() {
     activeConversation,
     availableModels,
     currentModelConfigId,
-    currentPromptPresetId,
-    currentSystemPrompt,
-    currentTemperature,
+    currentWorkspaceDir,
+    currentExecutionPolicy,
+    currentPendingApproval,
     isCurrentStreaming,
     initialized,
     loading,
@@ -798,7 +988,9 @@ export function useAiStore() {
     togglePinConversation,
     moveConversation,
     setCurrentModel,
-    setCurrentConversationOverrides,
+    setCurrentWorkspaceDir,
+    setCurrentExecutionPolicy,
+    resolveToolApproval,
     renameConversation,
     removeConversation,
     stopStreaming,

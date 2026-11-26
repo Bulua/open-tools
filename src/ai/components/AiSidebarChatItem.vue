@@ -8,8 +8,10 @@ const props = defineProps<{
   item: ConversationSummary;
   active: boolean;
   pinned: boolean;
+  folderId?: string;
   streaming: boolean;
   dragging: boolean;
+  dropPosition?: "before" | "after" | null;
   timeLabel: string;
 }>();
 
@@ -48,7 +50,7 @@ function cancelEdit() {
 }
 
 function onMainPointerDown(event: PointerEvent) {
-  if (!props.active || editing.value) return;
+  if (editing.value) return;
   emit("dragPointerDown", props.item, event);
 }
 </script>
@@ -56,8 +58,20 @@ function onMainPointerDown(event: PointerEvent) {
 <template>
   <div
     class="chat-row"
-    :class="{ active, editing, dragging }"
+    :class="{
+      active,
+      editing,
+      dragging,
+      'drop-before': dropPosition === 'before',
+      'drop-after': dropPosition === 'after',
+    }"
+    :data-chat-id="item.id"
+    :data-chat-pinned="pinned ? '1' : '0'"
+    :data-chat-folder="folderId || ''"
   >
+    <span v-if="dropPosition === 'before'" class="drop-line before" aria-hidden="true" />
+    <span v-if="dropPosition === 'after'" class="drop-line after" aria-hidden="true" />
+
     <template v-if="editing">
       <div class="rename-wrap">
         <input
@@ -78,8 +92,7 @@ function onMainPointerDown(event: PointerEvent) {
     <template v-else>
       <button
         type="button"
-        class="chat-main"
-        :class="{ draggable: active }"
+        class="chat-main draggable"
         :title="item.title"
         @pointerdown="onMainPointerDown"
         @click="emit('select', item.id)"
@@ -140,7 +153,7 @@ function onMainPointerDown(event: PointerEvent) {
   border-radius: 7px;
   background: transparent;
   color: var(--text);
-  transition: background var(--dur) var(--ease-out), opacity var(--dur-fast) var(--ease-out), transform var(--dur) var(--ease-out);
+  transition: background var(--dur) var(--ease-out), opacity var(--dur-fast) var(--ease-out);
 }
 .chat-row:hover {
   background: var(--hover);
@@ -149,8 +162,38 @@ function onMainPointerDown(event: PointerEvent) {
   background: var(--active);
 }
 .chat-row.dragging {
-  opacity: 0.4;
-  transform: scale(0.98);
+  opacity: 0.34;
+  background: var(--hover);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+/* 拖拽插入指示线：顶部/底部细线配起点圆点，落点一目了然 */
+.drop-line {
+  position: absolute;
+  left: 8px;
+  right: 6px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  pointer-events: none;
+  z-index: 3;
+}
+.drop-line::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translateY(-50%);
+}
+.drop-line.before {
+  top: -2px;
+}
+.drop-line.after {
+  bottom: -2px;
 }
 
 .chat-main {
@@ -168,11 +211,7 @@ function onMainPointerDown(event: PointerEvent) {
   cursor: pointer;
 }
 .chat-main.draggable {
-  cursor: grab;
   touch-action: none;
-}
-.chat-main.draggable:active {
-  cursor: grabbing;
 }
 
 .streaming-icon {

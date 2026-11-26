@@ -1,7 +1,5 @@
 export type ApiProtocol = "openai" | "anthropic" | "gemini";
 
-export type SendKeyMode = "enter" | "ctrlEnter";
-
 export type ThinkingEffort = "none" | "low" | "medium" | "high";
 
 export type ThinkingSupportMode = "auto" | "enabled" | "disabled";
@@ -16,29 +14,16 @@ export interface ConfiguredModel {
   apiKey: string;
   modelId: string;
   enabled: boolean;
+  /** 单次回复最大输出 Token 数（留空使用模型默认上限） */
+  maxTokens?: number | null;
   /** 是否支持调节思考等级：auto 根据模型 ID 自动识别，也可手动强制开启或关闭 */
   thinkingSupport?: ThinkingSupportMode;
   /** 当前为该模型选择的思考等级 */
   thinkingEffort?: ThinkingEffort;
 }
 
-/** 可复用的系统提示词预设 */
-export interface AiPromptPreset {
-  id: string;
-  name: string;
-  content: string;
-  updatedAt: number;
-}
-
 export interface AiGeneralSettings {
   defaultModelConfigId: string;
-  defaultPromptId: string;
-  systemPrompt: string;
-  temperature: number;
-  maxTokens: number | null;
-  contextMessages: number;
-  stream: boolean;
-  sendKey: SendKeyMode;
 }
 
 /** 会话文件夹（可位于固定会话区或普通会话区） */
@@ -50,16 +35,16 @@ export interface AiFolder {
   createdAt: number;
 }
 
-/** 会话在侧栏中的归属元信息（固定状态与所属文件夹） */
+/** 会话在侧栏中的归属与排序元信息（固定状态、所属文件夹与自定义顺序） */
 export interface AiConversationMeta {
   pinned?: boolean;
   folderId?: string;
+  order?: number;
 }
 
 export interface AiConfig {
   version: 2;
   models: ConfiguredModel[];
-  prompts: AiPromptPreset[];
   /** 在 AI 对话中启用的 MCP 服务 ID（对应 MCP 工具查看器中的连接 ID） */
   enabledMcpIds: string[];
   folders: AiFolder[];
@@ -75,6 +60,27 @@ export interface ChatToolCall {
   argumentsText: string;
   resultText?: string;
   status: "running" | "done" | "error";
+  /** 写/改文件类工具成功完成后记录的最新文件快照，供右侧「输出内容」展示 */
+  outputFile?: {
+    path: string;
+    content: string;
+  };
+}
+
+export type ToolApprovalDecision = "once" | "session" | "deny";
+
+/** 会话的命令与外部写入执行策略：review 逐次确认（默认），auto 全部自动通过 */
+export type ExecutionPolicy = "review" | "auto";
+
+export interface PendingToolApproval {
+  id: string;
+  conversationId: string;
+  toolName: string;
+  kind: "command" | "externalWrite";
+  command?: string;
+  shell?: string;
+  targetPath?: string;
+  cwd?: string;
 }
 
 /** 助手回复的有序时间线分段，使思考过程、说明文字与工具调用按真实发生顺序交错展示 */
@@ -125,9 +131,10 @@ export interface ConversationSummary {
 
 export interface Conversation extends ConversationSummary {
   modelConfigId?: string;
-  promptPresetId?: string;
-  systemPrompt: string;
-  temperature: number | null;
+  /** 用户为该会话绑定的自定义本地工作目录；留空时使用程序内置会话独立目录 */
+  workspaceDir?: string;
+  /** 本会话的命令执行策略：默认逐次确认（review），也可切换为自动放行（auto） */
+  executionPolicy?: ExecutionPolicy;
   messages: ChatMessage[];
 }
 

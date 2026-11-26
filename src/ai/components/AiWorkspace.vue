@@ -12,9 +12,9 @@ const {
   activeConversation,
   availableModels,
   currentModelConfigId,
-  currentPromptPresetId,
-  currentSystemPrompt,
-  currentTemperature,
+  currentWorkspaceDir,
+  currentExecutionPolicy,
+  currentPendingApproval,
   isCurrentStreaming,
   initAiStore,
   selectConversation,
@@ -27,7 +27,9 @@ const {
   togglePinConversation,
   moveConversation,
   setCurrentModel,
-  setCurrentConversationOverrides,
+  setCurrentWorkspaceDir,
+  setCurrentExecutionPolicy,
+  resolveToolApproval,
   renameConversation,
   removeConversation,
   stopStreaming,
@@ -35,7 +37,6 @@ const {
   regenerateMessage,
   editAndResendMessage,
   deleteMessage,
-  clearConversationMessages,
   isConversationStreaming,
 } = useAiStore();
 
@@ -87,22 +88,22 @@ async function onNewChatInFolder(folderId: string) {
 
     <AiChatPane
       ref="chatPaneRef"
-      :config="config"
       :conversation="activeConversation"
       :available-models="availableModels"
       :selected-model-config-id="currentModelConfigId"
-      :prompt-preset-id="currentPromptPresetId"
-      :system-prompt="currentSystemPrompt"
-      :temperature="currentTemperature"
+      :workspace-dir="currentWorkspaceDir"
+      :execution-policy="currentExecutionPolicy"
+      :pending-approval="currentPendingApproval"
       :streaming="isCurrentStreaming"
       @send="(text, attachments) => sendMessage(text, attachments)"
       @stop="stopStreaming()"
       @select-model="(id, effort) => setCurrentModel(id, effort)"
-      @update-overrides="setCurrentConversationOverrides"
+      @update-workspace="setCurrentWorkspaceDir"
+      @update-execution-policy="setCurrentExecutionPolicy"
+      @approve-tool="(convId, decision) => resolveToolApproval(convId, decision)"
       @regenerate="regenerateMessage"
       @edit-message="editAndResendMessage"
       @delete-message="deleteMessage"
-      @clear-messages="clearConversationMessages"
       @open-settings="openSettings($event)"
     />
 

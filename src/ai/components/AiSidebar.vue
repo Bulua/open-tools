@@ -13,8 +13,19 @@ import {
   Settings,
   Trash2,
 } from "lucide-vue-next";
+import { sortConversationsByMeta } from "../store";
 import type { AiConversationMeta, AiFolder, ConversationSummary } from "../types";
 import AiSidebarChatItem from "./AiSidebarChatItem.vue";
+
+const SIDEBAR_WIDTH_KEY = "open-tools:ai:sidebar-width";
+const DEFAULT_SIDEBAR_WIDTH = 268;
+const MIN_SIDEBAR_WIDTH = 200;
+const MAX_SIDEBAR_WIDTH = 460;
+
+type DropTarget =
+  | { type: "item"; id: string; position: "before" | "after"; pinned: boolean; folderId?: string }
+  | { type: "folder"; id: string }
+  | { type: "section"; pinned: boolean };
 
 const props = defineProps<{
   conversations: ConversationSummary[];
@@ -31,7 +42,7 @@ const emit = defineEmits<{
   rename: [id: string, title: string];
   delete: [id: string];
   pin: [id: string];
-  move: [id: string, target: { pinned: boolean; folderId?: string }];
+  move: [id: string, target: { pinned: boolean; folderId?: string; beforeId?: string; afterId?: string }];
   createFolder: [pinned: boolean];
   renameFolder: [id: string, name: string];
   toggleFolder: [id: string];
@@ -41,21 +52,119 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
+const scrollRef = ref<HTMLElement>();
 const editingFolderId = ref("");
 const editingFolderName = ref("");
 const folderInputRef = ref<HTMLInputElement[]>();
 
-// ---------- 选中会话直接拖拽状态 ----------
-const draggingChat = ref<ConversationSummary | null>(null);
-const dragPos = ref({ x: 0, y: 0 });
-const dropHighlight = ref<{ type: "folder"; id: string } | { type: "section"; pinned: boolean } | null>(null);
+// ---------- 侧栏宽度拖拽调节 ----------
+function clampSidebarWidth(raw: number): number {
+  const viewportCap = typeof window !== "undefined" && window.innerWidth > 0
+    ? Math.max(MIN_SIDEBAR_WIDTH, Math.round(window.innerWidth * 0.45))
+    : MAX_SIDEBAR_WIDTH;
+  const maxWidth = Math.min(MAX_SIDEBAR_WIDTH, viewportCap);
+  return Math.round(Math.min(maxWidth, Math.max(MIN_SIDEBAR_WIDTH, raw)));
+}
 
-let pendingPointer: {
+function loadInitialWidth(): number {
+  try {
+    const saved = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY));
+    if (Number.isFinite(saved) && saved >= MIN_SIDEBAR_WIDTH) {
+      return clampSidebarWidth(saved);
+    }
+  } catch {
+    // 忽略存储读取异常
+  }
+  return DEFAULT_SIDEBAR_WIDTH;
+}
+
+function saveSidebarWidth(width: number) {
+  try {
+    localStorage.setItem(SIDEBAR_WIDTH_KEY, String(width));
+  } catch {
+    // 忽略存储写入异常
+  }
+}
+
+const sidebarWidth = ref(loadInitialWidth());
+const resizing = ref(false);
+let resizeState: { startX: number; startWidth: number } | null = null;
+
+function onResizePointerDown(event: PointerEvent) {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  resizeState = { startX: event.clientX, startWidth: sidebarWidth.value };
+  resizing.value = true;
+  document.body.style.cursor = "col-resize";
+  document.body.style.userSelect = "none";
+  window.addEventListener("pointermove", onResizePointerMove);
+  window.addEventListener("pointerup", onResizePointerEnd);
+  window.addEventListener("pointercancel", onResizePointerEnd);
+}
+
+function onResizePointerMove(event: PointerEvent) {
+  if (!resizeState) return;
+  const delta = event.clientX - resizeState.startX;
+  sidebarWidth.value = clampSidebarWidth(resizeState.startWidth + delta);
+}
+
+function cleanupResize() {
+  window.removeEventListener("pointermove", onResizePointerMove);
+  window.removeEventListener("pointerup", onResizePointerEnd);
+  window.removeEventListener("pointercancel", onResizePointerEnd);
+  if (resizing.value) {
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+  }
+  resizing.value = false;
+  resizeState = null;
+}
+
+function onResizePointerEnd() {
+  const shouldSave = Boolean(resizeState);
+  cleanupResize();
+  if (shouldSave) saveSidebarWidth(sidebarWidth.value);
+}
+
+function resetSidebarWidth() {
+  sidebarWidth.value = DEFAULT_SIDEBAR_WIDTH;
+  saveSidebarWidth(sidebarWidth.value);
+}
+
+function onResizeKeydown(event: KeyboardEvent) {
+  if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    sidebarWidth.value = clampSidebarWidth(sidebarWidth.value - 16);
+    saveSidebarWidth(sidebarWidth.value);
+  } else if (event.key === "ArrowRight") {
+    event.preventDefault();
+    sidebarWidth.value = clampSidebarWidth(sidebarWidth.value + 16);
+    saveSidebarWidth(sidebarWidth.value);
+  } else if (event.key === "Home") {
+    event.preventDefault();
+    resetSidebarWidth();
+  }
+}
+
+// ---------- 会话平滑拖拽排序与跨区移动 ----------
+const draggingChat = ref<ConversationSummary | null>(null);
+const dragCard = ref({ x: 0, y: 0, width: 220 });
+const dropTarget = ref<DropTarget | null>(null);
+
+let pendingDrag: {
   item: ConversationSummary;
   startX: number;
   startY: number;
+  offsetX: number;
+  offsetY: number;
+  width: number;
   started: boolean;
 } | null = null;
+let lastPointer = { x: 0, y: 0 };
+let suppressClickUntil = 0;
+let autoScrollRaf = 0;
+let autoExpandTimer = 0;
+let autoExpandFolderId = "";
 
 function metaOf(id: string): AiConversationMeta {
   return props.conversationMeta[id] ?? {};
@@ -66,14 +175,16 @@ function foldersIn(pinned: boolean): AiFolder[] {
 }
 
 function rootChatsIn(pinned: boolean): ConversationSummary[] {
-  return props.conversations.filter((c) => {
+  const matched = props.conversations.filter((c) => {
     const m = metaOf(c.id);
     return Boolean(m.pinned) === pinned && !m.folderId;
   });
+  return sortConversationsByMeta(matched, props.conversationMeta);
 }
 
 function folderChats(folderId: string): ConversationSummary[] {
-  return props.conversations.filter((c) => metaOf(c.id).folderId === folderId);
+  const matched = props.conversations.filter((c) => metaOf(c.id).folderId === folderId);
+  return sortConversationsByMeta(matched, props.conversationMeta);
 }
 
 const pinnedFolders = computed(() => foldersIn(true));
@@ -127,65 +238,200 @@ async function onAddFolder(pinned: boolean) {
   if (late) await startFolderRename(late);
 }
 
-function detectDropTarget(x: number, y: number): typeof dropHighlight.value {
+function onSelectChat(id: string) {
+  if (performance.now() < suppressClickUntil) return;
+  emit("select", id);
+}
+
+function clearAutoExpand() {
+  if (autoExpandTimer) {
+    window.clearTimeout(autoExpandTimer);
+    autoExpandTimer = 0;
+  }
+  autoExpandFolderId = "";
+}
+
+function scheduleFolderAutoExpand(folderId: string) {
+  const folder = props.folders.find((f) => f.id === folderId);
+  if (!folder || !folder.collapsed) {
+    clearAutoExpand();
+    return;
+  }
+  if (autoExpandFolderId === folderId) return;
+  clearAutoExpand();
+  autoExpandFolderId = folderId;
+  autoExpandTimer = window.setTimeout(() => {
+    autoExpandTimer = 0;
+    const latest = props.folders.find((f) => f.id === folderId);
+    if (draggingChat.value && latest?.collapsed) {
+      emit("toggleFolder", folderId);
+    }
+  }, 450);
+}
+
+function detectDropTarget(x: number, y: number): DropTarget | null {
+  if (typeof document.elementFromPoint !== "function") return null;
   const el = document.elementFromPoint(x, y) as HTMLElement | null;
   if (!el) return null;
+
+  const activeDragId = draggingChat.value?.id;
+
+  // 1. 优先命中共用列表中的其他会话行，精确计算上方/下方插入位
+  const chatRow = el.closest<HTMLElement>("[data-chat-id]");
+  if (chatRow?.dataset.chatId && chatRow.dataset.chatId !== activeDragId) {
+    const rect = chatRow.getBoundingClientRect();
+    const position: "before" | "after" = y < rect.top + rect.height / 2 ? "before" : "after";
+    return {
+      type: "item",
+      id: chatRow.dataset.chatId,
+      position,
+      pinned: chatRow.dataset.chatPinned === "1",
+      folderId: chatRow.dataset.chatFolder || undefined,
+    };
+  }
+
+  // 2. 命中文件夹标题行或文件夹内容区
   const folderEl = el.closest<HTMLElement>("[data-drop-folder]");
   if (folderEl?.dataset.dropFolder) {
     return { type: "folder", id: folderEl.dataset.dropFolder };
   }
+
+  // 3. 命中固定会话区或普通会话区空白处
   const sectionEl = el.closest<HTMLElement>("[data-drop-section]");
   if (sectionEl?.dataset.dropSection) {
-    return { type: "section", pinned: sectionEl.dataset.dropSection === "pinned" };
+    const pinned = sectionEl.dataset.dropSection === "pinned";
+    if (activeDragId) {
+      const srcMeta = metaOf(activeDragId);
+      // 拖在原分组空白区域且未命中其他行时不额外闪烁外框
+      if (Boolean(srcMeta.pinned) === pinned && !srcMeta.folderId) {
+        return null;
+      }
+    }
+    return { type: "section", pinned };
   }
+
   return null;
 }
 
+function stopAutoScroll() {
+  if (autoScrollRaf) {
+    window.cancelAnimationFrame(autoScrollRaf);
+    autoScrollRaf = 0;
+  }
+}
+
+function stepAutoScroll() {
+  autoScrollRaf = 0;
+  if (!draggingChat.value || !scrollRef.value) return;
+  const el = scrollRef.value;
+  const rect = el.getBoundingClientRect();
+  const edge = 40;
+  let delta = 0;
+  if (lastPointer.y < rect.top + edge && el.scrollTop > 0) {
+    const ratio = Math.min(1, (rect.top + edge - lastPointer.y) / edge);
+    delta = -Math.ceil(ratio * 10);
+  } else if (lastPointer.y > rect.bottom - edge && el.scrollTop + el.clientHeight < el.scrollHeight) {
+    const ratio = Math.min(1, (lastPointer.y - (rect.bottom - edge)) / edge);
+    delta = Math.ceil(ratio * 10);
+  }
+  if (delta !== 0) {
+    el.scrollTop += delta;
+    updateDropAt(lastPointer.x, lastPointer.y);
+    autoScrollRaf = window.requestAnimationFrame(stepAutoScroll);
+  }
+}
+
+function updateDropAt(x: number, y: number) {
+  const next = detectDropTarget(x, y);
+  dropTarget.value = next;
+  if (next?.type === "folder") {
+    scheduleFolderAutoExpand(next.id);
+  } else {
+    clearAutoExpand();
+  }
+}
+
+function onDragKeydown(event: KeyboardEvent) {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    cancelDrag();
+  }
+}
+
 function onDragPointerDown(item: ConversationSummary, event: PointerEvent) {
-  if (event.button !== 0 || item.id !== props.activeId) return;
-  pendingPointer = {
+  if (event.button !== 0) return;
+  const rowEl = (event.currentTarget as HTMLElement | null)?.closest<HTMLElement>(".chat-row");
+  const rect = rowEl?.getBoundingClientRect();
+  pendingDrag = {
     item,
     startX: event.clientX,
     startY: event.clientY,
+    offsetX: rect ? Math.min(Math.max(event.clientX - rect.left, 12), rect.width - 12) : 20,
+    offsetY: rect ? Math.min(Math.max(event.clientY - rect.top, 8), rect.height - 8) : 15,
+    width: rect && rect.width > 0 ? Math.round(rect.width) : Math.max(160, sidebarWidth.value - 28),
     started: false,
   };
+  lastPointer = { x: event.clientX, y: event.clientY };
   window.addEventListener("pointermove", onWindowPointerMove);
   window.addEventListener("pointerup", onWindowPointerUp);
-  window.addEventListener("pointercancel", onWindowPointerCancel);
+  window.addEventListener("pointercancel", cancelDrag);
 }
 
 function onWindowPointerMove(event: PointerEvent) {
-  if (!pendingPointer) return;
-  const dx = event.clientX - pendingPointer.startX;
-  const dy = event.clientY - pendingPointer.startY;
-  if (!pendingPointer.started && Math.hypot(dx, dy) >= 5) {
-    pendingPointer.started = true;
-    draggingChat.value = pendingPointer.item;
+  if (!pendingDrag) return;
+  lastPointer = { x: event.clientX, y: event.clientY };
+  const dx = event.clientX - pendingDrag.startX;
+  const dy = event.clientY - pendingDrag.startY;
+  if (!pendingDrag.started && Math.hypot(dx, dy) >= 4) {
+    pendingDrag.started = true;
+    draggingChat.value = pendingDrag.item;
+    document.body.style.cursor = "grabbing";
+    document.addEventListener("keydown", onDragKeydown, true);
   }
-  if (pendingPointer.started) {
-    dragPos.value = { x: event.clientX, y: event.clientY };
-    dropHighlight.value = detectDropTarget(event.clientX, event.clientY);
+  if (pendingDrag.started) {
+    dragCard.value = {
+      x: Math.round(event.clientX - pendingDrag.offsetX),
+      y: Math.round(event.clientY - pendingDrag.offsetY),
+      width: pendingDrag.width,
+    };
+    updateDropAt(event.clientX, event.clientY);
+    if (!autoScrollRaf) {
+      autoScrollRaf = window.requestAnimationFrame(stepAutoScroll);
+    }
   }
 }
 
-function cleanupPointerListeners() {
+function cleanupDragListeners() {
   window.removeEventListener("pointermove", onWindowPointerMove);
   window.removeEventListener("pointerup", onWindowPointerUp);
-  window.removeEventListener("pointercancel", onWindowPointerCancel);
+  window.removeEventListener("pointercancel", cancelDrag);
+  document.removeEventListener("keydown", onDragKeydown, true);
+  stopAutoScroll();
+  clearAutoExpand();
+  if (draggingChat.value) {
+    document.body.style.cursor = "";
+  }
 }
 
 function onWindowPointerUp() {
-  cleanupPointerListeners();
-  const state = pendingPointer;
-  pendingPointer = null;
-  if (!state?.started) return;
-
-  const target = dropHighlight.value;
+  const state = pendingDrag;
+  const target = dropTarget.value;
+  cleanupDragListeners();
+  pendingDrag = null;
   draggingChat.value = null;
-  dropHighlight.value = null;
+  dropTarget.value = null;
+
+  if (!state?.started) return;
+  suppressClickUntil = performance.now() + 260;
   if (!target) return;
 
-  if (target.type === "folder") {
+  if (target.type === "item") {
+    emit("move", state.item.id, {
+      pinned: target.pinned,
+      folderId: target.folderId,
+      ...(target.position === "before" ? { beforeId: target.id } : { afterId: target.id }),
+    });
+  } else if (target.type === "folder") {
     const folder = props.folders.find((f) => f.id === target.id);
     if (folder) emit("move", state.item.id, { pinned: folder.pinned, folderId: folder.id });
   } else {
@@ -193,14 +439,24 @@ function onWindowPointerUp() {
   }
 }
 
-function onWindowPointerCancel() {
-  cleanupPointerListeners();
-  pendingPointer = null;
+function cancelDrag() {
+  const wasStarted = Boolean(pendingDrag?.started);
+  cleanupDragListeners();
+  pendingDrag = null;
   draggingChat.value = null;
-  dropHighlight.value = null;
+  dropTarget.value = null;
+  if (wasStarted) suppressClickUntil = performance.now() + 260;
 }
 
-onBeforeUnmount(cleanupPointerListeners);
+function dropPositionFor(chatId: string): "before" | "after" | null {
+  const t = dropTarget.value;
+  return t?.type === "item" && t.id === chatId ? t.position : null;
+}
+
+onBeforeUnmount(() => {
+  cleanupDragListeners();
+  cleanupResize();
+});
 
 const sections = computed(() => [
   {
@@ -221,7 +477,11 @@ const sections = computed(() => [
 </script>
 
 <template>
-  <aside class="ai-sidebar" :class="{ 'is-dragging': Boolean(draggingChat) }">
+  <aside
+    class="ai-sidebar"
+    :class="{ 'is-dragging': Boolean(draggingChat), 'is-resizing': resizing }"
+    :style="{ width: `${sidebarWidth}px` }"
+  >
     <div class="sidebar-top">
       <button type="button" class="btn primary full new-chat-btn" @click="emit('newChat')">
         <MessageSquarePlus :size="15" />
@@ -229,13 +489,13 @@ const sections = computed(() => [
       </button>
     </div>
 
-    <div class="chat-scroll">
+    <div ref="scrollRef" class="chat-scroll">
       <section
         v-for="section in sections"
         :key="section.key"
         class="chat-section"
         :class="{
-          'drop-active': dropHighlight?.type === 'section' && dropHighlight.pinned === section.pinned,
+          'drop-active': dropTarget?.type === 'section' && dropTarget.pinned === section.pinned,
         }"
         :data-drop-section="section.pinned ? 'pinned' : 'normal'"
       >
@@ -258,7 +518,7 @@ const sections = computed(() => [
             <div
               class="folder-row"
               :class="{
-                'drop-active': dropHighlight?.type === 'folder' && dropHighlight.id === folder.id,
+                'drop-active': dropTarget?.type === 'folder' && dropTarget.id === folder.id,
               }"
               :data-drop-folder="folder.id"
             >
@@ -339,10 +599,12 @@ const sections = computed(() => [
                       :item="item"
                       :active="item.id === activeId"
                       :pinned="section.pinned"
+                      :folder-id="folder.id"
                       :streaming="isStreaming(item.id)"
                       :dragging="draggingChat?.id === item.id"
+                      :drop-position="dropPositionFor(item.id)"
                       :time-label="formatShortTime(item.updatedAt)"
-                      @select="emit('select', $event)"
+                      @select="onSelectChat"
                       @pin="emit('pin', $event)"
                       @rename="(id, title) => emit('rename', id, title)"
                       @delete="emit('delete', $event)"
@@ -366,8 +628,9 @@ const sections = computed(() => [
             :pinned="section.pinned"
             :streaming="isStreaming(item.id)"
             :dragging="draggingChat?.id === item.id"
+            :drop-position="dropPositionFor(item.id)"
             :time-label="formatShortTime(item.updatedAt)"
-            @select="emit('select', $event)"
+            @select="onSelectChat"
             @pin="emit('pin', $event)"
             @rename="(id, title) => emit('rename', id, title)"
             @delete="emit('delete', $event)"
@@ -388,24 +651,42 @@ const sections = computed(() => [
       </button>
     </footer>
 
-    <!-- 拖拽中的跟随浮标 -->
+    <!-- 右边缘可拖拽调节宽度分隔条 -->
+    <div
+      class="sidebar-resizer"
+      :class="{ active: resizing }"
+      role="separator"
+      aria-orientation="vertical"
+      :aria-label="t('ai.resizeSidebar')"
+      :aria-valuenow="sidebarWidth"
+      :aria-valuemin="MIN_SIDEBAR_WIDTH"
+      :aria-valuemax="MAX_SIDEBAR_WIDTH"
+      tabindex="0"
+      :title="t('ai.resizeSidebar')"
+      @pointerdown="onResizePointerDown"
+      @dblclick="resetSidebarWidth"
+      @keydown="onResizeKeydown"
+    />
+
+    <!-- 拖拽中的跟手悬浮卡片（使用 GPU transform 保持流畅不卡顿） -->
     <Teleport to="body">
-      <Transition name="pop">
-        <div
-          v-if="draggingChat"
-          class="drag-ghost"
-          :style="{ left: `${dragPos.x + 12}px`, top: `${dragPos.y + 12}px` }"
-        >
-          {{ draggingChat.title }}
-        </div>
-      </Transition>
+      <div
+        v-if="draggingChat"
+        class="drag-ghost"
+        :style="{
+          width: `${dragCard.width}px`,
+          transform: `translate3d(${dragCard.x}px, ${dragCard.y}px, 0)`,
+        }"
+      >
+        <span class="drag-ghost-title">{{ draggingChat.title }}</span>
+      </div>
     </Teleport>
   </aside>
 </template>
 
 <style scoped>
 .ai-sidebar {
-  width: 268px;
+  position: relative;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -413,8 +694,38 @@ const sections = computed(() => [
   background: var(--bg-sunken);
   border-right: 1px solid var(--border);
 }
-.ai-sidebar.is-dragging {
+.ai-sidebar.is-dragging,
+.ai-sidebar.is-resizing {
   user-select: none;
+}
+
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  bottom: 0;
+  width: 6px;
+  z-index: 6;
+  cursor: col-resize;
+  touch-action: none;
+}
+.sidebar-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 2px;
+  background: transparent;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.sidebar-resizer:hover::after,
+.sidebar-resizer.active::after,
+.sidebar-resizer:focus-visible::after {
+  background: var(--accent);
+}
+.sidebar-resizer:focus-visible {
+  outline: none;
 }
 
 .sidebar-top {
@@ -732,12 +1043,18 @@ const sections = computed(() => [
   color: var(--accent);
   transform: rotate(30deg);
 }
+</style>
 
+<style>
 .drag-ghost {
   position: fixed;
+  top: 0;
+  left: 0;
   z-index: 200;
-  max-width: 220px;
-  padding: 6px 12px;
+  height: 32px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
   border-radius: 8px;
   border: 1px solid var(--accent);
   background: var(--surface);
@@ -745,7 +1062,11 @@ const sections = computed(() => [
   font-size: 13px;
   font-weight: 500;
   box-shadow: var(--shadow-lg);
+  opacity: 0.95;
   pointer-events: none;
+  will-change: transform;
+}
+.drag-ghost-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

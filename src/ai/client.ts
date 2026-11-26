@@ -30,10 +30,8 @@ export interface ChatRequestOptions {
   modelId: string;
   messages: PromptTurn[];
   systemPrompt?: string;
-  temperature?: number;
   maxTokens?: number | null;
   thinkingEffort?: ThinkingEffort;
-  stream: boolean;
   tools?: ToolDefinition[];
   signal?: AbortSignal;
   onDelta?: (delta: { content?: string; reasoning?: string }) => void;
@@ -329,9 +327,8 @@ async function runOpenAiChat(
   const body: Record<string, unknown> = {
     model: options.modelId,
     messages: payloadMessages,
-    stream: options.stream,
+    stream: true,
   };
-  if (typeof options.temperature === "number") body.temperature = options.temperature;
   if (typeof options.maxTokens === "number" && options.maxTokens > 0) body.max_tokens = options.maxTokens;
   if (options.thinkingEffort && options.thinkingEffort !== "none") {
     body.reasoning_effort = options.thinkingEffort;
@@ -371,49 +368,6 @@ async function runOpenAiChat(
       options.onDelta?.({ content: split.content });
     }
   };
-
-  if (!options.stream) {
-    const json = (await res.json()) as Record<string, unknown>;
-    const choices = Array.isArray(json.choices) ? json.choices : [];
-    const first = (choices[0] ?? {}) as Record<string, unknown>;
-    const message = (first.message ?? {}) as Record<string, unknown>;
-    const rawReasoning = typeof message.reasoning_content === "string"
-      ? message.reasoning_content
-      : typeof message.reasoning === "string"
-        ? message.reasoning
-        : "";
-    if (rawReasoning) {
-      reasoning += rawReasoning;
-      options.onDelta?.({ reasoning: rawReasoning });
-    }
-    if (typeof message.content === "string" && message.content) {
-      emitContent(message.content);
-    }
-    if (Array.isArray(message.tool_calls)) {
-      message.tool_calls.forEach((rawCall, idx) => {
-        if (!rawCall || typeof rawCall !== "object") return;
-        const c = rawCall as Record<string, unknown>;
-        const fn = (c.function ?? {}) as Record<string, unknown>;
-        const name = typeof fn.name === "string" ? fn.name : "";
-        if (!name) return;
-        toolCallMap.set(idx, {
-          id: typeof c.id === "string" && c.id ? c.id : `call_${idx + 1}`,
-          name,
-          argumentsText: typeof fn.arguments === "string" ? fn.arguments : JSON.stringify(fn.arguments ?? {}),
-        });
-      });
-    }
-    const tail = splitter.flush();
-    if (tail.reasoning) {
-      reasoning += tail.reasoning;
-      options.onDelta?.({ reasoning: tail.reasoning });
-    }
-    if (tail.content) {
-      content += tail.content;
-      options.onDelta?.({ content: tail.content });
-    }
-    return { content, reasoning, toolCalls: [...toolCallMap.values()] };
-  }
 
   await readSseStream(res, ({ data }) => {
     const trimmed = data.trim();
@@ -554,14 +508,11 @@ async function runAnthropicChat(
     model: options.modelId,
     max_tokens: enableThinking ? Math.max(baseMaxTokens, thinkingBudget + 2048) : baseMaxTokens,
     messages: anthropicMessages,
-    stream: options.stream,
+    stream: true,
   };
   if (options.systemPrompt?.trim()) body.system = options.systemPrompt.trim();
   if (enableThinking) {
-    // Anthropic 启用 extended thinking 时要求不传自定义 temperature（或必须为 1）
     body.thinking = { type: "enabled", budget_tokens: thinkingBudget };
-  } else if (typeof options.temperature === "number") {
-    body.temperature = options.temperature;
   }
   if (options.tools?.length) {
     body.tools = options.tools.map((tool) => ({
@@ -582,29 +533,6 @@ async function runAnthropicChat(
   let content = "";
   let reasoning = "";
   const toolCallMap = new Map<number, ToolCallRequest>();
-
-  if (!options.stream) {
-    const json = (await res.json()) as Record<string, unknown>;
-    const blocks = Array.isArray(json.content) ? json.content : [];
-    blocks.forEach((block, idx) => {
-      if (!block || typeof block !== "object") return;
-      const b = block as Record<string, unknown>;
-      if (b.type === "thinking" && typeof b.thinking === "string") {
-        reasoning += b.thinking;
-        options.onDelta?.({ reasoning: b.thinking });
-      } else if (b.type === "text" && typeof b.text === "string") {
-        content += b.text;
-        options.onDelta?.({ content: b.text });
-      } else if (b.type === "tool_use" && typeof b.name === "string") {
-        toolCallMap.set(idx, {
-          id: typeof b.id === "string" && b.id ? b.id : `toolu_${idx + 1}`,
-          name: b.name,
-          argumentsText: JSON.stringify(b.input ?? {}),
-        });
-      }
-    });
-    return { content, reasoning, toolCalls: [...toolCallMap.values()] };
-  }
 
   await readSseStream(res, ({ data }) => {
     const trimmed = data.trim();
@@ -663,7 +591,6 @@ async function runGeminiChat(
   if (key) headers["x-goog-api-key"] = key;
 
   const generationConfig: Record<string, unknown> = {};
-  if (typeof options.temperature === "number") generationConfig.temperature = options.temperature;
   if (typeof options.maxTokens === "number" && options.maxTokens > 0) {
     generationConfig.maxOutputTokens = options.maxTokens;
   }
@@ -727,8 +654,10 @@ async function runGeminiChat(
 
   const body: Record<string, unknown> = {
     contents,
-    generationConfig,
   };
+  if (Object.keys(generationConfig).length > 0) {
+    body.generationConfig = generationConfig;
+  }
   if (options.systemPrompt?.trim()) {
     body.systemInstruction = { parts: [{ text: options.systemPrompt.trim() }] };
   }
@@ -745,9 +674,7 @@ async function runGeminiChat(
   }
 
   const modelPath = encodeURIComponent(options.modelId.replace(/^models\//, ""));
-  const endpoint = options.stream
-    ? `${base}/models/${modelPath}:streamGenerateContent?alt=sse`
-    : `${base}/models/${modelPath}:generateContent`;
+  const endpoint = `${base}/models/${modelPath}:streamGenerateContent?alt=sse`;
 
   const res = await fetchFn(endpoint, {
     method: "POST",
@@ -790,12 +717,6 @@ async function runGeminiChat(
       }
     }
   };
-
-  if (!options.stream) {
-    const json = (await res.json()) as Record<string, unknown>;
-    handlePayload(json);
-    return { content, reasoning, toolCalls };
-  }
 
   await readSseStream(res, ({ data }) => {
     const trimmed = data.trim();

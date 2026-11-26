@@ -7,7 +7,15 @@ import { nextTick, onBeforeUnmount, ref, type Ref } from "vue";
 export function usePopover(
   trigger: Ref<HTMLElement | undefined>,
   panel: Ref<HTMLElement | undefined>,
-  options: { minWidth?: number; maxHeight?: number; side?: "left" | "right"; preserve?: () => boolean; ignoreEscape?: () => boolean } = {},
+  options: {
+    minWidth?: number;
+    maxHeight?: number;
+    side?: "left" | "right";
+    align?: "left" | "right";
+    gap?: number;
+    preserve?: () => boolean;
+    ignoreEscape?: () => boolean;
+  } = {},
 ) {
   const open = ref(false);
   const style = ref<Record<string, string>>({});
@@ -20,6 +28,7 @@ export function usePopover(
     const width = Math.max(r.width, options.minWidth ?? 0);
     const height = panel.value?.offsetHeight ?? options.maxHeight ?? 300;
     const panelWidth = Math.max(width, panel.value?.offsetWidth ?? 0);
+    const gap = options.gap ?? 4;
     if (options.side) {
       const right = r.right + 6;
       const left = r.left - panelWidth - 6;
@@ -36,9 +45,14 @@ export function usePopover(
     }
     placement.value = "vertical";
     const below = window.innerHeight - r.bottom - 8;
-    const top = below >= height || below >= r.top ? r.bottom + 4 : Math.max(8, r.top - height - 4);
-    // 弹出层比触发元素宽时（如日期选择器），右侧放不下就改为与触发元素右对齐
-    const left = r.left + panelWidth > window.innerWidth - 8 ? Math.min(r.right - panelWidth, window.innerWidth - panelWidth - 8) : r.left;
+    const top = below >= height || below >= r.top ? r.bottom + gap : Math.max(8, r.top - height - gap);
+    // 支持显式右对齐（如右下角策略菜单），或右侧放不下时自动右对齐
+    const left =
+      options.align === "right"
+        ? Math.min(r.right - panelWidth, window.innerWidth - panelWidth - 8)
+        : r.left + panelWidth > window.innerWidth - 8
+          ? Math.min(r.right - panelWidth, window.innerWidth - panelWidth - 8)
+          : r.left;
     const fitTop = options.side ? Math.max(8, Math.min(top, window.innerHeight - height - 8)) : top;
     style.value = { top: `${fitTop}px`, left: `${Math.max(8, left)}px`, minWidth: `${width}px` };
   };

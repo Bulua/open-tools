@@ -271,8 +271,54 @@ export function inferCodeFileName(code: string, declaredLang?: string): string {
   return `${base}.${ext}`;
 }
 
+export interface ParsedFileLink {
+  path: string;
+  startLine?: number;
+  endLine?: number;
+}
+
+/** 解析 Markdown 中的 file:// 本地文件链接，提取标准化路径与可选行号区间（#L10 / #L10-L25） */
+export function parseFileLinkHref(rawHref: string): ParsedFileLink | null {
+  const trimmed = (rawHref ?? "").trim();
+  if (!/^file:\/\//i.test(trimmed)) return null;
+
+  const hashIdx = trimmed.indexOf("#");
+  const baseUrl = hashIdx >= 0 ? trimmed.slice(0, hashIdx) : trimmed;
+  const hash = hashIdx >= 0 ? trimmed.slice(hashIdx + 1) : "";
+
+  let rawPath = baseUrl.replace(/^file:\/\//i, "");
+  try {
+    rawPath = decodeURIComponent(rawPath);
+  } catch {
+    // 保留原字符串
+  }
+  rawPath = rawPath.replace(/\\/g, "/");
+  // file:///D:/path -> D:/path
+  if (/^\/[a-zA-Z]:\//.test(rawPath)) {
+    rawPath = rawPath.slice(1);
+  }
+  rawPath = rawPath.trim();
+  if (!rawPath) return null;
+
+  let startLine: number | undefined;
+  let endLine: number | undefined;
+  const lineMatch = hash.match(/^L(\d+)(?:-L?(\d+))?$/i);
+  if (lineMatch) {
+    const start = Number(lineMatch[1]);
+    const end = lineMatch[2] ? Number(lineMatch[2]) : undefined;
+    if (Number.isFinite(start) && start > 0) {
+      startLine = start;
+      if (end && Number.isFinite(end) && end >= start) {
+        endLine = end;
+      }
+    }
+  }
+
+  return { path: rawPath, startLine, endLine };
+}
+
 /**
- * 渲染 AI 对话里的 Markdown：支持 GFM、代码块高亮、下载与一键复制按钮，输出经 DOMPurify 清理。
+ * 渲染 AI 对话里的 Markdown：支持 GFM、代码块高亮、下载与一键复制按钮、file:// 文件链接，输出经 DOMPurify 清理。
  */
 export function renderChatMarkdown(source: string): string {
   const marked = new Marked({ gfm: true, breaks: true });
@@ -281,6 +327,14 @@ export function renderChatMarkdown(source: string): string {
 
   marked.use({
     renderer: {
+      link(token: Tokens.Link) {
+        const parsed = parseFileLinkHref(token.href);
+        if (!parsed) return false;
+        const label = this.parser.parseInline(token.tokens);
+        const startAttr = parsed.startLine ? ` data-line-start="${parsed.startLine}"` : "";
+        const endAttr = parsed.endLine ? ` data-line-end="${parsed.endLine}"` : "";
+        return `<a href="#ai-file" class="ai-file-link" data-file-path="${escapeHtml(parsed.path)}"${startAttr}${endAttr} title="${escapeHtml(parsed.path)}">${label}</a>`;
+      },
       code(token: Tokens.Code) {
         const lang = (token.lang ?? "").trim().split(/\s+/)[0].toLowerCase();
         const known = lang && hljs.getLanguage(lang);
@@ -307,6 +361,6 @@ export function renderChatMarkdown(source: string): string {
 
   const raw = marked.parse(source, { async: false }) as string;
   return DOMPurify.sanitize(raw, {
-    ADD_ATTR: ["data-code", "data-lang"],
+    ADD_ATTR: ["data-code", "data-lang", "data-file-path", "data-line-start", "data-line-end"],
   });
 }

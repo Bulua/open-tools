@@ -49,6 +49,7 @@ const form = reactive<{
   apiKey: string;
   modelId: string;
   name: string;
+  maxTokens: string;
   protocol: ApiProtocol;
   baseUrl: string;
   thinkingSupport: ThinkingSupportMode;
@@ -57,6 +58,7 @@ const form = reactive<{
   apiKey: "",
   modelId: "",
   name: "",
+  maxTokens: "",
   protocol: "openai",
   baseUrl: "https://api.openai.com/v1",
   thinkingSupport: "auto",
@@ -117,6 +119,7 @@ function openCreate() {
   form.apiKey = existing?.apiKey ?? "";
   form.modelId = "";
   form.name = "";
+  form.maxTokens = "";
   form.thinkingSupport = "auto";
   showApiKey.value = false;
   showAdvanced.value = false;
@@ -135,6 +138,7 @@ function openEdit(model: ConfiguredModel) {
   form.apiKey = model.apiKey;
   form.modelId = model.modelId;
   form.name = model.name;
+  form.maxTokens = model.maxTokens ? String(model.maxTokens) : "";
   form.thinkingSupport = model.thinkingSupport ?? "auto";
   showApiKey.value = false;
   const preset = findProviderPreset(model.providerId);
@@ -219,6 +223,14 @@ function pickSampleModel(modelId: string) {
   }
 }
 
+function parseMaxTokens(raw: string | number | null | undefined): number | null {
+  const trimmed = String(raw ?? "").trim();
+  if (!trimmed) return null;
+  const num = Number(trimmed);
+  if (!Number.isFinite(num) || num <= 0) return null;
+  return Math.round(num);
+}
+
 function saveForm() {
   validationError.value = "";
   const baseUrl = form.baseUrl.trim();
@@ -231,6 +243,8 @@ function saveForm() {
     validationError.value = t("ai.errors.missingApiKey");
     return;
   }
+
+  const maxTokens = parseMaxTokens(form.maxTokens);
 
   if (editingId.value) {
     const modelId = form.modelId.trim();
@@ -246,6 +260,7 @@ function saveForm() {
       target.apiKey = form.apiKey.trim();
       target.modelId = modelId;
       target.name = form.name.trim();
+      target.maxTokens = maxTokens;
       target.thinkingSupport = form.thinkingSupport === "auto" ? undefined : form.thinkingSupport;
     }
   } else {
@@ -269,6 +284,7 @@ function saveForm() {
         modelId,
         name: ids.size === 1 ? (form.name.trim() || remoteNameMap.get(modelId) || "") : (remoteNameMap.get(modelId) || ""),
         enabled: true,
+        maxTokens,
         thinkingSupport: form.thinkingSupport === "auto" ? undefined : form.thinkingSupport,
       });
     }
@@ -328,6 +344,8 @@ function deleteModel(model: ConfiguredModel) {
             </div>
             <div class="item-meta">
               <span class="mono-text">{{ model.modelId }}</span>
+              <span v-if="model.maxTokens" class="meta-sep">·</span>
+              <span v-if="model.maxTokens" class="mono-text">{{ t("ai.settingsModal.maxTokensMeta", { n: model.maxTokens }) }}</span>
               <span v-if="model.apiKey" class="meta-sep">·</span>
               <span v-if="model.apiKey" class="mono-text">{{ maskKey(model.apiKey) }}</span>
             </div>
@@ -568,6 +586,20 @@ function deleteModel(model: ConfiguredModel) {
         </div>
       </div>
 
+      <div class="form-row">
+        <label class="form-label" for="ai-model-max-tokens">{{ t("ai.settingsModal.maxTokens") }}</label>
+        <div class="form-control">
+          <input
+            id="ai-model-max-tokens"
+            v-model="form.maxTokens"
+            type="number"
+            min="1"
+            class="field max-tokens-field"
+            :placeholder="t('ai.settingsModal.maxTokensPlaceholder')"
+          />
+        </div>
+      </div>
+
       <!-- 高级选项：默认收起，选自定义接口或需要填代理地址时展开 -->
       <div class="advanced-section">
         <button
@@ -797,6 +829,9 @@ function deleteModel(model: ConfiguredModel) {
   font-size: 13px;
   color: var(--text-2);
   text-align: right;
+}
+.max-tokens-field {
+  width: 220px;
 }
 .form-control {
   display: flex;

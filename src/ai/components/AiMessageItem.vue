@@ -16,7 +16,7 @@ import { useClipboard } from "@/composables/useClipboard";
 import { showError } from "@/utils/errorToast";
 import { openExternal } from "@/utils/openExternal";
 import { saveFile } from "@/utils/saveFile";
-import { inferCodeFileName, renderChatMarkdown } from "../markdown";
+import { inferCodeFileName, renderChatMarkdown, type ParsedFileLink } from "../markdown";
 import type { ChatMessage, ChatMessagePart } from "../types";
 
 const props = defineProps<{
@@ -28,6 +28,7 @@ const emit = defineEmits<{
   regenerate: [id: string];
   edit: [id: string, content: string];
   delete: [id: string];
+  openFile: [ref: ParsedFileLink];
 }>();
 
 const { t } = useI18n();
@@ -273,6 +274,21 @@ async function onMarkdownClick(event: MouseEvent) {
       }, 1400);
     } catch {
       // 忽略解码失败
+    }
+    return;
+  }
+  const fileLink = target.closest<HTMLAnchorElement>("a.ai-file-link");
+  if (fileLink) {
+    event.preventDefault();
+    const filePath = fileLink.dataset.filePath?.trim();
+    if (filePath) {
+      const start = Number(fileLink.dataset.lineStart);
+      const end = Number(fileLink.dataset.lineEnd);
+      emit("openFile", {
+        path: filePath,
+        startLine: Number.isFinite(start) && start > 0 ? start : undefined,
+        endLine: Number.isFinite(end) && end > 0 ? end : undefined,
+      });
     }
     return;
   }
@@ -989,6 +1005,16 @@ async function onMarkdownClick(event: MouseEvent) {
 .ai-md :deep(th) {
   background: var(--bg-sunken);
   font-weight: 600;
+}
+.ai-md :deep(a.ai-file-link) {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+.ai-md :deep(a.ai-file-link:hover) {
+  border-bottom-color: var(--accent);
 }
 .ai-md :deep(code) {
   padding: 0.12em 0.42em;

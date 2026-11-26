@@ -4,7 +4,6 @@ import type {
   AiConversationMeta,
   AiFolder,
   AiGeneralSettings,
-  AiPromptPreset,
   ApiProtocol,
   ConfiguredModel,
   ThinkingEffort,
@@ -153,20 +152,12 @@ export function makeEntityId(prefix: string): string {
 
 export const DEFAULT_GENERAL_SETTINGS: AiGeneralSettings = {
   defaultModelConfigId: "",
-  defaultPromptId: "",
-  systemPrompt: "",
-  temperature: 0.7,
-  maxTokens: null,
-  contextMessages: 20,
-  stream: true,
-  sendKey: "enter",
 };
 
 export function createDefaultConfig(): AiConfig {
   return {
     version: 2,
     models: [],
-    prompts: [],
     enabledMcpIds: [],
     folders: [],
     conversationMeta: {},
@@ -287,6 +278,9 @@ export function normalizeConfig(raw: unknown): AiConfig {
       seen.add(id);
       const providerId = typeof m.providerId === "string" && m.providerId.trim() ? m.providerId.trim() : "custom";
       const preset = findProviderPreset(providerId);
+      const maxTokens = typeof m.maxTokens === "number" && Number.isFinite(m.maxTokens) && m.maxTokens > 0
+        ? Math.round(m.maxTokens)
+        : null;
       models.push({
         id,
         providerId: preset ? preset.id : "custom",
@@ -296,33 +290,13 @@ export function normalizeConfig(raw: unknown): AiConfig {
         apiKey: typeof m.apiKey === "string" ? m.apiKey : "",
         modelId,
         enabled: m.enabled !== false,
+        maxTokens,
         thinkingSupport: validThinkingSupport(m.thinkingSupport),
         thinkingEffort: validThinkingEffort(m.thinkingEffort),
       });
     }
   } else if (Array.isArray(record.providers)) {
     models = migrateV1Providers(record.providers);
-  }
-
-  const prompts: AiPromptPreset[] = [];
-  if (Array.isArray(record.prompts)) {
-    const seen = new Set<string>();
-    for (const item of record.prompts) {
-      if (!item || typeof item !== "object") continue;
-      const p = item as Record<string, unknown>;
-      const name = typeof p.name === "string" ? p.name.trim() : "";
-      const content = typeof p.content === "string" ? p.content : "";
-      if (!name && !content.trim()) continue;
-      const id = typeof p.id === "string" && p.id.trim() ? p.id.trim() : makeEntityId("prm");
-      if (seen.has(id)) continue;
-      seen.add(id);
-      prompts.push({
-        id,
-        name: name || id,
-        content,
-        updatedAt: typeof p.updatedAt === "number" && Number.isFinite(p.updatedAt) ? p.updatedAt : Date.now(),
-      });
-    }
   }
 
   const enabledMcpIds: string[] = Array.isArray(record.enabledMcpIds)
@@ -356,26 +330,18 @@ export function normalizeConfig(raw: unknown): AiConfig {
       const m = rawMeta as Record<string, unknown>;
       const folderId = typeof m.folderId === "string" && folderIds.has(m.folderId) ? m.folderId : undefined;
       const pinned = Boolean(m.pinned);
-      if (pinned || folderId) {
+      const order = typeof m.order === "number" && Number.isFinite(m.order) ? m.order : undefined;
+      if (pinned || folderId || order !== undefined) {
         conversationMeta[convId] = {
           ...(pinned ? { pinned: true } : {}),
           ...(folderId ? { folderId } : {}),
+          ...(order !== undefined ? { order } : {}),
         };
       }
     }
   }
 
   const rawSettings = (record.settings && typeof record.settings === "object" ? record.settings : {}) as Record<string, unknown>;
-  const temp = typeof rawSettings.temperature === "number" && Number.isFinite(rawSettings.temperature)
-    ? Math.min(2, Math.max(0, rawSettings.temperature))
-    : DEFAULT_GENERAL_SETTINGS.temperature;
-  const maxTokens = typeof rawSettings.maxTokens === "number" && Number.isFinite(rawSettings.maxTokens) && rawSettings.maxTokens > 0
-    ? Math.round(rawSettings.maxTokens)
-    : null;
-  const contextMessages = typeof rawSettings.contextMessages === "number" && Number.isFinite(rawSettings.contextMessages)
-    ? Math.min(100, Math.max(0, Math.round(rawSettings.contextMessages)))
-    : DEFAULT_GENERAL_SETTINGS.contextMessages;
-
   let defaultModelConfigId = typeof rawSettings.defaultModelConfigId === "string" ? rawSettings.defaultModelConfigId : "";
   if (!defaultModelConfigId && typeof rawSettings.defaultProviderId === "string" && typeof rawSettings.defaultModelId === "string") {
     const matched = models.find(
@@ -386,16 +352,9 @@ export function normalizeConfig(raw: unknown): AiConfig {
 
   const settings: AiGeneralSettings = {
     defaultModelConfigId,
-    defaultPromptId: typeof rawSettings.defaultPromptId === "string" ? rawSettings.defaultPromptId : "",
-    systemPrompt: typeof rawSettings.systemPrompt === "string" ? rawSettings.systemPrompt : "",
-    temperature: temp,
-    maxTokens,
-    contextMessages,
-    stream: rawSettings.stream !== false,
-    sendKey: rawSettings.sendKey === "ctrlEnter" ? "ctrlEnter" : "enter",
   };
 
-  return { version: 2, models, prompts, enabledMcpIds, folders, conversationMeta, settings };
+  return { version: 2, models, enabledMcpIds, folders, conversationMeta, settings };
 }
 
 /** 判断模型配置是否可用 */
