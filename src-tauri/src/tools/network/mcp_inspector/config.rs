@@ -7,7 +7,7 @@ use reqwest::{
 use serde::{Deserialize, Serialize};
 use tokio::process::Command;
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub(crate) enum McpConfig {
     Stdio {
@@ -23,14 +23,30 @@ pub(crate) enum McpConfig {
     Http(HttpConfig),
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub(crate) struct HttpConfig {
-    url: String,
+    pub(super) url: String,
     #[serde(default)]
-    headers: HashMap<String, String>,
+    pub(super) headers: HashMap<String, String>,
     #[serde(default)]
-    env_http_headers: HashMap<String, String>,
-    bearer_token_env_var: Option<String>,
+    pub(super) env_http_headers: HashMap<String, String>,
+    pub(super) bearer_token_env_var: Option<String>,
+}
+
+impl McpConfig {
+    /// 生成脱敏后的连接摘要（不包含明文密钥或请求头值）
+    pub(super) fn summary(&self) -> String {
+        match self {
+            McpConfig::Stdio { command, args, .. } => {
+                if args.is_empty() {
+                    format!("stdio: {command}")
+                } else {
+                    format!("stdio: {command} {}", args.join(" "))
+                }
+            }
+            McpConfig::Http(http) => format!("http: {}", http.url),
+        }
+    }
 }
 
 // 指定传递列表时，保留启动常用运行时所需的基础变量。

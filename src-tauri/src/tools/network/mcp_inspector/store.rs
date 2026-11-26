@@ -11,11 +11,11 @@ use super::config::McpConfig;
 const FILE_NAME: &str = "mcp-connections.dat";
 const VERSION: u8 = 1;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct StoredConnection {
-    id: String,
-    name: String,
-    config: McpConfig,
+    pub(super) id: String,
+    pub(super) name: String,
+    pub(super) config: McpConfig,
 }
 
 #[derive(Deserialize)]
@@ -83,8 +83,7 @@ fn write_connections(path: &Path, connections: &[StoredConnection]) -> Result<()
     result.map_err(|error| format!("Could not save the MCP connections: {error}"))
 }
 
-#[tauri::command]
-pub(crate) async fn mcp_read_connections(
+pub(super) async fn load_stored_connections(
     app: tauri::AppHandle,
 ) -> Result<Vec<StoredConnection>, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -94,8 +93,7 @@ pub(crate) async fn mcp_read_connections(
     .map_err(|error| error.to_string())?
 }
 
-#[tauri::command]
-pub(crate) async fn mcp_save_connections(
+pub(super) async fn save_stored_connections(
     app: tauri::AppHandle,
     connections: Vec<StoredConnection>,
 ) -> Result<(), String> {
@@ -104,4 +102,19 @@ pub(crate) async fn mcp_save_connections(
     })
     .await
     .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+pub(crate) async fn mcp_read_connections(
+    app: tauri::AppHandle,
+) -> Result<Vec<StoredConnection>, String> {
+    load_stored_connections(app).await
+}
+
+#[tauri::command]
+pub(crate) async fn mcp_save_connections(
+    app: tauri::AppHandle,
+    connections: Vec<StoredConnection>,
+) -> Result<(), String> {
+    save_stored_connections(app, connections).await
 }

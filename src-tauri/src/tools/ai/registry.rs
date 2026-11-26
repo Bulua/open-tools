@@ -11,6 +11,11 @@ use std::pin::Pin;
 
 use serde::Serialize;
 use serde_json::Value;
+use tauri::AppHandle;
+
+use crate::tools::network::mcp_inspector::ai_tools::{
+    McpAddConnectionTool, McpInspectConnectionTool, McpListConnectionsTool,
+};
 
 use super::fs_tools::{EditFileTool, ListDirTool, ReadFileTool, WriteFileTool};
 use super::shell::{AiCommandState, RunCommandTool};
@@ -88,8 +93,9 @@ impl AiToolResult {
     }
 }
 
-/// 工具执行上下文，后续扩展其他工具时可按需挂载额外共享状态
+/// 工具执行上下文，后续扩展其他工具时可按需通过 `app` 访问应用状态与数据目录
 pub(crate) struct AiToolContext<'a> {
+    pub(crate) app: &'a AppHandle,
     pub(crate) run_id: &'a str,
     pub(crate) workspace_dir: &'a str,
     pub(crate) command_state: &'a AiCommandState,
@@ -130,6 +136,9 @@ impl AiToolRegistry {
         registry.register(WriteFileTool);
         registry.register(EditFileTool);
         registry.register(RunCommandTool);
+        registry.register(McpListConnectionsTool);
+        registry.register(McpAddConnectionTool);
+        registry.register(McpInspectConnectionTool);
         registry
     }
 

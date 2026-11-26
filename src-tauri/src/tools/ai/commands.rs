@@ -106,6 +106,7 @@ pub(crate) fn ai_builtin_context(
 
 #[tauri::command]
 pub(crate) async fn ai_tool_execute(
+    app: AppHandle,
     registry: State<'_, AiToolRegistry>,
     command_state: State<'_, AiCommandState>,
     run_id: String,
@@ -114,6 +115,7 @@ pub(crate) async fn ai_tool_execute(
     arguments: Value,
 ) -> Result<AiToolResult, String> {
     let ctx = AiToolContext {
+        app: &app,
         run_id: &run_id,
         workspace_dir: &workspace_dir,
         command_state: &command_state,
