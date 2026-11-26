@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import { computed, ref, shallowRef, watch } from "vue";
+import { computed, ref, shallowRef } from "vue";
 import { useI18n } from "vue-i18n";
 import AppSelect from "@/components/common/AppSelect.vue";
 import { Download, FileText, ImageOff, X } from "lucide-vue-next";
 import CheckAll from "@/components/common/CheckAll.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
+import MarkdownView from "@/components/common/MarkdownView.vue";
 import { useFileChecks } from "@/composables/useFileChecks";
 import { saveFiles } from "@/utils/saveFile";
 import { formatBytes } from "@/utils/format";
-import MarkdownView from "../shared/components/MarkdownView.vue";
 import { locale } from "@/locales";
 import { errorMessage, showError } from "@/utils/errorToast";
-import { FONTS, fontLabel, renderSafe, useDocxOptions } from "../shared/markdown";
+import { FONTS, fontLabel, useDocxOptions } from "../shared/markdown";
 import { createImageLoader, imageSources } from "../shared/images";
 import { FONT_SIZES, docxNameOf, markdownToDocx } from "../shared/toDocx";
 
@@ -61,9 +61,6 @@ const { isChecked, toggle: toggleFile, checkedItems, allChecked, partlyChecked, 
 const loader = computed(() => createImageLoader(images.value));
 /** 每个文档中找不到的本地图片 */
 const missing = computed(() => new Map(docs.value.map((d) => [d.id, loader.value.missing(imageSources(d.text), d.path)])));
-
-const preview = shallowRef("");
-watch(selected, (doc) => (preview.value = doc ? renderSafe(doc.text).html : ""), { immediate: true });
 
 // ---------- 转换 ----------
 const converting = ref(false);
@@ -181,7 +178,7 @@ const previewStyle = computed(() => ({
       />
       <div v-else class="area">
         <div class="paper" :style="previewStyle">
-          <MarkdownView :html="preview" />
+          <MarkdownView v-if="selected" :key="selected.id" :markdown="selected.text" />
         </div>
       </div>
     </section>
@@ -228,21 +225,30 @@ const previewStyle = computed(() => ({
   color: #1f1e1d;
   box-shadow: var(--shadow);
 }
-.paper :deep(.md-body) {
+.paper :deep(.md-view) {
   --text: #1f1e1d;
   --text-2: #6b6a65;
+  --text-3: #8f8d86;
+  --surface: #ffffff;
+  --bg-sunken: #f5f4ee;
+  --code-bg: #f6f6f6;
+  --hover: rgba(31, 30, 29, 0.05);
+  --border: rgba(31, 30, 29, 0.12);
+  --border-strong: rgba(31, 30, 29, 0.22);
+}
+.paper :deep(.md-view .ProseMirror) {
   font-family: var(--doc-font);
   font-size: var(--doc-size);
   line-height: var(--doc-line);
 }
-.paper :deep(.md-body h1),
-.paper :deep(.md-body h2) {
+.paper :deep(.md-view h1),
+.paper :deep(.md-view h2) {
   font-family: Calibri, "黑体", sans-serif;
   font-weight: 700;
   border: none;
 }
-.paper :deep(.md-body h3),
-.paper :deep(.md-body h4) {
+.paper :deep(.md-view h3),
+.paper :deep(.md-view h4) {
   font-family: Calibri, "黑体", sans-serif;
 }
 

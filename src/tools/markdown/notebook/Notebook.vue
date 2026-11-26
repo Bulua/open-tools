@@ -1,16 +1,20 @@
 <script setup lang="ts">
-import { computed, nextTick, onDeactivated, ref, watch } from "vue";
+import { computed, nextTick, onDeactivated, ref, shallowRef, watch } from "vue";
+import type { Editor } from "@milkdown/core";
 import { closePanelDialog, vPanelDismiss } from "@/utils/panelDialog";
 import { useI18n } from "vue-i18n";
 import { ChevronDown, ChevronLeft, ChevronRight, CodeXml, FolderOpen, ListTodo, Minus, Quote, SquareCode, Table2, Trash2 } from "lucide-vue-next";
 import AppSelect from "@/components/common/AppSelect.vue";
+import MarkdownView from "@/components/common/MarkdownView.vue";
 import { useToolUsage } from "@/composables/useToolUsage";
 import { usePanelResize } from "@/composables/usePanelResize";
 import { usePopover } from "@/composables/usePopover";
 import { useWindowEvent } from "@/composables/useWindowEvent";
-import NotebookEditor from "./components/NotebookEditor.vue";
-import NotebookTableGrid from "./components/NotebookTableGrid.vue";
 import NotebookDirectory from "./components/NotebookDirectory.vue";
+import NotebookImageControls from "./components/NotebookImageControls.vue";
+import NotebookTableControls from "./components/NotebookTableControls.vue";
+import NotebookTableGrid from "./components/NotebookTableGrid.vue";
+import { insertNotebookBlock, makeNotebookEditor } from "./editor";
 import { directoryRows, moveEntry, subtree, uniqueNoteName, type DirectoryDrop, type Node, type Note } from "./notebook";
 import { markdownOutline, scrollSourceToHeading, type OutlineHeading } from "./outline";
 import { clipboardImageFiles } from "./images";
@@ -176,8 +180,27 @@ function fallbackToSource(id: string) {
 
 const sourceInput = ref<HTMLTextAreaElement>();
 const writingScroll = ref<HTMLElement>();
-const liveEditor = ref<InstanceType<typeof NotebookEditor>>();
+const liveEditor = ref<InstanceType<typeof MarkdownView>>();
+const activeEditor = shallowRef<Editor>();
+const imageControls = ref<InstanceType<typeof NotebookImageControls>>();
+const tableControls = ref<InstanceType<typeof NotebookTableControls>>();
 let pendingScroll: { scroller: HTMLElement; progress: number } | undefined;
+
+function createNotebookEditor(noteId: string, markdown: string) {
+  return (root: HTMLElement) =>
+    makeNotebookEditor(
+      root,
+      noteId,
+      markdown,
+      () => label("editor"),
+      nextMarkdown => updateNote(noteId, nextMarkdown),
+      () => label("task"),
+      () => label("editFormula"),
+      key => label(key),
+      (event, target) => { void imageControls.value?.open(event, target); },
+      (tool, trigger, getPosition) => tableControls.value?.runTableControl(tool, trigger, getPosition),
+    );
+}
 const tablePickerTrigger = ref<HTMLButtonElement>();
 const tablePickerPanel = ref<HTMLElement>();
 const tableGrid = ref<InstanceType<typeof NotebookTableGrid>>();
@@ -338,7 +361,28 @@ useWindowEvent("keydown", event => {
           <textarea v-if="sourceMode" ref="sourceInput" v-model="source" class="source"
             :aria-label="label('source')" :placeholder="label('placeholder')" spellcheck="false" @paste="pasteSourceImage" />
           <div v-else class="writing-frame">
-            <NotebookEditor ref="liveEditor" :id="note.id" :markdown="note.markdown" @edit="updateNote" @failed="fallbackToSource" />
+            <MarkdownView
+              ref="liveEditor"
+              editable
+              :id="note.id"
+              :markdown="note.markdown"
+              :placeholder="label('placeholder')"
+              :create-editor="createNotebookEditor(note.id, note.markdown)"
+              :insert-block="insertNotebookBlock"
+              @ready="activeEditor = $event"
+              @failed="fallbackToSource"
+              @contextmenu="tableControls?.openCellMenu($event)"
+            />
+            <NotebookTableControls
+              ref="tableControls"
+              :editor="activeEditor"
+              :markdown="note.markdown"
+              @edit="md => note && updateNote(note.id, md)"
+            />
+            <NotebookImageControls
+              ref="imageControls"
+              :focus-editor="() => liveEditor?.focus()"
+            />
           </div>
         </div>
         <div class="writing-resizer" role="separator" tabindex="0" aria-orientation="vertical"

@@ -1,15 +1,7 @@
-import DOMPurify from "dompurify";
 import { locale, translationIn, type Translations } from "@/locales/index";
 import { computed } from "vue";
 import { useStoredRef } from "@/composables/useStoredRef";
-import { renderMarkdown } from "./render";
 import { DEFAULT_DOCX_OPTIONS, type DocxOptions } from "./toDocx";
-
-/** 渲染并清理 HTML：Markdown 里可以写任意 HTML，去掉脚本、事件属性等，防止被执行 */
-export function renderSafe(source: string) {
-  const { html, headings } = renderMarkdown(source);
-  return { html: DOMPurify.sanitize(html), headings };
-}
 
 export const FONTS = ["宋体", "微软雅黑", "等线", "仿宋", "楷体"];
 /** 字体在其他语言下显示的名称（值仍用中文名，Word 认得） */
