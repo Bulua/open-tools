@@ -20,6 +20,7 @@ use crate::tools::markdown::notebook::ai_tools::{
 use crate::tools::network::mcp_inspector::ai_tools::{
     McpAddConnectionTool, McpInspectConnectionTool, McpListConnectionsTool,
 };
+use crate::tools::utility::calculator::ai_tools::CalculateTool;
 use crate::tools::utility::clock::ai_tools::{
     ClockListTool, ClockManageTool, ClockSetAlarmTool, ClockStartTimerTool,
 };
@@ -155,6 +156,7 @@ impl AiToolRegistry {
         registry.register(ClockSetAlarmTool);
         registry.register(ClockStartTimerTool);
         registry.register(ClockManageTool);
+        registry.register(CalculateTool);
         registry
     }
 

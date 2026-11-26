@@ -17,7 +17,10 @@ use crate::tools::{
     image::shared::{ai_models, inference},
     markdown::notebook::commands as notebook,
     network::{ip_lookup::commands as ip_lookup, mqtt_client::commands as mqtt, ping::commands as ping},
-    utility::{calendar::commands as calendar, clock::commands as clock},
+    utility::{
+        calculator::commands as calculator, calendar::commands as calendar,
+        clock::commands as clock,
+    },
     video::{
         douyin_download::commands as douyin,
         shared::{hdr, storage},
@@ -134,6 +137,7 @@ pub fn run() {
             id_card::id_card_parse,
             vault::vault_read,
             vault::vault_write,
+            calculator::calculator_eval,
             clock::countdown_read,
             clock::countdown_write,
             calendar::calendar_read,

@@ -19,6 +19,7 @@ pub(crate) fn build_system_prompt(workspace_dir: &str) -> String {
         "6. 如用户希望查看、搜索、整理、记录或删除「笔记本」里的 Markdown 笔记，请使用 notebook_list、notebook_read、notebook_save 与 notebook_delete，不要直接去改应用数据目录下的索引文件。",
         "7. 如用户提供中国大陆居民身份证号（18 位或 15 位）需要校验、升级或解析地区、出生日期、年龄、性别、星座、生肖等信息，请调用 parse_id_card。",
         "8. 如用户希望查询当前时间、设置/管理闹钟或启动/暂停/删除倒计时器，请使用 clock_list、clock_set_alarm、clock_start_timer 与 clock_manage。",
+        "9. 需要精确计算数学表达式（多位数运算、乘方、开方、三角函数、对数、阶乘、复利或统计公式等）时，请调用 calculate，避免心算出错。",
     ]
     .join("\n")
 }
