@@ -79,6 +79,7 @@ export default defineModuleLocales({
         approval: {
           commandTitle: "AI 请求执行系统命令",
           externalWriteTitle: "AI 请求修改工作区外的文件",
+          toolTitle: "AI 请求执行操作",
           cwdLabel: "执行目录",
           pathLabel: "目标路径",
           allowOnce: "允许本次",
@@ -271,6 +272,7 @@ export default defineModuleLocales({
         approval: {
           commandTitle: "AI wants to run a command",
           externalWriteTitle: "AI wants to write outside the workspace",
+          toolTitle: "AI wants to run a tool",
           cwdLabel: "Working dir",
           pathLabel: "Target path",
           allowOnce: "Allow once",
@@ -463,6 +465,7 @@ export default defineModuleLocales({
         approval: {
           commandTitle: "AI がコマンド実行を要求しています",
           externalWriteTitle: "AI が作業フォルダー外のファイル変更を要求しています",
+          toolTitle: "AI がツールの実行を要求しています",
           cwdLabel: "作業ディレクトリ",
           pathLabel: "対象パス",
           allowOnce: "今回のみ許可",

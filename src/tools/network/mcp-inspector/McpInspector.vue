@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { ChevronDown, FileText, FolderOpen, Pencil, Plug, Plus, Server, Wrench } from "lucide-vue-next";
 import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, shallowRef, useId, watch } from "vue";
 import { useI18n } from "vue-i18n";
@@ -114,13 +115,24 @@ async function restoreConnections() {
     loadingConnections.value = false;
   }
 }
+let unlistenMcpChanged: UnlistenFn | undefined;
 onMounted(() => {
   startStatus();
   void restoreConnections();
+  void listen("mcp-connections-changed", () => void restoreConnections())
+    .then((unlisten) => { unlistenMcpChanged = unlisten; })
+    .catch(() => undefined);
 });
-onActivated(startStatus);
+onActivated(() => {
+  startStatus();
+  void restoreConnections();
+});
 onDeactivated(stopStatus);
-onBeforeUnmount(stopStatus);
+onBeforeUnmount(() => {
+  stopStatus();
+  unlistenMcpChanged?.();
+  unlistenMcpChanged = undefined;
+});
 
 async function connectServer(item: McpConnection) {
   const sessionId = crypto.randomUUID();

@@ -34,6 +34,17 @@ export interface ActiveMcpToolEntry {
 const connections = ref<McpConnectionItem[]>([]);
 const loaded = ref(false);
 const runtimeStates = reactive<Record<string, McpRuntimeState>>({});
+let mcpEventSubscribed = false;
+
+function ensureMcpChangeListener(): void {
+  if (mcpEventSubscribed || !hasTauriRuntime()) return;
+  mcpEventSubscribed = true;
+  void import("@tauri-apps/api/event")
+    .then(({ listen }) => listen("mcp-connections-changed", () => void loadMcpConnections()))
+    .catch(() => {
+      mcpEventSubscribed = false;
+    });
+}
 
 function ensureRuntime(id: string): McpRuntimeState {
   if (!runtimeStates[id]) {
@@ -44,6 +55,7 @@ function ensureRuntime(id: string): McpRuntimeState {
 
 /** 读取「MCP 工具查看器」持久化的全部 MCP 连接 */
 export async function loadMcpConnections(): Promise<McpConnectionItem[]> {
+  ensureMcpChangeListener();
   try {
     if (hasTauriRuntime()) {
       connections.value = await tauriInvoke<McpConnectionItem[]>("mcp_read_connections");

@@ -18,6 +18,7 @@ import {
   Sparkles,
   Square,
   Terminal,
+  Wrench,
   X,
 } from "lucide-vue-next";
 import { usePopover } from "@/composables/usePopover";
@@ -590,13 +591,16 @@ defineExpose({ focusInput });
                 <div class="approval-head">
                   <span class="approval-icon" :class="pendingApproval.kind">
                     <Terminal v-if="pendingApproval.kind === 'command'" :size="15" :stroke-width="1.9" />
+                    <Wrench v-else-if="pendingApproval.kind === 'tool'" :size="15" :stroke-width="1.9" />
                     <FilePenLine v-else :size="15" :stroke-width="1.9" />
                   </span>
                   <span class="approval-title">
                     {{
                       pendingApproval.kind === "command"
                         ? t("ai.approval.commandTitle")
-                        : t("ai.approval.externalWriteTitle")
+                        : pendingApproval.kind === "tool"
+                          ? t("ai.approval.toolTitle")
+                          : t("ai.approval.externalWriteTitle")
                     }}
                   </span>
                   <span class="approval-badge">
@@ -610,6 +614,7 @@ defineExpose({ focusInput });
 
                 <div class="approval-detail">
                   <pre v-if="pendingApproval.kind === 'command'" class="approval-cmd">{{ pendingApproval.command }}</pre>
+                  <pre v-if="pendingApproval.kind === 'tool' && pendingApproval.argumentsText" class="approval-cmd">{{ pendingApproval.argumentsText }}</pre>
                   <div v-if="pendingApproval.kind === 'command' && pendingApproval.cwd" class="approval-meta">
                     <FolderOpen :size="12" class="approval-meta-icon" />
                     <span class="approval-meta-label">{{ t("ai.approval.cwdLabel") }}</span>

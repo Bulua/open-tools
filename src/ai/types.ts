@@ -76,11 +76,12 @@ export interface PendingToolApproval {
   id: string;
   conversationId: string;
   toolName: string;
-  kind: "command" | "externalWrite";
+  kind: "command" | "externalWrite" | "tool";
   command?: string;
   shell?: string;
   targetPath?: string;
   cwd?: string;
+  argumentsText?: string;
 }
 
 /** 助手回复的有序时间线分段，使思考过程、说明文字与工具调用按真实发生顺序交错展示 */

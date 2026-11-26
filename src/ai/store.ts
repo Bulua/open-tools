@@ -688,19 +688,31 @@ async function runAssistantTurn(conv: Conversation, fetchImpl?: typeof fetch): P
           // 按后端工具声明的 approval 策略进行安全确认，新扩展工具自动遵循同一链路
           const autoAll = conv.executionPolicy === "auto";
           if (builtinTool.approval === "command" && !autoAll && !sessionApprovals[conv.id]?.allowCommand) {
+            const isShellCommand = call.name === "run_command";
             const cmdStr = typeof parsedArgs.command === "string" ? parsedArgs.command : call.argumentsText;
             const shellStr = typeof parsedArgs.shell === "string" && parsedArgs.shell.trim() ? parsedArgs.shell.trim() : "powershell";
             const cwdStr = typeof parsedArgs.cwd === "string" && parsedArgs.cwd.trim() ? parsedArgs.cwd.trim() : workspaceDir;
+            const formattedArgs = Object.keys(parsedArgs).length
+              ? JSON.stringify(parsedArgs, null, 2)
+              : call.argumentsText || "{}";
             const decision = await requestToolApproval(
-              {
-                id: call.id,
-                conversationId: conv.id,
-                toolName: call.name,
-                kind: "command",
-                command: cmdStr,
-                shell: shellStr,
-                cwd: cwdStr,
-              },
+              isShellCommand
+                ? {
+                    id: call.id,
+                    conversationId: conv.id,
+                    toolName: call.name,
+                    kind: "command",
+                    command: cmdStr,
+                    shell: shellStr,
+                    cwd: cwdStr,
+                  }
+                : {
+                    id: call.id,
+                    conversationId: conv.id,
+                    toolName: call.name,
+                    kind: "tool",
+                    argumentsText: formattedArgs,
+                  },
               controller.signal,
             );
             approved = decision !== "deny";
