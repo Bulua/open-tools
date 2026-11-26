@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from "vue";
+import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   Check,
@@ -16,12 +16,15 @@ import { useClipboard } from "@/composables/useClipboard";
 import { showError } from "@/utils/errorToast";
 import { openExternal } from "@/utils/openExternal";
 import { saveFile } from "@/utils/saveFile";
+import { readLocalImageForPreview, resolveConversationWorkspaceDir } from "../builtinTools";
 import { inferCodeFileName, renderChatMarkdown, type ParsedFileLink } from "../markdown";
 import type { ChatMessage, ChatMessagePart } from "../types";
 
 const props = defineProps<{
   message: ChatMessage;
   streaming: boolean;
+  conversationId?: string;
+  workspaceDir?: string;
 }>();
 
 const emit = defineEmits<{
@@ -209,6 +212,52 @@ const toggleToolDetail = (id: string) => {
 
 const renderText = (source: string) => renderChatMarkdown(source);
 
+const assistantRef = ref<HTMLElement>();
+let hydrateSeq = 0;
+
+/** 将 Markdown 中引用的本地 file:// 图片通过后端读取并内联显示 */
+async function hydrateLocalImages() {
+  const root = assistantRef.value;
+  if (!root) return;
+  const imgs = Array.from(root.querySelectorAll<HTMLImageElement>("img.ai-local-img[data-local-image-path]"));
+  if (!imgs.length) return;
+  const seq = ++hydrateSeq;
+  let wsDir: string;
+  try {
+    wsDir = await resolveConversationWorkspaceDir(props.conversationId || "draft", props.workspaceDir);
+  } catch {
+    return;
+  }
+  if (seq !== hydrateSeq) return;
+
+  await Promise.all(
+    imgs.map(async (img) => {
+      const rawPath = img.dataset.localImagePath?.trim();
+      if (!rawPath || img.dataset.loadedPath === rawPath) return;
+      try {
+        const preview = await readLocalImageForPreview(wsDir, rawPath);
+        if (seq !== hydrateSeq) return;
+        img.src = preview.dataUrl;
+        img.dataset.loadedPath = rawPath;
+        img.classList.add("loaded");
+      } catch {
+        img.classList.add("failed");
+      }
+    }),
+  );
+}
+
+onMounted(() => {
+  void nextTick(hydrateLocalImages);
+});
+
+watch(
+  [() => displayBlocks.value.map((b) => (b.kind === "text" ? b.text : "")).join("\0"), () => props.workspaceDir],
+  () => {
+    void nextTick(hydrateLocalImages);
+  },
+);
+
 const durationLabel = computed(() => {
   if (!props.message.durationMs) return "";
   const sec = (props.message.durationMs / 1000).toFixed(1);
@@ -274,6 +323,15 @@ async function onMarkdownClick(event: MouseEvent) {
       }, 1400);
     } catch {
       // 忽略解码失败
+    }
+    return;
+  }
+  const localImg = target.closest<HTMLImageElement>("img.ai-local-img");
+  if (localImg) {
+    const imgPath = localImg.dataset.localImagePath?.trim();
+    if (imgPath) {
+      event.preventDefault();
+      emit("openFile", { path: imgPath });
     }
     return;
   }
@@ -361,7 +419,7 @@ async function onMarkdownClick(event: MouseEvent) {
     </div>
 
     <!-- 助手消息：无头像全宽文档流排版；连续思考与工具调用归入可折叠过程组，与正文交错呈现 -->
-    <div v-else class="assistant-wrap">
+    <div v-else ref="assistantRef" class="assistant-wrap">
       <template v-for="(block, blockIdx) in displayBlocks" :key="block.id">
         <!-- 正文 Markdown 段 -->
         <div
@@ -1015,6 +1073,30 @@ async function onMarkdownClick(event: MouseEvent) {
 }
 .ai-md :deep(a.ai-file-link:hover) {
   border-bottom-color: var(--accent);
+}
+.ai-md :deep(img.ai-local-img) {
+  display: block;
+  max-width: min(100%, 460px);
+  max-height: 360px;
+  width: auto;
+  height: auto;
+  margin: 0.55em 0;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background-color: var(--bg-sunken);
+  background-image:
+    linear-gradient(45deg, var(--border) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--border) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--border) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--border) 75%);
+  background-size: 14px 14px;
+  background-position: 0 0, 0 7px, 7px -7px, -7px 0;
+  cursor: zoom-in;
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+.ai-md :deep(img.ai-local-img:hover) {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-sm);
 }
 .ai-md :deep(code) {
   padding: 0.12em 0.42em;

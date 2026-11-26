@@ -1,8 +1,9 @@
 import DOMPurify from "dompurify";
 import hljs from "highlight.js/lib/common";
+import { isImageFilePath, type LocalImagePreview } from "./builtinTools";
 import type { ChatMessage, ChatToolCall } from "./types";
 
-export type OutputPreviewKind = "html" | "svg" | "markdown" | "code";
+export type OutputPreviewKind = "html" | "svg" | "markdown" | "image" | "code";
 
 export interface AiOutputFile {
   /** 唯一标识（用于选中状态与列表 key） */
@@ -17,16 +18,18 @@ export interface AiOutputFile {
   language: string;
   /** 小写扩展名（不含点） */
   ext: string;
-  /** 文件完整文本内容 */
+  /** 文件完整文本内容（图片文件为空串，按需从磁盘加载） */
   content: string;
   /** 行数 */
   lineCount: number;
-  /** UTF-8 字节数 */
+  /** 字节数 */
   sizeBytes: number;
   /** 生成时间戳 */
   createdAt: number;
   /** 支持的预览模式 */
   previewKind: OutputPreviewKind;
+  /** 已加载的图片预览数据（按需填充） */
+  imagePreview?: LocalImagePreview;
 }
 
 const INVALID_FILENAME_CHARS_RE = /[<>:"/\\|?*\x00-\x1f]/;
@@ -51,11 +54,13 @@ function getFileExt(fileName: string): string {
   return dot > 0 ? lower.slice(dot + 1) : "txt";
 }
 
-function detectPreviewKind(ext: string, content: string): OutputPreviewKind {
+function detectPreviewKind(ext: string, content: string, explicitKind?: "text" | "image"): OutputPreviewKind {
+  if (explicitKind === "image") return "image";
   const e = ext.toLowerCase();
   if (e === "html" || e === "htm") return "html";
   if (e === "svg" || /^<svg\b/i.test(content.trim())) return "svg";
   if (e === "md" || e === "markdown") return "markdown";
+  if (isImageFilePath(`a.${e}`)) return "image";
   return "code";
 }
 
@@ -75,15 +80,27 @@ function collectToolCalls(msg: ChatMessage): ChatToolCall[] {
 }
 
 /** 从已完成的文件写入/生成类工具调用中提取真实产生的文件 */
-function extractFileFromToolCall(call: ChatToolCall): { filePath: string; fileName: string; content: string } | null {
+function extractFileFromToolCall(call: ChatToolCall): {
+  filePath: string;
+  fileName: string;
+  content: string;
+  kind?: "text" | "image";
+  sizeBytes?: number;
+} | null {
   if (call.status !== "done") return null;
 
-  // 优先读取工具执行成功后回传的权威文件快照（如内置 write_file / edit_file）
+  // 优先读取工具执行成功后回传的权威文件快照（如内置 write_file / edit_file / image_*）
   if (call.outputFile && typeof call.outputFile.path === "string" && typeof call.outputFile.content === "string") {
     const filePath = normalizePath(call.outputFile.path);
     const fileName = extractBaseName(filePath);
     if (fileName) {
-      return { filePath, fileName, content: call.outputFile.content };
+      return {
+        filePath,
+        fileName,
+        content: call.outputFile.content,
+        kind: call.outputFile.kind,
+        sizeBytes: call.outputFile.sizeBytes,
+      };
     }
   }
 
@@ -123,8 +140,16 @@ export function extractConversationOutputs(messages: readonly ChatMessage[]): Ai
 
       const ext = getFileExt(extracted.fileName);
       const key = extracted.filePath.toLowerCase();
-      const lineCount = extracted.content.length ? extracted.content.split(/\r?\n/).length : 0;
-      const sizeBytes = new TextEncoder().encode(extracted.content).length;
+      const previewKind = detectPreviewKind(ext, extracted.content, extracted.kind);
+      const lineCount = previewKind === "image"
+        ? 0
+        : extracted.content.length
+          ? extracted.content.split(/\r?\n/).length
+          : 0;
+      const sizeBytes =
+        typeof extracted.sizeBytes === "number" && Number.isFinite(extracted.sizeBytes)
+          ? extracted.sizeBytes
+          : new TextEncoder().encode(extracted.content).length;
 
       // 同路径重复写入时更新为最新内容，并维持最新顺序
       if (byPath.has(key)) byPath.delete(key);
@@ -139,7 +164,7 @@ export function extractConversationOutputs(messages: readonly ChatMessage[]): Ai
         lineCount,
         sizeBytes,
         createdAt: msg.createdAt,
-        previewKind: detectPreviewKind(ext, extracted.content),
+        previewKind,
       });
     }
   }
@@ -190,6 +215,32 @@ export function createOutputFileFromSnapshot(
     sizeBytes,
     createdAt,
     previewKind: detectPreviewKind(ext, content),
+  };
+}
+
+/** 根据本地图片预览结果构造右侧查看器展示对象 */
+export function createImageOutputFile(
+  preview: LocalImagePreview,
+  messageId = "",
+  createdAt = Date.now(),
+): AiOutputFile | null {
+  const filePath = normalizePath(preview.path);
+  const base = filePath.split("/").pop()?.trim() ?? "";
+  if (!base) return null;
+  const ext = getFileExt(base);
+  return {
+    id: filePath.toLowerCase(),
+    messageId,
+    fileName: base,
+    filePath,
+    language: ext,
+    ext,
+    content: "",
+    lineCount: 0,
+    sizeBytes: preview.sizeBytes,
+    createdAt,
+    previewKind: "image",
+    imagePreview: preview,
   };
 }
 

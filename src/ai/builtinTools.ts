@@ -19,7 +19,19 @@ export interface BuiltinToolRunResult {
   outputFile?: {
     path: string;
     content: string;
+    kind?: "text" | "image";
+    sizeBytes?: number;
   };
+}
+
+export interface LocalImagePreview {
+  path: string;
+  mimeType: string;
+  dataUrl: string;
+  rawBase64?: string;
+  sizeBytes: number;
+  width?: number;
+  height?: number;
 }
 
 export interface BuiltinToolPathCheck {
@@ -322,4 +334,66 @@ export async function readLocalFileForPreview(
     path: resolvedPath,
     content: chunks.join("\n"),
   };
+}
+
+const IMAGE_FILE_EXT_RE = /\.(png|jpe?g|webp|gif|bmp|ico|tif|tiff|avif)$/i;
+const localImageCache = new Map<string, LocalImagePreview>();
+const MAX_IMAGE_CACHE_ENTRIES = 60;
+
+/** 判断路径是否为常见二进制图片文件（不含文本可编辑的 SVG） */
+export function isImageFilePath(targetPath: string): boolean {
+  const clean = targetPath.trim().split(/[?#]/, 1)[0];
+  return IMAGE_FILE_EXT_RE.test(clean);
+}
+
+/** 清空本地图片预览缓存（当工具覆盖了同名图片时调用） */
+export function invalidateLocalImageCache(targetPath?: string): void {
+  if (!targetPath) {
+    localImageCache.clear();
+    return;
+  }
+  const norm = normalizePosixLike(targetPath).toLowerCase();
+  for (const key of localImageCache.keys()) {
+    if (key.toLowerCase().includes(norm)) {
+      localImageCache.delete(key);
+    }
+  }
+}
+
+/** 读取本地图片文件供对话内联渲染与右侧输出查看器预览 */
+export async function readLocalImageForPreview(
+  workspaceDir: string,
+  targetPath: string,
+  bypassCache = false,
+): Promise<LocalImagePreview> {
+  if (!hasTauriRuntime()) {
+    throw new Error("Reading local images requires the desktop application runtime.");
+  }
+  const cacheKey = `${normalizePosixLike(workspaceDir).toLowerCase()}\0${normalizePosixLike(targetPath).toLowerCase()}`;
+  if (!bypassCache) {
+    const cached = localImageCache.get(cacheKey);
+    if (cached) return cached;
+  }
+
+  const res = await tauriInvoke<LocalImagePreview>("ai_tool_read_image", {
+    workspaceDir,
+    path: targetPath,
+  });
+  if (localImageCache.size >= MAX_IMAGE_CACHE_ENTRIES) {
+    const oldestKey = localImageCache.keys().next().value;
+    if (oldestKey) localImageCache.delete(oldestKey);
+  }
+  localImageCache.set(cacheKey, res);
+  return res;
+}
+
+/** 将 Data URL 或纯 Base64 解码为原始二进制字节，供图片下载保存 */
+export function decodeImagePreviewBytes(preview: Pick<LocalImagePreview, "dataUrl" | "rawBase64">): Uint8Array {
+  const base64 = preview.rawBase64 ?? preview.dataUrl.split(",", 2)[1] ?? "";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
 }

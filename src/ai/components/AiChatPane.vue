@@ -24,13 +24,20 @@ import {
 import { usePopover } from "@/composables/usePopover";
 import { showError } from "@/utils/errorToast";
 import {
+  isImageFilePath,
   pickWorkspaceFolder,
   readLocalFileForPreview,
+  readLocalImageForPreview,
   resolveConversationWorkspaceDir,
 } from "../builtinTools";
 import type { ParsedFileLink } from "../markdown";
 import { makeEntityId } from "../presets";
-import { createOutputFileFromSnapshot, extractConversationOutputs, type AiOutputFile } from "../outputs";
+import {
+  createImageOutputFile,
+  createOutputFileFromSnapshot,
+  extractConversationOutputs,
+  type AiOutputFile,
+} from "../outputs";
 import { buildTimelineItems } from "../timeline";
 import type {
   ChatAttachment,
@@ -145,15 +152,21 @@ async function openReferencedFile(ref: ParsedFileLink) {
     return;
   }
 
-  // 2. 未在输出列表中的本地文件，直接通过工作区工具读取后在右侧查看
+  // 2. 未在输出列表中的本地文件，按图片/文本类型分别读取并在右侧查看
   try {
     const wsDir = await resolveConversationWorkspaceDir(props.conversation?.id || "draft", props.workspaceDir);
-    const loaded = await readLocalFileForPreview(wsDir, ref.path);
-    const file = createOutputFileFromSnapshot(loaded.path, loaded.content);
+    let file: AiOutputFile | null;
+    if (isImageFilePath(ref.path)) {
+      const loaded = await readLocalImageForPreview(wsDir, ref.path);
+      file = createImageOutputFile(loaded);
+    } else {
+      const loaded = await readLocalFileForPreview(wsDir, ref.path);
+      file = createOutputFileFromSnapshot(loaded.path, loaded.content);
+    }
     if (!file) return;
     selectedOutputId.value = "";
     externalOutputFile.value = file;
-    highlightLines.value = nextRange;
+    highlightLines.value = file.previewKind === "image" ? null : nextRange;
     outputsOpen.value = true;
   } catch (error) {
     showError(error);
@@ -553,6 +566,8 @@ defineExpose({ focusInput });
                   :class="{ 'is-jump-target': highlightedMessageId === msg.id }"
                   :message="msg"
                   :streaming="streaming && index === messages.length - 1 && msg.role === 'assistant'"
+                  :conversation-id="props.conversation?.id"
+                  :workspace-dir="props.workspaceDir"
                   @regenerate="emit('regenerate', $event)"
                   @edit="(id, content) => emit('editMessage', id, content)"
                   @delete="emit('deleteMessage', $event)"
@@ -865,6 +880,8 @@ defineExpose({ focusInput });
           :selected-id="selectedOutputId"
           :external-file="externalOutputFile"
           :highlight-lines="highlightLines"
+          :conversation-id="props.conversation?.id"
+          :workspace-dir="props.workspaceDir"
           @select="selectOutputFile"
           @open-file="openReferencedFile"
           @jump-to-message="jumpToMessage"
@@ -1234,12 +1251,14 @@ defineExpose({ focusInput });
   transform: translateX(-50%);
   width: 30px;
   height: 30px;
+  padding: 0;
   border-radius: 50%;
   border: 1px solid var(--border-strong);
   background: var(--surface);
   color: var(--text-2);
-  display: grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   box-shadow: var(--shadow);
   cursor: pointer;
 }
@@ -1281,6 +1300,8 @@ defineExpose({ focusInput });
   flex-shrink: 0;
 }
 .att-thumb {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   border-radius: 9px;
@@ -1294,19 +1315,27 @@ defineExpose({ focusInput });
   position: absolute;
   top: -6px;
   right: -6px;
+  z-index: 1;
   width: 18px;
   height: 18px;
+  padding: 0;
+  line-height: 0;
   border: 1px solid var(--border);
   border-radius: 50%;
   background: var(--surface);
   color: var(--text-2);
-  display: grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   box-shadow: var(--shadow-sm);
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.att-remove svg {
+  display: block;
+  flex-shrink: 0;
 }
 .att-chip:hover .att-remove,
 .att-chip:focus-within .att-remove {

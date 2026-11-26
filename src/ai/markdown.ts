@@ -327,6 +327,15 @@ export function renderChatMarkdown(source: string): string {
 
   marked.use({
     renderer: {
+      image(token: Tokens.Image) {
+        const rawHref = (token.href ?? "").trim();
+        const parsed = parseFileLinkHref(rawHref);
+        const localPath = parsed?.path ?? (rawHref && !/^(https?:|data:|blob:|#)/i.test(rawHref) ? rawHref : "");
+        if (!localPath) return false;
+        const alt = escapeHtml(token.text || localPath.split(/[\\/]/).pop() || "");
+        const title = escapeHtml(token.title || localPath);
+        return `<img class="ai-local-img" data-local-image-path="${escapeHtml(localPath)}" alt="${alt}" title="${title}" />`;
+      },
       link(token: Tokens.Link) {
         const parsed = parseFileLinkHref(token.href);
         if (!parsed) return false;
@@ -361,6 +370,6 @@ export function renderChatMarkdown(source: string): string {
 
   const raw = marked.parse(source, { async: false }) as string;
   return DOMPurify.sanitize(raw, {
-    ADD_ATTR: ["data-code", "data-lang", "data-file-path", "data-line-start", "data-line-end"],
+    ADD_ATTR: ["data-code", "data-lang", "data-file-path", "data-line-start", "data-line-end", "data-local-image-path"],
   });
 }

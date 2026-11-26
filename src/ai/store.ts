@@ -3,6 +3,7 @@ import { locale, t } from "@/locales";
 import { showError } from "@/utils/errorToast";
 import {
   checkBuiltinToolPath,
+  invalidateLocalImageCache,
   invokeBuiltinTool,
   loadBuiltinAiContext,
   setBuiltinContextTestProvider,
@@ -719,23 +720,29 @@ async function runAssistantTurn(conv: Conversation, fetchImpl?: typeof fetch): P
           } else if (
             builtinTool.approval === "externalWrite" &&
             !autoAll &&
-            !sessionApprovals[conv.id]?.allowExternalWrite &&
-            typeof parsedArgs.path === "string" &&
-            parsedArgs.path.trim()
+            !sessionApprovals[conv.id]?.allowExternalWrite
           ) {
-            const check = await checkBuiltinToolPath(workspaceDir, parsedArgs.path);
-            if (check.outsideWorkspace) {
-              const decision = await requestToolApproval(
-                {
-                  id: call.id,
-                  conversationId: conv.id,
-                  toolName: call.name,
-                  kind: "externalWrite",
-                  targetPath: check.resolvedPath,
-                },
-                controller.signal,
-              );
-              approved = decision !== "deny";
+            const rawTarget =
+              typeof parsedArgs.output_path === "string" && parsedArgs.output_path.trim()
+                ? parsedArgs.output_path
+                : typeof parsedArgs.path === "string" && parsedArgs.path.trim()
+                  ? parsedArgs.path
+                  : "";
+            if (rawTarget) {
+              const check = await checkBuiltinToolPath(workspaceDir, rawTarget);
+              if (check.outsideWorkspace) {
+                const decision = await requestToolApproval(
+                  {
+                    id: call.id,
+                    conversationId: conv.id,
+                    toolName: call.name,
+                    kind: "externalWrite",
+                    targetPath: check.resolvedPath,
+                  },
+                  controller.signal,
+                );
+                approved = decision !== "deny";
+              }
             }
           }
 
@@ -752,6 +759,9 @@ async function runAssistantTurn(conv: Conversation, fetchImpl?: typeof fetch): P
             uiCall.resultText = toolResultText;
             if (!res.isError && res.outputFile) {
               uiCall.outputFile = res.outputFile;
+              if (res.outputFile.kind === "image") {
+                invalidateLocalImageCache(res.outputFile.path);
+              }
             }
           }
 

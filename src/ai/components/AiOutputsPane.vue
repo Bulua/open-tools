@@ -13,12 +13,19 @@ import {
   FileText,
   Globe,
   Image as ImageIcon,
+  LoaderCircle,
   X,
 } from "lucide-vue-next";
 import MarkdownView from "@/components/common/MarkdownView.vue";
 import { useClipboard } from "@/composables/useClipboard";
 import { showError } from "@/utils/errorToast";
 import { saveFile } from "@/utils/saveFile";
+import {
+  decodeImagePreviewBytes,
+  readLocalImageForPreview,
+  resolveConversationWorkspaceDir,
+  type LocalImagePreview,
+} from "../builtinTools";
 import { parseFileLinkHref, type ParsedFileLink } from "../markdown";
 import {
   formatFileSize,
@@ -38,6 +45,8 @@ const props = defineProps<{
   selectedId: string;
   externalFile?: AiOutputFile | null;
   highlightLines?: { start: number; end?: number } | null;
+  conversationId?: string;
+  workspaceDir?: string;
 }>();
 
 const emit = defineEmits<{
@@ -115,7 +124,54 @@ watch(resizing, (value) => {
   emit("resizingChange", value);
 });
 
-const canPreview = computed(() => Boolean(selectedFile.value && selectedFile.value.previewKind !== "code"));
+const canPreview = computed(() =>
+  Boolean(
+    selectedFile.value &&
+      selectedFile.value.previewKind !== "code" &&
+      selectedFile.value.previewKind !== "image",
+  ),
+);
+
+const loadedImage = ref<LocalImagePreview | null>(null);
+const imageLoading = ref(false);
+const imageError = ref("");
+let imageLoadSeq = 0;
+
+const activeImagePreview = computed<LocalImagePreview | null>(() => {
+  const file = selectedFile.value;
+  if (!file || file.previewKind !== "image") return null;
+  return file.imagePreview ?? loadedImage.value;
+});
+
+watch(
+  [selectedFile, () => props.workspaceDir],
+  ([file]) => {
+    const seq = ++imageLoadSeq;
+    loadedImage.value = null;
+    imageError.value = "";
+    imageLoading.value = false;
+    if (!file || file.previewKind !== "image") return;
+    if (file.imagePreview) {
+      loadedImage.value = file.imagePreview;
+      return;
+    }
+    imageLoading.value = true;
+    void (async () => {
+      try {
+        const wsDir = await resolveConversationWorkspaceDir(props.conversationId || "draft", props.workspaceDir);
+        const preview = await readLocalImageForPreview(wsDir, file.filePath);
+        if (seq !== imageLoadSeq) return;
+        loadedImage.value = preview;
+      } catch (error) {
+        if (seq !== imageLoadSeq) return;
+        imageError.value = error instanceof Error ? error.message : String(error);
+      } finally {
+        if (seq === imageLoadSeq) imageLoading.value = false;
+      }
+    })();
+  },
+  { immediate: true },
+);
 
 const codeViewerRef = ref<HTMLElement>();
 
@@ -160,7 +216,7 @@ watch(
 
 function iconForFile(file: AiOutputFile) {
   if (file.previewKind === "html") return Globe;
-  if (file.previewKind === "svg") return ImageIcon;
+  if (file.previewKind === "svg" || file.previewKind === "image") return ImageIcon;
   if (file.ext === "json" || file.ext === "jsonc" || file.ext === "json5") return FileJson;
   if (file.ext === "md" || file.ext === "markdown" || file.ext === "txt") return FileText;
   return FileCode2;
@@ -201,6 +257,12 @@ watch(
 const subtitleText = computed(() => {
   const file = selectedFile.value;
   if (!file) return "";
+  if (file.previewKind === "image") {
+    const img = activeImagePreview.value;
+    const dims = img?.width && img?.height ? `${img.width} × ${img.height}` : "";
+    const bytes = img?.sizeBytes ?? file.sizeBytes;
+    return [dims, bytes > 0 ? formatFileSize(bytes) : ""].filter(Boolean).join(" · ");
+  }
   return [t("ai.outputs.linesCount", { n: file.lineCount }), formatFileSize(file.sizeBytes)].join(" · ");
 });
 
@@ -282,7 +344,8 @@ function onResizeKeydown(event: KeyboardEvent) {
 
 async function copyFileContent() {
   if (!selectedFile.value) return;
-  await copy(selectedFile.value.content);
+  const text = selectedFile.value.previewKind === "image" ? selectedFile.value.filePath : selectedFile.value.content;
+  await copy(text);
   copied.value = true;
   window.clearTimeout(copiedTimer);
   copiedTimer = window.setTimeout(() => {
@@ -293,7 +356,19 @@ async function copyFileContent() {
 async function downloadOutputFile() {
   if (!selectedFile.value) return;
   try {
-    const ok = await saveFile(new TextEncoder().encode(selectedFile.value.content), selectedFile.value.fileName);
+    let bytes: Uint8Array;
+    if (selectedFile.value.previewKind === "image") {
+      let preview = activeImagePreview.value;
+      if (!preview) {
+        const wsDir = await resolveConversationWorkspaceDir(props.conversationId || "draft", props.workspaceDir);
+        preview = await readLocalImageForPreview(wsDir, selectedFile.value.filePath);
+        loadedImage.value = preview;
+      }
+      bytes = decodeImagePreviewBytes(preview);
+    } else {
+      bytes = new TextEncoder().encode(selectedFile.value.content);
+    }
+    const ok = await saveFile(bytes, selectedFile.value.fileName);
     if (ok) {
       saved.value = true;
       window.clearTimeout(savedTimer);
@@ -453,8 +528,25 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="viewer-body">
+        <div
+          v-if="selectedFile.previewKind === 'image'"
+          :key="`${selectedFile.id}:image`"
+          class="image-preview-box viewer-stage"
+        >
+          <div v-if="imageLoading" class="image-preview-state">
+            <LoaderCircle :size="20" class="spin" />
+          </div>
+          <p v-else-if="imageError" class="image-preview-error">{{ imageError }}</p>
+          <img
+            v-else-if="activeImagePreview"
+            :src="activeImagePreview.dataUrl"
+            :alt="selectedFile.fileName"
+            class="image-preview-img"
+          />
+        </div>
+
         <iframe
-          v-if="viewMode === 'preview' && selectedFile.previewKind === 'html'"
+          v-else-if="viewMode === 'preview' && selectedFile.previewKind === 'html'"
           :key="`${selectedFile.id}:html`"
           class="html-preview-frame viewer-stage"
           sandbox="allow-scripts"
@@ -908,6 +1000,53 @@ onBeforeUnmount(() => {
   max-width: 100%;
   max-height: 100%;
   height: auto;
+}
+
+.image-preview-box {
+  flex: 1;
+  min-height: 0;
+  padding: 20px;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  background-color: var(--bg-sunken);
+  background-image:
+    linear-gradient(45deg, var(--border) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--border) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--border) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--border) 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+}
+.image-preview-img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
+}
+.image-preview-state {
+  color: var(--text-3);
+}
+.image-preview-error {
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 12.5px;
+  color: var(--danger);
+  word-break: break-word;
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .md-preview-box {

@@ -60,10 +60,12 @@ export interface ChatToolCall {
   argumentsText: string;
   resultText?: string;
   status: "running" | "done" | "error";
-  /** 写/改文件类工具成功完成后记录的最新文件快照，供右侧「输出内容」展示 */
+  /** 写/改文件或生成图片类工具成功完成后记录的最新文件快照，供右侧「输出内容」展示 */
   outputFile?: {
     path: string;
     content: string;
+    kind?: "text" | "image";
+    sizeBytes?: number;
   };
 }
 
