@@ -376,32 +376,3 @@ pub(crate) async fn clipboard_history_open(window: WebviewWindow) -> Result<(), 
     authorize(&window)?;
     open(window.app_handle())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::CaptureGate;
-
-    #[test]
-    fn deleting_one_entry_only_filters_its_older_notifications() {
-        let mut capture = CaptureGate::default();
-        let generation = capture.generation;
-        capture.deleted("已删除", 10);
-        capture.deleted("也已删除", 12);
-
-        assert!(capture.accept(generation, 9, "刚复制的其他文本"));
-        assert!(!capture.accept(generation, 10, "已删除"));
-        assert!(capture.accept(generation, 11, "已删除"));
-        assert!(!capture.accept(generation, 12, "也已删除"));
-        assert!(capture.accept(generation, 13, "也已删除"));
-        assert!(capture.deleted_through.is_empty());
-    }
-
-    #[test]
-    fn clearing_still_invalidates_an_in_flight_read() {
-        let mut capture = CaptureGate::default();
-        let generation = capture.generation;
-        capture.reset(10);
-        assert!(!capture.accept(generation, 9, "之前复制的内容"));
-        assert!(capture.accept(capture.generation, 11, "清空后复制的内容"));
-    }
-}

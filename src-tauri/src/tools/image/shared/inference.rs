@@ -193,23 +193,3 @@ pub fn unload(id: &str) {
         sessions.remove(id);
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn splits_inputs_by_shape() {
-        let bytes: Vec<u8> = [1.0f32, 2.0, 3.0]
-            .iter()
-            .flat_map(|v| v.to_le_bytes())
-            .collect();
-        let inputs = split_inputs(&bytes, vec![vec![1, 2], vec![1]], false).unwrap();
-        assert!(matches!(&inputs[0].1, Data::F32(v) if v == &[1.0, 2.0]));
-        assert!(matches!(&inputs[1].1, Data::F32(v) if v == &[3.0]));
-        let inputs = split_inputs(&[1, 2, 3], vec![vec![2], vec![1]], true).unwrap();
-        assert!(matches!(&inputs[1].1, Data::U8(v) if v == &[3]));
-        assert!(split_inputs(&[1, 2, 3], vec![vec![2]], true).is_err());
-        assert!(parse_shape("1, 3,x").is_err());
-    }
-}

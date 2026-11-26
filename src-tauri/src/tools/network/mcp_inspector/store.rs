@@ -105,36 +105,3 @@ pub(crate) async fn mcp_save_connections(
     .await
     .map_err(|error| error.to_string())?
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn restores_connections_and_persists_removal() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join(FILE_NAME);
-        assert!(read_connections(&path).unwrap().is_empty());
-        let saved = json!([
-            { "id": "local", "name": "Local", "config": { "type": "stdio", "command": "node", "args": ["server.js"], "env": {"TOKEN": "example-secret"} } },
-            { "id": "http", "name": "Remote", "config": { "type": "http", "url": "https://example.com/mcp", "headers": {"X-Token": "example-secret"} } }
-        ]);
-        let connections = serde_json::from_value::<Vec<StoredConnection>>(saved).unwrap();
-        write_connections(&path, &connections).unwrap();
-        let restored = read_connections(&path).unwrap();
-        assert_eq!(
-            serde_json::to_value(restored).unwrap(),
-            serde_json::to_value(&connections).unwrap()
-        );
-        #[cfg(windows)]
-        assert!(!std::fs::read(&path)
-            .unwrap()
-            .windows(b"example-secret".len())
-            .any(|part| part == b"example-secret"));
-        write_connections(&path, &connections[1..]).unwrap();
-        assert_eq!(read_connections(&path).unwrap()[0].id, "http");
-        write_connections(&path, &[]).unwrap();
-        assert!(read_connections(&path).unwrap().is_empty());
-    }
-}

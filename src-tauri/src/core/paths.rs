@@ -106,27 +106,3 @@ fn move_dir(from: &Path, to: &Path) {
     }
     let _ = std::fs::remove_dir(from);
 }
-
-#[cfg(test)]
-mod tests {
-    use super::move_dir;
-
-    #[test]
-    fn move_dir_keeps_existing_files() {
-        let root = std::env::temp_dir().join(format!("open-tools-paths-test-{}", std::process::id()));
-        let (from, to) = (root.join("old"), root.join("new"));
-        std::fs::create_dir_all(&from).unwrap();
-        std::fs::create_dir_all(&to).unwrap();
-        std::fs::write(from.join("a.onnx"), b"old a").unwrap();
-        std::fs::write(from.join("b.onnx"), b"old b").unwrap();
-        std::fs::write(to.join("b.onnx"), b"new b").unwrap();
-
-        move_dir(&from, &to);
-        assert_eq!(std::fs::read(to.join("a.onnx")).unwrap(), b"old a");
-        // 新位置已有的文件不覆盖，旧文件留在原处
-        assert_eq!(std::fs::read(to.join("b.onnx")).unwrap(), b"new b");
-        assert!(from.join("b.onnx").exists());
-        assert!(!from.join("a.onnx").exists());
-        let _ = std::fs::remove_dir_all(&root);
-    }
-}

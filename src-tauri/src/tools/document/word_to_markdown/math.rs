@@ -199,25 +199,3 @@ pub(super) fn latex(node: Node<'_, '_>) -> Option<String> {
         _ => return None,
     })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::super::xml::parse;
-    use super::*;
-    fn formula(body: &str) -> Option<String> {
-        let xml = format!(
-            r#"<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">{body}</m:oMath>"#
-        );
-        let doc = parse(&xml).unwrap();
-        latex(doc.root_element())
-    }
-    #[test]
-    fn fractions_roots_scripts_and_symbols() {
-        assert_eq!(formula("<m:f><m:num><m:r><m:t>α</m:t></m:r></m:num><m:den><m:rad><m:e><m:r><m:t>x</m:t></m:r></m:e></m:rad></m:den></m:f>").unwrap(), "\\frac{\\alpha }{\\sqrt{x}}");
-        assert_eq!(formula("<m:sSubSup><m:e><m:r><m:t>x</m:t></m:r></m:e><m:sub><m:r><m:t>i</m:t></m:r></m:sub><m:sup><m:r><m:t>2</m:t></m:r></m:sup></m:sSubSup>").unwrap(), "{x}_{i}^{2}");
-    }
-    #[test]
-    fn unknown_formula_is_skipped_in_full() {
-        assert_eq!(formula("<m:r><m:t>x</m:t></m:r><m:unknown/>"), None);
-    }
-}

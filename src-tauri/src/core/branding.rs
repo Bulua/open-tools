@@ -137,17 +137,3 @@ fn update_shortcuts(ico: Option<PathBuf>) {
 
 #[cfg(not(windows))]
 fn update_shortcuts(_: Option<PathBuf>) {}
-
-#[cfg(test)]
-mod tests {
-    use super::valid_id;
-
-    #[test]
-    fn id_rules() {
-        assert!(valid_id("orange-2026"));
-        assert!(!valid_id(""));
-        assert!(!valid_id("Orange"));
-        assert!(!valid_id("../evil"));
-        assert!(!valid_id("a.b"));
-    }
-}

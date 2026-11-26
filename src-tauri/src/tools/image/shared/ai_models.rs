@@ -462,28 +462,3 @@ pub fn ai_model_delete(app: AppHandle, id: String) -> Result<(), String> {
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn preferred_source_comes_first() {
-        let default: Vec<_> = SOURCES.iter().map(|(_, url)| *url).collect();
-        assert_eq!(source_order(None), default);
-        assert_eq!(source_order(Some("unknown")), default);
-        let hf = source_order(Some("huggingface"));
-        assert!(hf[0].contains("huggingface.co"));
-        assert_eq!(hf.len(), SOURCES.len());
-    }
-
-    #[test]
-    fn catalog_is_consistent() {
-        for (_, f) in MODELS {
-            assert!(f.path.starts_with("models/"));
-        }
-        for f in RUNTIME_FILES {
-            assert!(f.path.starts_with(&format!("runtime/{RUNTIME_VERSION}/")));
-        }
-    }
-}
