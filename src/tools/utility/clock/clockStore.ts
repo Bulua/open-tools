@@ -1,9 +1,12 @@
-import { ref, watch } from "vue";
+import { nextTick, ref, watch } from "vue";
+import { listen } from "@tauri-apps/api/event";
 import { countdownTitle, nextOccurrence, type CountdownItem } from "./reminders";
 import { nextAlarmTarget, type AlarmSchedule } from "./alarm";
 import { showError } from "@/utils/errorToast";
 import { notifyDesktop } from "@/utils/desktopNotification";
 import { locale, t } from "@/locales";
+
+const CLOCK_CHANGED_EVENT = "clock-changed";
 
 /**
  * 闹钟、计时器和兼容的旧版提醒，整个程序共用一份：
@@ -56,13 +59,46 @@ async function load() {
   }
   // 同一路径的写入串行执行，连续编辑或批量到期不会让旧数据覆盖新数据。
   let writes: Promise<void> = Promise.resolve();
+  let reloading = false;
   const save = (v: CountdownItem[]) => {
     const data = JSON.stringify(v);
     writes = writes.then(() => invoke<void>("countdown_write", { data })).catch(showError);
     return writes;
   };
   if (data === null && local.length) save(local);
-  watch(countdowns, save, { deep: true });
+  watch(
+    countdowns,
+    (v) => {
+      if (reloading) return;
+      void save(v);
+    },
+    { deep: true },
+  );
+
+  // 监听后端（如 AI 工具）对闹钟/计时器的修改，重载并屏蔽回写循环。
+  void listen(CLOCK_CHANGED_EVENT, async () => {
+    await writes;
+    try {
+      const raw = await invoke<string | null>("countdown_read");
+      const next: CountdownItem[] = raw === null ? [] : JSON.parse(raw);
+      reloading = true;
+      try {
+        countdowns.value = next;
+        now.value = Date.now();
+        const activeIds = new Set(next.map((item) => item.id));
+        alerts.value = alerts.value.filter((a) => {
+          if (!activeIds.has(a.id)) return false;
+          const item = next.find((x) => x.id === a.id);
+          return !!item && item.enabled !== false && (item.done || item.target <= now.value);
+        });
+        await nextTick();
+      } finally {
+        reloading = false;
+      }
+    } catch (e) {
+      showError(e);
+    }
+  }).catch(() => {});
 }
 export const now = ref(Date.now());
 /** 刚到期、等待用户确认的提醒 */
