@@ -1,8 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { nextTick, readonly, ref, watch } from "vue";
 import { t } from "@/locales";
 import { showError } from "@/utils/errorToast";
 import { emptyNotebook, readNotebook, type Notebook } from "./notebook";
+
+const NOTEBOOK_CHANGED_EVENT = "notebook-changed";
 
 const notebook = ref<Notebook>();
 const loadState = ref<"loading" | "error" | "ready">("loading");
@@ -11,6 +14,8 @@ let loading: Promise<void> | undefined;
 let writing: Promise<void> | undefined;
 let pending: string | undefined;
 let storingImages = false;
+let reloading = false;
+let listeningExternal = false;
 let imageWrites = Promise.resolve();
 
 function load() {
@@ -105,15 +110,53 @@ async function revealEntry(id: string) {
   }
 }
 
-// 初始化不写回文件。损坏的存档会停留在读取失败状态。
+async function reloadFromDisk() {
+  if (!notebook.value || loading) return;
+  await imageWrites;
+  await flush();
+  if (!notebook.value || loading) return;
+  const previousSelected = notebook.value.selectedId;
+  loading = (async () => {
+    try {
+      const raw = await invoke<string | null>("notebook_read");
+      const next = raw === null ? emptyNotebook() : readNotebook(raw);
+      if (previousSelected && next.nodes.some((n) => n.id === previousSelected)) {
+        next.selectedId = previousSelected;
+      }
+      reloading = true;
+      try {
+        notebook.value = next;
+        loadState.value = "ready";
+        await nextTick();
+      } finally {
+        reloading = false;
+      }
+    } catch (error) {
+      showError(error);
+    }
+  })().finally(() => { loading = undefined; });
+}
+
+function ensureExternalListener() {
+  if (listeningExternal) return;
+  listeningExternal = true;
+  void listen(NOTEBOOK_CHANGED_EVENT, () => {
+    void reloadFromDisk();
+  }).catch(() => {
+    listeningExternal = false;
+  });
+}
+
+// 初始化与外部同步重载不写回文件。损坏的存档会停留在读取失败状态。
 watch(notebook, (state, previous) => {
-  if (!state || !previous) return;
+  if (reloading || !state || !previous) return;
   pending = JSON.stringify(state);
   void flush();
 }, { deep: true });
 
 export function useNotebook() {
   load();
+  ensureExternalListener();
   return {
     notebook, loadState: readonly(loadState), saveState: readonly(saveState), retryLoad: load, retrySave: flush,
     revealEntry,

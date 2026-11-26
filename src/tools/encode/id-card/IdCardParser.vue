@@ -1,47 +1,51 @@
 <script setup lang="ts">
 import { useToolResult } from "@/composables/useToolUsage";
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Check, Copy, Trash2, X } from "lucide-vue-next";
 import { locale } from "@/locales";
 import { useClipboard } from "@/composables/useClipboard";
 import { useStoredRef } from "@/composables/useStoredRef";
+import { showError } from "@/utils/errorToast";
 import {
   addHistory,
-  ageOn,
-  daysSince,
-  daysToBirthday,
   formatId,
-  parseId,
-  parseRegionTable,
-  provincesOf,
-  regionOf,
-  starOf,
-  toBirth,
-  zodiacOf,
+  parseIdCard,
+  parseIdCards,
   type Birth,
   type IdChecks,
-  type RegionTable,
+  type IdInfo,
+  type IdParseResult,
 } from "./idCard";
 
 /**
  * 身份证号解析：校验号码，列出地区、出生日期、年龄、性别、生肖、星座等能从号码推算出的信息。
- * 全部在本机计算，不上传；最近查询的 10 个号码保存在本机，可以逐条删除或清空。
+ * 解析与行政区划查表由本机 Rust 后端完成，不上传；最近查询的 10 个号码保存在本机，可以逐条删除或清空。
  */
 const { t } = useI18n();
 const input = ref("");
 const inputEl = ref<HTMLInputElement>();
 
-/** 行政区划代码表（约 50 KB），打开工具时才加载 */
-const table = shallowRef<RegionTable | null>(null);
-const provinces = computed(() => (table.value ? provincesOf(table.value) : new Set<string>()));
-onMounted(async () => {
-  table.value = parseRegionTable((await import("./idRegions")).default);
-});
-
-const today = toBirth(new Date());
-const parsed = computed(() => (input.value.trim() && table.value ? parseId(input.value, provinces.value, today) : null));
+const parsed = shallowRef<IdParseResult | null>(null);
 const info = computed(() => (parsed.value?.ok ? parsed.value.info : null));
+
+let parseSeq = 0;
+watch(
+  input,
+  (raw) => {
+    const seq = ++parseSeq;
+    if (!raw.trim()) {
+      parsed.value = null;
+      return;
+    }
+    void parseIdCard(raw)
+      .then((res) => {
+        if (seq === parseSeq) parsed.value = res;
+      })
+      .catch(showError);
+  },
+  { immediate: true },
+);
 
 // ---------- 最近查询 ----------
 const history = useStoredRef<string[]>("idCard.history", []);
@@ -62,12 +66,36 @@ const pick = (id: string) => {
 };
 const removeHistory = (id: string) => (history.value = history.value.filter((x) => x !== id));
 
+const historyInfos = shallowRef<Record<string, IdInfo | null>>({});
+let historySeq = 0;
+watch(
+  history,
+  (ids) => {
+    const seq = ++historySeq;
+    if (!ids.length) {
+      historyInfos.value = {};
+      return;
+    }
+    void parseIdCards(ids)
+      .then((results) => {
+        if (seq !== historySeq) return;
+        const map: Record<string, IdInfo | null> = {};
+        ids.forEach((id, idx) => {
+          const r = results[idx];
+          map[id] = r?.ok ? r.info : null;
+        });
+        historyInfos.value = map;
+      })
+      .catch(showError);
+  },
+  { immediate: true },
+);
+
 /** 历史记录下方的简要说明：地区 · 出生日期 · 性别 */
 const historyRows = computed(() =>
   history.value.map((id) => {
-    const r = table.value ? parseId(id, provinces.value, today) : null;
-    const i = r?.ok ? r.info : null;
-    const region = i && table.value ? regionOf(i.regionCode, table.value) : null;
+    const i = historyInfos.value[id] ?? null;
+    const region = i?.region ?? null;
     const summary = [
       region ? [region.province, region.city, region.county].filter(Boolean).join("") : "",
       i?.birth ? dateText(i.birth) : "",
@@ -95,10 +123,9 @@ interface Cell {
 /** 表格一直显示同样的格子，输入了多少位就填上多少 */
 const cells = computed<Cell[]>(() => {
   const i = info.value;
-  const region = i && table.value ? regionOf(i.regionCode, table.value) : null;
+  const region = i?.region ?? null;
   const b = i?.birth ?? null;
-  const lived = b && i?.checks.birth ? b : null;
-  const days = lived ? daysToBirthday(lived, today) : 0;
+  const days = i?.daysToBirthday ?? null;
   const checkDigitHint = () => {
     if (!i?.expectedCheckDigit) return "";
     if (i.from15) return t("encode.idCheckDigitAdded");
@@ -117,11 +144,11 @@ const cells = computed<Cell[]>(() => {
     { label: t("encode.idCounty"), value: region?.county ?? "", hint: region?.county ? i!.regionCode : "" },
     { label: t("encode.idBirth"), value: b ? dateText(b) : "", hint: b ? weekday(b) : "" },
     { label: t("encode.idLunar"), value: b ? dateText(b, "chinese") : "" },
-    { label: t("encode.idAge"), value: lived ? t("encode.idAgeValue", { n: ageOn(lived, today) }) : "" },
-    { label: t("encode.idDaysLived"), value: lived ? t("encode.idDaysValue", { n: n(daysSince(lived, today)) }) : "" },
-    { label: t("encode.idNextBirthday"), value: lived ? (days === 0 ? t("encode.idBirthdayToday") : t("encode.idBirthdayIn", { n: n(days) })) : "" },
-    { label: t("encode.idZodiac"), value: b ? t(`encode.zodiac_${zodiacOf(b)}`) : "" },
-    { label: t("encode.idStar"), value: b ? t(`encode.star_${starOf(b)}`) : "" },
+    { label: t("encode.idAge"), value: i?.age != null ? t("encode.idAgeValue", { n: i.age }) : "" },
+    { label: t("encode.idDaysLived"), value: i?.daysSince != null ? t("encode.idDaysValue", { n: n(i.daysSince) }) : "" },
+    { label: t("encode.idNextBirthday"), value: days != null ? (days === 0 ? t("encode.idBirthdayToday") : t("encode.idBirthdayIn", { n: n(days) })) : "" },
+    { label: t("encode.idZodiac"), value: i?.zodiac ? t(`encode.zodiac_${i.zodiac}`) : "" },
+    { label: t("encode.idStar"), value: i?.star ? t(`encode.star_${i.star}`) : "" },
     {
       label: t("encode.idGender"),
       value: i?.male == null ? "" : i.male ? t("encode.idMale") : t("encode.idFemale"),
