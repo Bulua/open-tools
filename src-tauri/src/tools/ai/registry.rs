@@ -13,6 +13,10 @@ use serde::Serialize;
 use serde_json::Value;
 use tauri::AppHandle;
 
+use crate::tools::encode::id_card::ai_tools::ParseIdCardTool;
+use crate::tools::markdown::notebook::ai_tools::{
+    NotebookDeleteTool, NotebookListTool, NotebookReadTool, NotebookSaveTool,
+};
 use crate::tools::network::mcp_inspector::ai_tools::{
     McpAddConnectionTool, McpInspectConnectionTool, McpListConnectionsTool,
 };
@@ -139,6 +143,11 @@ impl AiToolRegistry {
         registry.register(McpListConnectionsTool);
         registry.register(McpAddConnectionTool);
         registry.register(McpInspectConnectionTool);
+        registry.register(NotebookListTool);
+        registry.register(NotebookReadTool);
+        registry.register(NotebookSaveTool);
+        registry.register(NotebookDeleteTool);
+        registry.register(ParseIdCardTool);
         registry
     }
 

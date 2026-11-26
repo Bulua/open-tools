@@ -1,12 +1,13 @@
 //! 将「MCP 工具查看器」的持久化连接管理与状态探测能力封装为统一 `AiTool`。
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use reqwest::Url;
 use serde_json::{json, Value};
 use tauri::{Emitter, Manager};
 
+use crate::tools::ai::args;
 use crate::tools::ai::registry::{
     AiTool, AiToolContext, AiToolFuture, AiToolResult, ToolApprovalPolicy,
 };
@@ -30,54 +31,6 @@ fn generate_connection_id() -> String {
         .map(|d| d.as_nanos())
         .unwrap_or(0);
     format!("mcp_{nanos:x}")
-}
-
-fn arg_trimmed(args: &Value, key: &str) -> Option<String> {
-    args.get(key)
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(ToOwned::to_owned)
-}
-
-fn arg_string_vec(args: &Value, key: &str) -> Result<Vec<String>, String> {
-    let Some(val) = args.get(key) else {
-        return Ok(Vec::new());
-    };
-    if val.is_null() {
-        return Ok(Vec::new());
-    }
-    let arr = val
-        .as_array()
-        .ok_or_else(|| format!("Parameter '{key}' must be an array of strings."))?;
-    let mut out = Vec::with_capacity(arr.len());
-    for item in arr {
-        let text = item
-            .as_str()
-            .ok_or_else(|| format!("Every element in '{key}' must be a string."))?;
-        out.push(text.to_string());
-    }
-    Ok(out)
-}
-
-fn arg_string_map(args: &Value, key: &str) -> Result<HashMap<String, String>, String> {
-    let Some(val) = args.get(key) else {
-        return Ok(HashMap::new());
-    };
-    if val.is_null() {
-        return Ok(HashMap::new());
-    }
-    let obj = val
-        .as_object()
-        .ok_or_else(|| format!("Parameter '{key}' must be an object mapping strings to strings."))?;
-    let mut out = HashMap::with_capacity(obj.len());
-    for (k, v) in obj {
-        let text = v
-            .as_str()
-            .ok_or_else(|| format!("Value for '{key}.{k}' must be a string."))?;
-        out.insert(k.clone(), text.to_string());
-    }
-    Ok(out)
 }
 
 fn format_tool_summary(tool: &rmcp::model::Tool) -> String {
@@ -163,19 +116,19 @@ fn format_inspection_report(conn: &StoredConnection, snapshot: &McpInspectionSna
 }
 
 fn build_mcp_config(args: &Value) -> Result<McpConfig, String> {
-    let transport = arg_trimmed(args, "transport")
-        .or_else(|| arg_trimmed(args, "type"))
+    let transport = args::trimmed(args, "transport")
+        .or_else(|| args::trimmed(args, "type"))
         .ok_or_else(|| "Parameter 'transport' is required ('stdio' or 'http').".to_string())?
         .to_lowercase();
 
     match transport.as_str() {
         "stdio" => {
-            let command = arg_trimmed(args, "command")
+            let command = args::trimmed(args, "command")
                 .ok_or_else(|| "Parameter 'command' is required for stdio MCP connections.".to_string())?;
-            let cmd_args = arg_string_vec(args, "args")?;
-            let env = arg_string_map(args, "env")?;
-            let env_vars = arg_string_vec(args, "env_vars")?;
-            let cwd = arg_trimmed(args, "cwd");
+            let cmd_args = args::string_vec(args, "args")?;
+            let env = args::string_map(args, "env")?;
+            let env_vars = args::string_vec(args, "env_vars")?;
+            let cwd = args::trimmed(args, "cwd");
             Ok(McpConfig::Stdio {
                 command,
                 args: cmd_args,
@@ -185,15 +138,15 @@ fn build_mcp_config(args: &Value) -> Result<McpConfig, String> {
             })
         }
         "http" => {
-            let url = arg_trimmed(args, "url")
+            let url = args::trimmed(args, "url")
                 .ok_or_else(|| "Parameter 'url' is required for http MCP connections.".to_string())?;
             let parsed = Url::parse(&url).map_err(|_| "Invalid MCP server URL.".to_string())?;
             if !matches!(parsed.scheme(), "http" | "https") || parsed.host_str().is_none() {
                 return Err("The MCP server URL must use http:// or https://.".to_string());
             }
-            let headers = arg_string_map(args, "headers")?;
-            let env_http_headers = arg_string_map(args, "env_http_headers")?;
-            let bearer_token_env_var = arg_trimmed(args, "bearer_token_env_var");
+            let headers = args::string_map(args, "headers")?;
+            let env_http_headers = args::string_map(args, "env_http_headers")?;
+            let bearer_token_env_var = args::trimmed(args, "bearer_token_env_var");
             Ok(McpConfig::Http(HttpConfig {
                 url,
                 headers,
@@ -345,7 +298,7 @@ impl AiTool for McpAddConnectionTool {
 
     fn execute<'a>(&'a self, args: Value, ctx: &'a AiToolContext<'a>) -> AiToolFuture<'a> {
         Box::pin(async move {
-            let name = match arg_trimmed(&args, "name") {
+            let name = match args::trimmed(&args, "name") {
                 Some(n) => n,
                 None => return AiToolResult::err("Parameter 'name' is required."),
             };
@@ -353,15 +306,9 @@ impl AiTool for McpAddConnectionTool {
                 Ok(cfg) => cfg,
                 Err(err) => return AiToolResult::err(err),
             };
-            let requested_id = arg_trimmed(&args, "id");
-            let overwrite = args
-                .get("overwrite")
-                .and_then(Value::as_bool)
-                .unwrap_or(false);
-            let test_connection = args
-                .get("test_connection")
-                .and_then(Value::as_bool)
-                .unwrap_or(true);
+            let requested_id = args::trimmed(&args, "id");
+            let overwrite = args::bool_or(&args, "overwrite", false);
+            let test_connection = args::bool_or(&args, "test_connection", true);
 
             let mut list = match load_stored_connections(ctx.app.clone()).await {
                 Ok(items) => items,
@@ -476,15 +423,12 @@ impl AiTool for McpInspectConnectionTool {
 
     fn execute<'a>(&'a self, args: Value, ctx: &'a AiToolContext<'a>) -> AiToolFuture<'a> {
         Box::pin(async move {
-            let target_id = arg_trimmed(&args, "id");
-            let target_name = arg_trimmed(&args, "name");
+            let target_id = args::trimmed(&args, "id");
+            let target_name = args::trimmed(&args, "name");
             if target_id.is_none() && target_name.is_none() {
                 return AiToolResult::err("Please provide either 'id' or 'name' of the MCP connection.");
             }
-            let connect_if_disconnected = args
-                .get("connect_if_disconnected")
-                .and_then(Value::as_bool)
-                .unwrap_or(true);
+            let connect_if_disconnected = args::bool_or(&args, "connect_if_disconnected", true);
 
             let list = match load_stored_connections(ctx.app.clone()).await {
                 Ok(items) => items,

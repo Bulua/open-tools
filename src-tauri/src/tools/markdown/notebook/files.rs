@@ -17,29 +17,39 @@ const INDEX: &str = "index.json";
 const LEGACY: &str = "notebook.json";
 const PENDING: &str = "pending.json";
 
-#[derive(Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-struct Book<T> {
-    version: u8,
-    selected_id: Option<String>,
-    nodes: Vec<Entry<T>>,
+pub(super) struct Book<T> {
+    pub(super) version: u8,
+    pub(super) selected_id: Option<String>,
+    pub(super) nodes: Vec<Entry<T>>,
 }
 
-#[derive(Deserialize, Serialize, PartialEq)]
+impl Book<Text> {
+    pub(super) fn empty() -> Self {
+        Self {
+            version: 1,
+            selected_id: None,
+            nodes: Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-struct Entry<T> {
-    id: String,
-    parent_id: Option<String>,
-    name: String,
+pub(super) struct Entry<T> {
+    pub(super) id: String,
+    pub(super) parent_id: Option<String>,
+    pub(super) name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    file_name: Option<String>,
+    pub(super) file_name: Option<String>,
     #[serde(flatten)]
-    kind: Kind<T>,
+    pub(super) kind: Kind<T>,
 }
 
-#[derive(Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "lowercase")]
-enum Kind<T> {
+pub(super) enum Kind<T> {
     Folder {
         collapsed: bool,
     },
@@ -49,9 +59,9 @@ enum Kind<T> {
     },
 }
 
-#[derive(Deserialize, Serialize)]
-struct Text {
-    markdown: String,
+#[derive(Clone, Deserialize, Serialize, PartialEq)]
+pub(super) struct Text {
+    pub(super) markdown: String,
 }
 
 #[derive(Deserialize, Serialize, PartialEq)]
@@ -60,7 +70,7 @@ struct Checksum {
 }
 
 impl<T> Entry<T> {
-    fn is_folder(&self) -> bool {
+    pub(super) fn is_folder(&self) -> bool {
         matches!(self.kind, Kind::Folder { .. })
     }
 
@@ -498,7 +508,7 @@ fn commit(dir: &Path, book: Book<Text>) -> io::Result<()> {
     Ok(())
 }
 
-pub(super) fn read(dir: &Path) -> io::Result<Option<String>> {
+pub(super) fn read_book(dir: &Path) -> io::Result<Option<Book<Text>>> {
     check_link(dir)?;
     recover(dir)?;
     let index_path = dir.join(INDEX);
@@ -542,22 +552,31 @@ pub(super) fn read(dir: &Path) -> io::Result<Option<String>> {
     };
     if uses_hashed_names {
         commit(dir, book)?;
-        return read(dir);
+        return read_book(dir);
     }
-    let snapshot = serde_json::to_string(&book)?;
     // 只有索引和所有正文都已成功读回，才删除旧存档。
     match fs::remove_file(dir.join(LEGACY)) {
         Ok(()) => (),
         Err(error) if error.kind() == io::ErrorKind::NotFound => (),
         Err(error) => return Err(error),
     }
-    Ok(Some(snapshot))
+    Ok(Some(book))
+}
+
+pub(super) fn read(dir: &Path) -> io::Result<Option<String>> {
+    read_book(dir)?
+        .map(|book| serde_json::to_string(&book).map_err(io::Error::from))
+        .transpose()
+}
+
+pub(super) fn write_book(dir: &Path, book: Book<Text>) -> io::Result<()> {
+    check_link(dir)?;
+    recover(dir)?;
+    commit(dir, book)
 }
 
 pub(super) fn write(dir: &Path, data: &str) -> io::Result<()> {
-    check_link(dir)?;
-    recover(dir)?;
-    commit(dir, serde_json::from_str(data)?)
+    write_book(dir, serde_json::from_str(data)?)
 }
 
 fn entry_relative_path(dir: &Path, id: &str) -> io::Result<(PathBuf, bool)> {

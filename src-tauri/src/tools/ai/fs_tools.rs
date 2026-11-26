@@ -5,6 +5,7 @@ use serde_json::{json, Value};
 
 use crate::core::process::decode_output;
 
+use super::args;
 use super::paths::resolve_target_path;
 use super::registry::{AiTool, AiToolContext, AiToolFuture, AiToolResult, ToolApprovalPolicy};
 
@@ -74,19 +75,6 @@ fn looks_binary(bytes: &[u8]) -> bool {
         .filter(|&&b| b < 9 || (b > 13 && b < 32))
         .count();
     !sample.is_empty() && bad * 10 > sample.len()
-}
-
-fn arg_str(args: &Value, key: &str) -> String {
-    args.get(key)
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .to_string()
-}
-
-fn arg_opt_usize(args: &Value, key: &str) -> Option<usize> {
-    args.get(key)
-        .and_then(Value::as_u64)
-        .and_then(|v| usize::try_from(v).ok())
 }
 
 pub(crate) fn list_dir_impl(
@@ -390,13 +378,13 @@ impl AiTool for ListDirTool {
 
     fn execute<'a>(&'a self, args: Value, ctx: &'a AiToolContext<'a>) -> AiToolFuture<'a> {
         Box::pin(async move {
-            let path_val = arg_str(&args, "path");
+            let path_val = args::str_or_empty(&args, "path");
             let path_opt = if path_val.trim().is_empty() {
                 None
             } else {
                 Some(path_val.as_str())
             };
-            let max_entries = arg_opt_usize(&args, "max_entries");
+            let max_entries = args::opt_usize(&args, "max_entries");
             match list_dir_impl(ctx.workspace_dir, path_opt, max_entries) {
                 Ok(res) => {
                     let lines: Vec<String> = res
@@ -466,9 +454,9 @@ impl AiTool for ReadFileTool {
 
     fn execute<'a>(&'a self, args: Value, ctx: &'a AiToolContext<'a>) -> AiToolFuture<'a> {
         Box::pin(async move {
-            let path = arg_str(&args, "path");
-            let start_line = arg_opt_usize(&args, "start_line");
-            let end_line = arg_opt_usize(&args, "end_line");
+            let path = args::str_or_empty(&args, "path");
+            let start_line = args::opt_usize(&args, "start_line");
+            let end_line = args::opt_usize(&args, "end_line");
             match read_file_impl(ctx.workspace_dir, &path, start_line, end_line) {
                 Ok(res) => {
                     let range = if res.total_lines > 0 {
@@ -525,8 +513,8 @@ impl AiTool for WriteFileTool {
 
     fn execute<'a>(&'a self, args: Value, ctx: &'a AiToolContext<'a>) -> AiToolFuture<'a> {
         Box::pin(async move {
-            let path = arg_str(&args, "path");
-            let content = arg_str(&args, "content");
+            let path = args::str_or_empty(&args, "path");
+            let content = args::str_or_empty(&args, "content");
             match write_file_impl(ctx.workspace_dir, &path, &content) {
                 Ok(res) => AiToolResult::ok_with_file(
                     format!(
@@ -584,13 +572,10 @@ impl AiTool for EditFileTool {
 
     fn execute<'a>(&'a self, args: Value, ctx: &'a AiToolContext<'a>) -> AiToolFuture<'a> {
         Box::pin(async move {
-            let path = arg_str(&args, "path");
-            let old_text = arg_str(&args, "old_text");
-            let new_text = arg_str(&args, "new_text");
-            let replace_all = args
-                .get("replace_all")
-                .and_then(Value::as_bool)
-                .unwrap_or(false);
+            let path = args::str_or_empty(&args, "path");
+            let old_text = args::str_or_empty(&args, "old_text");
+            let new_text = args::str_or_empty(&args, "new_text");
+            let replace_all = args::bool_or(&args, "replace_all", false);
             match edit_file_impl(ctx.workspace_dir, &path, &old_text, &new_text, replace_all) {
                 Ok(res) => {
                     let plural = if res.replacements == 1 { "" } else { "s" };

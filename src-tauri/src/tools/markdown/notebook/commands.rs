@@ -5,22 +5,16 @@ use tauri::{
     AppHandle,
 };
 
-use super::files;
-
-static NOTEBOOK_IO: std::sync::Mutex<()> = std::sync::Mutex::new(());
+use super::store;
 
 #[tauri::command]
 pub async fn notebook_read(app: AppHandle) -> Result<Option<String>, String> {
-    let dir = crate::core::paths::sub_dir(&app, "notebook")?;
-    let _guard = NOTEBOOK_IO.lock().map_err(|e| e.to_string())?;
-    files::read(&dir).map_err(|e| format!("Failed to read the notebook: {e}"))
+    store::read_snapshot(&app)
 }
 
 #[tauri::command]
 pub async fn notebook_write(app: AppHandle, data: String) -> Result<(), String> {
-    let dir = crate::core::paths::sub_dir(&app, "notebook")?;
-    let _guard = NOTEBOOK_IO.lock().map_err(|e| e.to_string())?;
-    files::write(&dir, &data).map_err(|e| format!("Failed to save the notebook: {e}"))
+    store::write_snapshot(&app, &data)
 }
 
 #[tauri::command]
@@ -34,9 +28,7 @@ pub async fn notebook_save_image(app: AppHandle, request: Request<'_>) -> Result
         .and_then(|value| STANDARD.decode(value.as_bytes()).ok())
         .and_then(|value| String::from_utf8(value).ok())
         .ok_or("Missing or invalid notebook note ID")?;
-    let dir = crate::core::paths::sub_dir(&app, "notebook")?;
-    let _guard = NOTEBOOK_IO.lock().map_err(|e| e.to_string())?;
-    files::save_image(&dir, &id, data).map_err(|e| format!("Failed to save notebook image: {e}"))
+    store::save_image(&app, &id, data)
 }
 
 #[tauri::command]
@@ -45,22 +37,14 @@ pub async fn notebook_read_image(
     id: String,
     name: String,
 ) -> Result<Response, String> {
-    let dir = crate::core::paths::sub_dir(&app, "notebook")?;
-    let _guard = NOTEBOOK_IO.lock().map_err(|e| e.to_string())?;
-    files::read_image(&dir, &id, &name)
-        .map(Response::new)
-        .map_err(|e| format!("Failed to read notebook image: {e}"))
+    store::read_image(&app, &id, &name).map(Response::new)
 }
 
 #[cfg(windows)]
 #[tauri::command]
 pub async fn notebook_reveal(app: AppHandle, id: String) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
-    let dir = crate::core::paths::sub_dir(&app, "notebook")?;
-    let (path, is_folder) = {
-        let _guard = NOTEBOOK_IO.lock().map_err(|e| e.to_string())?;
-        files::entry_path(&dir, &id).map_err(|e| e.to_string())?
-    };
+    let (path, is_folder) = store::entry_path(&app, &id)?;
     if is_folder {
         app.opener()
             .open_path(path.to_string_lossy().into_owned(), None::<&str>)
