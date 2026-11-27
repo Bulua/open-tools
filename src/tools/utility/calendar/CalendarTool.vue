@@ -9,7 +9,20 @@ import ZoomControls from "@/components/common/ZoomControls.vue";
 import { usePopover } from "@/composables/usePopover";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { showError } from "@/utils/errorToast";
-import { calendarDate, calendarDateKey, calendarFestivals, calendarNoteOccursOn, calendarNotesOn, compactLunarDate, localCalendarDate, monthDays } from "./calendar";
+import {
+  calendarCrossDayRemindersOn,
+  calendarDate,
+  calendarDateKey,
+  calendarFestivals,
+  calendarNoteOccursOn,
+  calendarNotesOn,
+  calendarReminderDisplay,
+  calendarReminderParts,
+  calendarReminderTargetDate,
+  compactLunarDate,
+  localCalendarDate,
+  monthDays,
+} from "./calendar";
 import { calendarNotes, calendarNotesReady, calendarReminders, loadCalendarNotes, saveCalendarNote } from "./calendarStore";
 import { centerCalendarDay } from "./calendarNavigation";
 
@@ -93,6 +106,26 @@ const notedDates = computed(() => {
   return dates;
 });
 
+const remindedDates = computed(() => {
+  const dates = new Set<string>();
+  for (const note of Object.values(calendarNotes.value)) {
+    const parts = calendarReminderParts(note.reminderAt);
+    if (!parts) continue;
+    const baseYear = Number(parts.date.slice(0, 4));
+    if (!note.annual) {
+      if (baseYear >= firstVisibleYear.value && baseYear <= lastVisibleYear.value) {
+        dates.add(parts.date);
+      }
+      continue;
+    }
+    const startYear = Math.max(firstVisibleYear.value, baseYear);
+    for (let y = startYear; y <= lastVisibleYear.value; y++) {
+      dates.add(`${y}${parts.date.slice(4)}`);
+    }
+  }
+  return dates;
+});
+
 const years = computed(() => Array.from({ length: 3 }, (_, i) => {
   const value = firstVisibleYear.value + i;
   return {
@@ -127,6 +160,7 @@ const selectedFestivals = computed(() => festivalLabels(selected.value));
 const popupDate = ref(today.value);
 const popupKey = computed(() => calendarDateKey(popupDate.value));
 const popupNotes = computed(() => calendarNotesOn(calendarNotes.value, popupKey.value));
+const popupCrossDayReminders = computed(() => calendarCrossDayRemindersOn(calendarNotes.value, popupKey.value));
 const popupFestivals = computed(() => festivalLabels(popupDate.value));
 const popupLunar = computed(() => lunarLabel(popupDate.value));
 const popupTrigger = ref<HTMLElement>();
@@ -192,7 +226,7 @@ function previewDate(date: Date, event: PointerEvent, hasDetails: boolean) {
   if (hasDetails && event.pointerType === "mouse") void showDatePopup(date, event, false);
 }
 
-watch([editKey, popupNotes], async () => {
+watch([editKey, popupNotes, popupCrossDayReminders], async () => {
   await nextTick();
   if (popup.open.value) popup.place();
 });
@@ -208,7 +242,7 @@ async function editNote(key: string) {
   editKey.value = key;
   draft.value = note?.text ?? "";
   annual.value = note?.annual ?? false;
-  reminderDateTime.value = note?.reminderTime ? `${key}T${note.reminderTime}` : "";
+  reminderDateTime.value = note?.reminderAt ? note.reminderAt.replace(" ", "T") : "";
   await nextTick();
   noteInput.value?.focus({ preventScroll: true });
 }
@@ -219,10 +253,11 @@ async function commitNote(remove = false) {
   if (!key || saving.value || (!remove && !value)) return;
   saving.value = true;
   try {
+    const reminderAt = reminderDateTime.value ? reminderDateTime.value.replace("T", " ") : undefined;
     await saveCalendarNote(key, remove ? null : {
       text: value,
       annual: annual.value,
-      reminderTime: reminderDateTime.value.split("T")[1],
+      reminderAt,
     });
     recordToolUsage();
     if (editKey.value === key) finishEdit();
@@ -409,7 +444,17 @@ async function moveSelection(event: KeyboardEvent) {
           <div v-for="[key, note] in popupNotes" :key="key" class="note-label">
             <span class="note-heading">
               <b>{{ t(note.annual ? "utility.calendar.anniversary" : "utility.calendar.note") }}</b>
-              <span v-if="note.reminderTime">{{ t("utility.calendar.reminderTime") }} · {{ note.reminderTime }}</span>
+              <span v-if="calendarReminderDisplay(key, note, popupKey)">{{ t("utility.calendar.reminderTime") }} · {{ calendarReminderDisplay(key, note, popupKey) }}</span>
+            </span>
+            <span class="note-text">{{ note.text }}</span>
+            <button v-if="pinned && !editKey" type="button" class="btn small" :disabled="saving" @click="editNote(key)">
+              {{ t("utility.calendar.editNote") }}
+            </button>
+          </div>
+          <div v-for="[key, note] in popupCrossDayReminders" :key="`rem:${key}`" class="note-label reminder-label">
+            <span class="note-heading">
+              <b>{{ t("utility.calendar.scheduledReminder") }}</b>
+              <span>{{ t("utility.calendar.reminderForDate", { date: calendarReminderTargetDate(key, note, popupKey) }) }} · {{ calendarReminderParts(note.reminderAt)?.time }}</span>
             </span>
             <span class="note-text">{{ note.text }}</span>
             <button v-if="pinned && !editKey" type="button" class="btn small" :disabled="saving" @click="editNote(key)">
@@ -427,7 +472,7 @@ async function moveSelection(event: KeyboardEvent) {
               </div>
               <div class="reminder-field">
                 <span>{{ t("utility.calendar.reminderTime") }}</span>
-                <DateTimePicker v-model="reminderDateTime" :fixed-date="editKey" :disabled="saving"
+                <DateTimePicker v-model="reminderDateTime" :default-date="editKey" show-seconds :disabled="saving"
                   :aria-label="t('utility.calendar.reminderTime')" :placeholder="t('utility.calendar.allDayReminder')"
                   :clear-label="t('utility.calendar.allDayReminder')" @open-change="timePickerOpen = $event" />
               </div>
@@ -458,16 +503,25 @@ async function moveSelection(event: KeyboardEvent) {
                   <span class="day-caption">{{ day.lunar }}</span>
                 </div>
                 <button v-else type="button" class="day"
-                  :class="{ festival: day.festival, 'has-note': notedDates.has(day.key) }"
+                  :class="{
+                    festival: day.festival,
+                    'has-note': notedDates.has(day.key),
+                    'has-reminder': !notedDates.has(day.key) && remindedDates.has(day.key),
+                  }"
                   :data-date="+day.date" :aria-current="+day.date === +today ? 'date' : undefined"
                   :aria-pressed="+day.date === +selected" :tabindex="+day.date === +selected ? 0 : -1"
-                  :aria-label="notedDates.has(day.key) ? day.title + ' · ' + t('utility.calendar.note') : day.title"
+                  :aria-label="notedDates.has(day.key)
+                    ? day.title + ' · ' + t('utility.calendar.note')
+                    : (remindedDates.has(day.key) ? day.title + ' · ' + t('utility.calendar.scheduledReminder') : day.title)"
                   aria-haspopup="dialog" :aria-expanded="pinned && +day.date === +popupDate"
-                  @pointerenter="previewDate(day.date, $event, notedDates.has(day.key) || !!day.festival)"
+                  @pointerenter="previewDate(day.date, $event, notedDates.has(day.key) || remindedDates.has(day.key) || !!day.festival)"
                   @pointerleave="leavePopup" @click="showDatePopup(day.date, $event, true)" @keydown="moveSelection">
                   <span class="day-number">{{ day.number }}</span>
                   <span class="day-caption">{{ day.festival || day.lunar }}</span>
-                  <StickyNote v-if="notedDates.has(day.key)" :size="13" class="day-note" aria-hidden="true" />
+                  <span v-if="notedDates.has(day.key) || remindedDates.has(day.key)" class="day-markers" aria-hidden="true">
+                    <StickyNote v-if="notedDates.has(day.key)" :size="13" class="day-note" />
+                    <Bell v-if="remindedDates.has(day.key)" :size="12" class="day-reminder" />
+                  </span>
                 </button>
               </template>
             </div>
@@ -648,6 +702,9 @@ async function moveSelection(event: KeyboardEvent) {
 .note-heading b {
   color: var(--syntax-key);
 }
+.reminder-label b {
+  color: var(--warning);
+}
 .note-text {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -664,7 +721,7 @@ async function moveSelection(event: KeyboardEvent) {
 }
 .reminder-field {
   display: grid;
-  width: min(260px, 100%);
+  width: 100%;
   gap: 5px;
   color: var(--text-2);
   font-size: 13px;
@@ -782,16 +839,42 @@ button.day:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.day-note {
+.day-markers {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   flex: none;
-  color: var(--syntax-key);
+}
+.day-note,
+.day-reminder {
+  flex: none;
+  color: var(--warning);
 }
 .day.has-note {
-  background: var(--bg-sunken);
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+  box-shadow: inset 0 0 0 1px var(--warning);
+}
+button.day.has-note:not([aria-pressed="true"]):hover {
+  background: color-mix(in srgb, var(--warning) 24%, transparent);
+}
+.day.has-note .day-number {
+  color: var(--warning);
+  font-weight: 600;
+}
+.day.has-reminder {
+  background: var(--warning-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warning) 65%, transparent);
+}
+button.day.has-reminder:not([aria-pressed="true"]):hover {
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+}
+.day.has-reminder .day-number {
+  color: var(--warning);
+  font-weight: 600;
 }
 .day[aria-pressed="true"] {
   background: var(--accent-soft);
-  box-shadow: inset 0 0 0 1px var(--accent);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
 }
 .day[aria-current="date"] .day-number {
   color: var(--surface);

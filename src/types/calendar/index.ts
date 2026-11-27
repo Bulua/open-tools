@@ -5,7 +5,8 @@
 export interface CalendarNote {
   text: string;
   annual: boolean;
-  reminderTime?: string;
+  /** 提醒时间，格式 `YYYY-MM-DD HH:MM:SS` */
+  reminderAt?: string;
 }
 
 export type CalendarNotes = Record<string, CalendarNote>;
@@ -21,5 +22,6 @@ export interface CalendarNoteUpsertInput {
   date: string;
   text: string;
   annual: boolean;
-  reminderTime?: string | null;
+  /** 提醒时间，格式 `YYYY-MM-DD HH:MM:SS`，传 null 或留空表示当天全天提醒 */
+  reminderAt?: string | null;
 }

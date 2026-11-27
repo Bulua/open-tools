@@ -6,8 +6,10 @@ import { showError } from "@/utils/errorToast";
 import {
   calendarDateKey,
   calendarFestivals,
-  calendarNotesOn,
+  calendarNoteOccursOn,
   calendarReminderSecond,
+  calendarRemindersOn,
+  calendarReminderTargetDate,
   localCalendarDate,
   type CalendarNote,
   type CalendarNotes,
@@ -30,7 +32,7 @@ export function loadCalendarNotes() {
       map[item.date] = {
         text: item.text,
         annual: item.annual,
-        ...(item.reminderTime ? { reminderTime: item.reminderTime } : {}),
+        ...(item.reminderAt ? { reminderAt: item.reminderAt } : {}),
       };
     }
     notes.value = map;
@@ -52,12 +54,12 @@ export function saveCalendarNote(date: string, note: CalendarNote | null) {
         date,
         text: note.text,
         annual: note.annual,
-        reminderTime: note.reminderTime ?? null,
+        reminderAt: note.reminderAt ?? null,
       });
       next[saved.date] = {
         text: saved.text,
         annual: saved.annual,
-        ...(saved.reminderTime ? { reminderTime: saved.reminderTime } : {}),
+        ...(saved.reminderAt ? { reminderAt: saved.reminderAt } : {}),
       };
     } else {
       await calendarApi.deleteNote(date);
@@ -74,13 +76,18 @@ let reminderFailed = false;
 const reminderDate = ref(localCalendarDate());
 const reminderEntries = computed(() => {
   const date = reminderDate.value;
+  const dateKey = calendarDateKey(date);
   return [
     ...calendarFestivals(date).map((key) => ({ id: `festival:${key}`, text: t(`utility.calendar.${key}`), second: 0 })),
-    ...calendarNotesOn(notes.value, calendarDateKey(date)).map(([key, note]) => ({
-      id: note.reminderTime ? `note:${key}:${note.reminderTime}` : `note:${key}`,
-      text: note.text,
-      second: calendarReminderSecond(note.reminderTime),
-    })),
+    ...calendarRemindersOn(notes.value, dateKey).map(([key, note]) => {
+      const isCrossDay = !calendarNoteOccursOn(key, note, dateKey);
+      const targetDate = isCrossDay ? calendarReminderTargetDate(key, note, dateKey) : "";
+      return {
+        id: note.reminderAt ? `note:${key}:${note.reminderAt}` : `note:${key}`,
+        text: isCrossDay ? `${targetDate} · ${note.text}` : note.text,
+        second: calendarReminderSecond(note.reminderAt),
+      };
+    }),
   ];
 });
 

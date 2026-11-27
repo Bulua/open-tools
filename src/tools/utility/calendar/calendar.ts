@@ -40,12 +40,35 @@ import type { CalendarNote, CalendarNotes } from "@/types/calendar";
 
 export type { CalendarNote, CalendarNotes };
 
-export const isCalendarReminderTime = (time: unknown): time is string =>
-  typeof time === "string" && /^(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(time);
+function isValidYmd(y: number, m: number, d: number) {
+  if (m < 1 || m > 12 || d < 1) return false;
+  if (m === 2) {
+    const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+    return d <= (leap ? 29 : 28);
+  }
+  if ([4, 6, 9, 11].includes(m)) return d <= 30;
+  return d <= 31;
+}
 
-export function calendarReminderSecond(time: string | undefined) {
-  if (time === undefined) return 0;
-  const [hours, minutes, seconds] = time.split(":").map(Number);
+export const isCalendarReminderAt = (value: unknown): value is string => {
+  if (typeof value !== "string") return false;
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2}) ((?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d)$/);
+  if (!match) return false;
+  return isValidYmd(Number(match[1]), Number(match[2]), Number(match[3]));
+};
+
+export function calendarReminderParts(reminderAt: string | undefined) {
+  if (!isCalendarReminderAt(reminderAt)) return null;
+  return {
+    date: reminderAt.slice(0, 10),
+    time: reminderAt.slice(11, 19),
+  };
+}
+
+export function calendarReminderSecond(reminderAt: string | undefined) {
+  const parts = calendarReminderParts(reminderAt);
+  if (!parts) return 0;
+  const [hours, minutes, seconds] = parts.time.split(":").map(Number);
   return hours * 3600 + minutes * 60 + seconds;
 }
 
@@ -55,6 +78,42 @@ export function calendarNoteOccursOn(origin: string, note: CalendarNote, date: s
 
 export function calendarNotesOn(notes: CalendarNotes, date: string) {
   return Object.entries(notes).filter(([origin, note]) => calendarNoteOccursOn(origin, note, date));
+}
+
+export function calendarNoteRemindsOn(origin: string, note: CalendarNote, date: string) {
+  const parts = calendarReminderParts(note.reminderAt);
+  if (!parts) return calendarNoteOccursOn(origin, note, date);
+  if (!note.annual) return parts.date === date;
+  return parts.date === date || (parts.date < date && parts.date.slice(5) === date.slice(5));
+}
+
+export function calendarRemindersOn(notes: CalendarNotes, date: string) {
+  return Object.entries(notes).filter(([origin, note]) => calendarNoteRemindsOn(origin, note, date));
+}
+
+export function calendarCrossDayRemindersOn(notes: CalendarNotes, date: string) {
+  return Object.entries(notes).filter(
+    ([origin, note]) => calendarNoteRemindsOn(origin, note, date) && !calendarNoteOccursOn(origin, note, date),
+  );
+}
+
+export function calendarReminderTargetDate(origin: string, note: CalendarNote, reminderDate: string) {
+  if (!note.annual) return origin;
+  const parts = calendarReminderParts(note.reminderAt);
+  if (!parts) return reminderDate;
+  const yearDelta = Number(reminderDate.slice(0, 4)) - Number(parts.date.slice(0, 4));
+  return `${Number(origin.slice(0, 4)) + yearDelta}${origin.slice(4)}`;
+}
+
+export function calendarReminderDisplay(origin: string, note: CalendarNote, viewDate: string) {
+  const parts = calendarReminderParts(note.reminderAt);
+  if (!parts) return "";
+  if (!note.annual) {
+    return parts.date === viewDate ? parts.time : `${parts.date} ${parts.time}`;
+  }
+  const yearDelta = Number(viewDate.slice(0, 4)) - Number(origin.slice(0, 4));
+  const effectiveDate = `${Number(parts.date.slice(0, 4)) + yearDelta}${parts.date.slice(4)}`;
+  return effectiveDate === viewDate ? parts.time : `${effectiveDate} ${parts.time}`;
 }
 
 export function monthDays(year: number, month: number) {

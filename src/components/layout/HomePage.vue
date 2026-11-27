@@ -11,7 +11,15 @@ import { favoriteToolIds, recentToolIds } from "@/composables/toolLibrary";
 import { countdowns, now } from "@/tools/utility/clock/clockStore";
 import { countdownTitle, formatRemaining } from "@/tools/utility/clock/reminders";
 import { calendarNotes, loadCalendarNotes } from "@/tools/utility/calendar/calendarStore";
-import { calendarDateKey, calendarNotesOn, localCalendarDate } from "@/tools/utility/calendar/calendar";
+import {
+  calendarCrossDayRemindersOn,
+  calendarDateKey,
+  calendarNotesOn,
+  calendarReminderDisplay,
+  calendarReminderParts,
+  calendarReminderTargetDate,
+  localCalendarDate,
+} from "@/tools/utility/calendar/calendar";
 import { showError } from "@/utils/errorToast";
 const props = defineProps<{ categories: Category[] }>();
 const emit = defineEmits<{ select: [categoryId: string, toolId: string]; search: [] }>();
@@ -33,7 +41,21 @@ const sections = computed(() => [
 }));
 const pending = computed(() => countdowns.value.filter((item) => item.enabled !== false && !item.done && item.pausedRemaining === undefined)
   .sort((a, b) => a.target - b.target).slice(0, 4));
-const notes = computed(() => calendarNotesOn(calendarNotes.value, calendarDateKey(localCalendarDate(new Date(now.value)))));
+const todayKey = computed(() => calendarDateKey(localCalendarDate(new Date(now.value))));
+const notes = computed(() => {
+  const key = todayKey.value;
+  const occurred = calendarNotesOn(calendarNotes.value, key).map(([id, note]) => ({
+    id,
+    text: note.text,
+    meta: calendarReminderDisplay(id, note, key) || t("home.allDay"),
+  }));
+  const crossDay = calendarCrossDayRemindersOn(calendarNotes.value, key).map(([id, note]) => ({
+    id: `rem:${id}`,
+    text: `${calendarReminderTargetDate(id, note, key)} · ${note.text}`,
+    meta: calendarReminderParts(note.reminderAt)?.time || t("home.allDay"),
+  }));
+  return [...occurred, ...crossDay];
+});
 const canOpen = (id: string) => tools.value.some((entry) => entry.tool.id === id);
 onMounted(() => void loadCalendarNotes().catch(showError));
 </script>
@@ -80,11 +102,11 @@ onMounted(() => void loadCalendarNotes().catch(showError));
               <button v-if="canOpen('calendar')" class="reminder-link" @click="emit('select', 'time', 'calendar')">{{ t('home.openCalendar') }}<ArrowUpRight :size="14" /></button>
             </header>
             <div v-if="notes.length" class="reminder-list">
-              <button v-for="[id, note] in notes" :key="id" class="reminder-card" :title="note.text" @click="emit('select', 'time', 'calendar')">
+              <button v-for="item in notes" :key="item.id" class="reminder-card" :title="item.text" @click="emit('select', 'time', 'calendar')">
                 <span class="reminder-icon calendar-icon"><CalendarDays :size="18" /></span>
                 <span class="reminder-content">
-                  <strong>{{ note.text }}</strong>
-                  <span class="reminder-meta"><Clock3 :size="12" />{{ note.reminderTime || t('home.allDay') }}</span>
+                  <strong>{{ item.text }}</strong>
+                  <span class="reminder-meta"><Clock3 :size="12" />{{ item.meta }}</span>
                 </span>
                 <ArrowUpRight class="reminder-arrow" :size="15" />
               </button>

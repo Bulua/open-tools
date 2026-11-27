@@ -9,11 +9,17 @@ defineOptions({ inheritAttrs: false });
 
 /**
  * 日期时间选择器：替代系统自带的 datetime-local，样式与程序一致。
- * 值的格式与 datetime-local 相同：「2026-11-01T09:30」，空字符串表示未选择。
- * 左边选日期（周一开头），右边选小时和分钟，修改立即生效。
- * 传入 fixedDate 时仅选择该日的时间，值包含秒。
+ * 值的格式与 datetime-local 相同：「2026-11-01T09:30」（或包含秒），空字符串表示未选择。
+ * 左边选日期（周一开头），右边选时间，修改立即生效。
+ * 传入 fixedDate 时仅选择该日的时间，值包含秒；也可通过 showSeconds 在完整日期模式下选秒。
  */
-const props = defineProps<{ placeholder?: string; fixedDate?: string; clearLabel?: string }>();
+const props = defineProps<{
+  placeholder?: string;
+  fixedDate?: string;
+  defaultDate?: string;
+  showSeconds?: boolean;
+  clearLabel?: string;
+}>();
 const events = defineEmits<{ openChange: [open: boolean] }>();
 const { t, tm, rt } = useI18n();
 const model = defineModel<string>({ default: "" });
@@ -23,12 +29,18 @@ const panel = ref<HTMLDivElement>();
 const { open, style, toggle, close } = usePopover(trigger, panel, { maxHeight: 340 });
 watch(open, (value) => events("openChange", value), { flush: "sync" });
 
+const hasSeconds = computed(() => Boolean(props.fixedDate || props.showSeconds));
 const pad = (n: number) => String(n).padStart(2, "0");
 const formatTime = (h: number, mi: number, s: number) =>
-  `${pad(h)}:${pad(mi)}${props.fixedDate ? `:${pad(s)}` : ""}`;
+  `${pad(h)}:${pad(mi)}${hasSeconds.value ? `:${pad(s)}` : ""}`;
 /** 日历表头（周一开头）和显示用的星期（周日开头，与 Date.getDay() 对应） */
 const WEEK = computed(() => (tm("datetime.week") as string[]).map((w) => rt(w)));
 const WEEK_FULL = computed(() => (tm("datetime.weekFull") as string[]).map((w) => rt(w)));
+
+const defaultDateParts = computed(() => {
+  const m = props.defaultDate?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? { y: +m[1], mo: +m[2], d: +m[3] } : null;
+});
 
 // 本地保存一份：连续点小时、分钟时，不必等外部更新完成也能在最新的值上修改
 const local = ref(model.value);
@@ -45,8 +57,8 @@ const emit = (y: number, mo: number, d: number, h: number, mi: number, s = 0) =>
     return;
   }
   // 规范化（例如 2 月 31 日 → 3 月 3 日）
-  const date = new Date(y, mo - 1, d, h, mi);
-  local.value = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${formatTime(date.getHours(), date.getMinutes(), 0)}`;
+  const date = new Date(y, mo - 1, d, h, mi, hasSeconds.value ? s : 0);
+  local.value = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${formatTime(date.getHours(), date.getMinutes(), date.getSeconds())}`;
   model.value = local.value;
 };
 
@@ -89,7 +101,7 @@ const days = computed(() => {
 
 const pickDay = (day: (typeof days.value)[number]) => {
   const p = parsed.value;
-  emit(day.y, day.mo, day.d, p?.h ?? 9, p?.mi ?? 0);
+  emit(day.y, day.mo, day.d, p?.h ?? 9, p?.mi ?? 0, p?.s ?? 0);
   if (day.other) {
     viewYear.value = day.y;
     viewMonth.value = day.mo;
@@ -103,13 +115,14 @@ const timeColumns = [
   { part: "s", label: "datetime.second", count: 60, initial: 0 },
 ] as const;
 type TimePart = typeof timeColumns[number]["part"];
-const visibleTimeColumns = computed(() => props.fixedDate ? timeColumns : timeColumns.slice(0, 2));
+const visibleTimeColumns = computed(() => (hasSeconds.value ? timeColumns : timeColumns.slice(0, 2)));
 const timeLists = ref<HTMLDivElement>();
 
 const pickTime = (part: TimePart, value: number) => {
   const n = new Date();
+  const fallbackDate = defaultDateParts.value ?? { y: n.getFullYear(), mo: n.getMonth() + 1, d: n.getDate() };
   const next = {
-    ...(parsed.value ?? { y: n.getFullYear(), mo: n.getMonth() + 1, d: n.getDate(), h: props.fixedDate ? 9 : 0, mi: 0, s: 0 }),
+    ...(parsed.value ?? { ...fallbackDate, h: hasSeconds.value ? 9 : 0, mi: 0, s: 0 }),
     [part]: value,
   };
   emit(next.y, next.mo, next.d, next.h, next.mi, next.s);
@@ -140,13 +153,18 @@ function clearTime() {
 
 function confirmTime() {
   close();
-  if (props.fixedDate) trigger.value?.focus({ preventScroll: true });
+  if (props.fixedDate || props.showSeconds) trigger.value?.focus({ preventScroll: true });
 }
 
 watch(open, async (isOpen) => {
   if (!isOpen) return;
   const p = parsed.value;
-  const base = p ? new Date(p.y, p.mo - 1, 1) : new Date();
+  const fallback = defaultDateParts.value;
+  const base = p
+    ? new Date(p.y, p.mo - 1, 1)
+    : fallback
+      ? new Date(fallback.y, fallback.mo - 1, 1)
+      : new Date();
   viewYear.value = base.getFullYear();
   viewMonth.value = base.getMonth() + 1;
   await nextTick();
@@ -163,7 +181,7 @@ watch(() => parsed.value?.h, () => open.value && nextTick(scrollTimes));
 
   <Teleport to="body">
     <Transition name="pop">
-      <div v-if="open" ref="panel" class="dt-panel" :class="{ 'fixed-date': fixedDate }" :style="style">
+      <div v-if="open" ref="panel" class="dt-panel" :class="{ 'fixed-date': fixedDate, 'with-seconds': !fixedDate && showSeconds }" :style="style">
         <div v-if="!fixedDate" class="calendar">
           <header>
             <button type="button" class="nav" :title="t('datetime.prevMonth')" @click="shiftMonth(-1)"><ChevronLeft :size="15" /></button>
@@ -203,8 +221,8 @@ watch(() => parsed.value?.h, () => open.value && nextTick(scrollTimes));
         </div>
 
         <footer>
-          <button v-if="fixedDate && clearLabel" type="button" class="link" @click="clearTime">{{ clearLabel }}</button>
-          <button v-else type="button" class="link" @click="setNow">{{ t("datetime.now") }}</button>
+          <button v-if="clearLabel" type="button" class="link" @click="clearTime">{{ clearLabel }}</button>
+          <button v-if="!fixedDate" type="button" class="link" @click="setNow">{{ t("datetime.now") }}</button>
           <span class="current">{{ display || t("datetime.none") }}</span>
           <button type="button" class="btn small primary" @click="confirmTime">{{ t("datetime.ok") }}</button>
         </footer>
@@ -260,7 +278,8 @@ watch(() => parsed.value?.h, () => open.value && nextTick(scrollTimes));
 <style>
 .dt-panel {
   position: fixed;
-  z-index: 100;
+  /* 日历的备注浮窗也是挂到 body，时间下拉层需要盖在备注浮窗上。 */
+  z-index: 102;
   display: grid;
   grid-template-columns: auto auto;
   grid-template-rows: auto auto;
@@ -362,9 +381,11 @@ watch(() => parsed.value?.h, () => open.value && nextTick(scrollTimes));
 .dt-panel .column {
   height: 236px;
 }
+.dt-panel.with-seconds .time-head,
+.dt-panel.with-seconds .columns {
+  grid-template-columns: repeat(3, 48px);
+}
 .dt-panel.fixed-date {
-  /* 日历的备注浮窗也是挂到 body，时间下拉层需要盖在备注浮窗上。 */
-  z-index: 102;
   grid-template-columns: minmax(0, 1fr);
   max-width: calc(100vw - 16px);
 }
@@ -400,6 +421,9 @@ watch(() => parsed.value?.h, () => open.value && nextTick(scrollTimes));
 }
 .dt-panel .current {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 12px;
   color: var(--text-3);
   white-space: pre;
