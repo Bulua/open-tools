@@ -5,7 +5,7 @@
 //! - 所有配置、文件夹、会话与消息均提供细粒度强类型 CRUD，不再整包 JSON 往返；
 //! - 复用公共表 `folders`（`scope = 'ai'`）和 `app_settings`（`scope = 'ai'`，如 `enabledMcpIds`）。
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
@@ -25,9 +25,11 @@ use crate::core::error::{AppError, AppResult};
 
 use super::paths::validate_conv_id;
 use super::providers::{ApiProtocol, EndpointConfig, ThinkingEffort};
+use super::registry::AiBuiltinToolInfo;
 
 const AI_SCOPE: &str = "ai";
 const SETTING_ENABLED_MCP_IDS: &str = "enabledMcpIds";
+const SETTING_DISABLED_BUILTIN_TOOLS: &str = "disabledBuiltinTools";
 const SETTING_LEGACY_MIGRATED: &str = "legacyMigrated";
 
 const LEGACY_AI_DIR: &str = "ai";
@@ -230,6 +232,8 @@ pub(crate) struct AiConversationMetaUpdate {
 pub(crate) struct AiInitialState {
     pub(crate) models: Vec<AiModelView>,
     pub(crate) enabled_mcp_ids: Vec<String>,
+    pub(crate) disabled_builtin_tools: Vec<String>,
+    pub(crate) builtin_tools: Vec<AiBuiltinToolInfo>,
     pub(crate) folders: Vec<AiFolderDto>,
     pub(crate) conversation_meta: HashMap<String, AiConversationMetaDto>,
     pub(crate) conversations: Vec<ConversationIndexEntry>,
@@ -779,8 +783,30 @@ pub(crate) async fn resolve_model_api_key(
 
 // ---------- 细粒度强类型 SQLite 业务接口 ----------
 
-pub(crate) async fn ai_load_state_impl(db: &Database) -> AppResult<AiInitialState> {
+fn read_string_list_setting(conn: &Connection, key: &str) -> rusqlite::Result<Vec<String>> {
+    Ok(get_setting_json(conn, AI_SCOPE, key)?
+        .and_then(|v| v.as_array().cloned())
+        .map(|arr| {
+            arr.into_iter()
+                .filter_map(|x| x.as_str().map(ToString::to_string))
+                .collect()
+        })
+        .unwrap_or_default())
+}
+
+pub(crate) async fn read_disabled_builtin_tools(db: &Database) -> AppResult<HashSet<String>> {
     db.run_blocking(|conn| {
+        let names = read_string_list_setting(conn, SETTING_DISABLED_BUILTIN_TOOLS)?;
+        Ok(names.into_iter().collect())
+    })
+    .await
+}
+
+pub(crate) async fn ai_load_state_impl(
+    db: &Database,
+    builtin_tools: Vec<AiBuiltinToolInfo>,
+) -> AppResult<AiInitialState> {
+    db.run_blocking(move |conn| {
         let models = list_models_conn(conn)?;
         let folders: Vec<AiFolderDto> = list_folders(conn, AI_SCOPE)?
             .into_iter()
@@ -792,19 +818,16 @@ pub(crate) async fn ai_load_state_impl(db: &Database) -> AppResult<AiInitialStat
                 created_at: f.created_at,
             })
             .collect();
-        let enabled_mcp_ids: Vec<String> = get_setting_json(conn, AI_SCOPE, SETTING_ENABLED_MCP_IDS)?
-            .and_then(|v| v.as_array().cloned())
-            .map(|arr| {
-                arr.into_iter()
-                    .filter_map(|x| x.as_str().map(ToString::to_string))
-                    .collect()
-            })
-            .unwrap_or_default();
+        let enabled_mcp_ids = read_string_list_setting(conn, SETTING_ENABLED_MCP_IDS)?;
+        let disabled_builtin_tools =
+            read_string_list_setting(conn, SETTING_DISABLED_BUILTIN_TOOLS)?;
         let conversation_meta = read_conversation_meta_conn(conn)?;
         let conversations = list_conversations_conn(conn)?;
         Ok(AiInitialState {
             models,
             enabled_mcp_ids,
+            disabled_builtin_tools,
+            builtin_tools,
             folders,
             conversation_meta,
             conversations,
@@ -1013,6 +1036,33 @@ pub(crate) async fn ai_set_enabled_mcp_ids_impl(db: &Database, ids: Vec<String>)
     .await
 }
 
+pub(crate) async fn ai_set_disabled_builtin_tools_impl(
+    db: &Database,
+    names: Vec<String>,
+) -> AppResult<()> {
+    db.run_transaction(move |tx| {
+        let mut seen = HashSet::new();
+        let deduped: Vec<Value> = names
+            .into_iter()
+            .filter_map(|raw| {
+                let trimmed = raw.trim().to_string();
+                if trimmed.is_empty() || !seen.insert(trimmed.clone()) {
+                    None
+                } else {
+                    Some(Value::String(trimmed))
+                }
+            })
+            .collect();
+        set_setting_json(
+            tx,
+            AI_SCOPE,
+            SETTING_DISABLED_BUILTIN_TOOLS,
+            &Value::Array(deduped),
+        )
+    })
+    .await
+}
+
 pub(crate) async fn ai_upsert_folder_impl(db: &Database, folder: AiFolderDto) -> AppResult<()> {
     db.run_transaction(move |tx| {
         let now = now_millis();
@@ -1070,7 +1120,7 @@ pub(crate) async fn ai_read_conversation_impl(
     db: &Database,
     id: String,
 ) -> AppResult<Option<AiConversationDetail>> {
-    validate_conv_id(&id).map_err(AppError::invalid_input)?;
+    validate_conv_id(&id)?;
     db.run_blocking(move |conn| {
         let conv_row = conn
             .query_row(
@@ -1163,7 +1213,7 @@ pub(crate) async fn ai_upsert_conversation_impl(
     db: &Database,
     input: AiConversationUpsertInput,
 ) -> AppResult<Vec<ConversationIndexEntry>> {
-    validate_conv_id(&input.id).map_err(AppError::invalid_input)?;
+    validate_conv_id(&input.id)?;
     db.run_transaction(move |tx| {
         tx.execute(
             "INSERT INTO ai_conversations (
@@ -1222,7 +1272,7 @@ pub(crate) async fn ai_delete_conversation_impl(
     db: &Database,
     id: String,
 ) -> AppResult<Vec<ConversationIndexEntry>> {
-    validate_conv_id(&id).map_err(AppError::invalid_input)?;
+    validate_conv_id(&id)?;
     db.run_transaction(move |tx| {
         tx.execute("DELETE FROM ai_conversations WHERE id = ?1", [&id])?;
         list_conversations_conn(tx)
@@ -1235,7 +1285,7 @@ pub(crate) async fn ai_upsert_message_impl(
     conversation_id: String,
     message: AiMessageDto,
 ) -> AppResult<Vec<ConversationIndexEntry>> {
-    validate_conv_id(&conversation_id).map_err(AppError::invalid_input)?;
+    validate_conv_id(&conversation_id)?;
     db.run_transaction(move |tx| {
         let existing_seq: Option<i64> = tx
             .query_row(
@@ -1305,7 +1355,7 @@ pub(crate) async fn ai_delete_message_impl(
     conversation_id: String,
     message_id: String,
 ) -> AppResult<Vec<ConversationIndexEntry>> {
-    validate_conv_id(&conversation_id).map_err(AppError::invalid_input)?;
+    validate_conv_id(&conversation_id)?;
     db.run_transaction(move |tx| {
         tx.execute(
             "DELETE FROM ai_messages WHERE conversation_id = ?1 AND id = ?2",
@@ -1323,7 +1373,7 @@ pub(crate) async fn ai_truncate_messages_from_impl(
     from_message_id: String,
     inclusive: bool,
 ) -> AppResult<Vec<ConversationIndexEntry>> {
-    validate_conv_id(&conversation_id).map_err(AppError::invalid_input)?;
+    validate_conv_id(&conversation_id)?;
     db.run_transaction(move |tx| {
         let target_seq: Option<i64> = tx
             .query_row(
@@ -1355,7 +1405,7 @@ pub(crate) async fn ai_clear_messages_impl(
     db: &Database,
     conversation_id: String,
 ) -> AppResult<Vec<ConversationIndexEntry>> {
-    validate_conv_id(&conversation_id).map_err(AppError::invalid_input)?;
+    validate_conv_id(&conversation_id)?;
     db.run_transaction(move |tx| {
         tx.execute(
             "DELETE FROM ai_messages WHERE conversation_id = ?1",

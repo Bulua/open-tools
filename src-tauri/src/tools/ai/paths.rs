@@ -4,19 +4,20 @@ use std::path::{Component, Path, PathBuf};
 
 use tauri::AppHandle;
 
+use crate::core::error::{AppError, AppResult};
 use crate::core::paths as app_paths;
 
 const AI_DIR: &str = "ai";
 const WORKSPACES_DIR: &str = "workspaces";
 
-pub(crate) fn validate_conv_id(id: &str) -> Result<(), String> {
+pub(crate) fn validate_conv_id(id: &str) -> AppResult<()> {
     let valid = !id.is_empty()
         && id.len() <= 64
         && id
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
     if !valid {
-        return Err("Invalid AI conversation ID.".into());
+        return Err(AppError::invalid_input("Invalid AI conversation ID."));
     }
     Ok(())
 }
@@ -108,10 +109,10 @@ pub(crate) fn is_within(target: &Path, root: &Path) -> bool {
 pub(crate) fn resolve_target_path(
     workspace_dir: &str,
     raw_path: Option<&str>,
-) -> Result<(PathBuf, PathBuf, bool), String> {
+) -> AppResult<(PathBuf, PathBuf, bool)> {
     let ws_trimmed = workspace_dir.trim();
     if ws_trimmed.is_empty() {
-        return Err("Workspace directory is required.".into());
+        return Err(AppError::invalid_input("Workspace directory is required."));
     }
     let ws_root = canonical_or_lexical(Path::new(ws_trimmed));
     let requested = raw_path.unwrap_or("").trim();
@@ -133,12 +134,13 @@ pub(crate) fn resolve_target_path(
 pub(crate) fn ensure_conversation_workspace_dir(
     app: &AppHandle,
     conversation_id: &str,
-) -> Result<String, String> {
+) -> AppResult<String> {
     validate_conv_id(conversation_id)?;
-    let dir = app_paths::sub_dir(app, AI_DIR)?
+    let dir = app_paths::sub_dir(app, AI_DIR)
+        .map_err(AppError::io)?
         .join(WORKSPACES_DIR)
         .join(conversation_id);
     std::fs::create_dir_all(&dir)
-        .map_err(|err| format!("Could not create AI workspace directory: {err}"))?;
+        .map_err(|err| AppError::io(format!("Could not create AI workspace directory: {err}")))?;
     Ok(canonical_or_lexical(&dir).to_string_lossy().to_string())
 }

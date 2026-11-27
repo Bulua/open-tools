@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
 use tauri::AppHandle;
@@ -36,12 +36,21 @@ use super::shell::{AiCommandState, RunCommandTool};
 /// - `Auto`：直接放行（如读取文件、目录浏览、纯查询/格式转换类工具）
 /// - `Command`：受会话「逐次确认 / 自动放行」策略控制，默认弹窗确认
 /// - `ExternalWrite`：工作区内自动执行，写入工作区外路径时弹窗确认
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) enum ToolApprovalPolicy {
     Auto,
     Command,
     ExternalWrite,
+}
+
+/// 暴露给前端设置页展示的内置工具元数据
+#[derive(Debug, Clone, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AiBuiltinToolInfo {
+    pub(crate) name: String,
+    pub(crate) description: String,
+    pub(crate) approval: ToolApprovalPolicy,
 }
 
 /// 暴露给前端与大模型的标准工具声明
@@ -54,6 +63,14 @@ pub(crate) struct AiToolDefinition {
     pub(crate) approval: ToolApprovalPolicy,
 }
 
+/// 输出文件预览类型枚举
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum ToolOutputFileKind {
+    Text,
+    Image,
+}
+
 /// 写/改文件或生成图片类工具成功完成后附带的文件快照，供前端右侧「输出内容」自动展示
 #[derive(Debug, Clone, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -61,7 +78,7 @@ pub(crate) struct AiToolOutputFile {
     pub(crate) path: String,
     pub(crate) content: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) kind: Option<&'static str>,
+    pub(crate) kind: Option<ToolOutputFileKind>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[specta(type = Option<f64>)]
     pub(crate) size_bytes: Option<u64>,
@@ -114,7 +131,7 @@ impl AiToolResult {
             output_file: Some(AiToolOutputFile {
                 path: path.into(),
                 content: String::new(),
-                kind: Some("image"),
+                kind: Some(ToolOutputFileKind::Image),
                 size_bytes: Some(size_bytes),
             }),
         }
@@ -213,6 +230,17 @@ impl AiToolRegistry {
                 name: tool.name().to_string(),
                 description: tool.description().to_string(),
                 parameters: tool.parameters_schema(),
+                approval: tool.approval_policy(),
+            })
+            .collect()
+    }
+
+    pub(crate) fn builtin_infos(&self) -> Vec<AiBuiltinToolInfo> {
+        self.tools
+            .iter()
+            .map(|tool| AiBuiltinToolInfo {
+                name: tool.name().to_string(),
+                description: tool.description().to_string(),
                 approval: tool.approval_policy(),
             })
             .collect()

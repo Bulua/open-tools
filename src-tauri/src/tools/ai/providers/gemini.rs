@@ -9,10 +9,12 @@ use serde::Deserialize;
 use serde_json::{json, Map, Value};
 use tokio::sync::watch;
 
+use crate::core::error::{AppError, AppResult};
+
 use super::{
-    build_text_with_file_attachments, safe_parse_json_object, split_data_url, ChatRoundRequest,
-    ChatRoundResult, EndpointConfig, PromptTurn, ProviderToolCall, RemoteModelInfo, StreamDelta,
-    ThinkingEffort,
+    build_text_with_file_attachments, classify_provider_error, safe_parse_json_object,
+    split_data_url, ChatRoundRequest, ChatRoundResult, EndpointConfig, PromptTurn,
+    ProviderToolCall, RemoteModelInfo, StreamDelta, ThinkingEffort,
 };
 
 /// 清理 Gemini 不支持的 JSON Schema 字段（如 `$schema`、`additionalProperties`、`default`）。
@@ -62,9 +64,10 @@ fn normalize_gemini_model(model_id: &str) -> Model {
     Model::Custom(full)
 }
 
-fn parse_gemini_base_url(base: &str) -> Result<reqwest::Url, String> {
+fn parse_gemini_base_url(base: &str) -> AppResult<reqwest::Url> {
     let with_slash = format!("{}/", base.trim().trim_end_matches('/'));
-    reqwest::Url::parse(&with_slash).map_err(|err| format!("Invalid Gemini base URL: {err}"))
+    reqwest::Url::parse(&with_slash)
+        .map_err(|err| AppError::invalid_input(format!("Invalid Gemini base URL: {err}")))
 }
 
 #[allow(deprecated)]
@@ -73,14 +76,14 @@ pub(crate) async fn stream_chat(
     req: &ChatRoundRequest<'_>,
     cancel_rx: &mut watch::Receiver<bool>,
     on_delta: &mut (dyn FnMut(StreamDelta) + Send),
-) -> Result<ChatRoundResult, String> {
+) -> AppResult<ChatRoundResult> {
     let base_url = parse_gemini_base_url(base)?;
     let client = Gemini::with_model_and_base_url(
         req.endpoint.api_key.trim(),
         normalize_gemini_model(req.model_id),
         base_url,
     )
-    .map_err(|err| err.to_string())?;
+    .map_err(|err| AppError::provider(err.to_string()))?;
 
     let mut builder = client.generate_content();
 
@@ -217,7 +220,12 @@ pub(crate) async fn stream_chat(
                 "description": tool.description,
                 "parameters": clean_schema,
             }))
-            .map_err(|err| format!("Failed to build Gemini tool schema for {}: {err}", tool.name))?;
+            .map_err(|err| {
+                AppError::internal(format!(
+                    "Failed to build Gemini tool schema for {}: {err}",
+                    tool.name
+                ))
+            })?;
             decls.push(decl);
         }
         builder = builder.with_tool(Tool::with_functions(decls));
@@ -225,10 +233,10 @@ pub(crate) async fn stream_chat(
 
     let mut stream = tokio::select! {
         res = builder.execute_stream() => {
-            res.map_err(|err| err.to_string())?
+            res.map_err(|err| classify_provider_error(err.to_string()))?
         }
         _ = cancel_rx.changed() => {
-            return Err("CANCELLED".into());
+            return Err(AppError::cancelled("Chat cancelled."));
         }
     };
 
@@ -240,7 +248,7 @@ pub(crate) async fn stream_chat(
             biased;
             _ = cancel_rx.changed() => {
                 if *cancel_rx.borrow() {
-                    return Err("CANCELLED".into());
+                    return Err(AppError::cancelled("Chat cancelled."));
                 }
                 continue;
             }
@@ -250,7 +258,7 @@ pub(crate) async fn stream_chat(
         let Some(chunk_res) = next_item else {
             break;
         };
-        let resp = chunk_res.map_err(|err| err.to_string())?;
+        let resp = chunk_res.map_err(|err| classify_provider_error(err.to_string()))?;
         let Some(first) = resp.candidates.into_iter().next() else {
             continue;
         };
@@ -319,7 +327,7 @@ struct GeminiModelItem {
 pub(crate) async fn fetch_models(
     base: &str,
     endpoint: &EndpointConfig,
-) -> Result<Vec<RemoteModelInfo>, String> {
+) -> AppResult<Vec<RemoteModelInfo>> {
     let url = format!("{}/models", base.trim_end_matches('/'));
     let http = reqwest::Client::new();
     let mut req = http.get(&url);
@@ -327,13 +335,24 @@ pub(crate) async fn fetch_models(
     if !key.is_empty() {
         req = req.header("x-goog-api-key", key);
     }
-    let res = req.send().await.map_err(|err| err.to_string())?;
+    let res = req
+        .send()
+        .await
+        .map_err(|err| AppError::network(err.to_string()))?;
     let status = res.status();
     if !status.is_success() {
         let body = res.text().await.unwrap_or_default();
-        return Err(format!("HTTP {}: {}", status.as_u16(), body.trim()));
+        let message = format!("HTTP {}: {}", status.as_u16(), body.trim());
+        return Err(if status.as_u16() == 401 || status.as_u16() == 403 {
+            AppError::unauthorized(message)
+        } else {
+            AppError::provider(message)
+        });
     }
-    let parsed: GeminiModelsResponse = res.json().await.map_err(|err| err.to_string())?;
+    let parsed: GeminiModelsResponse = res
+        .json()
+        .await
+        .map_err(|err| AppError::provider(err.to_string()))?;
     let models = parsed
         .models
         .into_iter()

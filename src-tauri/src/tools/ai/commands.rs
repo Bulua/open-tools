@@ -1,4 +1,4 @@
-//! AI 模块所有 Tauri IPC 命令入口（细粒度 SQLite 持久化、工作区与预览、后端多轮对话引擎与模型列表）。
+//! AI 模块所有 Tauri IPC 命令入口（统一返回 `{ code, msg, data }` 响应结构）。
 
 use std::io::Cursor;
 
@@ -12,7 +12,7 @@ use tauri::{
 };
 
 use crate::core::db::Database;
-use crate::core::error::{AppError, AppResult};
+use crate::core::error::{api_ok, api_result, ApiResult, AppError, AppResult};
 use crate::tools::network::mcp_inspector::commands::McpSessions;
 
 use super::attachments::{save_attachment_from_request, SavedAttachment};
@@ -34,8 +34,11 @@ use super::store::{
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) async fn ai_load_state(db: State<'_, Database>) -> AppResult<AiInitialState> {
-    store::ai_load_state_impl(db.inner()).await
+pub(crate) async fn ai_load_state(
+    db: State<'_, Database>,
+    registry: State<'_, AiToolRegistry>,
+) -> ApiResult<AiInitialState> {
+    api_result(store::ai_load_state_impl(db.inner(), registry.builtin_infos()).await)
 }
 
 #[tauri::command]
@@ -43,8 +46,8 @@ pub(crate) async fn ai_load_state(db: State<'_, Database>) -> AppResult<AiInitia
 pub(crate) async fn ai_upsert_model(
     db: State<'_, Database>,
     input: AiModelUpsertInput,
-) -> AppResult<Vec<AiModelView>> {
-    store::ai_upsert_model_impl(db.inner(), input).await
+) -> ApiResult<Vec<AiModelView>> {
+    api_result(store::ai_upsert_model_impl(db.inner(), input).await)
 }
 
 #[tauri::command]
@@ -52,8 +55,8 @@ pub(crate) async fn ai_upsert_model(
 pub(crate) async fn ai_delete_model(
     db: State<'_, Database>,
     id: String,
-) -> AppResult<Vec<AiModelView>> {
-    store::ai_delete_model_impl(db.inner(), id).await
+) -> ApiResult<Vec<AiModelView>> {
+    api_result(store::ai_delete_model_impl(db.inner(), id).await)
 }
 
 #[tauri::command]
@@ -61,8 +64,8 @@ pub(crate) async fn ai_delete_model(
 pub(crate) async fn ai_set_default_model(
     db: State<'_, Database>,
     id: Option<String>,
-) -> AppResult<Vec<AiModelView>> {
-    store::ai_set_default_model_impl(db.inner(), id).await
+) -> ApiResult<Vec<AiModelView>> {
+    api_result(store::ai_set_default_model_impl(db.inner(), id).await)
 }
 
 #[tauri::command]
@@ -71,8 +74,8 @@ pub(crate) async fn ai_set_model_enabled(
     db: State<'_, Database>,
     id: String,
     enabled: bool,
-) -> AppResult<Vec<AiModelView>> {
-    store::ai_set_model_enabled_impl(db.inner(), id, enabled).await
+) -> ApiResult<Vec<AiModelView>> {
+    api_result(store::ai_set_model_enabled_impl(db.inner(), id, enabled).await)
 }
 
 #[tauri::command]
@@ -81,8 +84,8 @@ pub(crate) async fn ai_set_model_thinking_effort(
     db: State<'_, Database>,
     id: String,
     effort: ThinkingEffort,
-) -> AppResult<()> {
-    store::ai_set_model_thinking_effort_impl(db.inner(), id, effort).await
+) -> ApiResult<()> {
+    api_result(store::ai_set_model_thinking_effort_impl(db.inner(), id, effort).await)
 }
 
 #[tauri::command]
@@ -90,8 +93,17 @@ pub(crate) async fn ai_set_model_thinking_effort(
 pub(crate) async fn ai_set_enabled_mcp_ids(
     db: State<'_, Database>,
     ids: Vec<String>,
-) -> AppResult<()> {
-    store::ai_set_enabled_mcp_ids_impl(db.inner(), ids).await
+) -> ApiResult<()> {
+    api_result(store::ai_set_enabled_mcp_ids_impl(db.inner(), ids).await)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn ai_set_disabled_builtin_tools(
+    db: State<'_, Database>,
+    names: Vec<String>,
+) -> ApiResult<()> {
+    api_result(store::ai_set_disabled_builtin_tools_impl(db.inner(), names).await)
 }
 
 #[tauri::command]
@@ -99,14 +111,14 @@ pub(crate) async fn ai_set_enabled_mcp_ids(
 pub(crate) async fn ai_upsert_folder(
     db: State<'_, Database>,
     folder: AiFolderDto,
-) -> AppResult<()> {
-    store::ai_upsert_folder_impl(db.inner(), folder).await
+) -> ApiResult<()> {
+    api_result(store::ai_upsert_folder_impl(db.inner(), folder).await)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) async fn ai_delete_folder(db: State<'_, Database>, id: String) -> AppResult<()> {
-    store::ai_delete_folder_impl(db.inner(), id).await
+pub(crate) async fn ai_delete_folder(db: State<'_, Database>, id: String) -> ApiResult<()> {
+    api_result(store::ai_delete_folder_impl(db.inner(), id).await)
 }
 
 // ---------- 细粒度会话与消息持久化（SQLite） ----------
@@ -116,8 +128,8 @@ pub(crate) async fn ai_delete_folder(db: State<'_, Database>, id: String) -> App
 pub(crate) async fn ai_read_conversation(
     db: State<'_, Database>,
     id: String,
-) -> AppResult<Option<AiConversationDetail>> {
-    store::ai_read_conversation_impl(db.inner(), id).await
+) -> ApiResult<Option<AiConversationDetail>> {
+    api_result(store::ai_read_conversation_impl(db.inner(), id).await)
 }
 
 #[tauri::command]
@@ -125,8 +137,8 @@ pub(crate) async fn ai_read_conversation(
 pub(crate) async fn ai_upsert_conversation(
     db: State<'_, Database>,
     input: AiConversationUpsertInput,
-) -> AppResult<Vec<ConversationIndexEntry>> {
-    store::ai_upsert_conversation_impl(db.inner(), input).await
+) -> ApiResult<Vec<ConversationIndexEntry>> {
+    api_result(store::ai_upsert_conversation_impl(db.inner(), input).await)
 }
 
 #[tauri::command]
@@ -134,8 +146,8 @@ pub(crate) async fn ai_upsert_conversation(
 pub(crate) async fn ai_update_conversation_meta(
     db: State<'_, Database>,
     updates: Vec<AiConversationMetaUpdate>,
-) -> AppResult<()> {
-    store::ai_update_conversation_meta_impl(db.inner(), updates).await
+) -> ApiResult<()> {
+    api_result(store::ai_update_conversation_meta_impl(db.inner(), updates).await)
 }
 
 #[tauri::command]
@@ -143,8 +155,8 @@ pub(crate) async fn ai_update_conversation_meta(
 pub(crate) async fn ai_delete_conversation(
     db: State<'_, Database>,
     id: String,
-) -> AppResult<Vec<ConversationIndexEntry>> {
-    store::ai_delete_conversation_impl(db.inner(), id).await
+) -> ApiResult<Vec<ConversationIndexEntry>> {
+    api_result(store::ai_delete_conversation_impl(db.inner(), id).await)
 }
 
 #[tauri::command]
@@ -153,8 +165,8 @@ pub(crate) async fn ai_upsert_message(
     db: State<'_, Database>,
     conversation_id: String,
     message: AiMessageDto,
-) -> AppResult<Vec<ConversationIndexEntry>> {
-    store::ai_upsert_message_impl(db.inner(), conversation_id, message).await
+) -> ApiResult<Vec<ConversationIndexEntry>> {
+    api_result(store::ai_upsert_message_impl(db.inner(), conversation_id, message).await)
 }
 
 #[tauri::command]
@@ -163,8 +175,8 @@ pub(crate) async fn ai_delete_message(
     db: State<'_, Database>,
     conversation_id: String,
     message_id: String,
-) -> AppResult<Vec<ConversationIndexEntry>> {
-    store::ai_delete_message_impl(db.inner(), conversation_id, message_id).await
+) -> ApiResult<Vec<ConversationIndexEntry>> {
+    api_result(store::ai_delete_message_impl(db.inner(), conversation_id, message_id).await)
 }
 
 #[tauri::command]
@@ -174,9 +186,11 @@ pub(crate) async fn ai_truncate_messages_from(
     conversation_id: String,
     from_message_id: String,
     inclusive: bool,
-) -> AppResult<Vec<ConversationIndexEntry>> {
-    store::ai_truncate_messages_from_impl(db.inner(), conversation_id, from_message_id, inclusive)
-        .await
+) -> ApiResult<Vec<ConversationIndexEntry>> {
+    api_result(
+        store::ai_truncate_messages_from_impl(db.inner(), conversation_id, from_message_id, inclusive)
+            .await,
+    )
 }
 
 #[tauri::command]
@@ -184,21 +198,21 @@ pub(crate) async fn ai_truncate_messages_from(
 pub(crate) async fn ai_clear_messages(
     db: State<'_, Database>,
     conversation_id: String,
-) -> AppResult<Vec<ConversationIndexEntry>> {
-    store::ai_clear_messages_impl(db.inner(), conversation_id).await
+) -> ApiResult<Vec<ConversationIndexEntry>> {
+    api_result(store::ai_clear_messages_impl(db.inner(), conversation_id).await)
 }
 
 // ---------- 工作区、附件与本地文件预览 ----------
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn ai_workspace_dir(app: AppHandle, conversation_id: String) -> AppResult<String> {
-    ensure_conversation_workspace_dir(&app, &conversation_id).map_err(AppError::from)
+pub(crate) fn ai_workspace_dir(app: AppHandle, conversation_id: String) -> ApiResult<String> {
+    api_result(ensure_conversation_workspace_dir(&app, &conversation_id))
 }
 
 #[tauri::command]
-pub(crate) fn ai_save_attachment(request: Request<'_>) -> AppResult<SavedAttachment> {
-    save_attachment_from_request(request).map_err(AppError::from)
+pub(crate) fn ai_save_attachment(request: Request<'_>) -> ApiResult<SavedAttachment> {
+    api_result(save_attachment_from_request(request))
 }
 
 #[derive(Debug, Clone, Serialize, Type)]
@@ -236,9 +250,7 @@ fn mime_for_image_ext(ext: &str) -> Option<&'static str> {
     }
 }
 
-#[tauri::command]
-#[specta::specta]
-pub(crate) async fn ai_tool_read_image(
+pub(crate) async fn read_image_impl(
     workspace_dir: String,
     path: String,
 ) -> AppResult<ReadImageResult> {
@@ -248,7 +260,11 @@ pub(crate) async fn ai_tool_read_image(
     let (_root, target, _outside) = resolve_target_path(&workspace_dir, Some(&path))?;
     tauri::async_runtime::spawn_blocking(move || {
         let meta = std::fs::metadata(&target).map_err(|err| {
-            AppError::io(format!("Could not access image {}: {err}", target.display()))
+            if err.kind() == std::io::ErrorKind::NotFound {
+                AppError::not_found(format!("Image does not exist: {}", target.display()))
+            } else {
+                AppError::io(format!("Could not access image {}: {err}", target.display()))
+            }
         })?;
         if meta.is_dir() {
             return Err(AppError::invalid_input(format!(
@@ -329,19 +345,27 @@ pub(crate) async fn ai_tool_read_image(
 
 #[tauri::command]
 #[specta::specta]
+pub(crate) async fn ai_tool_read_image(
+    workspace_dir: String,
+    path: String,
+) -> ApiResult<ReadImageResult> {
+    api_result(read_image_impl(workspace_dir, path).await)
+}
+
+#[tauri::command]
+#[specta::specta]
 pub(crate) fn ai_tool_read_file(
     workspace_dir: String,
     path: String,
     start_line: Option<u32>,
     end_line: Option<u32>,
-) -> AppResult<ReadFileResult> {
-    read_file_impl(
+) -> ApiResult<ReadFileResult> {
+    api_result(read_file_impl(
         &workspace_dir,
         &path,
         start_line.map(|n| n as usize),
         end_line.map(|n| n as usize),
-    )
-    .map_err(AppError::from)
+    ))
 }
 
 // ---------- 后端大模型对话引擎、审批与模型列表 ----------
@@ -357,19 +381,20 @@ pub(crate) async fn ai_chat_run(
     chat_state: State<'_, AiChatState>,
     request: AiChatRunRequest,
     on_event: Channel<AiChatEvent>,
-) -> AppResult<AiChatRunResult> {
-    run_chat_turn(
-        &app,
-        db.inner(),
-        registry.inner(),
-        command_state.inner(),
-        mcp_sessions.inner(),
-        chat_state.inner(),
-        request,
-        on_event,
+) -> ApiResult<AiChatRunResult> {
+    api_result(
+        run_chat_turn(
+            &app,
+            db.inner(),
+            registry.inner(),
+            command_state.inner(),
+            mcp_sessions.inner(),
+            chat_state.inner(),
+            request,
+            on_event,
+        )
+        .await,
     )
-    .await
-    .map_err(AppError::from)
 }
 
 #[tauri::command]
@@ -378,8 +403,8 @@ pub(crate) fn ai_chat_approve(
     chat_state: State<'_, AiChatState>,
     conversation_id: String,
     decision: ToolApprovalDecision,
-) -> AppResult<bool> {
-    Ok(chat_state.resolve_approval(&conversation_id, decision))
+) -> ApiResult<bool> {
+    api_ok(chat_state.resolve_approval(&conversation_id, decision))
 }
 
 #[tauri::command]
@@ -388,8 +413,8 @@ pub(crate) fn ai_chat_cancel(
     chat_state: State<'_, AiChatState>,
     command_state: State<'_, AiCommandState>,
     conversation_id: String,
-) -> AppResult<bool> {
-    Ok(chat_state.cancel(&conversation_id, command_state.inner()))
+) -> ApiResult<bool> {
+    api_ok(chat_state.cancel(&conversation_id, command_state.inner()))
 }
 
 #[tauri::command]
@@ -398,9 +423,9 @@ pub(crate) fn ai_chat_set_policy(
     chat_state: State<'_, AiChatState>,
     conversation_id: String,
     policy: ExecutionPolicy,
-) -> AppResult<()> {
+) -> ApiResult<()> {
     chat_state.set_policy(&conversation_id, policy);
-    Ok(())
+    api_ok(())
 }
 
 #[tauri::command]
@@ -408,9 +433,9 @@ pub(crate) fn ai_chat_set_policy(
 pub(crate) fn ai_chat_clear_session(
     chat_state: State<'_, AiChatState>,
     conversation_id: String,
-) -> AppResult<()> {
+) -> ApiResult<()> {
     chat_state.clear_session(&conversation_id);
-    Ok(())
+    api_ok(())
 }
 
 /// 拉取远端模型列表：编辑已有模型且未重新输入 Key 时，传入 `model_config_id` 由后端直接从 SQLite 解密使用。
@@ -420,15 +445,19 @@ pub(crate) async fn ai_fetch_models(
     db: State<'_, Database>,
     mut endpoint: EndpointConfig,
     model_config_id: Option<String>,
-) -> AppResult<Vec<RemoteModelInfo>> {
-    if endpoint.api_key.trim().is_empty() {
-        if let Some(id) = model_config_id.as_deref().filter(|s| !s.trim().is_empty()) {
-            if let Some(saved_key) = store::resolve_model_api_key(db.inner(), id).await? {
-                endpoint.api_key = saved_key;
+) -> ApiResult<Vec<RemoteModelInfo>> {
+    let res: AppResult<Vec<RemoteModelInfo>> = async {
+        if endpoint.api_key.trim().is_empty() {
+            if let Some(id) = model_config_id.as_deref().filter(|s| !s.trim().is_empty()) {
+                if let Some(saved_key) = store::resolve_model_api_key(db.inner(), id).await? {
+                    endpoint.api_key = saved_key;
+                }
             }
         }
+        fetch_models(&endpoint).await
     }
-    fetch_models(&endpoint).await.map_err(AppError::provider)
+    .await;
+    api_result(res)
 }
 
 /// 导出 AI 模块的 Rust -> TypeScript 强类型契约绑定文件（`src/api/generated/ai.ts`）。
@@ -445,6 +474,7 @@ pub(crate) fn export_ai_bindings() -> Result<(), String> {
         ai_set_model_enabled,
         ai_set_model_thinking_effort,
         ai_set_enabled_mcp_ids,
+        ai_set_disabled_builtin_tools,
         ai_upsert_folder,
         ai_delete_folder,
         ai_read_conversation,

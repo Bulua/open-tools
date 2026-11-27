@@ -13,6 +13,7 @@ use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::sync::oneshot;
 
+use crate::core::error::{AppError, AppResult};
 use crate::core::process::decode_output;
 
 use super::paths::resolve_target_path;
@@ -139,24 +140,24 @@ pub(crate) async fn run_command_impl(
     shell: Option<&str>,
     cwd: Option<&str>,
     timeout_secs: Option<u64>,
-) -> Result<RunCommandResult, String> {
+) -> AppResult<RunCommandResult> {
     if command_text.trim().is_empty() {
-        return Err("Command must not be empty.".into());
+        return Err(AppError::invalid_input("Command must not be empty."));
     }
     let (ws_root, work_dir, _outside) = resolve_target_path(workspace_dir, cwd)?;
     if work_dir == ws_root && !work_dir.exists() {
         std::fs::create_dir_all(&work_dir).map_err(|err| {
-            format!(
+            AppError::io(format!(
                 "Could not create workspace directory {}: {err}",
                 work_dir.display()
-            )
+            ))
         })?;
     }
     if !work_dir.is_dir() {
-        return Err(format!(
+        return Err(AppError::not_found(format!(
             "Working directory does not exist: {}",
             work_dir.display()
-        ));
+        )));
     }
 
     let shell_kind = shell.unwrap_or("powershell").trim();
@@ -187,7 +188,7 @@ pub(crate) async fn run_command_impl(
 
     let mut child = wrapped
         .spawn()
-        .map_err(|err| format!("Could not start command: {err}"))?;
+        .map_err(|err| AppError::io(format!("Could not start command: {err}")))?;
 
     let stdout_pipe = child.stdout().take();
     let stderr_pipe = child.stderr().take();

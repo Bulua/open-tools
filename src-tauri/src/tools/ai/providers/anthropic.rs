@@ -12,10 +12,12 @@ use futures_util::StreamExt;
 use serde_json::json;
 use tokio::sync::watch;
 
+use crate::core::error::{AppError, AppResult};
+
 use super::{
-    build_text_with_file_attachments, safe_parse_json_object, split_data_url, ChatRoundRequest,
-    ChatRoundResult, EndpointConfig, PromptTurn, ProviderToolCall, RemoteModelInfo, StreamDelta,
-    ThinkingEffort,
+    build_text_with_file_attachments, classify_provider_error, safe_parse_json_object,
+    split_data_url, ChatRoundRequest, ChatRoundResult, EndpointConfig, PromptTurn,
+    ProviderToolCall, RemoteModelInfo, StreamDelta, ThinkingEffort,
 };
 
 /// `adk-anthropic` 内部会自动拼接 `/v1/{endpoint}`，如果用户填写的 baseUrl 以 `/v1` 结尾需先剥离。
@@ -28,7 +30,7 @@ fn normalize_anthropic_base_url(base: &str) -> String {
         .to_string()
 }
 
-fn build_client(base: &str, api_key: &str) -> Result<Anthropic, String> {
+fn build_client(base: &str, api_key: &str) -> AppResult<Anthropic> {
     let normalized = normalize_anthropic_base_url(base);
     let key = api_key.trim();
     let key_opt = if key.is_empty() {
@@ -36,13 +38,13 @@ fn build_client(base: &str, api_key: &str) -> Result<Anthropic, String> {
     } else {
         Some(key.to_string())
     };
-    let mut client = Anthropic::new(key_opt).map_err(|err| err.to_string())?;
+    let mut client = Anthropic::new(key_opt).map_err(|err| AppError::provider(err.to_string()))?;
     if normalized.starts_with("http://") {
         client = client.allow_insecure_http();
     }
     client = client
         .with_base_url(normalized)
-        .map_err(|err| err.to_string())?;
+        .map_err(|err| AppError::invalid_input(err.to_string()))?;
     Ok(client)
 }
 
@@ -61,7 +63,7 @@ pub(crate) async fn stream_chat(
     req: &ChatRoundRequest<'_>,
     cancel_rx: &mut watch::Receiver<bool>,
     on_delta: &mut (dyn FnMut(StreamDelta) + Send),
-) -> Result<ChatRoundResult, String> {
+) -> AppResult<ChatRoundResult> {
     let client = build_client(base, &req.endpoint.api_key)?;
 
     let mut messages: Vec<MessageParam> = Vec::new();
@@ -199,10 +201,10 @@ pub(crate) async fn stream_chat(
 
     let raw_stream = tokio::select! {
         res = client.stream(&params) => {
-            res.map_err(|err| err.to_string())?
+            res.map_err(|err| classify_provider_error(err.to_string()))?
         }
         _ = cancel_rx.changed() => {
-            return Err("CANCELLED".into());
+            return Err(AppError::cancelled("Chat cancelled."));
         }
     };
     let mut stream = pin!(raw_stream);
@@ -215,7 +217,7 @@ pub(crate) async fn stream_chat(
             biased;
             _ = cancel_rx.changed() => {
                 if *cancel_rx.borrow() {
-                    return Err("CANCELLED".into());
+                    return Err(AppError::cancelled("Chat cancelled."));
                 }
                 continue;
             }
@@ -225,7 +227,7 @@ pub(crate) async fn stream_chat(
         let Some(event_res) = next_item else {
             break;
         };
-        let event = event_res.map_err(|err| err.to_string())?;
+        let event = event_res.map_err(|err| classify_provider_error(err.to_string()))?;
         match event {
             MessageStreamEvent::ContentBlockStart(start) => {
                 if let ContentBlock::ToolUse(tu) = start.content_block {
@@ -270,7 +272,7 @@ pub(crate) async fn stream_chat(
                 _ => {}
             },
             MessageStreamEvent::StreamError { error } => {
-                return Err(error.message);
+                return Err(classify_provider_error(error.message));
             }
             _ => {}
         }
@@ -290,12 +292,12 @@ pub(crate) async fn stream_chat(
 pub(crate) async fn fetch_models(
     base: &str,
     endpoint: &EndpointConfig,
-) -> Result<Vec<RemoteModelInfo>, String> {
+) -> AppResult<Vec<RemoteModelInfo>> {
     let client = build_client(base, &endpoint.api_key)?;
     let resp = client
         .list_models(None)
         .await
-        .map_err(|err| err.to_string())?;
+        .map_err(|err| classify_provider_error(err.to_string()))?;
     let models = resp
         .data
         .into_iter()

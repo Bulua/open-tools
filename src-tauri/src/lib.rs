@@ -113,6 +113,7 @@ pub fn run() {
             ai::ai_set_model_enabled,
             ai::ai_set_model_thinking_effort,
             ai::ai_set_enabled_mcp_ids,
+            ai::ai_set_disabled_builtin_tools,
             ai::ai_upsert_folder,
             ai::ai_delete_folder,
             ai::ai_read_conversation,

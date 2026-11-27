@@ -8,9 +8,12 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use tokio::sync::watch;
 
+use crate::core::error::{AppError, AppResult};
+
 use super::{
-    build_text_with_file_attachments, ChatRoundRequest, ChatRoundResult, EndpointConfig,
-    PromptTurn, ProviderToolCall, RemoteModelInfo, StreamDelta, ThinkTagSplitter, ThinkingEffort,
+    build_text_with_file_attachments, classify_provider_error, ChatRoundRequest, ChatRoundResult,
+    EndpointConfig, PromptTurn, ProviderToolCall, RemoteModelInfo, StreamDelta, ThinkTagSplitter,
+    ThinkingEffort,
 };
 
 #[derive(Debug, Deserialize)]
@@ -77,7 +80,7 @@ pub(crate) async fn stream_chat(
     req: &ChatRoundRequest<'_>,
     cancel_rx: &mut watch::Receiver<bool>,
     on_delta: &mut (dyn FnMut(StreamDelta) + Send),
-) -> Result<ChatRoundResult, String> {
+) -> AppResult<ChatRoundResult> {
     let client = build_client(base, &req.endpoint.api_key);
 
     let mut payload_messages: Vec<Value> = Vec::new();
@@ -220,10 +223,10 @@ pub(crate) async fn stream_chat(
     let chat = client.chat();
     let mut stream = tokio::select! {
         res = chat.create_stream_byot::<Value, OpenAiStreamChunk>(Value::Object(body)) => {
-            res.map_err(|err| err.to_string())?
+            res.map_err(|err| classify_provider_error(err.to_string()))?
         }
         _ = cancel_rx.changed() => {
-            return Err("CANCELLED".into());
+            return Err(AppError::cancelled("Chat cancelled."));
         }
     };
 
@@ -236,7 +239,7 @@ pub(crate) async fn stream_chat(
             biased;
             _ = cancel_rx.changed() => {
                 if *cancel_rx.borrow() {
-                    return Err("CANCELLED".into());
+                    return Err(AppError::cancelled("Chat cancelled."));
                 }
                 continue;
             }
@@ -246,10 +249,10 @@ pub(crate) async fn stream_chat(
         let Some(chunk_res) = next_item else {
             break;
         };
-        let chunk = chunk_res.map_err(|err| err.to_string())?;
+        let chunk = chunk_res.map_err(|err| classify_provider_error(err.to_string()))?;
         if let Some(err_body) = chunk.error {
             if let Some(msg) = err_body.message.filter(|m| !m.is_empty()) {
-                return Err(msg);
+                return Err(classify_provider_error(msg));
             }
         }
         let Some(first) = chunk.choices.into_iter().next() else {
@@ -337,13 +340,13 @@ pub(crate) async fn stream_chat(
 pub(crate) async fn fetch_models(
     base: &str,
     endpoint: &EndpointConfig,
-) -> Result<Vec<RemoteModelInfo>, String> {
+) -> AppResult<Vec<RemoteModelInfo>> {
     let client = build_client(base, &endpoint.api_key);
     let resp = client
         .models()
         .list()
         .await
-        .map_err(|err| err.to_string())?;
+        .map_err(|err| classify_provider_error(err.to_string()))?;
     let mut models: Vec<RemoteModelInfo> = resp
         .data
         .into_iter()

@@ -9,6 +9,8 @@ use serde_json::{Map, Value};
 use specta::Type;
 use tokio::sync::watch;
 
+use crate::core::error::{AppError, AppResult};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum ApiProtocol {
@@ -134,15 +136,41 @@ pub(crate) fn strip_trailing_slash(url: &str) -> String {
     url.trim().trim_end_matches('/').to_string()
 }
 
-pub(crate) fn validate_endpoint(endpoint: &EndpointConfig) -> Result<String, String> {
+pub(crate) fn validate_endpoint(endpoint: &EndpointConfig) -> AppResult<String> {
     let base = strip_trailing_slash(&endpoint.base_url);
     if base.is_empty() {
-        return Err("API base URL is required.".into());
+        return Err(AppError::invalid_input("API base URL is required."));
     }
     if endpoint.requires_key && endpoint.api_key.trim().is_empty() {
-        return Err("API key is required for this provider.".into());
+        return Err(AppError::unauthorized(
+            "API key is required for this provider.",
+        ));
     }
     Ok(base)
+}
+
+/// 将各厂商 SDK 返回的错误文本按语义归类为精确的 `AppErrorCode`
+pub(crate) fn classify_provider_error(err_text: impl Into<String>) -> AppError {
+    let msg = err_text.into();
+    let lower = msg.to_ascii_lowercase();
+    if lower.contains("401")
+        || lower.contains("403")
+        || lower.contains("unauthorized")
+        || lower.contains("invalid api key")
+        || lower.contains("invalid_api_key")
+        || lower.contains("authentication")
+    {
+        AppError::unauthorized(msg)
+    } else if lower.contains("timed out")
+        || lower.contains("timeout")
+        || lower.contains("connection")
+        || lower.contains("dns")
+        || lower.contains("connect error")
+    {
+        AppError::network(msg)
+    } else {
+        AppError::provider(msg)
+    }
 }
 
 pub(crate) fn split_data_url(data_url: &str) -> Option<(String, String)> {
@@ -306,7 +334,7 @@ pub(crate) async fn stream_chat_round(
     req: &ChatRoundRequest<'_>,
     cancel_rx: &mut watch::Receiver<bool>,
     on_delta: &mut (dyn FnMut(StreamDelta) + Send),
-) -> Result<ChatRoundResult, String> {
+) -> AppResult<ChatRoundResult> {
     let base = validate_endpoint(req.endpoint)?;
     match req.endpoint.protocol {
         ApiProtocol::Openai => openai::stream_chat(&base, req, cancel_rx, on_delta).await,
@@ -315,7 +343,7 @@ pub(crate) async fn stream_chat_round(
     }
 }
 
-pub(crate) async fn fetch_models(endpoint: &EndpointConfig) -> Result<Vec<RemoteModelInfo>, String> {
+pub(crate) async fn fetch_models(endpoint: &EndpointConfig) -> AppResult<Vec<RemoteModelInfo>> {
     let base = validate_endpoint(endpoint)?;
     match endpoint.protocol {
         ApiProtocol::Openai => openai::fetch_models(&base, endpoint).await,

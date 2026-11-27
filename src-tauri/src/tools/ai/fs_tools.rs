@@ -4,6 +4,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use specta::Type;
 
+use crate::core::error::{AppError, AppResult};
 use crate::core::process::decode_output;
 
 use super::args;
@@ -85,20 +86,30 @@ pub(crate) fn list_dir_impl(
     workspace_dir: &str,
     path: Option<&str>,
     max_entries: Option<usize>,
-) -> Result<ListDirResult, String> {
+) -> AppResult<ListDirResult> {
     let (_root, target, _outside) = resolve_target_path(workspace_dir, path)?;
     if !target.exists() {
-        return Err(format!("Directory does not exist: {}", target.display()));
+        return Err(AppError::not_found(format!(
+            "Directory does not exist: {}",
+            target.display()
+        )));
     }
     if !target.is_dir() {
-        return Err(format!("Path is not a directory: {}", target.display()));
+        return Err(AppError::invalid_input(format!(
+            "Path is not a directory: {}",
+            target.display()
+        )));
     }
 
     let limit = max_entries
         .unwrap_or(DEFAULT_LIST_ENTRIES)
         .clamp(1, MAX_LIST_ENTRIES);
-    let read_dir = std::fs::read_dir(&target)
-        .map_err(|err| format!("Could not read directory {}: {err}", target.display()))?;
+    let read_dir = std::fs::read_dir(&target).map_err(|err| {
+        AppError::io(format!(
+            "Could not read directory {}: {err}",
+            target.display()
+        ))
+    })?;
 
     let mut entries: Vec<DirEntryInfo> = Vec::new();
     for item in read_dir {
@@ -145,31 +156,40 @@ pub(crate) fn read_file_impl(
     path: &str,
     start_line: Option<usize>,
     end_line: Option<usize>,
-) -> Result<ReadFileResult, String> {
+) -> AppResult<ReadFileResult> {
     if path.trim().is_empty() {
-        return Err("File path is required.".into());
+        return Err(AppError::invalid_input("File path is required."));
     }
     let (_root, target, _outside) = resolve_target_path(workspace_dir, Some(path))?;
-    let meta = std::fs::metadata(&target)
-        .map_err(|err| format!("Could not access file {}: {err}", target.display()))?;
+    let meta = std::fs::metadata(&target).map_err(|err| {
+        if err.kind() == std::io::ErrorKind::NotFound {
+            AppError::not_found(format!("File does not exist: {}", target.display()))
+        } else {
+            AppError::io(format!("Could not access file {}: {err}", target.display()))
+        }
+    })?;
     if meta.is_dir() {
-        return Err(format!("Path is a directory, not a file: {}", target.display()));
+        return Err(AppError::invalid_input(format!(
+            "Path is a directory, not a file: {}",
+            target.display()
+        )));
     }
     if meta.len() > MAX_READ_BYTES {
-        return Err(format!(
+        return Err(AppError::invalid_input(format!(
             "File is too large to read directly ({} bytes, limit {} bytes).",
             meta.len(),
             MAX_READ_BYTES
-        ));
+        )));
     }
 
-    let bytes = std::fs::read(&target)
-        .map_err(|err| format!("Could not read file {}: {err}", target.display()))?;
+    let bytes = std::fs::read(&target).map_err(|err| {
+        AppError::io(format!("Could not read file {}: {err}", target.display()))
+    })?;
     if looks_binary(&bytes) {
-        return Err(format!(
+        return Err(AppError::invalid_input(format!(
             "File appears to be binary and cannot be read as text: {}",
             target.display()
-        ));
+        )));
     }
 
     let decoded = decode_output(&bytes);
@@ -188,9 +208,9 @@ pub(crate) fn read_file_impl(
 
     let start = start_line.unwrap_or(1).max(1);
     if start > total_lines {
-        return Err(format!(
+        return Err(AppError::invalid_input(format!(
             "start_line ({start}) exceeds total line count ({total_lines})."
-        ));
+        )));
     }
     let requested_end = end_line
         .unwrap_or(start + DEFAULT_READ_LINES - 1)
@@ -228,30 +248,37 @@ pub(crate) fn write_file_impl(
     workspace_dir: &str,
     path: &str,
     content: &str,
-) -> Result<WriteFileResult, String> {
+) -> AppResult<WriteFileResult> {
     if path.trim().is_empty() {
-        return Err("File path is required.".into());
+        return Err(AppError::invalid_input("File path is required."));
     }
     if content.len() > MAX_WRITE_BYTES {
-        return Err(format!(
+        return Err(AppError::invalid_input(format!(
             "Content exceeds maximum write size ({} bytes).",
             MAX_WRITE_BYTES
-        ));
+        )));
     }
     let (_root, target, outside) = resolve_target_path(workspace_dir, Some(path))?;
     if target.is_dir() {
-        return Err(format!("Path is a directory: {}", target.display()));
+        return Err(AppError::invalid_input(format!(
+            "Path is a directory: {}",
+            target.display()
+        )));
     }
     if let Some(parent) = target.parent() {
         std::fs::create_dir_all(parent).map_err(|err| {
-            format!(
+            AppError::io(format!(
                 "Could not create parent directory {}: {err}",
                 parent.display()
-            )
+            ))
         })?;
     }
-    std::fs::write(&target, content.as_bytes())
-        .map_err(|err| format!("Could not write file {}: {err}", target.display()))?;
+    std::fs::write(&target, content.as_bytes()).map_err(|err| {
+        AppError::io(format!(
+            "Could not write file {}: {err}",
+            target.display()
+        ))
+    })?;
 
     let line_count = if content.is_empty() {
         0
@@ -273,30 +300,42 @@ pub(crate) fn edit_file_impl(
     old_text: &str,
     new_text: &str,
     replace_all: bool,
-) -> Result<EditFileResult, String> {
+) -> AppResult<EditFileResult> {
     if path.trim().is_empty() {
-        return Err("File path is required.".into());
+        return Err(AppError::invalid_input("File path is required."));
     }
     if old_text.is_empty() {
-        return Err("old_text must not be empty.".into());
+        return Err(AppError::invalid_input("old_text must not be empty."));
     }
     let (_root, target, outside) = resolve_target_path(workspace_dir, Some(path))?;
-    let meta = std::fs::metadata(&target)
-        .map_err(|err| format!("Could not access file {}: {err}", target.display()))?;
+    let meta = std::fs::metadata(&target).map_err(|err| {
+        if err.kind() == std::io::ErrorKind::NotFound {
+            AppError::not_found(format!("File does not exist: {}", target.display()))
+        } else {
+            AppError::io(format!("Could not access file {}: {err}", target.display()))
+        }
+    })?;
     if meta.is_dir() {
-        return Err(format!("Path is a directory: {}", target.display()));
+        return Err(AppError::invalid_input(format!(
+            "Path is a directory: {}",
+            target.display()
+        )));
     }
     if meta.len() > MAX_WRITE_BYTES as u64 {
-        return Err(format!(
+        return Err(AppError::invalid_input(format!(
             "File is too large to edit directly ({} bytes).",
             meta.len()
-        ));
+        )));
     }
 
-    let bytes = std::fs::read(&target)
-        .map_err(|err| format!("Could not read file {}: {err}", target.display()))?;
+    let bytes = std::fs::read(&target).map_err(|err| {
+        AppError::io(format!("Could not read file {}: {err}", target.display()))
+    })?;
     if looks_binary(&bytes) {
-        return Err(format!("Cannot edit binary file: {}", target.display()));
+        return Err(AppError::invalid_input(format!(
+            "Cannot edit binary file: {}",
+            target.display()
+        )));
     }
     let original = decode_output(&bytes);
 
@@ -314,12 +353,14 @@ pub(crate) fn edit_file_impl(
 
     let matches = original.matches(&needle).count();
     if matches == 0 {
-        return Err("Target old_text was not found in the file.".into());
+        return Err(AppError::invalid_input(
+            "Target old_text was not found in the file.",
+        ));
     }
     if matches > 1 && !replace_all {
-        return Err(format!(
+        return Err(AppError::invalid_input(format!(
             "Target old_text matched {matches} places; provide more surrounding context or set replace_all to true."
-        ));
+        )));
     }
 
     let updated = if replace_all {
@@ -328,14 +369,18 @@ pub(crate) fn edit_file_impl(
         original.replacen(&needle, &replacement, 1)
     };
     if updated.len() > MAX_WRITE_BYTES {
-        return Err(format!(
+        return Err(AppError::invalid_input(format!(
             "Updated content exceeds maximum write size ({} bytes).",
             MAX_WRITE_BYTES
-        ));
+        )));
     }
 
-    std::fs::write(&target, updated.as_bytes())
-        .map_err(|err| format!("Could not write file {}: {err}", target.display()))?;
+    std::fs::write(&target, updated.as_bytes()).map_err(|err| {
+        AppError::io(format!(
+            "Could not write file {}: {err}",
+            target.display()
+        ))
+    })?;
 
     let line_count = if updated.is_empty() {
         0

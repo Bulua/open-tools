@@ -12,12 +12,13 @@ use tauri::{ipc::Channel, AppHandle};
 use tokio::sync::{oneshot, watch};
 
 use crate::core::db::Database;
+use crate::core::error::{AppError, AppErrorCode, AppResult};
 use crate::tools::network::mcp_inspector::{
     commands::{call_tool_on_session, connect_or_reuse_session, inspect_session, McpSessions},
     store::load_stored_connections,
 };
 
-use super::commands::ai_tool_read_image;
+use super::commands::read_image_impl;
 use super::paths::{ensure_conversation_workspace_dir, resolve_target_path};
 use super::prompt::build_system_prompt;
 use super::providers::{
@@ -28,7 +29,9 @@ use super::registry::{
     AiToolContext, AiToolOutputFile, AiToolRegistry, ToolApprovalPolicy,
 };
 use super::shell::AiCommandState;
-use super::store::{resolve_model_credentials, ResolvedModelCredentials};
+use super::store::{
+    read_disabled_builtin_tools, resolve_model_credentials, ResolvedModelCredentials,
+};
 
 const MAX_TOOL_ROUNDS: usize = 16;
 
@@ -45,6 +48,21 @@ pub(crate) enum ToolApprovalDecision {
 pub(crate) enum ExecutionPolicy {
     Review,
     Auto,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub(crate) enum ApprovalKind {
+    Command,
+    ExternalWrite,
+    Tool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum ToolCallStatus {
+    Done,
+    Error,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -70,17 +88,16 @@ impl AiChatState {
     fn register(
         &self,
         conversation_id: &str,
-    ) -> Result<
-        (
-            watch::Receiver<bool>,
-            Arc<Mutex<Option<String>>>,
-            Arc<Mutex<Option<oneshot::Sender<ToolApprovalDecision>>>>,
-        ),
-        String,
-    > {
+    ) -> AppResult<(
+        watch::Receiver<bool>,
+        Arc<Mutex<Option<String>>>,
+        Arc<Mutex<Option<oneshot::Sender<ToolApprovalDecision>>>>,
+    )> {
         let mut guard = self.active.lock().unwrap_or_else(|e| e.into_inner());
         if guard.contains_key(conversation_id) {
-            return Err("A chat turn is already running for this conversation.".into());
+            return Err(AppError::busy(
+                "A chat turn is already running for this conversation.",
+            ));
         }
         let (cancel_tx, cancel_rx) = watch::channel(false);
         let active_run_id = Arc::new(Mutex::new(None));
@@ -251,7 +268,7 @@ pub(crate) enum AiChatEvent {
         conversation_id: String,
         #[serde(rename = "toolName")]
         tool_name: String,
-        kind: String,
+        kind: ApprovalKind,
         #[serde(skip_serializing_if = "Option::is_none")]
         command: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -273,7 +290,7 @@ pub(crate) enum AiChatEvent {
     },
     ToolCallResult {
         id: String,
-        status: String,
+        status: ToolCallStatus,
         #[serde(rename = "resultText")]
         result_text: String,
         #[serde(rename = "outputFile", skip_serializing_if = "Option::is_none")]
@@ -458,7 +475,7 @@ async fn hydrate_turns(turns: &mut [PromptTurn], workspace_dir: &str) {
                 let Some(path) = att.file_path.as_deref().filter(|p| !p.is_empty()) else {
                     continue;
                 };
-                if let Ok(img) = ai_tool_read_image(workspace_dir.to_string(), path.to_string()).await
+                if let Ok(img) = read_image_impl(workspace_dir.to_string(), path.to_string()).await
                 {
                     att.data_url = Some(img.data_url);
                 }
@@ -509,18 +526,17 @@ pub(crate) async fn run_chat_turn(
     chat_state: &AiChatState,
     req: AiChatRunRequest,
     on_event: Channel<AiChatEvent>,
-) -> Result<AiChatRunResult, String> {
+) -> AppResult<AiChatRunResult> {
     let started = Instant::now();
     let conv_id = req.conversation_id.clone();
 
-    let creds = resolve_model_credentials(db, &req.model_config_id)
-        .await
-        .map_err(|err| err.message)?;
+    let creds = resolve_model_credentials(db, &req.model_config_id).await?;
 
     let (mut cancel_rx, active_run_id, pending_approval) = chat_state.register(&conv_id)?;
 
     let result = run_chat_turn_inner(
         app,
+        db,
         registry,
         command_state,
         mcp_sessions,
@@ -542,10 +558,12 @@ pub(crate) async fn run_chat_turn(
             aborted,
             duration_ms,
         }),
-        Err(err) if err == "CANCELLED" || *cancel_rx.borrow() => Ok(AiChatRunResult {
-            aborted: true,
-            duration_ms,
-        }),
+        Err(err) if err.code == AppErrorCode::Cancelled || *cancel_rx.borrow() => {
+            Ok(AiChatRunResult {
+                aborted: true,
+                duration_ms,
+            })
+        }
         Err(err) => Err(err),
     }
 }
@@ -553,6 +571,7 @@ pub(crate) async fn run_chat_turn(
 #[allow(clippy::too_many_arguments)]
 async fn run_chat_turn_inner(
     app: &AppHandle,
+    db: &Database,
     registry: &AiToolRegistry,
     command_state: &AiCommandState,
     mcp_sessions: &McpSessions,
@@ -563,7 +582,7 @@ async fn run_chat_turn_inner(
     cancel_rx: &mut watch::Receiver<bool>,
     active_run_id: &Arc<Mutex<Option<String>>>,
     pending_approval: &Arc<Mutex<Option<oneshot::Sender<ToolApprovalDecision>>>>,
-) -> Result<bool, String> {
+) -> AppResult<bool> {
     let workspace_dir = match req
         .workspace_dir
         .as_deref()
@@ -575,13 +594,20 @@ async fn run_chat_turn_inner(
     };
 
     let system_prompt = build_system_prompt(&workspace_dir);
+    let disabled_builtin_tools = read_disabled_builtin_tools(db).await?;
     let builtin_defs = registry.definitions();
-    let builtin_by_name: HashMap<String, ToolApprovalPolicy> = builtin_defs
+    let all_builtin_names: HashSet<String> =
+        builtin_defs.iter().map(|d| d.name.clone()).collect();
+    let enabled_builtin_defs: Vec<_> = builtin_defs
+        .into_iter()
+        .filter(|d| !disabled_builtin_tools.contains(&d.name))
+        .collect();
+    let builtin_by_name: HashMap<String, ToolApprovalPolicy> = enabled_builtin_defs
         .iter()
         .map(|d| (d.name.clone(), d.approval))
         .collect();
 
-    let mut all_tool_defs: Vec<ProviderToolDefinition> = builtin_defs
+    let mut all_tool_defs: Vec<ProviderToolDefinition> = enabled_builtin_defs
         .into_iter()
         .map(|d| ProviderToolDefinition {
             name: d.name,
@@ -662,6 +688,29 @@ async fn run_chat_turn_inner(
                 call.arguments_text.clone()
             };
 
+            if disabled_builtin_tools.contains(&call.name) && all_builtin_names.contains(&call.name) {
+                let _ = on_event.send(AiChatEvent::ToolCallStart {
+                    id: call.id.clone(),
+                    server_id: "__builtin__".into(),
+                    server_name: builtin_badge.clone(),
+                    tool_name: call.name.clone(),
+                    arguments_text: args_text.clone(),
+                });
+                let msg = format!("Built-in tool '{}' is disabled in settings.", call.name);
+                let _ = on_event.send(AiChatEvent::ToolCallResult {
+                    id: call.id.clone(),
+                    status: ToolCallStatus::Error,
+                    result_text: msg.clone(),
+                    output_file: None,
+                });
+                turns.push(PromptTurn::Tool {
+                    tool_call_id: call.id,
+                    tool_name: call.name,
+                    content: msg,
+                });
+                continue;
+            }
+
             if let Some(&approval_policy) = builtin_by_name.get(&call.name) {
                 let parsed_args = safe_parse_json_object(&args_text);
                 let _ = on_event.send(AiChatEvent::ToolCallStart {
@@ -701,7 +750,7 @@ async fn run_chat_turn_inner(
                             id: call.id.clone(),
                             conversation_id: req.conversation_id.clone(),
                             tool_name: call.name.clone(),
-                            kind: "command".into(),
+                            kind: ApprovalKind::Command,
                             command: Some(cmd_str),
                             shell: Some(shell_str),
                             target_path: None,
@@ -715,7 +764,7 @@ async fn run_chat_turn_inner(
                             id: call.id.clone(),
                             conversation_id: req.conversation_id.clone(),
                             tool_name: call.name.clone(),
-                            kind: "tool".into(),
+                            kind: ApprovalKind::Tool,
                             command: None,
                             shell: None,
                             target_path: None,
@@ -761,7 +810,7 @@ async fn run_chat_turn_inner(
                                     id: call.id.clone(),
                                     conversation_id: req.conversation_id.clone(),
                                     tool_name: call.name.clone(),
-                                    kind: "externalWrite".into(),
+                                    kind: ApprovalKind::ExternalWrite,
                                     command: None,
                                     shell: None,
                                     target_path: Some(resolved.to_string_lossy().to_string()),
@@ -796,7 +845,7 @@ async fn run_chat_turn_inner(
                     };
                     let _ = on_event.send(AiChatEvent::ToolCallResult {
                         id: call.id.clone(),
-                        status: "error".into(),
+                        status: ToolCallStatus::Error,
                         result_text: msg.clone(),
                         output_file: None,
                     });
@@ -821,9 +870,9 @@ async fn run_chat_turn_inner(
                     let _ = on_event.send(AiChatEvent::ToolCallResult {
                         id: call.id.clone(),
                         status: if res.is_error {
-                            "error".into()
+                            ToolCallStatus::Error
                         } else {
-                            "done".into()
+                            ToolCallStatus::Done
                         },
                         result_text: res.text.clone(),
                         output_file: if res.is_error { None } else { res.output_file },
@@ -873,15 +922,19 @@ async fn run_chat_turn_inner(
                             .and_then(Value::as_bool)
                             .unwrap_or(false);
                         (
-                            if is_err { "error" } else { "done" }.to_string(),
+                            if is_err {
+                                ToolCallStatus::Error
+                            } else {
+                                ToolCallStatus::Done
+                            },
                             format_mcp_tool_result(&val),
                         )
                     }
-                    Err(err) => ("error".to_string(), err),
+                    Err(err) => (ToolCallStatus::Error, err),
                 }
             } else {
                 (
-                    "error".to_string(),
+                    ToolCallStatus::Error,
                     format!("Unknown MCP tool: {}", call.name),
                 )
             };
