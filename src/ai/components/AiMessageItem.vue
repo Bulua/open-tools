@@ -62,11 +62,6 @@ const displayParts = computed<ChatMessagePart[]>(() => {
   if (props.message.reasoning) {
     fallback.push({ id: "legacy-reasoning", type: "reasoning", text: props.message.reasoning });
   }
-  if (props.message.toolCalls?.length) {
-    for (const call of props.message.toolCalls) {
-      fallback.push({ id: `legacy-tool-${call.id}`, type: "tool", call });
-    }
-  }
   if (props.message.content) {
     fallback.push({ id: "legacy-text", type: "text", text: props.message.content });
   }

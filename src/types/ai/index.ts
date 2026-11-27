@@ -2,7 +2,21 @@
  * AI 模块完整类型定义（模型配置、对话消息、附件、审批状态与流式事件）。
  */
 
+import type {
+  AiBuiltinToolInfo as GeneratedAiBuiltinToolInfo,
+  ApprovalKind as GeneratedApprovalKind,
+  ToolApprovalPolicy as GeneratedToolApprovalPolicy,
+  ToolCallStatus as GeneratedToolCallStatus,
+  ToolOutputFileKind as GeneratedToolOutputFileKind,
+} from "@/api/generated/ai";
+
 export type ApiProtocol = "openai" | "anthropic" | "gemini";
+
+export type AiBuiltinToolInfo = GeneratedAiBuiltinToolInfo;
+export type ApprovalKind = GeneratedApprovalKind;
+export type ToolApprovalPolicy = GeneratedToolApprovalPolicy;
+export type ToolCallStatus = GeneratedToolCallStatus;
+export type ToolOutputFileKind = GeneratedToolOutputFileKind;
 
 export type ThinkingEffort = "none" | "low" | "medium" | "high";
 
@@ -95,11 +109,14 @@ export interface AiConfig {
   models: ConfiguredModel[];
   /** 在 AI 对话中启用的 MCP 服务 ID（对应 MCP 工具查看器中的连接 ID） */
   enabledMcpIds: string[];
+  /** 在 AI 对话中禁用的内置工具名列表（空数组表示默认全部启用） */
+  disabledBuiltinTools: string[];
   folders: AiFolder[];
   conversationMeta: Record<string, AiConversationMeta>;
 }
 
 export interface AiInitialState extends AiConfig {
+  builtinTools: AiBuiltinToolInfo[];
   conversations: ConversationSummary[];
 }
 
@@ -110,12 +127,12 @@ export interface ChatToolCall {
   toolName: string;
   argumentsText: string;
   resultText?: string;
-  status: "running" | "done" | "error";
+  status: "running" | ToolCallStatus;
   /** 写/改文件或生成图片类工具成功完成后记录的最新文件快照，供右侧「输出内容」展示 */
   outputFile?: {
     path: string;
     content: string;
-    kind?: "text" | "image";
+    kind?: ToolOutputFileKind;
     sizeBytes?: number;
   };
 }
@@ -129,7 +146,7 @@ export interface PendingToolApproval {
   id: string;
   conversationId: string;
   toolName: string;
-  kind: "command" | "externalWrite" | "tool";
+  kind: ApprovalKind;
   command?: string;
   shell?: string;
   targetPath?: string;
@@ -194,8 +211,7 @@ export interface ChatMessage {
   content: string;
   attachments?: ChatAttachment[];
   reasoning?: string;
-  toolCalls?: ChatToolCall[];
-  /** 按发生顺序记录的分段内容；旧消息缺省时界面自动回退渲染 */
+  /** 按发生顺序记录的分段内容（含思考、正文与工具调用）；旧消息缺省时界面自动回退渲染 */
   parts?: ChatMessagePart[];
   createdAt: number;
   modelConfigId?: string;
@@ -276,7 +292,7 @@ export type BackendChatEvent =
       id: string;
       conversationId: string;
       toolName: string;
-      kind: "command" | "externalWrite" | "tool";
+      kind: ApprovalKind;
       command?: string;
       shell?: string;
       targetPath?: string;
@@ -288,7 +304,7 @@ export type BackendChatEvent =
   | {
       type: "toolCallResult";
       id: string;
-      status: "done" | "error";
+      status: ToolCallStatus;
       resultText: string;
       outputFile?: ChatToolCall["outputFile"];
     }

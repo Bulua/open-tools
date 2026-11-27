@@ -5,7 +5,7 @@
  * - 负责将后端 DTO 与前端领域类型做轻量转换。
  */
 import { Channel } from "@tauri-apps/api/core";
-import { BackendError, executeGeneratedCommand, requestBackend } from "@/api/common";
+import { BackendError, executeGeneratedCommand, requestBackend, unwrapApiResponse } from "@/api/common";
 import {
   commands,
   type AiChatEvent_Deserialize,
@@ -18,6 +18,7 @@ import {
   type ConversationIndexEntry_Serialize,
 } from "@/api/generated/ai";
 import { t } from "@/locales";
+import type { ApiResponsePayload } from "@/types/common";
 import type {
   AiConversationMeta,
   AiConversationMetaUpdate,
@@ -115,17 +116,42 @@ function toConversationSummary(item: ConversationIndexEntry_Serialize): Conversa
   };
 }
 
+function normalizeLegacyParts(
+  rawParts: ChatMessagePart[] | undefined,
+  reasoning: string | undefined,
+  legacyToolCalls: ChatToolCall[] | undefined,
+  content: string,
+): ChatMessagePart[] | undefined {
+  if (rawParts?.length) return rawParts;
+  if (!legacyToolCalls?.length) return undefined;
+  const parts: ChatMessagePart[] = [];
+  if (reasoning) {
+    parts.push({ id: "legacy-reasoning", type: "reasoning", text: reasoning });
+  }
+  for (const call of legacyToolCalls) {
+    parts.push({ id: `legacy-tool-${call.id}`, type: "tool", call });
+  }
+  if (content) {
+    parts.push({ id: "legacy-text", type: "text", text: content });
+  }
+  return parts;
+}
+
 function toChatMessage(dto: AiMessageDto_Serialize): ChatMessage {
   const attachments = parseJsonField<ChatAttachment[]>(dto.attachmentsJson);
-  const toolCalls = parseJsonField<ChatToolCall[]>(dto.toolCallsJson);
-  const parts = parseJsonField<ChatMessagePart[]>(dto.partsJson);
+  const legacyToolCalls = parseJsonField<ChatToolCall[]>(dto.toolCallsJson);
+  const parts = normalizeLegacyParts(
+    parseJsonField<ChatMessagePart[]>(dto.partsJson),
+    dto.reasoning || undefined,
+    legacyToolCalls,
+    dto.content,
+  );
   return {
     id: dto.id,
     role: dto.role === "assistant" ? "assistant" : "user",
     content: dto.content,
     ...(attachments?.length ? { attachments } : {}),
     ...(dto.reasoning ? { reasoning: dto.reasoning } : {}),
-    ...(toolCalls?.length ? { toolCalls } : {}),
     ...(parts?.length ? { parts } : {}),
     createdAt: dto.createdAt ?? 0,
     ...(dto.modelConfigId ? { modelConfigId: dto.modelConfigId } : {}),
@@ -146,7 +172,8 @@ function toMessageDto(msg: ChatMessage): AiMessageDto_Deserialize {
     content: msg.content,
     reasoning: msg.reasoning ?? null,
     attachmentsJson: attachments?.length ? JSON.stringify(attachments) : null,
-    toolCallsJson: msg.toolCalls?.length ? JSON.stringify(msg.toolCalls) : null,
+    // 工具调用统一以 partsJson 为唯一持久化真源，不再双份序列化写入 toolCallsJson
+    toolCallsJson: null,
     partsJson: msg.parts?.length ? JSON.stringify(msg.parts) : null,
     modelConfigId: msg.modelConfigId ?? null,
     providerName: msg.providerName ?? null,
@@ -157,6 +184,51 @@ function toMessageDto(msg: ChatMessage): AiMessageDto_Deserialize {
     aborted: Boolean(msg.aborted),
     createdAt: msg.createdAt,
   };
+}
+
+function toBackendChatEvent(ev: AiChatEvent_Deserialize): BackendChatEvent {
+  switch (ev.type) {
+    case "reasoningDelta":
+    case "contentDelta":
+    case "roundSeparator":
+    case "toolCallStart":
+    case "approvalCleared":
+    case "sessionPolicyChanged":
+    case "notice":
+      return ev;
+    case "approvalRequired":
+      return {
+        type: "approvalRequired",
+        id: ev.id,
+        conversationId: ev.conversationId,
+        toolName: ev.toolName,
+        kind: ev.kind,
+        ...(ev.command ? { command: ev.command } : {}),
+        ...(ev.shell ? { shell: ev.shell } : {}),
+        ...(ev.targetPath ? { targetPath: ev.targetPath } : {}),
+        ...(ev.cwd ? { cwd: ev.cwd } : {}),
+        ...(ev.argumentsText ? { argumentsText: ev.argumentsText } : {}),
+      };
+    case "toolCallResult":
+      return {
+        type: "toolCallResult",
+        id: ev.id,
+        status: ev.status,
+        resultText: ev.resultText,
+        ...(ev.outputFile
+          ? {
+              outputFile: {
+                path: ev.outputFile.path,
+                content: ev.outputFile.content,
+                ...(ev.outputFile.kind ? { kind: ev.outputFile.kind } : {}),
+                ...(ev.outputFile.sizeBytes !== null && ev.outputFile.sizeBytes !== undefined
+                  ? { sizeBytes: ev.outputFile.sizeBytes }
+                  : {}),
+              },
+            }
+          : {}),
+      };
+  }
 }
 
 function toConversation(detail: AiConversationDetail_Serialize): Conversation {
@@ -186,6 +258,8 @@ export const aiApi = {
     return {
       models: state.models.map(toConfiguredModel),
       enabledMcpIds: state.enabledMcpIds,
+      disabledBuiltinTools: state.disabledBuiltinTools,
+      builtinTools: state.builtinTools,
       folders: state.folders.map(toFolder),
       conversationMeta,
       conversations: state.conversations.map(toConversationSummary),
@@ -234,6 +308,10 @@ export const aiApi = {
 
   async setEnabledMcpIds(ids: string[]): Promise<void> {
     await executeGeneratedCommand(() => commands.aiSetEnabledMcpIds(ids));
+  },
+
+  async setDisabledBuiltinTools(names: string[]): Promise<void> {
+    await executeGeneratedCommand(() => commands.aiSetDisabledBuiltinTools(names));
   },
 
   async upsertFolder(folder: AiFolder): Promise<void> {
@@ -345,7 +423,7 @@ export const aiApi = {
     }
     const res = await executeGeneratedCommand(() => {
       const channel = new Channel<AiChatEvent_Deserialize>();
-      channel.onmessage = (ev) => onEvent(ev as unknown as BackendChatEvent);
+      channel.onmessage = (ev) => onEvent(toBackendChatEvent(ev));
       return commands.aiChatRun(request, channel);
     });
     return {
@@ -409,11 +487,16 @@ export const aiApi = {
     );
   },
 
-  saveAttachment(
+  async saveAttachment(
     buffer: ArrayBuffer,
     headers: Record<string, string>,
   ): Promise<SavedAttachmentResponse> {
-    return requestBackend<SavedAttachmentResponse>("ai_save_attachment", buffer, { headers });
+    const res = await requestBackend<ApiResponsePayload<SavedAttachmentResponse>>(
+      "ai_save_attachment",
+      buffer,
+      { headers },
+    );
+    return unwrapApiResponse(res);
   },
 
   readFile(

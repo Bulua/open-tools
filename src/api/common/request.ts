@@ -2,11 +2,11 @@
  * 全应用统一的 Rust 后端 IPC 请求基础层与统一错误拦截器。
  *
  * 所有模块/工具统一通过本文件与后端通信：
- * - `executeGeneratedCommand`：包装 `tauri-specta` 自动生成的强类型命令，兼具编译期契约校验与统一错误拦截；
+ * - `executeGeneratedCommand`：包装 `tauri-specta` 自动生成的强类型命令，统一校验 `{ code, msg, data }` 并解包；
  * - `requestBackend` / `requestBackendStream` / `subscribeBackendEvent`：兼容尚未接入 specta 的命令与二进制上传。
  */
 import type { InvokeOptions } from "@tauri-apps/api/core";
-import type { AppErrorCode, BackendRequestOptions } from "@/types/common";
+import type { ApiResponsePayload, AppErrorCode, BackendRequestOptions } from "@/types/common";
 
 const KNOWN_ERROR_CODES = new Set<AppErrorCode>([
   "invalidInput",
@@ -20,7 +20,7 @@ const KNOWN_ERROR_CODES = new Set<AppErrorCode>([
   "internal",
 ]);
 
-/** 统一的前端后端调用异常类（自动解析 Rust `AppError` 的 `{ code, message }`，同时兼容旧版字符串错误） */
+/** 统一的前端后端调用异常类（自动解析 Rust `{ code, msg, data }` 与旧版字符串错误） */
 export class BackendError extends Error {
   readonly code: AppErrorCode;
   readonly raw: unknown;
@@ -37,12 +37,18 @@ export function normalizeBackendError(error: unknown): BackendError {
   if (error instanceof BackendError) return error;
   if (error && typeof error === "object") {
     const rec = error as Record<string, unknown>;
-    if (typeof rec.message === "string" && rec.message.trim()) {
+    const rawMessage =
+      typeof rec.msg === "string" && rec.msg.trim()
+        ? rec.msg
+        : typeof rec.message === "string" && rec.message.trim()
+          ? rec.message
+          : "";
+    if (rawMessage) {
       const code =
         typeof rec.code === "string" && KNOWN_ERROR_CODES.has(rec.code as AppErrorCode)
           ? (rec.code as AppErrorCode)
           : "internal";
-      return new BackendError(code, rec.message.trim(), error);
+      return new BackendError(code, rawMessage.trim(), error);
     }
   }
   if (error instanceof Error) {
@@ -52,14 +58,22 @@ export function normalizeBackendError(error: unknown): BackendError {
   return new BackendError("internal", text || "Unknown backend error", error);
 }
 
+/** 统一校验并解包 Rust `{ code, msg, data }` 响应包装 */
+export function unwrapApiResponse<TResult>(res: ApiResponsePayload<TResult>): TResult {
+  if (res.code === "ok") {
+    return res.data as TResult;
+  }
+  throw new BackendError(res.code, res.msg.trim() || "Unknown backend error", res);
+}
+
 /** 判断当前是否运行在 Tauri 桌面运行时 */
 export function hasDesktopRuntime(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
-/** 包装 `tauri-specta` 自动生成的强类型命令，统一处理桌面运行态检查与 `BackendError` 错误归一化 */
+/** 包装 `tauri-specta` 自动生成的强类型命令，统一处理桌面运行态检查、`{ code, msg, data }` 解包与错误归一化 */
 export async function executeGeneratedCommand<TResult>(
-  runner: () => Promise<TResult>,
+  runner: () => Promise<ApiResponsePayload<TResult>>,
   fallback?: () => TResult | Promise<TResult>,
 ): Promise<TResult> {
   if (!hasDesktopRuntime()) {
@@ -67,7 +81,8 @@ export async function executeGeneratedCommand<TResult>(
     throw new BackendError("internal", "This operation requires the desktop application runtime.");
   }
   try {
-    return await runner();
+    const res = await runner();
+    return unwrapApiResponse(res);
   } catch (error) {
     throw normalizeBackendError(error);
   }

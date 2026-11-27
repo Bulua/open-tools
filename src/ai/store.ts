@@ -2,6 +2,7 @@ import { computed, reactive, ref } from "vue";
 import { aiApi } from "@/api/ai";
 import { locale, t } from "@/locales";
 import type {
+  AiBuiltinToolInfo,
   AiConfig,
   AiConversationMeta,
   AiConversationMetaUpdate,
@@ -42,6 +43,7 @@ function makeTitleFromText(text: string): string {
 }
 
 const config = ref<AiConfig>(createDefaultConfig());
+const builtinTools = ref<AiBuiltinToolInfo[]>([]);
 const conversations = ref<ConversationSummary[]>([]);
 const activeConversationId = ref<string>("");
 const conversationCache = reactive<Record<string, Conversation>>({});
@@ -60,6 +62,10 @@ const draft = reactive({
 const initialized = ref(false);
 const loading = ref(false);
 let initPromise: Promise<void> | null = null;
+
+export const enabledBuiltinToolsCount = computed<number>(() =>
+  builtinTools.value.filter((tool) => !config.value.disabledBuiltinTools.includes(tool.name)).length,
+);
 
 export const availableModels = computed<ModelOption[]>(() =>
   config.value.models
@@ -191,6 +197,28 @@ export async function setEnabledMcpIds(ids: string[]): Promise<void> {
   }
 }
 
+export async function setDisabledBuiltinTools(names: string[]): Promise<void> {
+  const deduped = [...new Set(names.map((n) => n.trim()).filter(Boolean))];
+  config.value.disabledBuiltinTools = deduped;
+  try {
+    await aiApi.setDisabledBuiltinTools(deduped);
+  } catch (error) {
+    showError(error);
+  }
+}
+
+export async function setBuiltinToolEnabled(name: string, enabled: boolean): Promise<void> {
+  const next = enabled
+    ? config.value.disabledBuiltinTools.filter((item) => item !== name)
+    : [...config.value.disabledBuiltinTools, name];
+  await setDisabledBuiltinTools(next);
+}
+
+export async function setAllBuiltinToolsEnabled(enabled: boolean): Promise<void> {
+  const next = enabled ? [] : builtinTools.value.map((tool) => tool.name);
+  await setDisabledBuiltinTools(next);
+}
+
 export function resolveToolApproval(conversationId: string, decision: ToolApprovalDecision): void {
   const pending = pendingApprovals[conversationId];
   if (pending && decision === "session") {
@@ -242,9 +270,11 @@ export async function initAiStore(): Promise<void> {
       config.value = {
         models: state.models,
         enabledMcpIds: state.enabledMcpIds,
+        disabledBuiltinTools: state.disabledBuiltinTools,
         folders: state.folders,
         conversationMeta: state.conversationMeta,
       };
+      builtinTools.value = state.builtinTools;
       conversations.value = state.conversations;
       const fallback = resolveFallbackModel();
       draft.modelConfigId = fallback?.id ?? "";
@@ -579,7 +609,6 @@ async function runAssistantTurn(conv: Conversation): Promise<void> {
     role: "assistant",
     content: "",
     reasoning: "",
-    toolCalls: [],
     parts: [],
     createdAt: Date.now(),
     modelConfigId: model.id,
@@ -631,7 +660,6 @@ async function runAssistantTurn(conv: Conversation): Promise<void> {
             status: "running",
           });
           toolCallById.set(event.id, uiCall);
-          assistantMsg.toolCalls!.push(uiCall);
           assistantMsg.parts!.push({ id: makeEntityId("prt"), type: "tool", call: uiCall });
           break;
         }
@@ -857,6 +885,8 @@ export async function clearConversationMessages(): Promise<void> {
 export function useAiStore() {
   return {
     config,
+    builtinTools,
+    enabledBuiltinToolsCount,
     conversations,
     activeConversationId,
     activeConversation,
@@ -874,6 +904,9 @@ export function useAiStore() {
     setDefaultModel,
     setModelEnabled,
     setEnabledMcpIds,
+    setDisabledBuiltinTools,
+    setBuiltinToolEnabled,
+    setAllBuiltinToolsEnabled,
     selectConversation,
     startNewConversation,
     createConversationInFolder,

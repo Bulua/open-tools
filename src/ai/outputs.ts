@@ -71,11 +71,6 @@ function collectToolCalls(msg: ChatMessage): ChatToolCall[] {
       if (part.type === "tool") byId.set(part.call.id, part.call);
     }
   }
-  if (msg.toolCalls?.length) {
-    for (const call of msg.toolCalls) {
-      if (!byId.has(call.id)) byId.set(call.id, call);
-    }
-  }
   return Array.from(byId.values());
 }
 

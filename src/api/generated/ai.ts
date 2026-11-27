@@ -5,41 +5,157 @@ import type { InvokeOptions } from "@tauri-apps/api/core";
 
 /** Commands */
 export const commands = {
-	aiLoadState: (options?: InvokeOptions) => __TAURI_INVOKE<AiInitialState_Serialize>("ai_load_state", undefined, options),
-	aiUpsertModel: (input: AiModelUpsertInput_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<AiModelView_Serialize[]>("ai_upsert_model", { input }, options),
-	aiDeleteModel: (id: string, options?: InvokeOptions) => __TAURI_INVOKE<AiModelView_Serialize[]>("ai_delete_model", { id }, options),
-	aiSetDefaultModel: (id: string | null, options?: InvokeOptions) => __TAURI_INVOKE<AiModelView_Serialize[]>("ai_set_default_model", { id }, options),
-	aiSetModelEnabled: (id: string, enabled: boolean, options?: InvokeOptions) => __TAURI_INVOKE<AiModelView_Serialize[]>("ai_set_model_enabled", { id, enabled }, options),
-	aiSetModelThinkingEffort: (id: string, effort: ThinkingEffort, options?: InvokeOptions) => __TAURI_INVOKE<null>("ai_set_model_thinking_effort", { id, effort }, options),
-	aiSetEnabledMcpIds: (ids: string[], options?: InvokeOptions) => __TAURI_INVOKE<null>("ai_set_enabled_mcp_ids", { ids }, options),
-	aiUpsertFolder: (folder: AiFolderDto, options?: InvokeOptions) => __TAURI_INVOKE<null>("ai_upsert_folder", { folder }, options),
-	aiDeleteFolder: (id: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("ai_delete_folder", { id }, options),
-	aiReadConversation: (id: string, options?: InvokeOptions) => __TAURI_INVOKE<AiConversationDetail_Serialize | null>("ai_read_conversation", { id }, options),
-	aiUpsertConversation: (input: AiConversationUpsertInput_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<ConversationIndexEntry_Serialize[]>("ai_upsert_conversation", { input }, options),
-	aiUpdateConversationMeta: (updates: AiConversationMetaUpdate_Deserialize[], options?: InvokeOptions) => __TAURI_INVOKE<null>("ai_update_conversation_meta", { updates }, options),
-	aiDeleteConversation: (id: string, options?: InvokeOptions) => __TAURI_INVOKE<ConversationIndexEntry_Serialize[]>("ai_delete_conversation", { id }, options),
-	aiUpsertMessage: (conversationId: string, message: AiMessageDto_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<ConversationIndexEntry_Serialize[]>("ai_upsert_message", { conversationId, message }, options),
-	aiDeleteMessage: (conversationId: string, messageId: string, options?: InvokeOptions) => __TAURI_INVOKE<ConversationIndexEntry_Serialize[]>("ai_delete_message", { conversationId, messageId }, options),
-	aiTruncateMessagesFrom: (conversationId: string, fromMessageId: string, inclusive: boolean, options?: InvokeOptions) => __TAURI_INVOKE<ConversationIndexEntry_Serialize[]>("ai_truncate_messages_from", { conversationId, fromMessageId, inclusive }, options),
-	aiClearMessages: (conversationId: string, options?: InvokeOptions) => __TAURI_INVOKE<ConversationIndexEntry_Serialize[]>("ai_clear_messages", { conversationId }, options),
-	aiWorkspaceDir: (conversationId: string, options?: InvokeOptions) => __TAURI_INVOKE<string>("ai_workspace_dir", { conversationId }, options),
-	aiToolReadImage: (workspaceDir: string, path: string, options?: InvokeOptions) => __TAURI_INVOKE<ReadImageResult_Serialize>("ai_tool_read_image", { workspaceDir, path }, options),
-	aiToolReadFile: (workspaceDir: string, path: string, startLine: number | null, endLine: number | null, options?: InvokeOptions) => __TAURI_INVOKE<ReadFileResult>("ai_tool_read_file", { workspaceDir, path, startLine, endLine }, options),
-	aiChatRun: (request: AiChatRunRequest_Deserialize, onEvent: Channel<AiChatEvent_Deserialize>, options?: InvokeOptions) => __TAURI_INVOKE<AiChatRunResult>("ai_chat_run", { request, onEvent }, options),
-	aiChatApprove: (conversationId: string, decision: ToolApprovalDecision, options?: InvokeOptions) => __TAURI_INVOKE<boolean>("ai_chat_approve", { conversationId, decision }, options),
-	aiChatCancel: (conversationId: string, options?: InvokeOptions) => __TAURI_INVOKE<boolean>("ai_chat_cancel", { conversationId }, options),
-	aiChatSetPolicy: (conversationId: string, policy: ExecutionPolicy, options?: InvokeOptions) => __TAURI_INVOKE<null>("ai_chat_set_policy", { conversationId, policy }, options),
-	aiChatClearSession: (conversationId: string, options?: InvokeOptions) => __TAURI_INVOKE<null>("ai_chat_clear_session", { conversationId }, options),
+	aiLoadState: (options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: AiInitialState_Serialize | null,
+}>("ai_load_state", undefined, options),
+	aiUpsertModel: (input: AiModelUpsertInput_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: AiModelView_Serialize[] | null,
+}>("ai_upsert_model", { input }, options),
+	aiDeleteModel: (id: string, options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: AiModelView_Serialize[] | null,
+}>("ai_delete_model", { id }, options),
+	aiSetDefaultModel: (id: string | null, options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: AiModelView_Serialize[] | null,
+}>("ai_set_default_model", { id }, options),
+	aiSetModelEnabled: (id: string, enabled: boolean, options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: AiModelView_Serialize[] | null,
+}>("ai_set_model_enabled", { id, enabled }, options),
+	aiSetModelThinkingEffort: (id: string, effort: ThinkingEffort, options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: null,
+}>("ai_set_model_thinking_effort", { id, effort }, options),
+	aiSetEnabledMcpIds: (ids: string[], options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: null,
+}>("ai_set_enabled_mcp_ids", { ids }, options),
+	aiSetDisabledBuiltinTools: (names: string[], options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: null,
+}>("ai_set_disabled_builtin_tools", { names }, options),
+	aiUpsertFolder: (folder: AiFolderDto, options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: null,
+}>("ai_upsert_folder", { folder }, options),
+	aiDeleteFolder: (id: string, options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: null,
+}>("ai_delete_folder", { id }, options),
+	aiReadConversation: (id: string, options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: AiConversationDetail_Serialize | null,
+}>("ai_read_conversation", { id }, options),
+	aiUpsertConversation: (input: AiConversationUpsertInput_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: ConversationIndexEntry_Serialize[] | null,
+}>("ai_upsert_conversation", { input }, options),
+	aiUpdateConversationMeta: (updates: AiConversationMetaUpdate_Deserialize[], options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: null,
+}>("ai_update_conversation_meta", { updates }, options),
+	aiDeleteConversation: (id: string, options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: ConversationIndexEntry_Serialize[] | null,
+}>("ai_delete_conversation", { id }, options),
+	aiUpsertMessage: (conversationId: string, message: AiMessageDto_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: ConversationIndexEntry_Serialize[] | null,
+}>("ai_upsert_message", { conversationId, message }, options),
+	aiDeleteMessage: (conversationId: string, messageId: string, options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: ConversationIndexEntry_Serialize[] | null,
+}>("ai_delete_message", { conversationId, messageId }, options),
+	aiTruncateMessagesFrom: (conversationId: string, fromMessageId: string, inclusive: boolean, options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: ConversationIndexEntry_Serialize[] | null,
+}>("ai_truncate_messages_from", { conversationId, fromMessageId, inclusive }, options),
+	aiClearMessages: (conversationId: string, options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: ConversationIndexEntry_Serialize[] | null,
+}>("ai_clear_messages", { conversationId }, options),
+	aiWorkspaceDir: (conversationId: string, options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: string | null,
+}>("ai_workspace_dir", { conversationId }, options),
+	aiToolReadImage: (workspaceDir: string, path: string, options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: ReadImageResult_Serialize | null,
+}>("ai_tool_read_image", { workspaceDir, path }, options),
+	aiToolReadFile: (workspaceDir: string, path: string, startLine: number | null, endLine: number | null, options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: ReadFileResult | null,
+}>("ai_tool_read_file", { workspaceDir, path, startLine, endLine }, options),
+	aiChatRun: (request: AiChatRunRequest_Deserialize, onEvent: Channel<AiChatEvent_Deserialize>, options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: AiChatRunResult | null,
+}>("ai_chat_run", { request, onEvent }, options),
+	aiChatApprove: (conversationId: string, decision: ToolApprovalDecision, options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: boolean | null,
+}>("ai_chat_approve", { conversationId, decision }, options),
+	aiChatCancel: (conversationId: string, options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: boolean | null,
+}>("ai_chat_cancel", { conversationId }, options),
+	aiChatSetPolicy: (conversationId: string, policy: ExecutionPolicy, options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: null,
+}>("ai_chat_set_policy", { conversationId, policy }, options),
+	aiChatClearSession: (conversationId: string, options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: null,
+}>("ai_chat_clear_session", { conversationId }, options),
 	/**  拉取远端模型列表：编辑已有模型且未重新输入 Key 时，传入 `model_config_id` 由后端直接从 SQLite 解密使用。 */
-	aiFetchModels: (endpoint: EndpointConfig_Deserialize, modelConfigId: string | null, options?: InvokeOptions) => __TAURI_INVOKE<RemoteModelInfo_Serialize[]>("ai_fetch_models", { endpoint, modelConfigId }, options),
+	aiFetchModels: (endpoint: EndpointConfig_Deserialize, modelConfigId: string | null, options?: InvokeOptions) => __TAURI_INVOKE<{
+	code: ApiCode,
+	msg: string,
+	data: RemoteModelInfo_Serialize[] | null,
+}>("ai_fetch_models", { endpoint, modelConfigId }, options),
 };
 
 /* Types */
+/**  暴露给前端设置页展示的内置工具元数据 */
+export type AiBuiltinToolInfo = {
+	name: string,
+	description: string,
+	approval: ToolApprovalPolicy,
+};
+
 export type AiChatEvent = AiChatEvent_Serialize | AiChatEvent_Deserialize;
 
-export type AiChatEvent_Deserialize = { type: "reasoningDelta"; text: string } | { type: "contentDelta"; text: string } | { type: "roundSeparator" } | { type: "toolCallStart"; id: string; serverId: string; serverName: string; toolName: string; argumentsText: string } | { type: "approvalRequired"; id: string; conversationId: string; toolName: string; kind: string; command?: string | null; shell?: string | null; targetPath?: string | null; cwd?: string | null; argumentsText?: string | null } | { type: "approvalCleared"; conversationId: string } | { type: "sessionPolicyChanged"; executionPolicy: ExecutionPolicy } | { type: "toolCallResult"; id: string; status: string; resultText: string; outputFile?: AiToolOutputFile_Deserialize | null } | { type: "notice"; message: string };
+export type AiChatEvent_Deserialize = { type: "reasoningDelta"; text: string } | { type: "contentDelta"; text: string } | { type: "roundSeparator" } | { type: "toolCallStart"; id: string; serverId: string; serverName: string; toolName: string; argumentsText: string } | { type: "approvalRequired"; id: string; conversationId: string; toolName: string; kind: ApprovalKind; command?: string | null; shell?: string | null; targetPath?: string | null; cwd?: string | null; argumentsText?: string | null } | { type: "approvalCleared"; conversationId: string } | { type: "sessionPolicyChanged"; executionPolicy: ExecutionPolicy } | { type: "toolCallResult"; id: string; status: ToolCallStatus; resultText: string; outputFile?: AiToolOutputFile_Deserialize | null } | { type: "notice"; message: string };
 
-export type AiChatEvent_Serialize = { type: "reasoningDelta"; text: string } | { type: "contentDelta"; text: string } | { type: "roundSeparator" } | { type: "toolCallStart"; id: string; serverId: string; serverName: string; toolName: string; argumentsText: string } | { type: "approvalRequired"; id: string; conversationId: string; toolName: string; kind: string; command?: string; shell?: string; targetPath?: string; cwd?: string; argumentsText?: string } | { type: "approvalCleared"; conversationId: string } | { type: "sessionPolicyChanged"; executionPolicy: ExecutionPolicy } | { type: "toolCallResult"; id: string; status: string; resultText: string; outputFile?: AiToolOutputFile_Serialize } | { type: "notice"; message: string };
+export type AiChatEvent_Serialize = { type: "reasoningDelta"; text: string } | { type: "contentDelta"; text: string } | { type: "roundSeparator" } | { type: "toolCallStart"; id: string; serverId: string; serverName: string; toolName: string; argumentsText: string } | { type: "approvalRequired"; id: string; conversationId: string; toolName: string; kind: ApprovalKind; command?: string; shell?: string; targetPath?: string; cwd?: string; argumentsText?: string } | { type: "approvalCleared"; conversationId: string } | { type: "sessionPolicyChanged"; executionPolicy: ExecutionPolicy } | { type: "toolCallResult"; id: string; status: ToolCallStatus; resultText: string; outputFile?: AiToolOutputFile_Serialize } | { type: "notice"; message: string };
 
 export type AiChatRunRequest = AiChatRunRequest_Serialize | AiChatRunRequest_Deserialize;
 
@@ -171,6 +287,8 @@ export type AiInitialState = AiInitialState_Serialize | AiInitialState_Deseriali
 export type AiInitialState_Deserialize = {
 	models: AiModelView_Deserialize[],
 	enabledMcpIds: string[],
+	disabledBuiltinTools: string[],
+	builtinTools: AiBuiltinToolInfo[],
 	folders: AiFolderDto[],
 	conversationMeta: { [key in string]: AiConversationMetaDto_Deserialize },
 	conversations: ConversationIndexEntry_Deserialize[],
@@ -179,6 +297,8 @@ export type AiInitialState_Deserialize = {
 export type AiInitialState_Serialize = {
 	models: AiModelView_Serialize[],
 	enabledMcpIds: string[],
+	disabledBuiltinTools: string[],
+	builtinTools: AiBuiltinToolInfo[],
 	folders: AiFolderDto[],
 	conversationMeta: { [key in string]: AiConversationMetaDto_Serialize },
 	conversations: ConversationIndexEntry_Serialize[],
@@ -320,7 +440,7 @@ export type AiToolOutputFile = AiToolOutputFile_Serialize | AiToolOutputFile_Des
 export type AiToolOutputFile_Deserialize = {
 	path: string,
 	content: string,
-	kind?: string | null,
+	kind?: ToolOutputFileKind | null,
 	sizeBytes?: number | null,
 };
 
@@ -328,18 +448,15 @@ export type AiToolOutputFile_Deserialize = {
 export type AiToolOutputFile_Serialize = {
 	path: string,
 	content: string,
-	kind?: string,
+	kind?: ToolOutputFileKind,
 	sizeBytes?: number | null,
 };
 
+export type ApiCode = "ok" | "invalidInput" | "notFound" | "unauthorized" | "network" | "provider" | "cancelled" | "busy" | "io" | "internal";
+
 export type ApiProtocol = "openai" | "anthropic" | "gemini";
 
-export type AppError = {
-	code: AppErrorCode,
-	message: string,
-};
-
-export type AppErrorCode = "invalidInput" | "notFound" | "unauthorized" | "network" | "provider" | "cancelled" | "busy" | "io" | "internal";
+export type ApprovalKind = "command" | "externalWrite" | "tool";
 
 export type AttachmentPayload = AttachmentPayload_Serialize | AttachmentPayload_Deserialize;
 
@@ -469,3 +586,16 @@ export type RemoteModelInfo_Serialize = {
 export type ThinkingEffort = "none" | "low" | "medium" | "high";
 
 export type ToolApprovalDecision = "once" | "session" | "deny";
+
+/**
+ *  工具执行前的安全审批策略：
+ *  - `Auto`：直接放行（如读取文件、目录浏览、纯查询/格式转换类工具）
+ *  - `Command`：受会话「逐次确认 / 自动放行」策略控制，默认弹窗确认
+ *  - `ExternalWrite`：工作区内自动执行，写入工作区外路径时弹窗确认
+ */
+export type ToolApprovalPolicy = "auto" | "command" | "externalWrite";
+
+export type ToolCallStatus = "done" | "error";
+
+/**  输出文件预览类型枚举 */
+export type ToolOutputFileKind = "text" | "image";

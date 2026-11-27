@@ -1,19 +1,20 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { Bot, Plug, X } from "lucide-vue-next";
+import { Bot, Plug, Wrench, X } from "lucide-vue-next";
 import { useAiStore } from "../store";
 import AiMcpSettings from "./AiMcpSettings.vue";
 import AiModelSettings from "./AiModelSettings.vue";
+import AiToolsSettings from "./AiToolsSettings.vue";
 
-export type SettingsTab = "models" | "mcp";
+export type SettingsTab = "models" | "tools" | "mcp";
 
 const props = withDefaults(defineProps<{ initialTab?: SettingsTab }>(), {
   initialTab: "models",
 });
 const emit = defineEmits<{ close: [] }>();
 const { t } = useI18n();
-const { config, availableModels } = useAiStore();
+const { config, availableModels, enabledBuiltinToolsCount } = useAiStore();
 
 const activeTab = ref<SettingsTab>(props.initialTab);
 
@@ -29,6 +30,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
 
 const navItems = computed(() => [
   { id: "models" as const, icon: Bot, label: t("ai.settingsModal.tabModels"), count: availableModels.value.length },
+  { id: "tools" as const, icon: Wrench, label: t("ai.settingsModal.tabTools"), count: enabledBuiltinToolsCount.value },
   { id: "mcp" as const, icon: Plug, label: t("ai.settingsModal.tabMcp"), count: config.value.enabledMcpIds.length },
 ]);
 </script>
@@ -61,6 +63,7 @@ const navItems = computed(() => [
 
         <div class="dialog-content">
           <AiModelSettings v-if="activeTab === 'models'" />
+          <AiToolsSettings v-else-if="activeTab === 'tools'" />
           <AiMcpSettings v-else />
         </div>
       </div>

@@ -237,6 +237,7 @@ export function createDefaultConfig(): AiConfig {
   return {
     models: [],
     enabledMcpIds: [],
+    disabledBuiltinTools: [],
     folders: [],
     conversationMeta: {},
   };
