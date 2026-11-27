@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { Check, ChevronDown, ChevronRight, Info, Search } from "lucide-vue-next";
+import { Check, ChevronDown, ChevronRight, Info } from "lucide-vue-next";
 import type { ModelOption, ThinkingEffort } from "@/types/ai";
 
 const props = defineProps<{
@@ -17,12 +17,15 @@ const { t } = useI18n();
 
 const triggerRef = ref<HTMLButtonElement>();
 const menuRef = ref<HTMLDivElement>();
+const bodyRef = ref<HTMLDivElement>();
 const submenuRef = ref<HTMLDivElement>();
-const searchRef = ref<HTMLInputElement>();
 
 const open = ref(false);
-const query = ref("");
 const menuStyle = ref<Record<string, string>>({});
+const thumbVisible = ref(false);
+const thumbStyle = ref<Record<string, string>>({});
+const draggingThumb = ref(false);
+let dragCleanup: (() => void) | null = null;
 
 const hoveredModel = ref<ModelOption | null>(null);
 const submenuSide = ref<"right" | "left">("right");
@@ -37,23 +40,10 @@ interface ProviderGroup {
 
 const selectedModel = computed(() => props.models.find((m) => m.modelConfigId === props.selectedId) ?? null);
 
-const showSearch = computed(() => props.models.length > 8);
-
-const filteredModels = computed(() => {
-  const q = query.value.trim().toLowerCase();
-  if (!q) return props.models;
-  return props.models.filter(
-    (m) =>
-      m.modelLabel.toLowerCase().includes(q) ||
-      m.modelId.toLowerCase().includes(q) ||
-      m.providerName.toLowerCase().includes(q),
-  );
-});
-
 /** 严格按具体模型厂商名称分组呈现：厂商1 -> 多个模型，厂商2 -> 多个模型 */
 const groups = computed<ProviderGroup[]>(() => {
   const map = new Map<string, ProviderGroup>();
-  for (const item of filteredModels.value) {
+  for (const item of props.models) {
     const groupKey = item.providerName || item.providerId;
     let group = map.get(groupKey);
     if (!group) {
@@ -80,13 +70,13 @@ function positionMenu() {
   const trigger = triggerRef.value;
   if (!trigger) return;
   const rect = trigger.getBoundingClientRect();
-  const menuWidth = Math.max(288, Math.min(340, window.innerWidth - 24));
+  const menuWidth = Math.max(232, Math.min(264, window.innerWidth - 24));
   const left = Math.max(12, Math.min(rect.left, window.innerWidth - menuWidth - 12));
   const spaceAbove = rect.top - 12;
   const spaceBelow = window.innerHeight - rect.bottom - 12;
 
-  if (spaceAbove >= 220 || spaceAbove >= spaceBelow) {
-    const maxHeight = Math.max(180, Math.min(420, spaceAbove - 6));
+  if (spaceAbove >= 200 || spaceAbove >= spaceBelow) {
+    const maxHeight = Math.max(160, Math.min(288, spaceAbove - 6));
     menuStyle.value = {
       left: `${left}px`,
       bottom: `${window.innerHeight - rect.top + 8}px`,
@@ -94,7 +84,7 @@ function positionMenu() {
       maxHeight: `${maxHeight}px`,
     };
   } else {
-    const maxHeight = Math.max(180, Math.min(420, spaceBelow - 6));
+    const maxHeight = Math.max(160, Math.min(288, spaceBelow - 6));
     menuStyle.value = {
       left: `${left}px`,
       top: `${rect.bottom + 8}px`,
@@ -109,7 +99,7 @@ function positionSubmenu(rowEl: HTMLElement) {
   if (!menuEl) return;
   const menuRect = menuEl.getBoundingClientRect();
   const rowRect = rowEl.getBoundingClientRect();
-  const subWidth = 176;
+  const subWidth = 144;
   const gap = 6;
 
   const rightSpace = window.innerWidth - menuRect.right - gap - 12;
@@ -122,12 +112,71 @@ function positionSubmenu(rowEl: HTMLElement) {
     ? menuRect.right + gap
     : Math.max(12, menuRect.left - subWidth - gap);
 
-  const estimatedHeight = 200;
+  const estimatedHeight = 160;
   const top = Math.max(12, Math.min(rowRect.top - 8, window.innerHeight - estimatedHeight - 12));
   submenuStyle.value = {
     left: `${left}px`,
     top: `${top}px`,
     width: `${subWidth}px`,
+  };
+}
+
+function stopThumbDrag() {
+  dragCleanup?.();
+  dragCleanup = null;
+  draggingThumb.value = false;
+}
+
+function updateScrollbar() {
+  const el = bodyRef.value;
+  if (!el || el.scrollHeight <= el.clientHeight + 1) {
+    thumbVisible.value = false;
+    return;
+  }
+  const inset = 4;
+  const trackHeight = Math.max(0, el.clientHeight - inset * 2);
+  const thumbHeight = Math.max(24, Math.round((el.clientHeight / el.scrollHeight) * trackHeight));
+  const maxScroll = Math.max(1, el.scrollHeight - el.clientHeight);
+  const maxOffset = Math.max(0, trackHeight - thumbHeight);
+  const thumbTop = inset + Math.round((el.scrollTop / maxScroll) * maxOffset);
+  thumbStyle.value = {
+    height: `${thumbHeight}px`,
+    transform: `translateY(${thumbTop}px)`,
+  };
+  thumbVisible.value = true;
+}
+
+function onBodyScroll() {
+  hoveredModel.value = null;
+  updateScrollbar();
+}
+
+function onThumbPointerDown(event: PointerEvent) {
+  const el = bodyRef.value;
+  if (!el) return;
+  stopThumbDrag();
+  draggingThumb.value = true;
+  const startY = event.clientY;
+  const startScrollTop = el.scrollTop;
+  const inset = 4;
+  const trackHeight = Math.max(1, el.clientHeight - inset * 2);
+  const thumbHeight = Math.max(24, Math.round((el.clientHeight / el.scrollHeight) * trackHeight));
+  const maxScroll = Math.max(1, el.scrollHeight - el.clientHeight);
+  const maxOffset = Math.max(1, trackHeight - thumbHeight);
+
+  const onMove = (moveEvent: PointerEvent) => {
+    const dy = moveEvent.clientY - startY;
+    el.scrollTop = startScrollTop + (dy / maxOffset) * maxScroll;
+  };
+  const onUp = () => stopThumbDrag();
+
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+  window.addEventListener("pointercancel", onUp);
+  dragCleanup = () => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    window.removeEventListener("pointercancel", onUp);
   };
 }
 
@@ -171,6 +220,7 @@ function onSubmenuLeave() {
 function close() {
   open.value = false;
   hoveredModel.value = null;
+  stopThumbDrag();
   clearSubmenuTimer();
 }
 
@@ -179,13 +229,13 @@ async function toggle() {
     close();
     return;
   }
-  query.value = "";
   hoveredModel.value = null;
   open.value = true;
   positionMenu();
   await nextTick();
   positionMenu();
-  searchRef.value?.focus();
+  await nextTick();
+  updateScrollbar();
 }
 
 function pickModel(model: ModelOption) {
@@ -219,8 +269,16 @@ function onViewportChange() {
   if (open.value) {
     positionMenu();
     hoveredModel.value = null;
+    void nextTick(updateScrollbar);
   }
 }
+
+watch(
+  () => props.models.length,
+  () => {
+    if (open.value) void nextTick(updateScrollbar);
+  },
+);
 
 watch(open, (isOpen) => {
   if (isOpen) {
@@ -236,6 +294,7 @@ watch(open, (isOpen) => {
 
 onBeforeUnmount(() => {
   clearSubmenuTimer();
+  stopThumbDrag();
   window.removeEventListener("pointerdown", onOutsidePointerDown, true);
   window.removeEventListener("keydown", onKeydown);
   window.removeEventListener("resize", onViewportChange);
@@ -271,55 +330,50 @@ onBeforeUnmount(() => {
       >
         <header class="picker-head">
           <span class="picker-title">{{ t("ai.modelMenuTitle") }}</span>
-          <label v-if="showSearch" class="picker-search">
-            <Search :size="12" />
-            <input
-              ref="searchRef"
-              v-model="query"
-              type="text"
-              :placeholder="t('common.search')"
-              spellcheck="false"
-            />
-          </label>
         </header>
 
-        <div class="picker-body" @scroll="hoveredModel = null">
-          <template v-if="groups.length">
-            <section v-for="group in groups" :key="group.providerId" class="provider-group">
-              <div class="provider-heading">{{ group.providerName }}</div>
-              <button
-                v-for="item in group.items"
-                :key="item.modelConfigId"
-                type="button"
-                role="menuitem"
-                class="model-row"
-                :class="{
-                  selected: item.modelConfigId === selectedId,
-                  hovered: hoveredModel?.modelConfigId === item.modelConfigId,
-                }"
-                @mouseenter="onRowEnter(item, $event)"
-                @mouseleave="onRowLeave"
-                @focus="showSubmenuFor(item, $event.currentTarget as HTMLElement)"
-                @click="pickModel(item)"
-              >
-                <span class="row-main">
-                  <span class="row-name">{{ item.modelLabel }}</span>
-                  <span v-if="badgeEffortLabel(item.thinkingEffort)" class="row-effort">
-                    {{ badgeEffortLabel(item.thinkingEffort) }}
+        <div class="picker-body-wrap">
+          <div ref="bodyRef" class="picker-body" @scroll="onBodyScroll">
+            <template v-if="groups.length">
+              <section v-for="group in groups" :key="group.providerId" class="provider-group">
+                <div class="provider-heading">{{ group.providerName }}</div>
+                <button
+                  v-for="item in group.items"
+                  :key="item.modelConfigId"
+                  type="button"
+                  role="menuitem"
+                  class="model-row"
+                  :class="{
+                    selected: item.modelConfigId === selectedId,
+                    hovered: hoveredModel?.modelConfigId === item.modelConfigId,
+                  }"
+                  @mouseenter="onRowEnter(item, $event)"
+                  @mouseleave="onRowLeave"
+                  @focus="showSubmenuFor(item, $event.currentTarget as HTMLElement)"
+                  @click="pickModel(item)"
+                >
+                  <span class="row-main">
+                    <span class="row-name">{{ item.modelLabel }}</span>
+                    <span v-if="badgeEffortLabel(item.thinkingEffort)" class="row-effort">
+                      {{ badgeEffortLabel(item.thinkingEffort) }}
+                    </span>
                   </span>
-                </span>
-                <span class="row-end">
-                  <Check v-if="item.modelConfigId === selectedId" :size="14" class="row-check" />
-                  <ChevronRight
-                    v-if="item.supportedEfforts.length"
-                    :size="14"
-                    class="row-arrow"
-                  />
-                </span>
-              </button>
-            </section>
-          </template>
-          <p v-else class="picker-empty">{{ t("common.noOptions") }}</p>
+                  <span class="row-end">
+                    <Check v-if="item.modelConfigId === selectedId" :size="13" class="row-check" />
+                    <ChevronRight
+                      v-if="item.supportedEfforts.length"
+                      :size="13"
+                      class="row-arrow"
+                    />
+                  </span>
+                </button>
+              </section>
+            </template>
+            <p v-else class="picker-empty">{{ t("common.noOptions") }}</p>
+          </div>
+          <div v-if="thumbVisible" class="overlay-scrollbar" :class="{ active: draggingThumb }" aria-hidden="true">
+            <div class="overlay-thumb" :style="thumbStyle" @pointerdown.stop.prevent="onThumbPointerDown" />
+          </div>
         </div>
       </div>
     </Transition>
@@ -353,7 +407,7 @@ onBeforeUnmount(() => {
           @click="pickEffort(hoveredModel, level)"
         >
           <span>{{ effortLabel(level) }}</span>
-          <Check v-if="hoveredModel.thinkingEffort === level" :size="14" class="row-check" />
+          <Check v-if="hoveredModel.thinkingEffort === level" :size="13" class="row-check" />
         </button>
       </div>
     </Transition>
@@ -421,7 +475,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--surface);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
@@ -433,52 +487,73 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 10px 14px 6px;
+  padding: 7px 10px 4px;
 }
 .picker-title {
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 500;
   color: var(--text-3);
 }
-.picker-search {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  width: 148px;
-  height: 24px;
-  padding: 0 7px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
-  color: var(--text-3);
-}
-.picker-search input {
+
+.picker-body-wrap {
+  position: relative;
   flex: 1;
-  min-width: 0;
-  border: 0;
-  outline: none;
-  background: none;
-  color: var(--text);
-  font-size: 12px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .picker-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 4px 6px 8px;
-  scrollbar-width: thin;
+  padding: 3px 6px 6px;
+  scrollbar-width: none;
+}
+.picker-body::-webkit-scrollbar {
+  display: none;
+}
+
+.overlay-scrollbar {
+  position: absolute;
+  top: 0;
+  right: 2px;
+  bottom: 0;
+  width: 6px;
+  pointer-events: none;
+  z-index: 2;
+}
+.overlay-thumb {
+  position: absolute;
+  top: 0;
+  right: 1px;
+  width: 4px;
+  border-radius: 999px;
+  background: var(--border);
+  opacity: 0.65;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out), width var(--dur-fast) var(--ease-out);
+}
+.picker-body-wrap:hover .overlay-thumb {
+  opacity: 0.9;
+}
+.overlay-thumb:hover,
+.overlay-scrollbar.active .overlay-thumb {
+  width: 5px;
+  background: var(--border-strong);
+  opacity: 0.95;
 }
 
 .provider-group + .provider-group {
-  margin-top: 8px;
-  padding-top: 8px;
+  margin-top: 4px;
+  padding-top: 4px;
   border-top: 1px solid var(--border);
 }
 
 .provider-heading {
-  padding: 4px 8px 4px;
-  font-size: 11.5px;
+  padding: 2px 7px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-3);
 }
@@ -488,13 +563,14 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 8px 9px;
+  gap: 6px;
+  padding: 4px 7px;
   border: 0;
-  border-radius: 9px;
+  border-radius: 7px;
   background: none;
   color: var(--text);
-  font-size: 13.5px;
+  font-size: 12.5px;
+  line-height: 1.35;
   text-align: left;
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease-out);
@@ -512,7 +588,7 @@ onBeforeUnmount(() => {
   min-width: 0;
   display: flex;
   align-items: baseline;
-  gap: 7px;
+  gap: 5px;
 }
 .row-name {
   overflow: hidden;
@@ -521,7 +597,7 @@ onBeforeUnmount(() => {
 }
 .row-effort {
   flex-shrink: 0;
-  font-size: 12.5px;
+  font-size: 11.5px;
   font-weight: 400;
   color: var(--text-3);
 }
@@ -540,9 +616,9 @@ onBeforeUnmount(() => {
 
 .picker-empty {
   margin: 0;
-  padding: 18px 12px;
+  padding: 16px 12px;
   text-align: center;
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--text-3);
 }
 
@@ -550,9 +626,9 @@ onBeforeUnmount(() => {
 .effort-submenu {
   position: fixed;
   z-index: 135;
-  padding: 6px;
+  padding: 5px;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 11px;
   background: var(--surface);
   box-shadow: var(--shadow-lg);
   display: flex;
@@ -579,8 +655,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 5px 8px 6px;
-  font-size: 12px;
+  padding: 4px 7px;
+  font-size: 11.5px;
   font-weight: 500;
   color: var(--text-3);
 }
@@ -594,12 +670,12 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 7px 9px;
+  padding: 5px 8px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 7px;
   background: none;
   color: var(--text);
-  font-size: 13.5px;
+  font-size: 12.5px;
   text-align: left;
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease-out);
