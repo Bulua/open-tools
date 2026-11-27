@@ -88,7 +88,7 @@ export interface AiFolder {
   name: string;
   pinned: boolean;
   collapsed: boolean;
-  createdAt: number;
+  createdAt: string;
 }
 
 /** 会话在侧栏中的归属与排序元信息（固定状态、所属文件夹与自定义顺序） */
@@ -213,7 +213,7 @@ export interface ChatMessage {
   reasoning?: string;
   /** 按发生顺序记录的分段内容（含思考、正文与工具调用）；旧消息缺省时界面自动回退渲染 */
   parts?: ChatMessagePart[];
-  createdAt: number;
+  createdAt: string;
   modelConfigId?: string;
   providerName?: string;
   modelId?: string;
@@ -228,8 +228,8 @@ export interface ConversationSummary {
   title: string;
   providerId: string;
   modelId: string;
-  createdAt: number;
-  updatedAt: number;
+  createdAt: string;
+  updatedAt: string;
   messageCount: number;
 }
 

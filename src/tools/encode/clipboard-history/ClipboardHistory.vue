@@ -7,6 +7,7 @@ import AppToast from "@/components/layout/AppToast.vue";
 import { useTheme } from "@/composables/useTheme";
 import { usePopover } from "@/composables/usePopover";
 import { useWindowEvent } from "@/composables/useWindowEvent";
+import { parseDateTime } from "@/utils/datetime";
 import { showError } from "@/utils/errorToast";
 import { activeHistoryLocation, scrollToHistoryHour } from "@/utils/historyNavigation";
 import { shortcutFromKeyboard } from "@/utils/shortcutKeys";
@@ -53,8 +54,8 @@ const validLimit = computed(() => typeof limitDraft.value === "number"
 const shortcutDraft = ref(clipboardShortcut.value);
 const shortcutInput = ref<HTMLInputElement>();
 const shortcutError = ref(false);
-const copied = ref<number>();
-const selected = ref<number>();
+const copied = ref<string>();
+const selected = ref<string>();
 const collapsedDays = ref(new Set<string>());
 const collapsedDirectoryDays = ref(new Set<string>());
 const activeLocation = ref("");
@@ -225,8 +226,12 @@ async function navigateTo(day: string, hour: number) {
   if (!container || !target) return;
   if (!await scrollToHistoryHour(container, target, HOUR_GAP, () => request === navigation && active)) return;
   const first = target.querySelector<HTMLElement>("[data-entry]");
-  if (first) selected.value = Number(first.dataset.entry);
+  if (first?.dataset.entry) selected.value = first.dataset.entry;
   activeLocation.value = target.id;
+}
+
+function entryDate(entry: ClipboardEntry) {
+  return parseDateTime(entry.updatedAt);
 }
 
 function updateActiveLocation() {
@@ -269,7 +274,7 @@ function saveLimit() {
   }
 }
 
-function copy(id: number) {
+function copy(id: string) {
   void run(async () => {
     await copyClipboardEntry(id);
     copied.value = id;
@@ -473,7 +478,7 @@ function searchKeydown(event: KeyboardEvent) {
                 <TransitionGroup tag="ul" name="cards" class="card-grid">
                   <li v-for="entry in hour.entries" :key="entry.id" class="history-card" :class="{ selected: entry.id === selected }" :data-entry="entry.id">
                     <div class="card-header">
-                      <time :datetime="new Date(entry.copiedAt).toISOString()">{{ timeFormat.format(entry.copiedAt) }}</time>
+                      <time :datetime="entryDate(entry).toISOString()">{{ timeFormat.format(entryDate(entry)) }}</time>
                       <div class="card-actions">
                         <button type="button" class="btn small subtle" :class="{ copied: copied === entry.id }" :disabled="busy" @focus="selected = entry.id" @click="copy(entry.id)">
                           <Check v-if="copied === entry.id" :size="14" />

@@ -92,7 +92,7 @@ function toFolder(item: AiFolderDto): AiFolder {
     name: item.name,
     pinned: item.pinned,
     collapsed: item.collapsed,
-    createdAt: item.createdAt ?? 0,
+    createdAt: item.createdAt ?? "",
   };
 }
 
@@ -110,8 +110,8 @@ function toConversationSummary(item: ConversationIndexEntry_Serialize): Conversa
     title: item.title,
     providerId: item.providerId,
     modelId: item.modelId,
-    createdAt: item.createdAt ?? 0,
-    updatedAt: item.updatedAt ?? 0,
+    createdAt: item.createdAt ?? "",
+    updatedAt: item.updatedAt ?? "",
     messageCount: item.messageCount,
   };
 }
@@ -153,7 +153,7 @@ function toChatMessage(dto: AiMessageDto_Serialize): ChatMessage {
     ...(attachments?.length ? { attachments } : {}),
     ...(dto.reasoning ? { reasoning: dto.reasoning } : {}),
     ...(parts?.length ? { parts } : {}),
-    createdAt: dto.createdAt ?? 0,
+    createdAt: dto.createdAt ?? "",
     ...(dto.modelConfigId ? { modelConfigId: dto.modelConfigId } : {}),
     ...(dto.providerName ? { providerName: dto.providerName } : {}),
     ...(dto.modelId ? { modelId: dto.modelId } : {}),
@@ -240,8 +240,8 @@ function toConversation(detail: AiConversationDetail_Serialize): Conversation {
     modelId: detail.modelId,
     ...(detail.workspaceDir ? { workspaceDir: detail.workspaceDir } : {}),
     ...(toExecutionPolicy(detail.executionPolicy) ? { executionPolicy: toExecutionPolicy(detail.executionPolicy) } : {}),
-    createdAt: detail.createdAt ?? 0,
-    updatedAt: detail.updatedAt ?? 0,
+    createdAt: detail.createdAt ?? "",
+    updatedAt: detail.updatedAt ?? "",
     messageCount: detail.messageCount,
     messages: detail.messages.map(toChatMessage),
   };

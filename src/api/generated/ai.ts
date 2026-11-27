@@ -45,10 +45,10 @@ export const commands = {
 	msg: string,
 	data: null,
 }>("ai_set_disabled_builtin_tools", { names }, options),
-	aiUpsertFolder: (folder: AiFolderDto, options?: InvokeOptions) => __TAURI_INVOKE<{
+	aiUpsertFolder: (folder: AiFolderDto_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<{
 	code: ApiCode,
 	msg: string,
-	data: AiFolderDto | null,
+	data: AiFolderDto_Serialize | null,
 }>("ai_upsert_folder", { folder }, options),
 	aiDeleteFolder: (id: string, options?: InvokeOptions) => __TAURI_INVOKE<{
 	code: ApiCode,
@@ -198,8 +198,8 @@ export type AiConversationDetail_Deserialize = {
 	modelId: string,
 	workspaceDir?: string | null,
 	executionPolicy?: string | null,
-	createdAt: number | null,
-	updatedAt: number | null,
+	createdAt: string,
+	updatedAt: string,
 	messageCount: number,
 	messages: AiMessageDto_Deserialize[],
 };
@@ -212,8 +212,8 @@ export type AiConversationDetail_Serialize = {
 	modelId: string,
 	workspaceDir?: string,
 	executionPolicy?: string,
-	createdAt: number | null,
-	updatedAt: number | null,
+	createdAt: string,
+	updatedAt: string,
 	messageCount: number,
 	messages: AiMessageDto_Serialize[],
 };
@@ -258,8 +258,8 @@ export type AiConversationUpsertInput_Deserialize = {
 	modelId?: string,
 	workspaceDir?: string | null,
 	executionPolicy?: string | null,
-	createdAt: number | null,
-	updatedAt: number | null,
+	createdAt?: string,
+	updatedAt?: string,
 };
 
 export type AiConversationUpsertInput_Serialize = {
@@ -270,8 +270,8 @@ export type AiConversationUpsertInput_Serialize = {
 	modelId: string,
 	workspaceDir: string | null,
 	executionPolicy: string | null,
-	createdAt: number | null,
-	updatedAt: number | null,
+	createdAt: string,
+	updatedAt: string,
 };
 
 export type AiConversationUpsertResult = AiConversationUpsertResult_Serialize | AiConversationUpsertResult_Deserialize;
@@ -286,12 +286,22 @@ export type AiConversationUpsertResult_Serialize = {
 	conversations: ConversationIndexEntry_Serialize[],
 };
 
-export type AiFolderDto = {
+export type AiFolderDto = AiFolderDto_Serialize | AiFolderDto_Deserialize;
+
+export type AiFolderDto_Deserialize = {
 	id: string,
 	name: string,
 	pinned: boolean,
 	collapsed: boolean,
-	createdAt: number | null,
+	createdAt?: string,
+};
+
+export type AiFolderDto_Serialize = {
+	id: string,
+	name: string,
+	pinned: boolean,
+	collapsed: boolean,
+	createdAt: string,
 };
 
 export type AiInitialState = AiInitialState_Serialize | AiInitialState_Deserialize;
@@ -301,7 +311,7 @@ export type AiInitialState_Deserialize = {
 	enabledMcpIds: string[],
 	disabledBuiltinTools: string[],
 	builtinTools: AiBuiltinToolInfo[],
-	folders: AiFolderDto[],
+	folders: AiFolderDto_Deserialize[],
 	conversationMeta: { [key in string]: AiConversationMetaDto_Deserialize },
 	conversations: ConversationIndexEntry_Deserialize[],
 };
@@ -311,7 +321,7 @@ export type AiInitialState_Serialize = {
 	enabledMcpIds: string[],
 	disabledBuiltinTools: string[],
 	builtinTools: AiBuiltinToolInfo[],
-	folders: AiFolderDto[],
+	folders: AiFolderDto_Serialize[],
 	conversationMeta: { [key in string]: AiConversationMetaDto_Serialize },
 	conversations: ConversationIndexEntry_Serialize[],
 };
@@ -333,7 +343,7 @@ export type AiMessageDto_Deserialize = {
 	durationMs?: number | null,
 	error?: string | null,
 	aborted?: boolean,
-	createdAt: number | null,
+	createdAt?: string,
 };
 
 export type AiMessageDto_Serialize = {
@@ -351,7 +361,7 @@ export type AiMessageDto_Serialize = {
 	durationMs?: number | null,
 	error?: string,
 	aborted: boolean,
-	createdAt: number | null,
+	createdAt: string,
 };
 
 export type AiMessageUpsertResult = AiMessageUpsertResult_Serialize | AiMessageUpsertResult_Deserialize;
@@ -515,8 +525,8 @@ export type ConversationIndexEntry_Deserialize = {
 	title: string,
 	providerId?: string,
 	modelId?: string,
-	createdAt: number | null,
-	updatedAt: number | null,
+	createdAt: string,
+	updatedAt: string,
 	messageCount?: number,
 };
 
@@ -525,8 +535,8 @@ export type ConversationIndexEntry_Serialize = {
 	title: string,
 	providerId: string,
 	modelId: string,
-	createdAt: number | null,
-	updatedAt: number | null,
+	createdAt: string,
+	updatedAt: string,
 	messageCount: number,
 };
 

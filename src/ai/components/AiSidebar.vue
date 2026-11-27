@@ -15,6 +15,7 @@ import {
 } from "lucide-vue-next";
 import { sortConversationsByMeta } from "../store";
 import type { AiConversationMeta, AiFolder, ConversationSummary } from "@/types/ai";
+import { parseDateTimeMillis } from "@/utils/datetime";
 import AiSidebarChatItem from "./AiSidebarChatItem.vue";
 
 const SIDEBAR_WIDTH_KEY = "open-tools:ai:sidebar-width";
@@ -192,8 +193,10 @@ const pinnedRootChats = computed(() => rootChatsIn(true));
 const normalFolders = computed(() => foldersIn(false));
 const normalRootChats = computed(() => rootChatsIn(false));
 
-function formatShortTime(timestamp: number): string {
-  const diffSec = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+function formatShortTime(timestamp: string): string {
+  const millis = parseDateTimeMillis(timestamp);
+  if (!millis) return "";
+  const diffSec = Math.max(0, Math.floor((Date.now() - millis) / 1000));
   if (diffSec < 60) return t("ai.shortTime.now");
   const diffMin = Math.floor(diffSec / 60);
   if (diffMin < 60) return t("ai.shortTime.min", { n: diffMin });

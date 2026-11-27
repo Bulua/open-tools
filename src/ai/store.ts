@@ -23,6 +23,7 @@ import type {
   ThinkingEffort,
   ToolApprovalDecision,
 } from "@/types/ai";
+import { formatNowDateTime } from "@/utils/datetime";
 import { showError } from "@/utils/errorToast";
 import { persistAttachmentsToWorkspace } from "./attachments";
 import { invalidateLocalImageCache, resolveConversationWorkspaceDir } from "./builtinTools";
@@ -235,7 +236,7 @@ export function resolveToolApproval(conversationId: string, decision: ToolApprov
     const conv = conversationCache[conversationId];
     if (conv && conv.executionPolicy !== "auto") {
       conv.executionPolicy = "auto";
-      conv.updatedAt = Date.now();
+      conv.updatedAt = formatNowDateTime();
       void upsertConversationRow(conv);
     }
   }
@@ -254,7 +255,7 @@ export async function setCurrentExecutionPolicy(policy: ExecutionPolicy): Promis
     resolveToolApproval(conv.id, "once");
   }
   void aiApi.setExecutionPolicy(conv.id, policy);
-  conv.updatedAt = Date.now();
+  conv.updatedAt = formatNowDateTime();
   await upsertConversationRow(conv);
 }
 
@@ -266,7 +267,7 @@ export async function setCurrentWorkspaceDir(dir: string): Promise<void> {
     return;
   }
   conv.workspaceDir = trimmed || undefined;
-  conv.updatedAt = Date.now();
+  conv.updatedAt = formatNowDateTime();
   await upsertConversationRow(conv);
 }
 
@@ -340,7 +341,7 @@ export async function createConversationInFolder(folderId: string): Promise<void
   const folder = config.value.folders.find((f) => f.id === folderId);
   if (!folder) return;
   const fallback = resolveFallbackModel();
-  const now = Date.now();
+  const now = formatNowDateTime();
   const conv = reactive<Conversation>({
     id: "",
     title: t("ai.newChat"),
@@ -366,7 +367,7 @@ export async function createFolder(pinned: boolean, name?: string): Promise<AiFo
     name: name?.trim() || t("ai.defaultFolderName", { n: existing + 1 }),
     pinned,
     collapsed: false,
-    createdAt: Date.now(),
+    createdAt: formatNowDateTime(),
   };
   try {
     const saved = await aiApi.upsertFolder(draftFolder);
@@ -404,7 +405,7 @@ export function sortConversationsByMeta(
     if (oa !== undefined && ob !== undefined && oa !== ob) return oa - ob;
     if (oa !== undefined && ob === undefined) return -1;
     if (oa === undefined && ob !== undefined) return 1;
-    return b.updatedAt - a.updatedAt;
+    return b.updatedAt.localeCompare(a.updatedAt);
   });
 }
 
@@ -530,7 +531,7 @@ export async function setCurrentModel(modelConfigId: string, effort?: ThinkingEf
   conv.modelConfigId = model.id;
   conv.providerId = model.providerId;
   conv.modelId = model.modelId;
-  conv.updatedAt = Date.now();
+  conv.updatedAt = formatNowDateTime();
   await upsertConversationRow(conv);
 }
 
@@ -552,7 +553,7 @@ export async function renameConversation(id: string, title: string): Promise<voi
   }
   if (!conv) return;
   conv.title = trimmed;
-  conv.updatedAt = Date.now();
+  conv.updatedAt = formatNowDateTime();
   await upsertConversationRow(conv);
 }
 
@@ -619,7 +620,7 @@ async function runAssistantTurn(conv: Conversation): Promise<void> {
     conv.modelConfigId = model.id;
     conv.providerId = model.providerId;
     conv.modelId = model.modelId;
-    conv.updatedAt = Date.now();
+    conv.updatedAt = formatNowDateTime();
     await upsertConversationRow(conv);
   }
 
@@ -629,14 +630,14 @@ async function runAssistantTurn(conv: Conversation): Promise<void> {
     content: "",
     reasoning: "",
     parts: [],
-    createdAt: Date.now(),
+    createdAt: formatNowDateTime(),
     modelConfigId: model.id,
     providerName: resolveModelProviderName(model, locale.value),
     modelId: model.modelId,
     modelName: model.name || model.modelId,
   });
   conv.messages.push(assistantMsg);
-  conv.updatedAt = Date.now();
+  conv.updatedAt = formatNowDateTime();
   await persistMessage(conv.id, assistantMsg);
 
   const appendPart = (type: "reasoning" | "text", deltaText: string) => {
@@ -701,7 +702,7 @@ async function runAssistantTurn(conv: Conversation): Promise<void> {
         case "sessionPolicyChanged":
           if (conv.executionPolicy !== event.executionPolicy) {
             conv.executionPolicy = event.executionPolicy;
-            conv.updatedAt = Date.now();
+            conv.updatedAt = formatNowDateTime();
             void upsertConversationRow(conv);
           }
           break;
@@ -750,7 +751,7 @@ async function runAssistantTurn(conv: Conversation): Promise<void> {
   } finally {
     delete pendingApprovals[conv.id];
     streamingIds[conv.id] = false;
-    conv.updatedAt = Date.now();
+    conv.updatedAt = formatNowDateTime();
     await persistMessage(conv.id, assistantMsg);
   }
 }
@@ -774,7 +775,7 @@ export async function sendMessage(
   let conv = activeConversation.value;
   if (conv && streamingIds[conv.id]) return false;
 
-  const now = Date.now();
+  const now = formatNowDateTime();
   const initialTitle = trimmed ? makeTitleFromText(trimmed) : makeTitleFromText(files[0].name);
   if (!conv) {
     conv = reactive<Conversation>({
@@ -887,7 +888,7 @@ export async function deleteMessage(messageId: string): Promise<void> {
   const idx = conv.messages.findIndex((m) => m.id === messageId);
   if (idx < 0) return;
   conv.messages.splice(idx, 1);
-  conv.updatedAt = Date.now();
+  conv.updatedAt = formatNowDateTime();
   try {
     conversations.value = await aiApi.deleteMessage(conv.id, messageId);
   } catch (error) {
@@ -899,7 +900,7 @@ export async function clearConversationMessages(): Promise<void> {
   const conv = activeConversation.value;
   if (!conv || streamingIds[conv.id]) return;
   conv.messages = [];
-  conv.updatedAt = Date.now();
+  conv.updatedAt = formatNowDateTime();
   try {
     conversations.value = await aiApi.clearMessages(conv.id);
   } catch (error) {

@@ -1,4 +1,5 @@
 import type { ChatMessage } from "@/types/ai";
+import { parseDateTime } from "@/utils/datetime";
 
 export interface TimelineItem {
   /** 对应的用户消息 ID */
@@ -9,8 +10,8 @@ export interface TimelineItem {
   promptPreview: string;
   /** 紧随其后的助手回复纯文本预览（无回复或尚无正文时为空字符串） */
   replyPreview: string;
-  /** 发送时间戳 */
-  createdAt: number;
+  /** 发送时间（`YYYY-MM-DD HH:MM:SS`） */
+  createdAt: string;
 }
 
 const MAX_SCAN_CHARS = 1200;
@@ -90,8 +91,9 @@ export function buildTimelineItems(messages: readonly ChatMessage[], fallbackLab
 }
 
 /** 按当前语言格式化浮层右下角的发送时间 */
-export function formatTimelineTime(timestamp: number, currentLocale: string): string {
-  if (!Number.isFinite(timestamp) || timestamp <= 0) return "";
+export function formatTimelineTime(timestamp: string, currentLocale: string): string {
+  const date = parseDateTime(timestamp);
+  if (Number.isNaN(date.getTime())) return "";
   try {
     return new Intl.DateTimeFormat(currentLocale, {
       year: "numeric",
@@ -100,7 +102,7 @@ export function formatTimelineTime(timestamp: number, currentLocale: string): st
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
-    }).format(new Date(timestamp));
+    }).format(date);
   } catch {
     return "";
   }

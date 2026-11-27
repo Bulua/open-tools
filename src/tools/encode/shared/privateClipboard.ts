@@ -1,3 +1,3 @@
-import { invoke } from "@tauri-apps/api/core";
+import { clipboardApi } from "@/api/clipboard";
 
-export const writePrivateClipboardText = (text: string) => invoke<void>("clipboard_copy_private", { text });
+export const writePrivateClipboardText = (text: string) => clipboardApi.copyPrivate(text);

@@ -2,6 +2,7 @@ import DOMPurify from "dompurify";
 import hljs from "highlight.js/lib/common";
 import { isImageFilePath, type LocalImagePreview } from "./builtinTools";
 import type { ChatMessage, ChatToolCall } from "@/types/ai";
+import { formatNowDateTime } from "@/utils/datetime";
 
 export type OutputPreviewKind = "html" | "svg" | "markdown" | "image" | "code";
 
@@ -24,8 +25,8 @@ export interface AiOutputFile {
   lineCount: number;
   /** 字节数 */
   sizeBytes: number;
-  /** 生成时间戳 */
-  createdAt: number;
+  /** 生成时间（`YYYY-MM-DD HH:MM:SS`） */
+  createdAt: string;
   /** 支持的预览模式 */
   previewKind: OutputPreviewKind;
   /** 已加载的图片预览数据（按需填充） */
@@ -190,7 +191,7 @@ export function createOutputFileFromSnapshot(
   rawPath: string,
   content: string,
   messageId = "",
-  createdAt = Date.now(),
+  createdAt = formatNowDateTime(),
 ): AiOutputFile | null {
   const filePath = normalizePath(rawPath);
   const base = filePath.split("/").pop()?.trim() ?? "";
@@ -217,7 +218,7 @@ export function createOutputFileFromSnapshot(
 export function createImageOutputFile(
   preview: LocalImagePreview,
   messageId = "",
-  createdAt = Date.now(),
+  createdAt = formatNowDateTime(),
 ): AiOutputFile | null {
   const filePath = normalizePath(preview.path);
   const base = filePath.split("/").pop()?.trim() ?? "";
