@@ -8,29 +8,43 @@ use std::collections::{HashMap, HashSet};
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 
-use crate::core::db::{now_millis, Database, Migration};
+use crate::core::db::{now_datetime, Database, Migration};
 use crate::core::error::{AppError, AppResult};
 use crate::core::id::next_id_string;
 
 use super::config::McpConfig;
 
-const MCP_MIGRATIONS: &[Migration] = &[Migration {
-    id: "mcp_001_init",
-    sql: r#"
-        CREATE TABLE IF NOT EXISTS mcp_connections (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            transport TEXT NOT NULL,
-            config_json TEXT NOT NULL,
-            sort_order INTEGER NOT NULL DEFAULT 0,
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL
-        );
+const MCP_MIGRATIONS: &[Migration] = &[
+    Migration {
+        id: "mcp_001_init",
+        sql: r#"
+            CREATE TABLE IF NOT EXISTS mcp_connections (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                transport TEXT NOT NULL,
+                config_json TEXT NOT NULL,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
 
-        CREATE INDEX IF NOT EXISTS idx_mcp_connections_order
-            ON mcp_connections(sort_order ASC, created_at ASC);
-    "#,
-}];
+            CREATE INDEX IF NOT EXISTS idx_mcp_connections_order
+                ON mcp_connections(sort_order ASC, created_at ASC);
+        "#,
+    },
+    Migration {
+        id: "mcp_002_datetime_format",
+        sql: r#"
+            UPDATE mcp_connections
+            SET created_at = datetime(created_at / 1000.0, 'unixepoch', 'localtime')
+            WHERE typeof(created_at) IN ('integer', 'real');
+
+            UPDATE mcp_connections
+            SET updated_at = datetime(updated_at / 1000.0, 'unixepoch', 'localtime')
+            WHERE typeof(updated_at) IN ('integer', 'real');
+        "#,
+    },
+];
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct StoredConnection {
@@ -106,12 +120,12 @@ pub(crate) async fn save_stored_connections(
     }
 
     db.run_transaction(move |tx| {
-        let now = now_millis();
-        let mut created_map: HashMap<String, i64> = HashMap::new();
+        let now = now_datetime();
+        let mut created_map: HashMap<String, String> = HashMap::new();
         {
             let mut stmt = tx.prepare("SELECT id, created_at FROM mcp_connections")?;
             let rows = stmt.query_map([], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
             })?;
             for row in rows {
                 let (id, created_at) = row?;
@@ -127,7 +141,7 @@ pub(crate) async fn save_stored_connections(
         }
 
         for (id, name, transport, config_json, sort_order) in prepared {
-            let created_at = created_map.get(&id).copied().unwrap_or(now);
+            let created_at = created_map.get(&id).cloned().unwrap_or_else(|| now.clone());
             tx.execute(
                 "INSERT INTO mcp_connections (
                     id, name, transport, config_json, sort_order, created_at, updated_at

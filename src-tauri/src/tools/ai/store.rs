@@ -15,7 +15,7 @@ use specta::Type;
 
 use crate::core::db::{
     folders::{list_folders, FolderRecord},
-    now_millis,
+    millis_to_datetime_conn, normalize_datetime, now_datetime,
     settings::{get_setting_json, set_setting_json},
     Database, Migration,
 };
@@ -38,74 +38,101 @@ const LEGACY_CONFIG_FILE: &str = "config.dat";
 const LEGACY_CONVERSATIONS_DIR: &str = "conversations";
 const LEGACY_INDEX_FILE: &str = "index.json";
 
-pub(crate) const AI_MIGRATIONS: &[Migration] = &[Migration {
-    id: "ai_001_init",
-    sql: r#"
-        CREATE TABLE IF NOT EXISTS ai_models (
-            id TEXT PRIMARY KEY,
-            provider_id TEXT NOT NULL,
-            provider_name TEXT,
-            name TEXT NOT NULL DEFAULT '',
-            protocol TEXT NOT NULL DEFAULT 'openai',
-            base_url TEXT NOT NULL DEFAULT '',
-            api_key_enc BLOB NOT NULL,
-            model_id TEXT NOT NULL,
-            enabled INTEGER NOT NULL DEFAULT 1,
-            max_tokens INTEGER,
-            thinking_support TEXT,
-            thinking_effort TEXT,
-            is_default INTEGER NOT NULL DEFAULT 0,
-            sort_order INTEGER NOT NULL DEFAULT 0,
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL
-        );
+pub(crate) const AI_MIGRATIONS: &[Migration] = &[
+    Migration {
+        id: "ai_001_init",
+        sql: r#"
+            CREATE TABLE IF NOT EXISTS ai_models (
+                id TEXT PRIMARY KEY,
+                provider_id TEXT NOT NULL,
+                provider_name TEXT,
+                name TEXT NOT NULL DEFAULT '',
+                protocol TEXT NOT NULL DEFAULT 'openai',
+                base_url TEXT NOT NULL DEFAULT '',
+                api_key_enc BLOB NOT NULL,
+                model_id TEXT NOT NULL,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                max_tokens INTEGER,
+                thinking_support TEXT,
+                thinking_effort TEXT,
+                is_default INTEGER NOT NULL DEFAULT 0,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
 
-        CREATE INDEX IF NOT EXISTS idx_ai_models_order
-            ON ai_models(sort_order ASC, created_at ASC);
+            CREATE INDEX IF NOT EXISTS idx_ai_models_order
+                ON ai_models(sort_order ASC, created_at ASC);
 
-        CREATE TABLE IF NOT EXISTS ai_conversations (
-            id TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            model_config_id TEXT,
-            provider_id TEXT NOT NULL DEFAULT '',
-            model_id TEXT NOT NULL DEFAULT '',
-            workspace_dir TEXT,
-            execution_policy TEXT,
-            pinned INTEGER NOT NULL DEFAULT 0,
-            folder_id TEXT REFERENCES folders(id) ON DELETE SET NULL,
-            sort_order INTEGER,
-            message_count INTEGER NOT NULL DEFAULT 0,
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL
-        );
+            CREATE TABLE IF NOT EXISTS ai_conversations (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                model_config_id TEXT,
+                provider_id TEXT NOT NULL DEFAULT '',
+                model_id TEXT NOT NULL DEFAULT '',
+                workspace_dir TEXT,
+                execution_policy TEXT,
+                pinned INTEGER NOT NULL DEFAULT 0,
+                folder_id TEXT REFERENCES folders(id) ON DELETE SET NULL,
+                sort_order INTEGER,
+                message_count INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
 
-        CREATE INDEX IF NOT EXISTS idx_ai_conversations_updated
-            ON ai_conversations(updated_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_ai_conversations_updated
+                ON ai_conversations(updated_at DESC);
 
-        CREATE TABLE IF NOT EXISTS ai_messages (
-            id TEXT PRIMARY KEY,
-            conversation_id TEXT NOT NULL REFERENCES ai_conversations(id) ON DELETE CASCADE,
-            seq INTEGER NOT NULL,
-            role TEXT NOT NULL,
-            content TEXT NOT NULL DEFAULT '',
-            reasoning TEXT,
-            attachments_json TEXT,
-            tool_calls_json TEXT,
-            parts_json TEXT,
-            model_config_id TEXT,
-            provider_name TEXT,
-            model_id TEXT,
-            model_name TEXT,
-            duration_ms INTEGER,
-            error TEXT,
-            aborted INTEGER NOT NULL DEFAULT 0,
-            created_at INTEGER NOT NULL
-        );
+            CREATE TABLE IF NOT EXISTS ai_messages (
+                id TEXT PRIMARY KEY,
+                conversation_id TEXT NOT NULL REFERENCES ai_conversations(id) ON DELETE CASCADE,
+                seq INTEGER NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL DEFAULT '',
+                reasoning TEXT,
+                attachments_json TEXT,
+                tool_calls_json TEXT,
+                parts_json TEXT,
+                model_config_id TEXT,
+                provider_name TEXT,
+                model_id TEXT,
+                model_name TEXT,
+                duration_ms INTEGER,
+                error TEXT,
+                aborted INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
 
-        CREATE INDEX IF NOT EXISTS idx_ai_messages_conv_seq
-            ON ai_messages(conversation_id, seq ASC);
-    "#,
-}];
+            CREATE INDEX IF NOT EXISTS idx_ai_messages_conv_seq
+                ON ai_messages(conversation_id, seq ASC);
+        "#,
+    },
+    Migration {
+        id: "ai_002_datetime_format",
+        sql: r#"
+            UPDATE ai_models
+            SET created_at = datetime(created_at / 1000.0, 'unixepoch', 'localtime')
+            WHERE typeof(created_at) IN ('integer', 'real');
+
+            UPDATE ai_models
+            SET updated_at = datetime(updated_at / 1000.0, 'unixepoch', 'localtime')
+            WHERE typeof(updated_at) IN ('integer', 'real');
+
+            UPDATE ai_conversations
+            SET created_at = datetime(created_at / 1000.0, 'unixepoch', 'localtime')
+            WHERE typeof(created_at) IN ('integer', 'real');
+
+            UPDATE ai_conversations
+            SET updated_at = datetime(updated_at / 1000.0, 'unixepoch', 'localtime')
+            WHERE typeof(updated_at) IN ('integer', 'real');
+
+            UPDATE ai_messages
+            SET created_at = datetime(created_at / 1000.0, 'unixepoch', 'localtime')
+            WHERE typeof(created_at) IN ('integer', 'real');
+        "#,
+    },
+];
 
 // ---------- 前后端强类型 DTO ----------
 
@@ -118,10 +145,8 @@ pub(crate) struct ConversationIndexEntry {
     pub(crate) provider_id: String,
     #[serde(default)]
     pub(crate) model_id: String,
-    #[specta(type = f64)]
-    pub(crate) created_at: i64,
-    #[specta(type = f64)]
-    pub(crate) updated_at: i64,
+    pub(crate) created_at: String,
+    pub(crate) updated_at: String,
     #[serde(default)]
     #[specta(type = u32)]
     pub(crate) message_count: usize,
@@ -200,8 +225,8 @@ pub(crate) struct AiFolderDto {
     pub(crate) name: String,
     pub(crate) pinned: bool,
     pub(crate) collapsed: bool,
-    #[specta(type = f64)]
-    pub(crate) created_at: i64,
+    #[serde(default)]
+    pub(crate) created_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -270,8 +295,8 @@ pub(crate) struct AiMessageDto {
     pub(crate) error: Option<String>,
     #[serde(default)]
     pub(crate) aborted: bool,
-    #[specta(type = f64)]
-    pub(crate) created_at: i64,
+    #[serde(default)]
+    pub(crate) created_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Type)]
@@ -287,10 +312,8 @@ pub(crate) struct AiConversationDetail {
     pub(crate) workspace_dir: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) execution_policy: Option<String>,
-    #[specta(type = f64)]
-    pub(crate) created_at: i64,
-    #[specta(type = f64)]
-    pub(crate) updated_at: i64,
+    pub(crate) created_at: String,
+    pub(crate) updated_at: String,
     #[specta(type = u32)]
     pub(crate) message_count: usize,
     pub(crate) messages: Vec<AiMessageDto>,
@@ -311,10 +334,10 @@ pub(crate) struct AiConversationUpsertInput {
     pub(crate) workspace_dir: Option<String>,
     #[serde(default)]
     pub(crate) execution_policy: Option<String>,
-    #[specta(type = f64)]
-    pub(crate) created_at: i64,
-    #[specta(type = f64)]
-    pub(crate) updated_at: i64,
+    #[serde(default)]
+    pub(crate) created_at: String,
+    #[serde(default)]
+    pub(crate) updated_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Type)]
@@ -432,8 +455,41 @@ fn json_i64_opt(val: &Value, key: &str) -> Option<i64> {
         .and_then(|v| v.as_i64().or_else(|| v.as_f64().map(|f| f.round() as i64)))
 }
 
+fn json_datetime_opt(conn: &Connection, val: &Value, key: &str, fallback: &str) -> String {
+    if let Some(raw) = json_str_opt(val, key) {
+        return normalize_datetime(Some(&raw));
+    }
+    if let Some(ms) = json_i64_opt(val, key) {
+        return millis_to_datetime_conn(conn, ms);
+    }
+    fallback.to_string()
+}
+
 pub(crate) fn init_ai_storage(db: &Database, data_dir: &Path) -> AppResult<()> {
     db.migrate(AI_MIGRATIONS)?;
+
+    // 兼容早期已创建 `ai_messages` 表但尚未包含 `updated_at` 列的本地数据库
+    db.transaction(|tx| {
+        let mut stmt = tx.prepare("PRAGMA table_info(ai_messages)")?;
+        let has_updated_at = stmt
+            .query_map([], |row| row.get::<_, String>(1))?
+            .filter_map(Result::ok)
+            .any(|name| name == "updated_at");
+        drop(stmt);
+        if !has_updated_at {
+            tx.execute_batch(
+                "ALTER TABLE ai_messages ADD COLUMN updated_at TEXT NOT NULL DEFAULT '';
+                 UPDATE ai_messages SET updated_at = created_at WHERE updated_at = '';",
+            )?;
+        } else {
+            tx.execute_batch(
+                "UPDATE ai_messages
+                 SET updated_at = datetime(updated_at / 1000.0, 'unixepoch', 'localtime')
+                 WHERE typeof(updated_at) IN ('integer', 'real');",
+            )?;
+        }
+        Ok(())
+    })?;
 
     let migrated = db.with_conn(|conn| {
         Ok(get_setting_json(conn, AI_SCOPE, SETTING_LEGACY_MIGRATED)?
@@ -462,16 +518,19 @@ pub(crate) fn init_ai_storage(db: &Database, data_dir: &Path) -> AppResult<()> {
         None
     };
 
-    let mut legacy_convs: Vec<(ConversationIndexEntry, Value)> = Vec::new();
+    let mut legacy_convs: Vec<(Value, Value)> = Vec::new();
     let legacy_index_path = legacy_conv_dir.join(LEGACY_INDEX_FILE);
     if legacy_index_path.exists() {
         if let Ok(index_text) = std::fs::read_to_string(&legacy_index_path) {
-            if let Ok(entries) = serde_json::from_str::<Vec<ConversationIndexEntry>>(&index_text) {
+            if let Ok(entries) = serde_json::from_str::<Vec<Value>>(&index_text) {
                 for entry in entries {
-                    if validate_conv_id(&entry.id).is_err() {
+                    let Some(id) = json_str_opt(&entry, "id") else {
+                        continue;
+                    };
+                    if validate_conv_id(&id).is_err() {
                         continue;
                     }
-                    let file_path = legacy_conv_dir.join(format!("{}.json", entry.id));
+                    let file_path = legacy_conv_dir.join(format!("{id}.json"));
                     if let Ok(raw) = std::fs::read_to_string(&file_path) {
                         if let Ok(val) = serde_json::from_str::<Value>(&raw) {
                             legacy_convs.push((entry, val));
@@ -483,7 +542,7 @@ pub(crate) fn init_ai_storage(db: &Database, data_dir: &Path) -> AppResult<()> {
     }
 
     db.transaction(|tx| {
-        let now = now_millis();
+        let now = now_datetime();
         if let Some(ref cfg) = legacy_config_val {
             let default_id = cfg
                 .get("settings")
@@ -531,7 +590,7 @@ pub(crate) fn init_ai_storage(db: &Database, data_dir: &Path) -> AppResult<()> {
                     let name = json_str_opt(f, "name").unwrap_or_else(|| id.clone());
                     let pinned = f.get("pinned").and_then(Value::as_bool).unwrap_or(false);
                     let collapsed = f.get("collapsed").and_then(Value::as_bool).unwrap_or(false);
-                    let created_at = json_i64_opt(f, "createdAt").unwrap_or(now);
+                    let created_at = json_datetime_opt(tx, f, "createdAt", &now);
                     tx.execute(
                         "INSERT OR IGNORE INTO folders (id, scope, parent_id, name, pinned, collapsed, sort_order, created_at, updated_at)
                          VALUES (?1, ?2, NULL, ?3, ?4, ?5, ?6, ?7, ?8)",
@@ -554,6 +613,14 @@ pub(crate) fn init_ai_storage(db: &Database, data_dir: &Path) -> AppResult<()> {
         }
 
         for (entry, val) in &legacy_convs {
+            let Some(conv_id) = json_str_opt(entry, "id") else {
+                continue;
+            };
+            let title = json_str_opt(entry, "title").unwrap_or_default();
+            let provider_id = json_str_opt(entry, "providerId").unwrap_or_default();
+            let model_id = json_str_opt(entry, "modelId").unwrap_or_default();
+            let conv_created_at = json_datetime_opt(tx, entry, "createdAt", &now);
+            let conv_updated_at = json_datetime_opt(tx, entry, "updatedAt", &conv_created_at);
             let messages = val
                 .get("messages")
                 .and_then(Value::as_array)
@@ -565,32 +632,33 @@ pub(crate) fn init_ai_storage(db: &Database, data_dir: &Path) -> AppResult<()> {
                     execution_policy, message_count, created_at, updated_at
                  ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
                 params![
-                    entry.id,
-                    entry.title,
+                    conv_id,
+                    title,
                     json_str_opt(val, "modelConfigId"),
-                    entry.provider_id,
-                    entry.model_id,
+                    provider_id,
+                    model_id,
                     json_str_opt(val, "workspaceDir"),
                     json_str_opt(val, "executionPolicy"),
                     messages.len() as i64,
-                    entry.created_at,
-                    entry.updated_at,
+                    conv_created_at,
+                    conv_updated_at,
                 ],
             )?;
             for (seq, m) in messages.iter().enumerate() {
                 let Some(msg_id) = json_str_opt(m, "id") else {
                     continue;
                 };
+                let msg_created_at = json_datetime_opt(tx, m, "createdAt", &conv_updated_at);
                 tx.execute(
                     "INSERT OR IGNORE INTO ai_messages (
                         id, conversation_id, seq, role, content, reasoning,
                         attachments_json, tool_calls_json, parts_json,
                         model_config_id, provider_name, model_id, model_name,
-                        duration_ms, error, aborted, created_at
-                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
+                        duration_ms, error, aborted, created_at, updated_at
+                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
                     params![
                         msg_id,
-                        entry.id,
+                        conv_id,
                         seq as i64,
                         json_str_opt(m, "role").unwrap_or_else(|| "user".into()),
                         m.get("content").and_then(Value::as_str).unwrap_or(""),
@@ -605,7 +673,8 @@ pub(crate) fn init_ai_storage(db: &Database, data_dir: &Path) -> AppResult<()> {
                         json_i64_opt(m, "durationMs"),
                         json_str_opt(m, "error"),
                         if m.get("aborted").and_then(Value::as_bool).unwrap_or(false) { 1i64 } else { 0i64 },
-                        json_i64_opt(m, "createdAt").unwrap_or(entry.updated_at),
+                        msg_created_at,
+                        msg_created_at,
                     ],
                 )?;
             }
@@ -728,7 +797,7 @@ fn update_conversation_counts_tx(tx: &Transaction<'_>, conv_id: &str) -> rusqlit
     )?;
     tx.execute(
         "UPDATE ai_conversations SET message_count = ?1, updated_at = ?2 WHERE id = ?3",
-        params![count, now_millis(), conv_id],
+        params![count, now_datetime(), conv_id],
     )?;
     Ok(())
 }
@@ -864,7 +933,7 @@ pub(crate) async fn ai_upsert_model_impl(
         input.id.trim().to_string()
     };
     db.run_transaction(move |tx| {
-        let now = now_millis();
+        let now = now_datetime();
         let existing_key: Option<Vec<u8>> = tx
             .query_row(
                 "SELECT api_key_enc FROM ai_models WHERE id = ?1",
@@ -1010,7 +1079,7 @@ pub(crate) async fn ai_set_default_model_impl(
         if let Some(target_id) = id.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
             tx.execute(
                 "UPDATE ai_models SET is_default = 1, updated_at = ?1 WHERE id = ?2",
-                params![now_millis(), target_id],
+                params![now_datetime(), target_id],
             )?;
         }
         list_models_conn(tx)
@@ -1026,7 +1095,7 @@ pub(crate) async fn ai_set_model_enabled_impl(
     db.run_transaction(move |tx| {
         tx.execute(
             "UPDATE ai_models SET enabled = ?1, updated_at = ?2 WHERE id = ?3",
-            params![if enabled { 1i64 } else { 0i64 }, now_millis(), id],
+            params![if enabled { 1i64 } else { 0i64 }, now_datetime(), id],
         )?;
         list_models_conn(tx)
     })
@@ -1041,7 +1110,7 @@ pub(crate) async fn ai_set_model_thinking_effort_impl(
     db.run_transaction(move |tx| {
         tx.execute(
             "UPDATE ai_models SET thinking_effort = ?1, updated_at = ?2 WHERE id = ?3",
-            params![effort_str(effort), now_millis(), id],
+            params![effort_str(effort), now_datetime(), id],
         )?;
         Ok(())
     })
@@ -1093,7 +1162,8 @@ pub(crate) async fn ai_upsert_folder_impl(
         folder.id.trim().to_string()
     };
     db.run_transaction(move |tx| {
-        let now = now_millis();
+        let now = now_datetime();
+        let created_at = normalize_datetime(Some(&folder.created_at));
         let next_order: i64 = tx.query_row(
             "SELECT COALESCE(MAX(sort_order) + 1, 0) FROM folders WHERE scope = ?1",
             [AI_SCOPE],
@@ -1106,7 +1176,7 @@ pub(crate) async fn ai_upsert_folder_impl(
             pinned: folder.pinned,
             collapsed: folder.collapsed,
             sort_order: next_order,
-            created_at: folder.created_at,
+            created_at: created_at.clone(),
         };
         tx.execute(
             "INSERT INTO folders (id, scope, parent_id, name, pinned, collapsed, sort_order, created_at, updated_at)
@@ -1133,7 +1203,7 @@ pub(crate) async fn ai_upsert_folder_impl(
             name: folder.name,
             pinned: folder.pinned,
             collapsed: folder.collapsed,
-            created_at: folder.created_at,
+            created_at,
         })
     })
     .await
@@ -1172,8 +1242,8 @@ pub(crate) async fn ai_read_conversation_impl(
                         row.get::<_, String>(4)?,
                         row.get::<_, Option<String>>(5)?,
                         row.get::<_, Option<String>>(6)?,
-                        row.get::<_, i64>(7)?,
-                        row.get::<_, i64>(8)?,
+                        row.get::<_, String>(7)?,
+                        row.get::<_, String>(8)?,
                         row.get::<_, i64>(9)?,
                     ))
                 },
@@ -1254,6 +1324,17 @@ pub(crate) async fn ai_upsert_conversation_impl(
     };
     validate_conv_id(&conv_id)?;
     db.run_transaction(move |tx| {
+        let now = now_datetime();
+        let created_at = if input.created_at.trim().is_empty() {
+            now.clone()
+        } else {
+            normalize_datetime(Some(&input.created_at))
+        };
+        let updated_at = if input.updated_at.trim().is_empty() {
+            now
+        } else {
+            normalize_datetime(Some(&input.updated_at))
+        };
         tx.execute(
             "INSERT INTO ai_conversations (
                 id, title, model_config_id, provider_id, model_id, workspace_dir,
@@ -1275,8 +1356,8 @@ pub(crate) async fn ai_upsert_conversation_impl(
                 input.model_id,
                 input.workspace_dir,
                 input.execution_policy,
-                input.created_at,
-                input.updated_at,
+                created_at,
+                updated_at,
             ],
         )?;
         let conversations = list_conversations_conn(tx)?;
@@ -1335,6 +1416,12 @@ pub(crate) async fn ai_upsert_message_impl(
         message.id.trim().to_string()
     };
     db.run_transaction(move |tx| {
+        let now = now_datetime();
+        let created_at = if message.created_at.trim().is_empty() {
+            now.clone()
+        } else {
+            normalize_datetime(Some(&message.created_at))
+        };
         let existing_seq: Option<i64> = tx
             .query_row(
                 "SELECT seq FROM ai_messages WHERE id = ?1",
@@ -1356,8 +1443,8 @@ pub(crate) async fn ai_upsert_message_impl(
                 id, conversation_id, seq, role, content, reasoning,
                 attachments_json, tool_calls_json, parts_json,
                 model_config_id, provider_name, model_id, model_name,
-                duration_ms, error, aborted, created_at
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
+                duration_ms, error, aborted, created_at, updated_at
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
              ON CONFLICT(id) DO UPDATE SET
                 role = excluded.role,
                 content = excluded.content,
@@ -1371,7 +1458,8 @@ pub(crate) async fn ai_upsert_message_impl(
                 model_name = excluded.model_name,
                 duration_ms = excluded.duration_ms,
                 error = excluded.error,
-                aborted = excluded.aborted",
+                aborted = excluded.aborted,
+                updated_at = excluded.updated_at",
             params![
                 &message_id,
                 conversation_id,
@@ -1389,7 +1477,8 @@ pub(crate) async fn ai_upsert_message_impl(
                 message.duration_ms,
                 message.error,
                 if message.aborted { 1i64 } else { 0i64 },
-                message.created_at,
+                created_at,
+                now,
             ],
         )?;
         update_conversation_counts_tx(tx, &conversation_id)?;

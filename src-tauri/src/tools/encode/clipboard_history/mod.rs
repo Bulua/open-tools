@@ -1,3 +1,4 @@
 pub(crate) mod commands;
 mod native;
-mod store;
+pub(crate) mod service;
+pub(crate) mod store;

@@ -35,7 +35,9 @@ use crate::tools::{
 #[cfg(windows)]
 use crate::tools::{
     document::pdf_content_editor::commands as pdf_content_editor,
-    encode::clipboard_history::commands as clipboard,
+    encode::clipboard_history::{
+        commands as clipboard, service as clipboard_service, store as clipboard_store,
+    },
     image::screenshot_history::{commands as screenshot, windows as screenshot_windows},
 };
 
@@ -231,18 +233,20 @@ pub fn run() {
             let db = Database::open(&data_dir.join("open-tools.db"))?;
             ai_store::init_ai_storage(&db, &data_dir)?;
             mcp_store::init_mcp_storage(&db)?;
+            #[cfg(windows)]
+            clipboard_store::init_clipboard_storage(&db)?;
             use tauri::Manager;
             app.manage(db);
             #[cfg(windows)]
-            clipboard::start(app.handle());
+            clipboard_service::start(app.handle());
             tray::setup(
                 app,
                 #[cfg(windows)]
                 |app, toggle| {
                     if toggle {
-                        clipboard::toggle(app)
+                        clipboard_service::toggle(app).map_err(String::from)
                     } else {
-                        clipboard::open(app)
+                        clipboard_service::open(app).map_err(String::from)
                     }
                 },
             )?;

@@ -3,7 +3,7 @@
 use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::Value;
 
-use super::now_millis;
+use super::now_datetime;
 
 pub(crate) fn get_setting_json(
     conn: &Connection,
@@ -33,7 +33,7 @@ pub(crate) fn set_setting_json(
          ON CONFLICT(scope, key) DO UPDATE SET
              value_json = excluded.value_json,
              updated_at = excluded.updated_at",
-        params![scope, key, text, now_millis()],
+        params![scope, key, text, now_datetime()],
     )?;
     Ok(())
 }

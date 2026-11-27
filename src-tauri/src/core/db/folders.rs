@@ -10,7 +10,7 @@ pub(crate) struct FolderRecord {
     pub(crate) pinned: bool,
     pub(crate) collapsed: bool,
     pub(crate) sort_order: i64,
-    pub(crate) created_at: i64,
+    pub(crate) created_at: String,
 }
 
 pub(crate) fn list_folders(conn: &Connection, scope: &str) -> rusqlite::Result<Vec<FolderRecord>> {

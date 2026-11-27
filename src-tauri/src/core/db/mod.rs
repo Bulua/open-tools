@@ -11,9 +11,8 @@ pub(crate) mod settings;
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
 
-use rusqlite::{Connection, Transaction};
+use rusqlite::{Connection, OptionalExtension, Transaction};
 
 use crate::core::error::{AppError, AppResult};
 
@@ -24,39 +23,129 @@ pub(crate) struct Migration {
     pub(crate) sql: &'static str,
 }
 
-const CORE_MIGRATIONS: &[Migration] = &[Migration {
-    id: "core_001_init",
-    sql: r#"
-        CREATE TABLE IF NOT EXISTS app_settings (
-            scope TEXT NOT NULL,
-            key TEXT NOT NULL,
-            value_json TEXT NOT NULL,
-            updated_at INTEGER NOT NULL,
-            PRIMARY KEY (scope, key)
-        );
+const CORE_MIGRATIONS: &[Migration] = &[
+    Migration {
+        id: "core_001_init",
+        sql: r#"
+            CREATE TABLE IF NOT EXISTS app_settings (
+                scope TEXT NOT NULL,
+                key TEXT NOT NULL,
+                value_json TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (scope, key)
+            );
 
-        CREATE TABLE IF NOT EXISTS folders (
-            id TEXT PRIMARY KEY,
-            scope TEXT NOT NULL,
-            parent_id TEXT REFERENCES folders(id) ON DELETE SET NULL,
-            name TEXT NOT NULL,
-            pinned INTEGER NOT NULL DEFAULT 0,
-            collapsed INTEGER NOT NULL DEFAULT 0,
-            sort_order INTEGER NOT NULL DEFAULT 0,
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL
-        );
+            CREATE TABLE IF NOT EXISTS folders (
+                id TEXT PRIMARY KEY,
+                scope TEXT NOT NULL,
+                parent_id TEXT REFERENCES folders(id) ON DELETE SET NULL,
+                name TEXT NOT NULL,
+                pinned INTEGER NOT NULL DEFAULT 0,
+                collapsed INTEGER NOT NULL DEFAULT 0,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
 
-        CREATE INDEX IF NOT EXISTS idx_folders_scope_order
-            ON folders(scope, pinned, sort_order, created_at);
-    "#,
-}];
+            CREATE INDEX IF NOT EXISTS idx_folders_scope_order
+                ON folders(scope, pinned, sort_order, created_at);
+        "#,
+    },
+    Migration {
+        id: "core_002_datetime_format",
+        sql: r#"
+            UPDATE schema_migrations
+            SET applied_at = datetime(applied_at / 1000.0, 'unixepoch', 'localtime')
+            WHERE typeof(applied_at) IN ('integer', 'real');
 
-pub(crate) fn now_millis() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
+            UPDATE app_settings
+            SET updated_at = datetime(updated_at / 1000.0, 'unixepoch', 'localtime')
+            WHERE typeof(updated_at) IN ('integer', 'real');
+
+            UPDATE folders
+            SET created_at = datetime(created_at / 1000.0, 'unixepoch', 'localtime')
+            WHERE typeof(created_at) IN ('integer', 'real');
+
+            UPDATE folders
+            SET updated_at = datetime(updated_at / 1000.0, 'unixepoch', 'localtime')
+            WHERE typeof(updated_at) IN ('integer', 'real');
+        "#,
+    },
+];
+
+/// 返回当前本地时间字符串（`YYYY-MM-DD HH:MM:SS`）。
+pub(crate) fn now_datetime() -> String {
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::Foundation::SYSTEMTIME;
+        use windows_sys::Win32::System::SystemInformation::GetLocalTime;
+        let mut st = SYSTEMTIME::default();
+        unsafe { GetLocalTime(&mut st) };
+        format!(
+            "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+            st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond
+        )
+    }
+    #[cfg(not(windows))]
+    {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let secs = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+        let days = secs.div_euclid(86_400);
+        let sod = secs.rem_euclid(86_400);
+        let hour = sod / 3_600;
+        let minute = (sod % 3_600) / 60;
+        let second = sod % 60;
+        let z = days + 719_468;
+        let era = z.div_euclid(146_097);
+        let doe = z - era * 146_097;
+        let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+        let y = yoe + era * 400;
+        let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+        let mp = (5 * doy + 2) / 153;
+        let day = doy - (153 * mp + 2) / 5 + 1;
+        let month = mp + if mp < 10 { 3 } else { -9 };
+        let year = y + if month <= 2 { 1 } else { 0 };
+        format!("{year:04}-{month:02}-{day:02} {hour:02}:{minute:02}:{second:02}")
+    }
+}
+
+fn is_valid_datetime(text: &str) -> bool {
+    let b = text.as_bytes();
+    b.len() == 19
+        && b[4] == b'-'
+        && b[7] == b'-'
+        && b[10] == b' '
+        && b[13] == b':'
+        && b[16] == b':'
+        && b.iter()
+            .enumerate()
+            .all(|(i, ch)| matches!(i, 4 | 7 | 10 | 13 | 16) || ch.is_ascii_digit())
+}
+
+/// 规范化前端或迁移传入的时间文本，缺失或格式非法时回退为当前本地时间。
+pub(crate) fn normalize_datetime(raw: Option<&str>) -> String {
+    match raw.map(str::trim).filter(|s| is_valid_datetime(s)) {
+        Some(valid) => valid.to_string(),
+        None => now_datetime(),
+    }
+}
+
+/// 借助 SQLite `localtime` 将毫秒时间戳转换为 `YYYY-MM-DD HH:MM:SS`。
+pub(crate) fn millis_to_datetime_conn(conn: &Connection, millis: i64) -> String {
+    conn.query_row(
+        "SELECT datetime(?1 / 1000.0, 'unixepoch', 'localtime')",
+        [millis],
+        |row| row.get::<_, Option<String>>(0),
+    )
+    .optional()
+    .ok()
+    .flatten()
+    .flatten()
+    .filter(|s| is_valid_datetime(s))
+    .unwrap_or_else(now_datetime)
 }
 
 #[derive(Clone)]
@@ -92,7 +181,7 @@ impl Database {
              PRAGMA synchronous = NORMAL;
              CREATE TABLE IF NOT EXISTS schema_migrations (
                  id TEXT PRIMARY KEY,
-                 applied_at INTEGER NOT NULL
+                 applied_at TEXT NOT NULL
              );",
         )
         .map_err(|err| AppError::io(format!("Could not initialize SQLite pragmas: {err}")))?;
@@ -119,7 +208,7 @@ impl Database {
                 tx.execute_batch(m.sql)?;
                 tx.execute(
                     "INSERT INTO schema_migrations (id, applied_at) VALUES (?1, ?2)",
-                    rusqlite::params![m.id, now_millis()],
+                    rusqlite::params![m.id, now_datetime()],
                 )?;
             }
             Ok(())
