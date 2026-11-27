@@ -1,166 +1,207 @@
-//! AI 模块所有 Tauri IPC 命令入口（持久化、系统提示词上下文、工具统一执行与工作区辅助）。
+//! AI 模块所有 Tauri IPC 命令入口（细粒度 SQLite 持久化、工作区与预览、后端多轮对话引擎与模型列表）。
 
 use std::io::Cursor;
 
 use base64::{engine::general_purpose::STANDARD, Engine};
 use image::{GenericImageView, ImageFormat};
 use serde::Serialize;
-use serde_json::Value;
-use tauri::{ipc::Request, AppHandle, State};
+use specta::Type;
+use tauri::{
+    ipc::{Channel, Request},
+    AppHandle, State,
+};
+
+use crate::core::db::Database;
+use crate::core::error::{AppError, AppResult};
+use crate::tools::network::mcp_inspector::commands::McpSessions;
 
 use super::attachments::{save_attachment_from_request, SavedAttachment};
-
-use super::fs_tools::{
-    edit_file_impl, list_dir_impl, read_file_impl, write_file_impl, EditFileResult, ListDirResult,
-    ReadFileResult, WriteFileResult,
+use super::engine::{
+    run_chat_turn, AiChatEvent, AiChatRunRequest, AiChatRunResult, AiChatState, ExecutionPolicy,
+    ToolApprovalDecision,
 };
+use super::fs_tools::{read_file_impl, ReadFileResult};
 use super::paths::{ensure_conversation_workspace_dir, resolve_target_path};
-use super::prompt::build_system_prompt;
-use super::registry::{AiToolContext, AiToolDefinition, AiToolRegistry, AiToolResult};
-use super::shell::{run_command_impl, AiCommandState, RunCommandResult};
-use super::store::{self, ConversationIndexEntry};
+use super::providers::{fetch_models, EndpointConfig, RemoteModelInfo, ThinkingEffort};
+use super::registry::AiToolRegistry;
+use super::shell::AiCommandState;
+use super::store::{
+    self, AiConversationDetail, AiConversationMetaUpdate, AiConversationUpsertInput, AiFolderDto,
+    AiInitialState, AiMessageDto, AiModelUpsertInput, AiModelView, ConversationIndexEntry,
+};
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct PathCheckResult {
-    pub(crate) resolved_path: String,
-    pub(crate) outside_workspace: bool,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct BuiltinAiContext {
-    pub(crate) workspace_dir: String,
-    pub(crate) system_prompt: String,
-    pub(crate) tools: Vec<AiToolDefinition>,
-}
-
-// ---------- 配置与会话持久化 ----------
+// ---------- 初始化与细粒度配置持久化（SQLite） ----------
 
 #[tauri::command]
-pub(crate) async fn ai_read_config(app: AppHandle) -> Result<Option<String>, String> {
-    store::ai_read_config_impl(app).await
+#[specta::specta]
+pub(crate) async fn ai_load_state(db: State<'_, Database>) -> AppResult<AiInitialState> {
+    store::ai_load_state_impl(db.inner()).await
 }
 
 #[tauri::command]
-pub(crate) async fn ai_save_config(app: AppHandle, data: String) -> Result<(), String> {
-    store::ai_save_config_impl(app, data).await
+#[specta::specta]
+pub(crate) async fn ai_upsert_model(
+    db: State<'_, Database>,
+    input: AiModelUpsertInput,
+) -> AppResult<Vec<AiModelView>> {
+    store::ai_upsert_model_impl(db.inner(), input).await
 }
 
 #[tauri::command]
-pub(crate) async fn ai_list_conversations(
-    app: AppHandle,
-) -> Result<Vec<ConversationIndexEntry>, String> {
-    store::ai_list_conversations_impl(app).await
+#[specta::specta]
+pub(crate) async fn ai_delete_model(
+    db: State<'_, Database>,
+    id: String,
+) -> AppResult<Vec<AiModelView>> {
+    store::ai_delete_model_impl(db.inner(), id).await
 }
 
 #[tauri::command]
+#[specta::specta]
+pub(crate) async fn ai_set_default_model(
+    db: State<'_, Database>,
+    id: Option<String>,
+) -> AppResult<Vec<AiModelView>> {
+    store::ai_set_default_model_impl(db.inner(), id).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn ai_set_model_enabled(
+    db: State<'_, Database>,
+    id: String,
+    enabled: bool,
+) -> AppResult<Vec<AiModelView>> {
+    store::ai_set_model_enabled_impl(db.inner(), id, enabled).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn ai_set_model_thinking_effort(
+    db: State<'_, Database>,
+    id: String,
+    effort: ThinkingEffort,
+) -> AppResult<()> {
+    store::ai_set_model_thinking_effort_impl(db.inner(), id, effort).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn ai_set_enabled_mcp_ids(
+    db: State<'_, Database>,
+    ids: Vec<String>,
+) -> AppResult<()> {
+    store::ai_set_enabled_mcp_ids_impl(db.inner(), ids).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn ai_upsert_folder(
+    db: State<'_, Database>,
+    folder: AiFolderDto,
+) -> AppResult<()> {
+    store::ai_upsert_folder_impl(db.inner(), folder).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn ai_delete_folder(db: State<'_, Database>, id: String) -> AppResult<()> {
+    store::ai_delete_folder_impl(db.inner(), id).await
+}
+
+// ---------- 细粒度会话与消息持久化（SQLite） ----------
+
+#[tauri::command]
+#[specta::specta]
 pub(crate) async fn ai_read_conversation(
-    app: AppHandle,
+    db: State<'_, Database>,
     id: String,
-) -> Result<Option<String>, String> {
-    store::ai_read_conversation_impl(app, id).await
+) -> AppResult<Option<AiConversationDetail>> {
+    store::ai_read_conversation_impl(db.inner(), id).await
 }
 
 #[tauri::command]
-pub(crate) async fn ai_save_conversation(
-    app: AppHandle,
-    summary: ConversationIndexEntry,
-    data: String,
-) -> Result<Vec<ConversationIndexEntry>, String> {
-    store::ai_save_conversation_impl(app, summary, data).await
+#[specta::specta]
+pub(crate) async fn ai_upsert_conversation(
+    db: State<'_, Database>,
+    input: AiConversationUpsertInput,
+) -> AppResult<Vec<ConversationIndexEntry>> {
+    store::ai_upsert_conversation_impl(db.inner(), input).await
 }
 
 #[tauri::command]
+#[specta::specta]
+pub(crate) async fn ai_update_conversation_meta(
+    db: State<'_, Database>,
+    updates: Vec<AiConversationMetaUpdate>,
+) -> AppResult<()> {
+    store::ai_update_conversation_meta_impl(db.inner(), updates).await
+}
+
+#[tauri::command]
+#[specta::specta]
 pub(crate) async fn ai_delete_conversation(
-    app: AppHandle,
+    db: State<'_, Database>,
     id: String,
-) -> Result<Vec<ConversationIndexEntry>, String> {
-    store::ai_delete_conversation_impl(app, id).await
-}
-
-// ---------- 系统提示词、注册表与统一工具执行 ----------
-
-#[tauri::command]
-pub(crate) fn ai_workspace_dir(app: AppHandle, conversation_id: String) -> Result<String, String> {
-    ensure_conversation_workspace_dir(&app, &conversation_id)
+) -> AppResult<Vec<ConversationIndexEntry>> {
+    store::ai_delete_conversation_impl(db.inner(), id).await
 }
 
 #[tauri::command]
-pub(crate) fn ai_save_attachment(request: Request<'_>) -> Result<SavedAttachment, String> {
-    save_attachment_from_request(request)
-}
-
-#[tauri::command]
-pub(crate) fn ai_builtin_context(
-    app: AppHandle,
-    registry: State<'_, AiToolRegistry>,
+#[specta::specta]
+pub(crate) async fn ai_upsert_message(
+    db: State<'_, Database>,
     conversation_id: String,
-    custom_workspace_dir: Option<String>,
-) -> Result<BuiltinAiContext, String> {
-    let workspace_dir = match custom_workspace_dir
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-    {
-        Some(dir) => dir.to_string(),
-        None => ensure_conversation_workspace_dir(&app, &conversation_id)?,
-    };
-    let system_prompt = build_system_prompt(&workspace_dir);
-    let tools = registry.definitions();
-    Ok(BuiltinAiContext {
-        workspace_dir,
-        system_prompt,
-        tools,
-    })
+    message: AiMessageDto,
+) -> AppResult<Vec<ConversationIndexEntry>> {
+    store::ai_upsert_message_impl(db.inner(), conversation_id, message).await
 }
 
 #[tauri::command]
-pub(crate) async fn ai_tool_execute(
-    app: AppHandle,
-    registry: State<'_, AiToolRegistry>,
-    command_state: State<'_, AiCommandState>,
-    run_id: String,
-    workspace_dir: String,
-    tool_name: String,
-    arguments: Value,
-) -> Result<AiToolResult, String> {
-    let ctx = AiToolContext {
-        app: &app,
-        run_id: &run_id,
-        workspace_dir: &workspace_dir,
-        command_state: &command_state,
-    };
-    Ok(registry.execute(&tool_name, arguments, &ctx).await)
-}
-
-// ---------- 细粒度工具命令（保留兼容与直调场景） ----------
-
-#[tauri::command]
-pub(crate) fn ai_tool_check_path(
-    workspace_dir: String,
-    path: String,
-) -> Result<PathCheckResult, String> {
-    if path.trim().is_empty() {
-        return Err("File path is required.".into());
-    }
-    let (_root, resolved, outside) = resolve_target_path(&workspace_dir, Some(&path))?;
-    Ok(PathCheckResult {
-        resolved_path: resolved.to_string_lossy().to_string(),
-        outside_workspace: outside,
-    })
+#[specta::specta]
+pub(crate) async fn ai_delete_message(
+    db: State<'_, Database>,
+    conversation_id: String,
+    message_id: String,
+) -> AppResult<Vec<ConversationIndexEntry>> {
+    store::ai_delete_message_impl(db.inner(), conversation_id, message_id).await
 }
 
 #[tauri::command]
-pub(crate) fn ai_tool_list_dir(
-    workspace_dir: String,
-    path: Option<String>,
-    max_entries: Option<usize>,
-) -> Result<ListDirResult, String> {
-    list_dir_impl(&workspace_dir, path.as_deref(), max_entries)
+#[specta::specta]
+pub(crate) async fn ai_truncate_messages_from(
+    db: State<'_, Database>,
+    conversation_id: String,
+    from_message_id: String,
+    inclusive: bool,
+) -> AppResult<Vec<ConversationIndexEntry>> {
+    store::ai_truncate_messages_from_impl(db.inner(), conversation_id, from_message_id, inclusive)
+        .await
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn ai_clear_messages(
+    db: State<'_, Database>,
+    conversation_id: String,
+) -> AppResult<Vec<ConversationIndexEntry>> {
+    store::ai_clear_messages_impl(db.inner(), conversation_id).await
+}
+
+// ---------- 工作区、附件与本地文件预览 ----------
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn ai_workspace_dir(app: AppHandle, conversation_id: String) -> AppResult<String> {
+    ensure_conversation_workspace_dir(&app, &conversation_id).map_err(AppError::from)
+}
+
+#[tauri::command]
+pub(crate) fn ai_save_attachment(request: Request<'_>) -> AppResult<SavedAttachment> {
+    save_attachment_from_request(request).map_err(AppError::from)
+}
+
+#[derive(Debug, Clone, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ReadImageResult {
     pub(crate) path: String,
@@ -170,6 +211,7 @@ pub(crate) struct ReadImageResult {
     /// 原始文件字节的 Base64（用于下载原文件，留空时直接复用 `data_url`）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) raw_base64: Option<String>,
+    #[specta(type = f64)]
     pub(crate) size_bytes: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) width: Option<u32>,
@@ -195,29 +237,35 @@ fn mime_for_image_ext(ext: &str) -> Option<&'static str> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) async fn ai_tool_read_image(
     workspace_dir: String,
     path: String,
-) -> Result<ReadImageResult, String> {
+) -> AppResult<ReadImageResult> {
     if path.trim().is_empty() {
-        return Err("Image path is required.".into());
+        return Err(AppError::invalid_input("Image path is required."));
     }
     let (_root, target, _outside) = resolve_target_path(&workspace_dir, Some(&path))?;
     tauri::async_runtime::spawn_blocking(move || {
-        let meta = std::fs::metadata(&target)
-            .map_err(|err| format!("Could not access image {}: {err}", target.display()))?;
+        let meta = std::fs::metadata(&target).map_err(|err| {
+            AppError::io(format!("Could not access image {}: {err}", target.display()))
+        })?;
         if meta.is_dir() {
-            return Err(format!("Path is a directory, not an image: {}", target.display()));
+            return Err(AppError::invalid_input(format!(
+                "Path is a directory, not an image: {}",
+                target.display()
+            )));
         }
         if meta.len() > MAX_PREVIEW_IMAGE_BYTES {
-            return Err(format!(
+            return Err(AppError::invalid_input(format!(
                 "Image is too large to preview ({} bytes, limit {} bytes).",
                 meta.len(),
                 MAX_PREVIEW_IMAGE_BYTES
-            ));
+            )));
         }
-        let bytes = std::fs::read(&target)
-            .map_err(|err| format!("Could not read image {}: {err}", target.display()))?;
+        let bytes = std::fs::read(&target).map_err(|err| {
+            AppError::io(format!("Could not read image {}: {err}", target.display()))
+        })?;
         let ext = target
             .extension()
             .and_then(|e| e.to_str())
@@ -232,8 +280,9 @@ pub(crate) async fn ai_tool_read_image(
             Some(ImageFormat::Bmp) => "image/bmp",
             Some(ImageFormat::Ico) => "image/x-icon",
             Some(ImageFormat::Tiff) => "image/tiff",
-            _ => mime_for_image_ext(&ext)
-                .ok_or_else(|| format!("Unsupported image file: {}", target.display()))?,
+            _ => mime_for_image_ext(&ext).ok_or_else(|| {
+                AppError::invalid_input(format!("Unsupported image file: {}", target.display()))
+            })?,
         };
 
         let dims = image::image_dimensions(&target).ok();
@@ -245,12 +294,12 @@ pub(crate) async fn ai_tool_read_image(
         // 浏览器无法直接渲染 TIFF，转成 PNG 供预览并保留原始字节供下载
         let (data_url, raw_base64) = if mime == "image/tiff" {
             let decoded = image::load_from_memory_with_format(&bytes, ImageFormat::Tiff)
-                .map_err(|e| format!("Failed to decode TIFF image: {e}"))?;
+                .map_err(|e| AppError::internal(format!("Failed to decode TIFF image: {e}")))?;
             let (dw, dh) = decoded.dimensions();
             let mut png = Vec::new();
             decoded
                 .write_to(&mut Cursor::new(&mut png), ImageFormat::Png)
-                .map_err(|e| format!("Failed to render TIFF preview: {e}"))?;
+                .map_err(|e| AppError::internal(format!("Failed to render TIFF preview: {e}")))?;
             return Ok(ReadImageResult {
                 path: target.to_string_lossy().to_string(),
                 mime_type: mime.to_string(),
@@ -275,73 +324,154 @@ pub(crate) async fn ai_tool_read_image(
         })
     })
     .await
-    .map_err(|e| format!("Failed to load image preview: {e}"))?
+    .map_err(|e| AppError::internal(format!("Failed to load image preview: {e}")))?
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn ai_tool_read_file(
     workspace_dir: String,
     path: String,
-    start_line: Option<usize>,
-    end_line: Option<usize>,
-) -> Result<ReadFileResult, String> {
-    read_file_impl(&workspace_dir, &path, start_line, end_line)
-}
-
-#[tauri::command]
-pub(crate) fn ai_tool_write_file(
-    workspace_dir: String,
-    path: String,
-    content: String,
-) -> Result<WriteFileResult, String> {
-    write_file_impl(&workspace_dir, &path, &content)
-}
-
-#[tauri::command]
-pub(crate) fn ai_tool_edit_file(
-    workspace_dir: String,
-    path: String,
-    old_text: String,
-    new_text: String,
-    replace_all: Option<bool>,
-) -> Result<EditFileResult, String> {
-    edit_file_impl(
+    start_line: Option<u32>,
+    end_line: Option<u32>,
+) -> AppResult<ReadFileResult> {
+    read_file_impl(
         &workspace_dir,
         &path,
-        &old_text,
-        &new_text,
-        replace_all.unwrap_or(false),
+        start_line.map(|n| n as usize),
+        end_line.map(|n| n as usize),
     )
+    .map_err(AppError::from)
+}
+
+// ---------- 后端大模型对话引擎、审批与模型列表 ----------
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn ai_chat_run(
+    app: AppHandle,
+    db: State<'_, Database>,
+    registry: State<'_, AiToolRegistry>,
+    command_state: State<'_, AiCommandState>,
+    mcp_sessions: State<'_, McpSessions>,
+    chat_state: State<'_, AiChatState>,
+    request: AiChatRunRequest,
+    on_event: Channel<AiChatEvent>,
+) -> AppResult<AiChatRunResult> {
+    run_chat_turn(
+        &app,
+        db.inner(),
+        registry.inner(),
+        command_state.inner(),
+        mcp_sessions.inner(),
+        chat_state.inner(),
+        request,
+        on_event,
+    )
+    .await
+    .map_err(AppError::from)
 }
 
 #[tauri::command]
-pub(crate) async fn ai_tool_run_command(
-    state: State<'_, AiCommandState>,
-    run_id: String,
-    workspace_dir: String,
-    command: String,
-    shell: Option<String>,
-    cwd: Option<String>,
-    timeout_secs: Option<u64>,
-) -> Result<RunCommandResult, String> {
-    let cancel_rx = state.register(&run_id);
-    let result = run_command_impl(
-        cancel_rx,
-        &workspace_dir,
-        &command,
-        shell.as_deref(),
-        cwd.as_deref(),
-        timeout_secs,
-    )
-    .await;
-    state.unregister(&run_id);
-    result
+#[specta::specta]
+pub(crate) fn ai_chat_approve(
+    chat_state: State<'_, AiChatState>,
+    conversation_id: String,
+    decision: ToolApprovalDecision,
+) -> AppResult<bool> {
+    Ok(chat_state.resolve_approval(&conversation_id, decision))
 }
 
 #[tauri::command]
-pub(crate) fn ai_tool_cancel_command(
-    state: State<'_, AiCommandState>,
-    run_id: String,
-) -> Result<bool, String> {
-    Ok(state.cancel(&run_id))
+#[specta::specta]
+pub(crate) fn ai_chat_cancel(
+    chat_state: State<'_, AiChatState>,
+    command_state: State<'_, AiCommandState>,
+    conversation_id: String,
+) -> AppResult<bool> {
+    Ok(chat_state.cancel(&conversation_id, command_state.inner()))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn ai_chat_set_policy(
+    chat_state: State<'_, AiChatState>,
+    conversation_id: String,
+    policy: ExecutionPolicy,
+) -> AppResult<()> {
+    chat_state.set_policy(&conversation_id, policy);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn ai_chat_clear_session(
+    chat_state: State<'_, AiChatState>,
+    conversation_id: String,
+) -> AppResult<()> {
+    chat_state.clear_session(&conversation_id);
+    Ok(())
+}
+
+/// 拉取远端模型列表：编辑已有模型且未重新输入 Key 时，传入 `model_config_id` 由后端直接从 SQLite 解密使用。
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn ai_fetch_models(
+    db: State<'_, Database>,
+    mut endpoint: EndpointConfig,
+    model_config_id: Option<String>,
+) -> AppResult<Vec<RemoteModelInfo>> {
+    if endpoint.api_key.trim().is_empty() {
+        if let Some(id) = model_config_id.as_deref().filter(|s| !s.trim().is_empty()) {
+            if let Some(saved_key) = store::resolve_model_api_key(db.inner(), id).await? {
+                endpoint.api_key = saved_key;
+            }
+        }
+    }
+    fetch_models(&endpoint).await.map_err(AppError::provider)
+}
+
+/// 导出 AI 模块的 Rust -> TypeScript 强类型契约绑定文件（`src/api/generated/ai.ts`）。
+#[cfg(debug_assertions)]
+pub(crate) fn export_ai_bindings() -> Result<(), String> {
+    use specta_typescript::Typescript;
+    use tauri_specta::{collect_commands, Builder};
+
+    let builder = Builder::<tauri::Wry>::new().commands(collect_commands![
+        ai_load_state,
+        ai_upsert_model,
+        ai_delete_model,
+        ai_set_default_model,
+        ai_set_model_enabled,
+        ai_set_model_thinking_effort,
+        ai_set_enabled_mcp_ids,
+        ai_upsert_folder,
+        ai_delete_folder,
+        ai_read_conversation,
+        ai_upsert_conversation,
+        ai_update_conversation_meta,
+        ai_delete_conversation,
+        ai_upsert_message,
+        ai_delete_message,
+        ai_truncate_messages_from,
+        ai_clear_messages,
+        ai_workspace_dir,
+        ai_tool_read_image,
+        ai_tool_read_file,
+        ai_chat_run,
+        ai_chat_approve,
+        ai_chat_cancel,
+        ai_chat_set_policy,
+        ai_chat_clear_session,
+        ai_fetch_models,
+    ]);
+
+    let out_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../src/api/generated/ai.ts");
+    if let Some(parent) = out_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    builder
+        .export(Typescript::default(), &out_path)
+        .map_err(|err| format!("Failed to export AI specta bindings: {err}"))
 }

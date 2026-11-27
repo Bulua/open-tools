@@ -1,8 +1,11 @@
 mod core;
 mod tools;
 
-use crate::core::{branding, paths, tray};
-use crate::tools::ai::{commands as ai, registry as ai_registry, shell as ai_shell};
+use crate::core::{branding, db::Database, paths, tray};
+use crate::tools::ai::{
+    commands as ai, engine as ai_engine, registry as ai_registry, shell as ai_shell,
+    store as ai_store,
+};
 use crate::tools::network::mcp_inspector::{commands as mcp, store as mcp_store};
 use crate::tools::{
     audio::tts::commands as tts,
@@ -34,7 +37,17 @@ use crate::tools::{
     image::screenshot_history::{commands as screenshot, windows as screenshot_windows},
 };
 
+#[cfg(debug_assertions)]
+pub fn export_ai_bindings() -> Result<(), String> {
+    ai::export_ai_bindings()
+}
+
 pub fn run() {
+    #[cfg(debug_assertions)]
+    if let Err(err) = export_ai_bindings() {
+        eprintln!("Warning: {err}");
+    }
+
     let builder = tauri::Builder::default().manage(tools::network::mqtt_client::commands::MqttState::default());
 
     let builder = builder
@@ -55,6 +68,7 @@ pub fn run() {
     let builder = builder
         .manage(mcp::McpSessions::default())
         .manage(ai_shell::AiCommandState::default())
+        .manage(ai_engine::AiChatState::default())
         .manage(ai_registry::AiToolRegistry::with_builtin_tools())
         // 在线更新：检查、下载、安装新版本；安装后重启程序
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -92,24 +106,33 @@ pub fn run() {
             mcp::mcp_call_tool,
             mcp::mcp_get_prompt,
             mcp::mcp_read_resource,
-            ai::ai_read_config,
-            ai::ai_save_config,
-            ai::ai_list_conversations,
+            ai::ai_load_state,
+            ai::ai_upsert_model,
+            ai::ai_delete_model,
+            ai::ai_set_default_model,
+            ai::ai_set_model_enabled,
+            ai::ai_set_model_thinking_effort,
+            ai::ai_set_enabled_mcp_ids,
+            ai::ai_upsert_folder,
+            ai::ai_delete_folder,
             ai::ai_read_conversation,
-            ai::ai_save_conversation,
+            ai::ai_upsert_conversation,
+            ai::ai_update_conversation_meta,
             ai::ai_delete_conversation,
+            ai::ai_upsert_message,
+            ai::ai_delete_message,
+            ai::ai_truncate_messages_from,
+            ai::ai_clear_messages,
             ai::ai_workspace_dir,
             ai::ai_save_attachment,
-            ai::ai_builtin_context,
-            ai::ai_tool_execute,
-            ai::ai_tool_check_path,
-            ai::ai_tool_list_dir,
             ai::ai_tool_read_file,
             ai::ai_tool_read_image,
-            ai::ai_tool_write_file,
-            ai::ai_tool_edit_file,
-            ai::ai_tool_run_command,
-            ai::ai_tool_cancel_command,
+            ai::ai_chat_run,
+            ai::ai_chat_approve,
+            ai::ai_chat_cancel,
+            ai::ai_chat_set_policy,
+            ai::ai_chat_clear_session,
+            ai::ai_fetch_models,
             mqtt::mqtt_connect,
             mqtt::mqtt_disconnect,
             mqtt::mqtt_subscribe,
@@ -200,6 +223,12 @@ pub fn run() {
         .setup(|app| {
             // 旧版本放在别处的数据（密码本、模型、图标）搬进数据文件夹，要在读取这些数据之前
             paths::migrate(app.handle());
+            // 初始化全应用统一 SQLite 数据库，并执行各模块迁移与旧数据无损导入
+            let data_dir = paths::data_dir(app.handle())?;
+            let db = Database::open(&data_dir.join("open-tools.db"))?;
+            ai_store::init_ai_storage(&db, &data_dir)?;
+            use tauri::Manager;
+            app.manage(db);
             #[cfg(windows)]
             clipboard::start(app.handle());
             tray::setup(

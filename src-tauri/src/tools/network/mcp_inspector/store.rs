@@ -13,9 +13,9 @@ const VERSION: u8 = 1;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct StoredConnection {
-    pub(super) id: String,
-    pub(super) name: String,
-    pub(super) config: McpConfig,
+    pub(crate) id: String,
+    pub(crate) name: String,
+    pub(crate) config: McpConfig,
 }
 
 #[derive(Deserialize)]
@@ -83,7 +83,7 @@ fn write_connections(path: &Path, connections: &[StoredConnection]) -> Result<()
     result.map_err(|error| format!("Could not save the MCP connections: {error}"))
 }
 
-pub(super) async fn load_stored_connections(
+pub(crate) async fn load_stored_connections(
     app: tauri::AppHandle,
 ) -> Result<Vec<StoredConnection>, String> {
     tauri::async_runtime::spawn_blocking(move || {

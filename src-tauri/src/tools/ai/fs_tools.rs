@@ -2,6 +2,7 @@
 
 use serde::Serialize;
 use serde_json::{json, Value};
+use specta::Type;
 
 use crate::core::process::decode_output;
 
@@ -34,13 +35,16 @@ pub(crate) struct ListDirResult {
     pub(crate) total_count: usize,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ReadFileResult {
     pub(crate) path: String,
     pub(crate) content: String,
+    #[specta(type = u32)]
     pub(crate) start_line: usize,
+    #[specta(type = u32)]
     pub(crate) end_line: usize,
+    #[specta(type = u32)]
     pub(crate) total_lines: usize,
     pub(crate) truncated: bool,
 }

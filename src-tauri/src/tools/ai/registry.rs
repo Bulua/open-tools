@@ -11,6 +11,7 @@ use std::pin::Pin;
 
 use serde::Serialize;
 use serde_json::Value;
+use specta::Type;
 use tauri::AppHandle;
 
 use crate::tools::encode::id_card::ai_tools::ParseIdCardTool;
@@ -54,7 +55,7 @@ pub(crate) struct AiToolDefinition {
 }
 
 /// 写/改文件或生成图片类工具成功完成后附带的文件快照，供前端右侧「输出内容」自动展示
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct AiToolOutputFile {
     pub(crate) path: String,
@@ -62,6 +63,7 @@ pub(crate) struct AiToolOutputFile {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) kind: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<f64>)]
     pub(crate) size_bytes: Option<u64>,
 }
 

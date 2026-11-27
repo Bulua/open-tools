@@ -1,28 +1,112 @@
-//! AI 工作台本地持久化：
-//! - `data/ai/config.dat`：模型提供商（含 API Key）与通用设置，Windows 上使用当前用户的 DPAPI 加密。
-//! - `data/ai/conversations/index.json` 与 `<id>.json`：按会话独立保存历史消息，避免全量重写。
+//! AI 工作台细粒度 SQLite 持久化层（基于全应用统一基座 `core::db::Database`）。
+//!
+//! 特点：
+//! - API Key 仅在 Rust 侧经 Windows DPAPI 加密存库与解密使用，前端只拿到脱敏的 `maskedApiKey`；
+//! - 所有配置、文件夹、会话与消息均提供细粒度强类型 CRUD，不再整包 JSON 往返；
+//! - 复用公共表 `folders`（`scope = 'ai'`）和 `app_settings`（`scope = 'ai'`，如 `enabledMcpIds`）。
 
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::collections::HashMap;
+use std::path::Path;
 
+use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use specta::Type;
 
+use crate::core::db::{
+    folders::{list_folders, FolderRecord},
+    now_millis,
+    settings::{get_setting_json, set_setting_json},
+    Database, Migration,
+};
 #[cfg(windows)]
 use crate::core::dpapi::protect;
-use crate::core::paths;
+use crate::core::error::{AppError, AppResult};
 
 use super::paths::validate_conv_id;
+use super::providers::{ApiProtocol, EndpointConfig, ThinkingEffort};
 
-const AI_DIR: &str = "ai";
-pub(super) const CONFIG_FILE: &str = "config.dat";
-const CONVERSATIONS_DIR: &str = "conversations";
-const INDEX_FILE: &str = "index.json";
+const AI_SCOPE: &str = "ai";
+const SETTING_ENABLED_MCP_IDS: &str = "enabledMcpIds";
+const SETTING_LEGACY_MIGRATED: &str = "legacyMigrated";
 
-static AI_IO: Mutex<()> = Mutex::new(());
+const LEGACY_AI_DIR: &str = "ai";
+const LEGACY_CONFIG_FILE: &str = "config.dat";
+const LEGACY_CONVERSATIONS_DIR: &str = "conversations";
+const LEGACY_INDEX_FILE: &str = "index.json";
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub(crate) const AI_MIGRATIONS: &[Migration] = &[Migration {
+    id: "ai_001_init",
+    sql: r#"
+        CREATE TABLE IF NOT EXISTS ai_models (
+            id TEXT PRIMARY KEY,
+            provider_id TEXT NOT NULL,
+            provider_name TEXT,
+            name TEXT NOT NULL DEFAULT '',
+            protocol TEXT NOT NULL DEFAULT 'openai',
+            base_url TEXT NOT NULL DEFAULT '',
+            api_key_enc BLOB NOT NULL,
+            model_id TEXT NOT NULL,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            max_tokens INTEGER,
+            thinking_support TEXT,
+            thinking_effort TEXT,
+            is_default INTEGER NOT NULL DEFAULT 0,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_ai_models_order
+            ON ai_models(sort_order ASC, created_at ASC);
+
+        CREATE TABLE IF NOT EXISTS ai_conversations (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            model_config_id TEXT,
+            provider_id TEXT NOT NULL DEFAULT '',
+            model_id TEXT NOT NULL DEFAULT '',
+            workspace_dir TEXT,
+            execution_policy TEXT,
+            pinned INTEGER NOT NULL DEFAULT 0,
+            folder_id TEXT REFERENCES folders(id) ON DELETE SET NULL,
+            sort_order INTEGER,
+            message_count INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_ai_conversations_updated
+            ON ai_conversations(updated_at DESC);
+
+        CREATE TABLE IF NOT EXISTS ai_messages (
+            id TEXT PRIMARY KEY,
+            conversation_id TEXT NOT NULL REFERENCES ai_conversations(id) ON DELETE CASCADE,
+            seq INTEGER NOT NULL,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL DEFAULT '',
+            reasoning TEXT,
+            attachments_json TEXT,
+            tool_calls_json TEXT,
+            parts_json TEXT,
+            model_config_id TEXT,
+            provider_name TEXT,
+            model_id TEXT,
+            model_name TEXT,
+            duration_ms INTEGER,
+            error TEXT,
+            aborted INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_ai_messages_conv_seq
+            ON ai_messages(conversation_id, seq ASC);
+    "#,
+}];
+
+// ---------- 前后端强类型 DTO ----------
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ConversationIndexEntry {
     pub(crate) id: String,
@@ -31,209 +115,1254 @@ pub(crate) struct ConversationIndexEntry {
     pub(crate) provider_id: String,
     #[serde(default)]
     pub(crate) model_id: String,
+    #[specta(type = f64)]
     pub(crate) created_at: i64,
+    #[specta(type = f64)]
     pub(crate) updated_at: i64,
     #[serde(default)]
+    #[specta(type = u32)]
     pub(crate) message_count: usize,
 }
 
-fn atomic_write(path: &Path, bytes: &[u8], label: &str) -> Result<(), String> {
-    let parent = path
-        .parent()
-        .ok_or_else(|| format!("Missing directory for {label}."))?;
-    std::fs::create_dir_all(parent)
-        .map_err(|error| format!("Could not create directory for {label}: {error}"))?;
-    let result = (|| -> std::io::Result<()> {
-        let mut file = tempfile::NamedTempFile::new_in(parent)?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            file.as_file()
-                .set_permissions(std::fs::Permissions::from_mode(0o600))?;
-        }
-        file.write_all(bytes)?;
-        file.as_file().sync_all()?;
-        file.persist(path)?;
-        Ok(())
-    })();
-    result.map_err(|error| format!("Could not save {label}: {error}"))
+/// 返回给前端展示的模型配置视图（不含明文 API Key，仅提供脱敏展示与是否已配置标记）。
+#[derive(Debug, Clone, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AiModelView {
+    pub(crate) id: String,
+    pub(crate) provider_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) provider_name: Option<String>,
+    pub(crate) name: String,
+    pub(crate) protocol: ApiProtocol,
+    pub(crate) base_url: String,
+    pub(crate) has_api_key: bool,
+    pub(crate) masked_api_key: String,
+    pub(crate) model_id: String,
+    pub(crate) enabled: bool,
+    pub(crate) is_default: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) max_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) thinking_support: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) thinking_effort: Option<ThinkingEffort>,
 }
 
-pub(super) fn read_config_from(dir: &Path) -> Result<Option<String>, String> {
-    let path = dir.join(CONFIG_FILE);
-    let data = match std::fs::read(&path) {
-        Ok(data) => data,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(format!("Could not read AI config: {error}")),
-    };
-    #[cfg(windows)]
-    let data = protect(&data, false)?;
-    let text = String::from_utf8(data)
-        .map_err(|error| format!("Could not decode AI config as UTF-8: {error}"))?;
-    serde_json::from_str::<Value>(&text)
-        .map_err(|error| format!("Could not parse AI config JSON: {error}"))?;
-    Ok(Some(text))
+/// 后端内部使用的完整模型凭证（含已解密的 API Key，仅供 Rust 发起 SDK 请求）。
+#[derive(Debug, Clone)]
+pub(crate) struct ResolvedModelCredentials {
+    pub(crate) endpoint: EndpointConfig,
+    pub(crate) model_id: String,
+    pub(crate) max_tokens: Option<u32>,
 }
 
-pub(super) fn write_config_to(dir: &Path, data: &str) -> Result<(), String> {
-    serde_json::from_str::<Value>(data)
-        .map_err(|error| format!("Invalid AI config JSON: {error}"))?;
-    let bytes = data.as_bytes();
-    // 先加密再落盘，避免在磁盘上留下包含 API Key 的明文临时文件。
+/// 前端新增/编辑模型时的入参：
+/// - `api_key: None`：编辑时保持数据库现有密钥不变；
+/// - `api_key: Some("")`：清空密钥；
+/// - `api_key: Some(key)`：使用 DPAPI 加密后覆盖写入。
+#[derive(Debug, Clone, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AiModelUpsertInput {
+    pub(crate) id: String,
+    pub(crate) provider_id: String,
+    #[serde(default)]
+    pub(crate) provider_name: Option<String>,
+    #[serde(default)]
+    pub(crate) name: String,
+    pub(crate) protocol: ApiProtocol,
+    pub(crate) base_url: String,
+    #[serde(default)]
+    pub(crate) api_key: Option<String>,
+    pub(crate) model_id: String,
+    #[serde(default = "default_true")]
+    pub(crate) enabled: bool,
+    #[serde(default)]
+    pub(crate) max_tokens: Option<u32>,
+    #[serde(default)]
+    pub(crate) thinking_support: Option<String>,
+    #[serde(default)]
+    pub(crate) thinking_effort: Option<ThinkingEffort>,
+    #[serde(default)]
+    pub(crate) is_default: Option<bool>,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AiFolderDto {
+    pub(crate) id: String,
+    pub(crate) name: String,
+    pub(crate) pinned: bool,
+    pub(crate) collapsed: bool,
+    #[specta(type = f64)]
+    pub(crate) created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AiConversationMetaDto {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) pinned: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) folder_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<i32>)]
+    pub(crate) order: Option<i64>,
+}
+
+#[derive(Debug, Clone, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AiConversationMetaUpdate {
+    pub(crate) conversation_id: String,
+    pub(crate) pinned: bool,
+    #[serde(default)]
+    pub(crate) folder_id: Option<String>,
+    #[serde(default)]
+    #[specta(type = Option<i32>)]
+    pub(crate) order: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AiInitialState {
+    pub(crate) models: Vec<AiModelView>,
+    pub(crate) enabled_mcp_ids: Vec<String>,
+    pub(crate) folders: Vec<AiFolderDto>,
+    pub(crate) conversation_meta: HashMap<String, AiConversationMetaDto>,
+    pub(crate) conversations: Vec<ConversationIndexEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AiMessageDto {
+    pub(crate) id: String,
+    pub(crate) role: String,
+    #[serde(default)]
+    pub(crate) content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) reasoning: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) attachments_json: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) tool_calls_json: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) parts_json: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) model_config_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) provider_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) model_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) model_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<f64>)]
+    pub(crate) duration_ms: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) error: Option<String>,
+    #[serde(default)]
+    pub(crate) aborted: bool,
+    #[specta(type = f64)]
+    pub(crate) created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AiConversationDetail {
+    pub(crate) id: String,
+    pub(crate) title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) model_config_id: Option<String>,
+    pub(crate) provider_id: String,
+    pub(crate) model_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) workspace_dir: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) execution_policy: Option<String>,
+    #[specta(type = f64)]
+    pub(crate) created_at: i64,
+    #[specta(type = f64)]
+    pub(crate) updated_at: i64,
+    #[specta(type = u32)]
+    pub(crate) message_count: usize,
+    pub(crate) messages: Vec<AiMessageDto>,
+}
+
+#[derive(Debug, Clone, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AiConversationUpsertInput {
+    pub(crate) id: String,
+    pub(crate) title: String,
+    #[serde(default)]
+    pub(crate) model_config_id: Option<String>,
+    #[serde(default)]
+    pub(crate) provider_id: String,
+    #[serde(default)]
+    pub(crate) model_id: String,
+    #[serde(default)]
+    pub(crate) workspace_dir: Option<String>,
+    #[serde(default)]
+    pub(crate) execution_policy: Option<String>,
+    #[specta(type = f64)]
+    pub(crate) created_at: i64,
+    #[specta(type = f64)]
+    pub(crate) updated_at: i64,
+}
+
+// ---------- 加密与脱敏辅助 ----------
+
+fn encrypt_secret(plain: &str) -> Vec<u8> {
+    if plain.is_empty() {
+        return Vec::new();
+    }
     #[cfg(windows)]
-    let bytes = protect(bytes, true)?;
+    {
+        protect(plain.as_bytes(), true).unwrap_or_else(|_| plain.as_bytes().to_vec())
+    }
     #[cfg(not(windows))]
-    let bytes = bytes.to_vec();
-    atomic_write(&dir.join(CONFIG_FILE), &bytes, "AI config")
-}
-
-pub(super) fn conversations_dir(dir: &Path) -> PathBuf {
-    dir.join(CONVERSATIONS_DIR)
-}
-
-pub(super) fn read_index(conv_dir: &Path) -> Result<Vec<ConversationIndexEntry>, String> {
-    let path = conv_dir.join(INDEX_FILE);
-    let text = match std::fs::read_to_string(&path) {
-        Ok(text) => text,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => return Err(format!("Could not read AI conversation index: {error}")),
-    };
-    let mut list: Vec<ConversationIndexEntry> = serde_json::from_str(&text)
-        .map_err(|error| format!("Could not parse AI conversation index: {error}"))?;
-    list.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
-    Ok(list)
-}
-
-fn write_index(conv_dir: &Path, entries: &[ConversationIndexEntry]) -> Result<(), String> {
-    let data = serde_json::to_vec(entries)
-        .map_err(|error| format!("Could not encode AI conversation index: {error}"))?;
-    atomic_write(&conv_dir.join(INDEX_FILE), &data, "AI conversation index")
-}
-
-pub(super) fn read_conversation_from(dir: &Path, id: &str) -> Result<Option<String>, String> {
-    validate_conv_id(id)?;
-    let path = conversations_dir(dir).join(format!("{id}.json"));
-    match std::fs::read_to_string(&path) {
-        Ok(data) => Ok(Some(data)),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(format!("Could not read AI conversation: {error}")),
+    {
+        plain.as_bytes().to_vec()
     }
 }
 
-pub(super) fn save_conversation_to(
-    dir: &Path,
-    summary: ConversationIndexEntry,
-    data: &str,
-) -> Result<Vec<ConversationIndexEntry>, String> {
-    validate_conv_id(&summary.id)?;
-    serde_json::from_str::<Value>(data)
-        .map_err(|error| format!("Invalid AI conversation JSON: {error}"))?;
-    let conv_dir = conversations_dir(dir);
-    let conv_path = conv_dir.join(format!("{}.json", summary.id));
-    atomic_write(&conv_path, data.as_bytes(), "AI conversation")?;
+fn decrypt_secret(blob: &[u8]) -> String {
+    if blob.is_empty() {
+        return String::new();
+    }
+    #[cfg(windows)]
+    {
+        match protect(blob, false) {
+            Ok(bytes) => String::from_utf8(bytes).unwrap_or_default(),
+            Err(_) => String::from_utf8(blob.to_vec()).unwrap_or_default(),
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        String::from_utf8(blob.to_vec()).unwrap_or_default()
+    }
+}
 
-    let mut index = read_index(&conv_dir)?;
-    if let Some(existing) = index.iter_mut().find(|item| item.id == summary.id) {
-        *existing = summary;
+fn mask_secret(plain: &str) -> String {
+    let trimmed = plain.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    let chars: Vec<char> = trimmed.chars().collect();
+    if chars.len() <= 8 {
+        return "••••••••".to_string();
+    }
+    let head: String = chars[..4].iter().collect();
+    let tail: String = chars[chars.len() - 4..].iter().collect();
+    format!("{head}••••{tail}")
+}
+
+fn parse_protocol(raw: &str) -> ApiProtocol {
+    match raw {
+        "anthropic" => ApiProtocol::Anthropic,
+        "gemini" => ApiProtocol::Gemini,
+        _ => ApiProtocol::Openai,
+    }
+}
+
+fn protocol_str(protocol: ApiProtocol) -> &'static str {
+    match protocol {
+        ApiProtocol::Openai => "openai",
+        ApiProtocol::Anthropic => "anthropic",
+        ApiProtocol::Gemini => "gemini",
+    }
+}
+
+fn parse_effort(raw: Option<String>) -> Option<ThinkingEffort> {
+    match raw.as_deref() {
+        Some("none") => Some(ThinkingEffort::None),
+        Some("low") => Some(ThinkingEffort::Low),
+        Some("medium") => Some(ThinkingEffort::Medium),
+        Some("high") => Some(ThinkingEffort::High),
+        _ => None,
+    }
+}
+
+fn effort_str(effort: ThinkingEffort) -> &'static str {
+    match effort {
+        ThinkingEffort::None => "none",
+        ThinkingEffort::Low => "low",
+        ThinkingEffort::Medium => "medium",
+        ThinkingEffort::High => "high",
+    }
+}
+
+fn provider_requires_key(provider_id: &str) -> bool {
+    !matches!(provider_id, "ollama" | "custom")
+}
+
+// ---------- 旧版文件一次性无损导入 ----------
+
+fn json_str_opt(val: &Value, key: &str) -> Option<String> {
+    val.get(key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(ToString::to_string)
+}
+
+fn json_i64_opt(val: &Value, key: &str) -> Option<i64> {
+    val.get(key)
+        .and_then(|v| v.as_i64().or_else(|| v.as_f64().map(|f| f.round() as i64)))
+}
+
+pub(crate) fn init_ai_storage(db: &Database, data_dir: &Path) -> AppResult<()> {
+    db.migrate(AI_MIGRATIONS)?;
+
+    let migrated = db.with_conn(|conn| {
+        Ok(get_setting_json(conn, AI_SCOPE, SETTING_LEGACY_MIGRATED)?
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false))
+    })?;
+    if migrated {
+        return Ok(());
+    }
+
+    let legacy_ai_dir = data_dir.join(LEGACY_AI_DIR);
+    let legacy_config_path = legacy_ai_dir.join(LEGACY_CONFIG_FILE);
+    let legacy_conv_dir = legacy_ai_dir.join(LEGACY_CONVERSATIONS_DIR);
+
+    let legacy_config_val: Option<Value> = if legacy_config_path.exists() {
+        std::fs::read(&legacy_config_path).ok().and_then(|bytes| {
+            #[cfg(windows)]
+            let plain = protect(&bytes, false).unwrap_or(bytes);
+            #[cfg(not(windows))]
+            let plain = bytes;
+            String::from_utf8(plain)
+                .ok()
+                .and_then(|s| serde_json::from_str(&s).ok())
+        })
     } else {
-        index.push(summary);
+        None
+    };
+
+    let mut legacy_convs: Vec<(ConversationIndexEntry, Value)> = Vec::new();
+    let legacy_index_path = legacy_conv_dir.join(LEGACY_INDEX_FILE);
+    if legacy_index_path.exists() {
+        if let Ok(index_text) = std::fs::read_to_string(&legacy_index_path) {
+            if let Ok(entries) = serde_json::from_str::<Vec<ConversationIndexEntry>>(&index_text) {
+                for entry in entries {
+                    if validate_conv_id(&entry.id).is_err() {
+                        continue;
+                    }
+                    let file_path = legacy_conv_dir.join(format!("{}.json", entry.id));
+                    if let Ok(raw) = std::fs::read_to_string(&file_path) {
+                        if let Ok(val) = serde_json::from_str::<Value>(&raw) {
+                            legacy_convs.push((entry, val));
+                        }
+                    }
+                }
+            }
+        }
     }
-    index.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
-    write_index(&conv_dir, &index)?;
-    Ok(index)
+
+    db.transaction(|tx| {
+        let now = now_millis();
+        if let Some(ref cfg) = legacy_config_val {
+            let default_id = cfg
+                .get("settings")
+                .and_then(|s| s.get("defaultModelConfigId"))
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            if let Some(models) = cfg.get("models").and_then(Value::as_array) {
+                for (idx, m) in models.iter().enumerate() {
+                    let (Some(id), Some(model_id)) = (json_str_opt(m, "id"), json_str_opt(m, "modelId")) else {
+                        continue;
+                    };
+                    let api_key = m.get("apiKey").and_then(Value::as_str).unwrap_or("");
+                    tx.execute(
+                        "INSERT OR IGNORE INTO ai_models (
+                            id, provider_id, provider_name, name, protocol, base_url, api_key_enc,
+                            model_id, enabled, max_tokens, thinking_support, thinking_effort,
+                            is_default, sort_order, created_at, updated_at
+                         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+                        params![
+                            id,
+                            json_str_opt(m, "providerId").unwrap_or_else(|| "custom".into()),
+                            json_str_opt(m, "providerName"),
+                            m.get("name").and_then(Value::as_str).unwrap_or(""),
+                            json_str_opt(m, "protocol").unwrap_or_else(|| "openai".into()),
+                            m.get("baseUrl").and_then(Value::as_str).unwrap_or(""),
+                            encrypt_secret(api_key),
+                            model_id,
+                            if m.get("enabled").and_then(Value::as_bool).unwrap_or(true) { 1i64 } else { 0i64 },
+                            json_i64_opt(m, "maxTokens").filter(|&n| n > 0),
+                            json_str_opt(m, "thinkingSupport"),
+                            json_str_opt(m, "thinkingEffort"),
+                            if !default_id.is_empty() && id == default_id { 1i64 } else { 0i64 },
+                            idx as i64,
+                            now,
+                            now,
+                        ],
+                    )?;
+                }
+            }
+            if let Some(folders) = cfg.get("folders").and_then(Value::as_array) {
+                for (idx, f) in folders.iter().enumerate() {
+                    let Some(id) = json_str_opt(f, "id") else {
+                        continue;
+                    };
+                    let name = json_str_opt(f, "name").unwrap_or_else(|| id.clone());
+                    let pinned = f.get("pinned").and_then(Value::as_bool).unwrap_or(false);
+                    let collapsed = f.get("collapsed").and_then(Value::as_bool).unwrap_or(false);
+                    let created_at = json_i64_opt(f, "createdAt").unwrap_or(now);
+                    tx.execute(
+                        "INSERT OR IGNORE INTO folders (id, scope, parent_id, name, pinned, collapsed, sort_order, created_at, updated_at)
+                         VALUES (?1, ?2, NULL, ?3, ?4, ?5, ?6, ?7, ?8)",
+                        params![
+                            id,
+                            AI_SCOPE,
+                            name,
+                            if pinned { 1i64 } else { 0i64 },
+                            if collapsed { 1i64 } else { 0i64 },
+                            idx as i64,
+                            created_at,
+                            now,
+                        ],
+                    )?;
+                }
+            }
+            if let Some(mcp_ids) = cfg.get("enabledMcpIds").filter(|v| v.is_array()) {
+                set_setting_json(tx, AI_SCOPE, SETTING_ENABLED_MCP_IDS, mcp_ids)?;
+            }
+        }
+
+        for (entry, val) in &legacy_convs {
+            let messages = val
+                .get("messages")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            tx.execute(
+                "INSERT OR IGNORE INTO ai_conversations (
+                    id, title, model_config_id, provider_id, model_id, workspace_dir,
+                    execution_policy, message_count, created_at, updated_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                params![
+                    entry.id,
+                    entry.title,
+                    json_str_opt(val, "modelConfigId"),
+                    entry.provider_id,
+                    entry.model_id,
+                    json_str_opt(val, "workspaceDir"),
+                    json_str_opt(val, "executionPolicy"),
+                    messages.len() as i64,
+                    entry.created_at,
+                    entry.updated_at,
+                ],
+            )?;
+            for (seq, m) in messages.iter().enumerate() {
+                let Some(msg_id) = json_str_opt(m, "id") else {
+                    continue;
+                };
+                tx.execute(
+                    "INSERT OR IGNORE INTO ai_messages (
+                        id, conversation_id, seq, role, content, reasoning,
+                        attachments_json, tool_calls_json, parts_json,
+                        model_config_id, provider_name, model_id, model_name,
+                        duration_ms, error, aborted, created_at
+                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
+                    params![
+                        msg_id,
+                        entry.id,
+                        seq as i64,
+                        json_str_opt(m, "role").unwrap_or_else(|| "user".into()),
+                        m.get("content").and_then(Value::as_str).unwrap_or(""),
+                        m.get("reasoning").and_then(Value::as_str),
+                        m.get("attachments").filter(|v| !v.is_null()).and_then(|v| serde_json::to_string(v).ok()),
+                        m.get("toolCalls").filter(|v| !v.is_null()).and_then(|v| serde_json::to_string(v).ok()),
+                        m.get("parts").filter(|v| !v.is_null()).and_then(|v| serde_json::to_string(v).ok()),
+                        json_str_opt(m, "modelConfigId"),
+                        json_str_opt(m, "providerName"),
+                        json_str_opt(m, "modelId"),
+                        json_str_opt(m, "modelName"),
+                        json_i64_opt(m, "durationMs"),
+                        json_str_opt(m, "error"),
+                        if m.get("aborted").and_then(Value::as_bool).unwrap_or(false) { 1i64 } else { 0i64 },
+                        json_i64_opt(m, "createdAt").unwrap_or(entry.updated_at),
+                    ],
+                )?;
+            }
+        }
+
+        if let Some(meta) = legacy_config_val
+            .as_ref()
+            .and_then(|c| c.get("conversationMeta"))
+            .and_then(Value::as_object)
+        {
+            for (conv_id, raw) in meta {
+                let pinned = raw.get("pinned").and_then(Value::as_bool).unwrap_or(false);
+                let folder_id = json_str_opt(raw, "folderId");
+                let order = json_i64_opt(raw, "order");
+                let _ = tx.execute(
+                    "UPDATE ai_conversations SET pinned = ?1, folder_id = ?2, sort_order = ?3 WHERE id = ?4",
+                    params![if pinned { 1i64 } else { 0i64 }, folder_id, order, conv_id],
+                );
+            }
+        }
+
+        set_setting_json(tx, AI_SCOPE, SETTING_LEGACY_MIGRATED, &Value::Bool(true))?;
+        Ok(())
+    })
 }
 
-pub(super) fn delete_conversation_from(
-    dir: &Path,
-    id: &str,
-) -> Result<Vec<ConversationIndexEntry>, String> {
-    validate_conv_id(id)?;
-    let conv_dir = conversations_dir(dir);
-    let conv_path = conv_dir.join(format!("{id}.json"));
-    match std::fs::remove_file(&conv_path) {
-        Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(format!("Could not delete AI conversation: {error}")),
-    }
-    // 同步清理程序内置的默认会话工作目录（不触碰用户自选的外部目录）
-    let default_ws = dir.join("workspaces").join(id);
-    if default_ws.is_dir() {
-        let _ = std::fs::remove_dir_all(&default_ws);
-    }
-    let mut index = read_index(&conv_dir)?;
-    index.retain(|item| item.id != id);
-    write_index(&conv_dir, &index)?;
-    Ok(index)
+// ---------- 内部查询辅助 ----------
+
+fn list_models_conn(conn: &Connection) -> rusqlite::Result<Vec<AiModelView>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, provider_id, provider_name, name, protocol, base_url, api_key_enc,
+                model_id, enabled, max_tokens, thinking_support, thinking_effort, is_default
+         FROM ai_models
+         ORDER BY sort_order ASC, created_at ASC",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        let api_key_enc: Vec<u8> = row.get(6)?;
+        let plain_key = decrypt_secret(&api_key_enc);
+        let has_api_key = !plain_key.trim().is_empty();
+        let masked_api_key = mask_secret(&plain_key);
+        let protocol_raw: String = row.get(4)?;
+        let max_tokens: Option<i64> = row.get(9)?;
+        let thinking_effort_raw: Option<String> = row.get(11)?;
+        Ok(AiModelView {
+            id: row.get(0)?,
+            provider_id: row.get(1)?,
+            provider_name: row.get(2)?,
+            name: row.get(3)?,
+            protocol: parse_protocol(&protocol_raw),
+            base_url: row.get(5)?,
+            has_api_key,
+            masked_api_key,
+            model_id: row.get(7)?,
+            enabled: row.get::<_, i64>(8)? != 0,
+            is_default: row.get::<_, i64>(12)? != 0,
+            max_tokens: max_tokens.filter(|&n| n > 0).map(|n| n as u32),
+            thinking_support: row.get(10)?,
+            thinking_effort: parse_effort(thinking_effort_raw),
+        })
+    })?;
+    rows.collect()
 }
 
-pub(super) async fn ai_read_config_impl(app: tauri::AppHandle) -> Result<Option<String>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let dir = paths::sub_dir(&app, AI_DIR)?;
-        let _guard = AI_IO.lock().map_err(|e| e.to_string())?;
-        read_config_from(&dir)
+fn list_conversations_conn(conn: &Connection) -> rusqlite::Result<Vec<ConversationIndexEntry>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, title, provider_id, model_id, created_at, updated_at, message_count
+         FROM ai_conversations
+         ORDER BY updated_at DESC",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        Ok(ConversationIndexEntry {
+            id: row.get(0)?,
+            title: row.get(1)?,
+            provider_id: row.get(2)?,
+            model_id: row.get(3)?,
+            created_at: row.get(4)?,
+            updated_at: row.get(5)?,
+            message_count: row.get::<_, i64>(6)?.max(0) as usize,
+        })
+    })?;
+    rows.collect()
+}
+
+fn read_conversation_meta_conn(
+    conn: &Connection,
+) -> rusqlite::Result<HashMap<String, AiConversationMetaDto>> {
+    let mut map = HashMap::new();
+    let mut stmt = conn.prepare(
+        "SELECT id, pinned, folder_id, sort_order
+         FROM ai_conversations
+         WHERE pinned != 0 OR folder_id IS NOT NULL OR sort_order IS NOT NULL",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, i64>(1)? != 0,
+            row.get::<_, Option<String>>(2)?,
+            row.get::<_, Option<i64>>(3)?,
+        ))
+    })?;
+    for row in rows {
+        let (conv_id, pinned, folder_id, order) = row?;
+        map.insert(
+            conv_id,
+            AiConversationMetaDto {
+                pinned: if pinned { Some(true) } else { None },
+                folder_id: folder_id.filter(|s| !s.is_empty()),
+                order,
+            },
+        );
+    }
+    Ok(map)
+}
+
+fn update_conversation_counts_tx(tx: &Transaction<'_>, conv_id: &str) -> rusqlite::Result<()> {
+    let count: i64 = tx.query_row(
+        "SELECT COUNT(*) FROM ai_messages WHERE conversation_id = ?1",
+        [conv_id],
+        |row| row.get(0),
+    )?;
+    tx.execute(
+        "UPDATE ai_conversations SET message_count = ?1, updated_at = ?2 WHERE id = ?3",
+        params![count, now_millis(), conv_id],
+    )?;
+    Ok(())
+}
+
+// ---------- 后端内部凭据查询（不向前端暴露明文 Key） ----------
+
+pub(crate) async fn resolve_model_credentials(
+    db: &Database,
+    model_config_id: &str,
+) -> AppResult<ResolvedModelCredentials> {
+    let id = model_config_id.trim().to_string();
+    if id.is_empty() {
+        return Err(AppError::invalid_input("Model configuration ID is required."));
+    }
+    let found = db
+        .run_blocking(move |conn| {
+            conn.query_row(
+                "SELECT id, provider_id, protocol, base_url, api_key_enc, model_id, max_tokens
+                 FROM ai_models
+                 WHERE id = ?1",
+                [&id],
+                |row| {
+                    let provider_id: String = row.get(1)?;
+                    let protocol_raw: String = row.get(2)?;
+                    let base_url: String = row.get(3)?;
+                    let api_key_enc: Vec<u8> = row.get(4)?;
+                    let model_id: String = row.get(5)?;
+                    let max_tokens: Option<i64> = row.get(6)?;
+                    Ok(ResolvedModelCredentials {
+                        endpoint: EndpointConfig {
+                            protocol: parse_protocol(&protocol_raw),
+                            base_url,
+                            api_key: decrypt_secret(&api_key_enc),
+                            requires_key: provider_requires_key(&provider_id),
+                        },
+                        model_id,
+                        max_tokens: max_tokens.filter(|&n| n > 0).map(|n| n as u32),
+                    })
+                },
+            )
+            .optional()
+        })
+        .await?;
+    found.ok_or_else(|| AppError::new(crate::core::error::AppErrorCode::NotFound, "Model configuration not found."))
+}
+
+pub(crate) async fn resolve_model_api_key(
+    db: &Database,
+    model_config_id: &str,
+) -> AppResult<Option<String>> {
+    let id = model_config_id.trim().to_string();
+    if id.is_empty() {
+        return Ok(None);
+    }
+    db.run_blocking(move |conn| {
+        let blob: Option<Vec<u8>> = conn
+            .query_row(
+                "SELECT api_key_enc FROM ai_models WHERE id = ?1",
+                [&id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        Ok(blob.map(|b| decrypt_secret(&b)))
     })
     .await
-    .map_err(|error| error.to_string())?
 }
 
-pub(super) async fn ai_save_config_impl(app: tauri::AppHandle, data: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let dir = paths::sub_dir(&app, AI_DIR)?;
-        let _guard = AI_IO.lock().map_err(|e| e.to_string())?;
-        write_config_to(&dir, &data)
+// ---------- 细粒度强类型 SQLite 业务接口 ----------
+
+pub(crate) async fn ai_load_state_impl(db: &Database) -> AppResult<AiInitialState> {
+    db.run_blocking(|conn| {
+        let models = list_models_conn(conn)?;
+        let folders: Vec<AiFolderDto> = list_folders(conn, AI_SCOPE)?
+            .into_iter()
+            .map(|f| AiFolderDto {
+                id: f.id,
+                name: f.name,
+                pinned: f.pinned,
+                collapsed: f.collapsed,
+                created_at: f.created_at,
+            })
+            .collect();
+        let enabled_mcp_ids: Vec<String> = get_setting_json(conn, AI_SCOPE, SETTING_ENABLED_MCP_IDS)?
+            .and_then(|v| v.as_array().cloned())
+            .map(|arr| {
+                arr.into_iter()
+                    .filter_map(|x| x.as_str().map(ToString::to_string))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let conversation_meta = read_conversation_meta_conn(conn)?;
+        let conversations = list_conversations_conn(conn)?;
+        Ok(AiInitialState {
+            models,
+            enabled_mcp_ids,
+            folders,
+            conversation_meta,
+            conversations,
+        })
     })
     .await
-    .map_err(|error| error.to_string())?
 }
 
-pub(super) async fn ai_list_conversations_impl(
-    app: tauri::AppHandle,
-) -> Result<Vec<ConversationIndexEntry>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let dir = paths::sub_dir(&app, AI_DIR)?;
-        let _guard = AI_IO.lock().map_err(|e| e.to_string())?;
-        read_index(&conversations_dir(&dir))
+pub(crate) async fn ai_upsert_model_impl(
+    db: &Database,
+    input: AiModelUpsertInput,
+) -> AppResult<Vec<AiModelView>> {
+    if input.id.trim().is_empty() || input.model_id.trim().is_empty() {
+        return Err(AppError::invalid_input("Model ID is required."));
+    }
+    db.run_transaction(move |tx| {
+        let now = now_millis();
+        let existing_key: Option<Vec<u8>> = tx
+            .query_row(
+                "SELECT api_key_enc FROM ai_models WHERE id = ?1",
+                [&input.id],
+                |row| row.get(0),
+            )
+            .optional()?;
+
+        let api_key_enc = match input.api_key.as_deref() {
+            Some(raw) => encrypt_secret(raw.trim()),
+            None => existing_key.unwrap_or_default(),
+        };
+
+        let next_order: i64 = tx.query_row(
+            "SELECT COALESCE(MAX(sort_order) + 1, 0) FROM ai_models",
+            [],
+            |row| row.get(0),
+        )?;
+
+        let existing_default: Option<i64> = tx
+            .query_row(
+                "SELECT is_default FROM ai_models WHERE id = ?1",
+                [&input.id],
+                |row| row.get(0),
+            )
+            .optional()?;
+
+        let is_default_flag = match input.is_default {
+            Some(true) => {
+                tx.execute("UPDATE ai_models SET is_default = 0", [])?;
+                1i64
+            }
+            Some(false) => 0i64,
+            None => {
+                if let Some(prev) = existing_default {
+                    prev
+                } else {
+                    let any_default: bool = tx.query_row(
+                        "SELECT EXISTS(SELECT 1 FROM ai_models WHERE is_default = 1)",
+                        [],
+                        |row| row.get(0),
+                    )?;
+                    if any_default { 0i64 } else { 1i64 }
+                }
+            }
+        };
+
+        let provider_name = input
+            .provider_name
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(ToString::to_string);
+        let thinking_support = input
+            .thinking_support
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty() && *s != "auto")
+            .map(ToString::to_string);
+        let thinking_effort = input.thinking_effort.map(effort_str);
+
+        tx.execute(
+            "INSERT INTO ai_models (
+                id, provider_id, provider_name, name, protocol, base_url, api_key_enc,
+                model_id, enabled, max_tokens, thinking_support, thinking_effort,
+                is_default, sort_order, created_at, updated_at
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
+             ON CONFLICT(id) DO UPDATE SET
+                provider_id = excluded.provider_id,
+                provider_name = excluded.provider_name,
+                name = excluded.name,
+                protocol = excluded.protocol,
+                base_url = excluded.base_url,
+                api_key_enc = excluded.api_key_enc,
+                model_id = excluded.model_id,
+                enabled = excluded.enabled,
+                max_tokens = excluded.max_tokens,
+                thinking_support = excluded.thinking_support,
+                thinking_effort = excluded.thinking_effort,
+                is_default = excluded.is_default,
+                updated_at = excluded.updated_at",
+            params![
+                input.id,
+                input.provider_id,
+                provider_name,
+                input.name.trim(),
+                protocol_str(input.protocol),
+                input.base_url.trim(),
+                api_key_enc,
+                input.model_id.trim(),
+                if input.enabled { 1i64 } else { 0i64 },
+                input.max_tokens.filter(|&n| n > 0).map(i64::from),
+                thinking_support,
+                thinking_effort,
+                is_default_flag,
+                next_order,
+                now,
+                now,
+            ],
+        )?;
+        list_models_conn(tx)
     })
     .await
-    .map_err(|error| error.to_string())?
 }
 
-pub(super) async fn ai_read_conversation_impl(
-    app: tauri::AppHandle,
+pub(crate) async fn ai_delete_model_impl(db: &Database, id: String) -> AppResult<Vec<AiModelView>> {
+    db.run_transaction(move |tx| {
+        let was_default: bool = tx
+            .query_row(
+                "SELECT is_default != 0 FROM ai_models WHERE id = ?1",
+                [&id],
+                |row| row.get(0),
+            )
+            .optional()?
+            .unwrap_or(false);
+        tx.execute("DELETE FROM ai_models WHERE id = ?1", [&id])?;
+        if was_default {
+            if let Some(next_id) = tx
+                .query_row(
+                    "SELECT id FROM ai_models WHERE enabled = 1 ORDER BY sort_order ASC, created_at ASC LIMIT 1",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()?
+            {
+                tx.execute(
+                    "UPDATE ai_models SET is_default = 1 WHERE id = ?1",
+                    [next_id],
+                )?;
+            }
+        }
+        list_models_conn(tx)
+    })
+    .await
+}
+
+pub(crate) async fn ai_set_default_model_impl(
+    db: &Database,
+    id: Option<String>,
+) -> AppResult<Vec<AiModelView>> {
+    db.run_transaction(move |tx| {
+        tx.execute("UPDATE ai_models SET is_default = 0", [])?;
+        if let Some(target_id) = id.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+            tx.execute(
+                "UPDATE ai_models SET is_default = 1, updated_at = ?1 WHERE id = ?2",
+                params![now_millis(), target_id],
+            )?;
+        }
+        list_models_conn(tx)
+    })
+    .await
+}
+
+pub(crate) async fn ai_set_model_enabled_impl(
+    db: &Database,
     id: String,
-) -> Result<Option<String>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let dir = paths::sub_dir(&app, AI_DIR)?;
-        let _guard = AI_IO.lock().map_err(|e| e.to_string())?;
-        read_conversation_from(&dir, &id)
+    enabled: bool,
+) -> AppResult<Vec<AiModelView>> {
+    db.run_transaction(move |tx| {
+        tx.execute(
+            "UPDATE ai_models SET enabled = ?1, updated_at = ?2 WHERE id = ?3",
+            params![if enabled { 1i64 } else { 0i64 }, now_millis(), id],
+        )?;
+        list_models_conn(tx)
     })
     .await
-    .map_err(|error| error.to_string())?
 }
 
-pub(super) async fn ai_save_conversation_impl(
-    app: tauri::AppHandle,
-    summary: ConversationIndexEntry,
-    data: String,
-) -> Result<Vec<ConversationIndexEntry>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let dir = paths::sub_dir(&app, AI_DIR)?;
-        let _guard = AI_IO.lock().map_err(|e| e.to_string())?;
-        save_conversation_to(&dir, summary, &data)
-    })
-    .await
-    .map_err(|error| error.to_string())?
-}
-
-pub(super) async fn ai_delete_conversation_impl(
-    app: tauri::AppHandle,
+pub(crate) async fn ai_set_model_thinking_effort_impl(
+    db: &Database,
     id: String,
-) -> Result<Vec<ConversationIndexEntry>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let dir = paths::sub_dir(&app, AI_DIR)?;
-        let _guard = AI_IO.lock().map_err(|e| e.to_string())?;
-        delete_conversation_from(&dir, &id)
+    effort: ThinkingEffort,
+) -> AppResult<()> {
+    db.run_transaction(move |tx| {
+        tx.execute(
+            "UPDATE ai_models SET thinking_effort = ?1, updated_at = ?2 WHERE id = ?3",
+            params![effort_str(effort), now_millis(), id],
+        )?;
+        Ok(())
     })
     .await
-    .map_err(|error| error.to_string())?
+}
+
+pub(crate) async fn ai_set_enabled_mcp_ids_impl(db: &Database, ids: Vec<String>) -> AppResult<()> {
+    db.run_transaction(move |tx| {
+        let val = Value::Array(ids.into_iter().map(Value::String).collect());
+        set_setting_json(tx, AI_SCOPE, SETTING_ENABLED_MCP_IDS, &val)
+    })
+    .await
+}
+
+pub(crate) async fn ai_upsert_folder_impl(db: &Database, folder: AiFolderDto) -> AppResult<()> {
+    db.run_transaction(move |tx| {
+        let now = now_millis();
+        let next_order: i64 = tx.query_row(
+            "SELECT COALESCE(MAX(sort_order) + 1, 0) FROM folders WHERE scope = ?1",
+            [AI_SCOPE],
+            |row| row.get(0),
+        )?;
+        let rec = FolderRecord {
+            id: folder.id,
+            parent_id: None,
+            name: folder.name,
+            pinned: folder.pinned,
+            collapsed: folder.collapsed,
+            sort_order: next_order,
+            created_at: folder.created_at,
+        };
+        tx.execute(
+            "INSERT INTO folders (id, scope, parent_id, name, pinned, collapsed, sort_order, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+             ON CONFLICT(id) DO UPDATE SET
+                 name = excluded.name,
+                 pinned = excluded.pinned,
+                 collapsed = excluded.collapsed,
+                 updated_at = excluded.updated_at",
+            params![
+                rec.id,
+                AI_SCOPE,
+                rec.parent_id,
+                rec.name,
+                if rec.pinned { 1i64 } else { 0i64 },
+                if rec.collapsed { 1i64 } else { 0i64 },
+                rec.sort_order,
+                rec.created_at,
+                now,
+            ],
+        )?;
+        Ok(())
+    })
+    .await
+}
+
+pub(crate) async fn ai_delete_folder_impl(db: &Database, id: String) -> AppResult<()> {
+    db.run_transaction(move |tx| {
+        tx.execute(
+            "DELETE FROM folders WHERE scope = ?1 AND id = ?2",
+            params![AI_SCOPE, id],
+        )?;
+        Ok(())
+    })
+    .await
+}
+
+pub(crate) async fn ai_read_conversation_impl(
+    db: &Database,
+    id: String,
+) -> AppResult<Option<AiConversationDetail>> {
+    validate_conv_id(&id).map_err(AppError::invalid_input)?;
+    db.run_blocking(move |conn| {
+        let conv_row = conn
+            .query_row(
+                "SELECT id, title, model_config_id, provider_id, model_id, workspace_dir,
+                        execution_policy, created_at, updated_at, message_count
+                 FROM ai_conversations
+                 WHERE id = ?1",
+                [&id],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, Option<String>>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, String>(4)?,
+                        row.get::<_, Option<String>>(5)?,
+                        row.get::<_, Option<String>>(6)?,
+                        row.get::<_, i64>(7)?,
+                        row.get::<_, i64>(8)?,
+                        row.get::<_, i64>(9)?,
+                    ))
+                },
+            )
+            .optional()?;
+
+        let Some((
+            conv_id,
+            title,
+            model_config_id,
+            provider_id,
+            model_id,
+            workspace_dir,
+            execution_policy,
+            created_at,
+            updated_at,
+            message_count,
+        )) = conv_row
+        else {
+            return Ok(None);
+        };
+
+        let mut stmt = conn.prepare(
+            "SELECT id, role, content, reasoning, attachments_json, tool_calls_json, parts_json,
+                    model_config_id, provider_name, model_id, model_name, duration_ms, error,
+                    aborted, created_at
+             FROM ai_messages
+             WHERE conversation_id = ?1
+             ORDER BY seq ASC",
+        )?;
+        let messages = stmt
+            .query_map([&conv_id], |row| {
+                Ok(AiMessageDto {
+                    id: row.get(0)?,
+                    role: row.get(1)?,
+                    content: row.get(2)?,
+                    reasoning: row.get(3)?,
+                    attachments_json: row.get(4)?,
+                    tool_calls_json: row.get(5)?,
+                    parts_json: row.get(6)?,
+                    model_config_id: row.get(7)?,
+                    provider_name: row.get(8)?,
+                    model_id: row.get(9)?,
+                    model_name: row.get(10)?,
+                    duration_ms: row.get(11)?,
+                    error: row.get(12)?,
+                    aborted: row.get::<_, i64>(13)? != 0,
+                    created_at: row.get(14)?,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+
+        Ok(Some(AiConversationDetail {
+            id: conv_id,
+            title,
+            model_config_id,
+            provider_id,
+            model_id,
+            workspace_dir,
+            execution_policy,
+            created_at,
+            updated_at,
+            message_count: message_count.max(0) as usize,
+            messages,
+        }))
+    })
+    .await
+}
+
+pub(crate) async fn ai_upsert_conversation_impl(
+    db: &Database,
+    input: AiConversationUpsertInput,
+) -> AppResult<Vec<ConversationIndexEntry>> {
+    validate_conv_id(&input.id).map_err(AppError::invalid_input)?;
+    db.run_transaction(move |tx| {
+        tx.execute(
+            "INSERT INTO ai_conversations (
+                id, title, model_config_id, provider_id, model_id, workspace_dir,
+                execution_policy, created_at, updated_at
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+             ON CONFLICT(id) DO UPDATE SET
+                title = excluded.title,
+                model_config_id = excluded.model_config_id,
+                provider_id = excluded.provider_id,
+                model_id = excluded.model_id,
+                workspace_dir = excluded.workspace_dir,
+                execution_policy = excluded.execution_policy,
+                updated_at = excluded.updated_at",
+            params![
+                input.id,
+                input.title,
+                input.model_config_id,
+                input.provider_id,
+                input.model_id,
+                input.workspace_dir,
+                input.execution_policy,
+                input.created_at,
+                input.updated_at,
+            ],
+        )?;
+        list_conversations_conn(tx)
+    })
+    .await
+}
+
+pub(crate) async fn ai_update_conversation_meta_impl(
+    db: &Database,
+    updates: Vec<AiConversationMetaUpdate>,
+) -> AppResult<()> {
+    db.run_transaction(move |tx| {
+        for item in updates {
+            tx.execute(
+                "UPDATE ai_conversations
+                 SET pinned = ?1, folder_id = ?2, sort_order = ?3
+                 WHERE id = ?4",
+                params![
+                    if item.pinned { 1i64 } else { 0i64 },
+                    item.folder_id,
+                    item.order,
+                    item.conversation_id,
+                ],
+            )?;
+        }
+        Ok(())
+    })
+    .await
+}
+
+pub(crate) async fn ai_delete_conversation_impl(
+    db: &Database,
+    id: String,
+) -> AppResult<Vec<ConversationIndexEntry>> {
+    validate_conv_id(&id).map_err(AppError::invalid_input)?;
+    db.run_transaction(move |tx| {
+        tx.execute("DELETE FROM ai_conversations WHERE id = ?1", [&id])?;
+        list_conversations_conn(tx)
+    })
+    .await
+}
+
+pub(crate) async fn ai_upsert_message_impl(
+    db: &Database,
+    conversation_id: String,
+    message: AiMessageDto,
+) -> AppResult<Vec<ConversationIndexEntry>> {
+    validate_conv_id(&conversation_id).map_err(AppError::invalid_input)?;
+    db.run_transaction(move |tx| {
+        let existing_seq: Option<i64> = tx
+            .query_row(
+                "SELECT seq FROM ai_messages WHERE id = ?1",
+                [&message.id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let seq = match existing_seq {
+            Some(s) => s,
+            None => tx.query_row(
+                "SELECT COALESCE(MAX(seq) + 1, 0) FROM ai_messages WHERE conversation_id = ?1",
+                [&conversation_id],
+                |row| row.get(0),
+            )?,
+        };
+
+        tx.execute(
+            "INSERT INTO ai_messages (
+                id, conversation_id, seq, role, content, reasoning,
+                attachments_json, tool_calls_json, parts_json,
+                model_config_id, provider_name, model_id, model_name,
+                duration_ms, error, aborted, created_at
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
+             ON CONFLICT(id) DO UPDATE SET
+                role = excluded.role,
+                content = excluded.content,
+                reasoning = excluded.reasoning,
+                attachments_json = excluded.attachments_json,
+                tool_calls_json = excluded.tool_calls_json,
+                parts_json = excluded.parts_json,
+                model_config_id = excluded.model_config_id,
+                provider_name = excluded.provider_name,
+                model_id = excluded.model_id,
+                model_name = excluded.model_name,
+                duration_ms = excluded.duration_ms,
+                error = excluded.error,
+                aborted = excluded.aborted",
+            params![
+                message.id,
+                conversation_id,
+                seq,
+                message.role,
+                message.content,
+                message.reasoning,
+                message.attachments_json,
+                message.tool_calls_json,
+                message.parts_json,
+                message.model_config_id,
+                message.provider_name,
+                message.model_id,
+                message.model_name,
+                message.duration_ms,
+                message.error,
+                if message.aborted { 1i64 } else { 0i64 },
+                message.created_at,
+            ],
+        )?;
+        update_conversation_counts_tx(tx, &conversation_id)?;
+        list_conversations_conn(tx)
+    })
+    .await
+}
+
+pub(crate) async fn ai_delete_message_impl(
+    db: &Database,
+    conversation_id: String,
+    message_id: String,
+) -> AppResult<Vec<ConversationIndexEntry>> {
+    validate_conv_id(&conversation_id).map_err(AppError::invalid_input)?;
+    db.run_transaction(move |tx| {
+        tx.execute(
+            "DELETE FROM ai_messages WHERE conversation_id = ?1 AND id = ?2",
+            params![&conversation_id, &message_id],
+        )?;
+        update_conversation_counts_tx(tx, &conversation_id)?;
+        list_conversations_conn(tx)
+    })
+    .await
+}
+
+pub(crate) async fn ai_truncate_messages_from_impl(
+    db: &Database,
+    conversation_id: String,
+    from_message_id: String,
+    inclusive: bool,
+) -> AppResult<Vec<ConversationIndexEntry>> {
+    validate_conv_id(&conversation_id).map_err(AppError::invalid_input)?;
+    db.run_transaction(move |tx| {
+        let target_seq: Option<i64> = tx
+            .query_row(
+                "SELECT seq FROM ai_messages WHERE conversation_id = ?1 AND id = ?2",
+                params![&conversation_id, &from_message_id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if let Some(seq) = target_seq {
+            if inclusive {
+                tx.execute(
+                    "DELETE FROM ai_messages WHERE conversation_id = ?1 AND seq >= ?2",
+                    params![&conversation_id, seq],
+                )?;
+            } else {
+                tx.execute(
+                    "DELETE FROM ai_messages WHERE conversation_id = ?1 AND seq > ?2",
+                    params![&conversation_id, seq],
+                )?;
+            }
+            update_conversation_counts_tx(tx, &conversation_id)?;
+        }
+        list_conversations_conn(tx)
+    })
+    .await
+}
+
+pub(crate) async fn ai_clear_messages_impl(
+    db: &Database,
+    conversation_id: String,
+) -> AppResult<Vec<ConversationIndexEntry>> {
+    validate_conv_id(&conversation_id).map_err(AppError::invalid_input)?;
+    db.run_transaction(move |tx| {
+        tx.execute(
+            "DELETE FROM ai_messages WHERE conversation_id = ?1",
+            [&conversation_id],
+        )?;
+        update_conversation_counts_tx(tx, &conversation_id)?;
+        list_conversations_conn(tx)
+    })
+    .await
 }

@@ -29,11 +29,11 @@ pub(crate) struct McpServerInfo {
     pub(super) protocol_version: String,
 }
 
-pub(super) struct McpInspectionSnapshot {
-    pub(super) server: McpServerInfo,
-    pub(super) tools: Vec<rmcp::model::Tool>,
-    pub(super) prompt_count: usize,
-    pub(super) resource_count: usize,
+pub(crate) struct McpInspectionSnapshot {
+    pub(crate) server: McpServerInfo,
+    pub(crate) tools: Vec<rmcp::model::Tool>,
+    pub(crate) prompt_count: usize,
+    pub(crate) resource_count: usize,
 }
 
 impl McpSessions {
@@ -60,7 +60,7 @@ pub(super) async fn disconnect_session(sessions: &McpSessions, session_id: &str)
     }
 }
 
-pub(super) async fn connect_or_reuse_session(
+pub(crate) async fn connect_or_reuse_session(
     app: &tauri::AppHandle,
     sessions: &McpSessions,
     session_id: String,
@@ -98,7 +98,7 @@ pub(super) async fn connect_or_reuse_session(
     Ok(server_info)
 }
 
-pub(super) async fn inspect_session(
+pub(crate) async fn inspect_session(
     sessions: &McpSessions,
     session_id: &str,
 ) -> Result<McpInspectionSnapshot, String> {
@@ -216,6 +216,16 @@ pub(crate) async fn mcp_list_entries(
     list.map_err(|error| error.to_string())
 }
 
+pub(crate) async fn call_tool_on_session(
+    sessions: &McpSessions,
+    session_id: &str,
+    name: String,
+    arguments: JsonObject,
+) -> Result<CallToolResult, String> {
+    let peer = sessions.peer(session_id).await?;
+    request(peer.call_tool(CallToolRequestParams::new(name).with_arguments(arguments))).await
+}
+
 #[tauri::command]
 pub(crate) async fn mcp_call_tool(
     sessions: tauri::State<'_, McpSessions>,
@@ -223,8 +233,7 @@ pub(crate) async fn mcp_call_tool(
     name: String,
     arguments: JsonObject,
 ) -> Result<CallToolResult, String> {
-    let peer = sessions.peer(&session_id).await?;
-    request(peer.call_tool(CallToolRequestParams::new(name).with_arguments(arguments))).await
+    call_tool_on_session(sessions.inner(), &session_id, name, arguments).await
 }
 
 #[tauri::command]

@@ -1,6 +1,8 @@
 pub(crate) mod branding;
+pub(crate) mod db;
 #[cfg(windows)]
 pub(crate) mod dpapi;
+pub(crate) mod error;
 #[cfg(windows)]
 pub(crate) mod notifications;
 pub(crate) mod paths;
