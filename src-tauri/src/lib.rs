@@ -23,8 +23,9 @@ use crate::tools::{
     markdown::notebook::commands as notebook,
     network::{ip_lookup::commands as ip_lookup, mqtt_client::commands as mqtt, ping::commands as ping},
     utility::{
-        calculator::commands as calculator, calendar::commands as calendar,
-        clock::commands as clock,
+        calculator::commands as calculator,
+        calendar::{commands as calendar, store as calendar_store},
+        clock::{commands as clock, store as clock_store},
     },
     video::{
         douyin_download::commands as douyin,
@@ -168,10 +169,12 @@ pub fn run() {
             vault::vault_read,
             vault::vault_write,
             calculator::calculator_eval,
-            clock::countdown_read,
-            clock::countdown_write,
-            calendar::calendar_read,
-            calendar::calendar_write,
+            clock::clock_list,
+            clock::clock_upsert,
+            clock::clock_delete,
+            calendar::calendar_list_notes,
+            calendar::calendar_upsert_note,
+            calendar::calendar_delete_note,
             #[cfg(windows)]
             calendar::calendar_wait,
             #[cfg(windows)]
@@ -233,6 +236,8 @@ pub fn run() {
             let db = Database::open(&data_dir.join("open-tools.db"))?;
             ai_store::init_ai_storage(&db, &data_dir)?;
             mcp_store::init_mcp_storage(&db)?;
+            clock_store::init_clock_storage(&db)?;
+            calendar_store::init_calendar_storage(&db)?;
             #[cfg(windows)]
             clipboard_store::init_clipboard_storage(&db)?;
             use tauri::Manager;

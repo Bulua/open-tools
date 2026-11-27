@@ -1,17 +1,29 @@
-//! 时钟提醒命令层：读写均委托给 `store`，与 AI 工具共享同一把互斥锁。
+//! 时钟提醒 Tauri IPC 命令入口（统一返回 `{ code, msg, data }` 响应结构）。
 
-use tauri::AppHandle;
+use tauri::State;
 
-use super::store;
+use crate::core::db::Database;
+use crate::core::error::{api_result, ApiResult};
 
-/// 读取倒计时与闹钟列表；还没有保存过时返回空。
+use super::store::{self, CountdownItem};
+
 #[tauri::command]
-pub fn countdown_read(app: AppHandle) -> Result<Option<String>, String> {
-    store::read_snapshot(&app)
+pub(crate) async fn clock_list(db: State<'_, Database>) -> ApiResult<Vec<CountdownItem>> {
+    api_result(store::list_items(db.inner()).await)
 }
 
-/// 原子写回倒计时与闹钟列表。
 #[tauri::command]
-pub fn countdown_write(app: AppHandle, data: String) -> Result<(), String> {
-    store::write_snapshot(&app, &data)
+pub(crate) async fn clock_upsert(
+    db: State<'_, Database>,
+    item: CountdownItem,
+) -> ApiResult<Vec<CountdownItem>> {
+    api_result(store::upsert_item(db.inner(), item).await)
+}
+
+#[tauri::command]
+pub(crate) async fn clock_delete(
+    db: State<'_, Database>,
+    id: String,
+) -> ApiResult<Vec<CountdownItem>> {
+    api_result(store::delete_item(db.inner(), id).await)
 }

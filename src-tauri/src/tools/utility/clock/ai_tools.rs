@@ -3,15 +3,18 @@
 use std::collections::BTreeSet;
 
 use serde_json::{json, Value};
+use tauri::Manager;
 
+use crate::core::db::{now_datetime, Database};
+use crate::core::id::next_id_string;
 use crate::tools::ai::args;
 use crate::tools::ai::registry::{
     AiTool, AiToolContext, AiToolFuture, AiToolResult, ToolApprovalPolicy,
 };
 
 use super::store::{
-    self, format_local_timestamp, generate_id, local_now, next_alarm_target, now_utc_ms,
-    parse_alarm_time, AlarmSchedule, CountdownItem,
+    self, format_local_timestamp, local_now, next_alarm_target, parse_alarm_time, AlarmSchedule,
+    CountdownItem,
 };
 
 const MAX_TIMER_HOURS: u64 = 99;
@@ -147,9 +150,10 @@ impl AiTool for ClockListTool {
 
     fn execute<'a>(&'a self, _args: Value, ctx: &'a AiToolContext<'a>) -> AiToolFuture<'a> {
         Box::pin(async move {
-            let items = match store::read_items(ctx.app) {
+            let db = ctx.app.state::<Database>();
+            let items = match store::read_items_sync(db.inner()) {
                 Ok(list) => list,
-                Err(err) => return AiToolResult::err(err),
+                Err(err) => return AiToolResult::err(err.message),
             };
             let now = local_now();
             let now_str = format!(
@@ -347,17 +351,19 @@ impl AiTool for ClockSetAlarmTool {
                     .filter(|t| !t.is_empty())
                     .unwrap_or_else(|| "闹钟".to_string());
                 let enabled = enabled_arg.unwrap_or(true);
-                let mut id = generate_id();
+                let mut id = next_id_string();
                 while items.iter().any(|i| i.id == id) {
-                    id = generate_id();
+                    id = next_id_string();
                 }
+                let created = now_datetime();
 
                 items.push(CountdownItem {
                     id: id.clone(),
                     title: title.clone(),
                     default_title: None,
                     target,
-                    created_at: now_utc_ms(),
+                    created_at: created.clone(),
+                    updated_at: created,
                     duration: None,
                     paused_remaining: None,
                     repeat: "none".to_string(),
@@ -457,16 +463,18 @@ impl AiTool for ClockStartTimerTool {
             let target = now.utc_ms + duration_ms;
 
             let outcome = store::mutate_items(ctx.app, |items| {
-                let mut id = generate_id();
+                let mut id = next_id_string();
                 while items.iter().any(|i| i.id == id) {
-                    id = generate_id();
+                    id = next_id_string();
                 }
+                let created = now_datetime();
                 items.push(CountdownItem {
                     id: id.clone(),
                     title: title.clone(),
                     default_title: Some(default_title),
                     target,
-                    created_at: now.utc_ms,
+                    created_at: created.clone(),
+                    updated_at: created,
                     duration: Some(duration_ms),
                     paused_remaining: None,
                     repeat: "none".to_string(),
@@ -638,7 +646,7 @@ impl AiTool for ClockManageTool {
                         let Some(duration_ms) = item.duration.filter(|_| item.is_timer()) else {
                             return Err("Action 'restart' only applies to timers.".to_string());
                         };
-                        item.created_at = now.utc_ms;
+                        item.updated_at = now_datetime();
                         item.target = now.utc_ms + duration_ms;
                         item.paused_remaining = None;
                         item.done = false;
