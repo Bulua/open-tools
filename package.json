@@ -10,6 +10,7 @@
     "build": "vite build",
     "typecheck": "vue-tsc --noEmit",
     "test": "vitest run --passWithNoTests",
+    "gen:bindings": "cargo run --manifest-path src-tauri/Cargo.toml --bin export_bindings",
     "tauri": "tauri"
   },
   "dependencies": {

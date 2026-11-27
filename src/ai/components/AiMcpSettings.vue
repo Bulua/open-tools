@@ -15,10 +15,10 @@ import { showError } from "@/utils/errorToast";
 import { useAiMcp } from "../mcp";
 import { makeEntityId } from "../presets";
 import { useAiStore } from "../store";
-import type { McpConnectionItem, McpServerConfig } from "../types";
+import type { McpConnectionItem, McpServerConfig } from "@/types/mcp";
 
 const { t } = useI18n();
-const { config, persistConfig } = useAiStore();
+const { config, setEnabledMcpIds } = useAiStore();
 const {
   connections,
   runtimeStates,
@@ -84,12 +84,10 @@ async function reloadList() {
 
 async function toggleEnable(item: McpConnectionItem) {
   if (isEnabled(item.id)) {
-    config.value.enabledMcpIds = config.value.enabledMcpIds.filter((id) => id !== item.id);
-    void persistConfig();
+    void setEnabledMcpIds(config.value.enabledMcpIds.filter((id) => id !== item.id));
     await disconnectMcpServer(item.id);
   } else {
-    config.value.enabledMcpIds = [...config.value.enabledMcpIds, item.id];
-    void persistConfig();
+    void setEnabledMcpIds([...config.value.enabledMcpIds, item.id]);
     try {
       await connectMcpServer(item);
     } catch (error) {
@@ -229,8 +227,7 @@ async function saveForm() {
 
 async function deleteServer(item: McpConnectionItem) {
   await disconnectMcpServer(item.id);
-  config.value.enabledMcpIds = config.value.enabledMcpIds.filter((id) => id !== item.id);
-  void persistConfig();
+  void setEnabledMcpIds(config.value.enabledMcpIds.filter((id) => id !== item.id));
   try {
     await saveMcpConnections(connections.value.filter((c) => c.id !== item.id));
   } catch (error) {

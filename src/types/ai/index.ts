@@ -1,19 +1,48 @@
+/**
+ * AI 模块完整类型定义（模型配置、对话消息、附件、审批状态与流式事件）。
+ */
+
 export type ApiProtocol = "openai" | "anthropic" | "gemini";
 
 export type ThinkingEffort = "none" | "low" | "medium" | "high";
 
 export type ThinkingSupportMode = "auto" | "enabled" | "disabled";
 
-/** 单条已配置的模型记录，允许用户自由新增、编辑、删除多个模型 */
-export interface ConfiguredModel {
+export interface ProviderPreset {
   id: string;
-  providerId: string;
   name: string;
   protocol: ApiProtocol;
   baseUrl: string;
+  requiresKey: boolean;
+  sampleModels: string[];
+}
+
+export interface EndpointConfig {
+  protocol: ApiProtocol;
+  baseUrl: string;
   apiKey: string;
+  requiresKey?: boolean;
+}
+
+export interface RemoteModelInfo {
+  id: string;
+  name?: string;
+}
+
+/** 单条已配置的模型记录视图（不含明文 API Key，仅保留脱敏展示与是否已配置标记） */
+export interface ConfiguredModel {
+  id: string;
+  providerId: string;
+  /** 自定义厂商名称（选择自定义接口或代理网关时可填，优先于预设厂商名展示） */
+  providerName?: string;
+  name: string;
+  protocol: ApiProtocol;
+  baseUrl: string;
+  hasApiKey: boolean;
+  maskedApiKey: string;
   modelId: string;
   enabled: boolean;
+  isDefault: boolean;
   /** 单次回复最大输出 Token 数（留空使用模型默认上限） */
   maxTokens?: number | null;
   /** 是否支持调节思考等级：auto 根据模型 ID 自动识别，也可手动强制开启或关闭 */
@@ -22,8 +51,21 @@ export interface ConfiguredModel {
   thinkingEffort?: ThinkingEffort;
 }
 
-export interface AiGeneralSettings {
-  defaultModelConfigId: string;
+/** 新增或编辑模型时的提交载荷：apiKey 为 null/undefined 时保持后端已加密密钥不变 */
+export interface AiModelUpsertInput {
+  id: string;
+  providerId: string;
+  providerName?: string | null;
+  name: string;
+  protocol: ApiProtocol;
+  baseUrl: string;
+  apiKey?: string | null;
+  modelId: string;
+  enabled: boolean;
+  maxTokens?: number | null;
+  thinkingSupport?: ThinkingSupportMode | null;
+  thinkingEffort?: ThinkingEffort | null;
+  isDefault?: boolean | null;
 }
 
 /** 会话文件夹（可位于固定会话区或普通会话区） */
@@ -42,14 +84,23 @@ export interface AiConversationMeta {
   order?: number;
 }
 
+export interface AiConversationMetaUpdate {
+  conversationId: string;
+  pinned: boolean;
+  folderId?: string | null;
+  order?: number | null;
+}
+
 export interface AiConfig {
-  version: 2;
   models: ConfiguredModel[];
   /** 在 AI 对话中启用的 MCP 服务 ID（对应 MCP 工具查看器中的连接 ID） */
   enabledMcpIds: string[];
   folders: AiFolder[];
   conversationMeta: Record<string, AiConversationMeta>;
-  settings: AiGeneralSettings;
+}
+
+export interface AiInitialState extends AiConfig {
+  conversations: ConversationSummary[];
 }
 
 export interface ChatToolCall {
@@ -112,6 +163,31 @@ export interface ChatAttachment {
   rawFile?: File;
 }
 
+export interface SavedAttachmentResponse {
+  path: string;
+  fileName: string;
+  sizeBytes: number;
+}
+
+export interface LocalImagePreview {
+  path: string;
+  mimeType: string;
+  dataUrl: string;
+  rawBase64?: string;
+  sizeBytes: number;
+  width?: number;
+  height?: number;
+}
+
+export interface AiReadFileResult {
+  path: string;
+  content: string;
+  startLine: number;
+  endLine: number;
+  totalLines: number;
+  truncated: boolean;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -123,6 +199,7 @@ export interface ChatMessage {
   parts?: ChatMessagePart[];
   createdAt: number;
   modelConfigId?: string;
+  providerName?: string;
   modelId?: string;
   modelName?: string;
   durationMs?: number;
@@ -160,33 +237,64 @@ export interface ModelOption {
   thinkingEffort?: ThinkingEffort;
 }
 
-/** 与「MCP 工具查看器」共用后端持久化的连接结构 */
-export type McpServerConfig =
-  | {
-      type: "stdio";
-      command: string;
-      args?: string[];
-      env?: Record<string, string>;
-      env_vars?: string[];
-      cwd?: string;
-    }
-  | {
-      type: "http";
-      url: string;
-      headers?: Record<string, string>;
-      env_http_headers?: Record<string, string>;
-      bearer_token_env_var?: string;
-    };
-
-export interface McpConnectionItem {
+export interface ToolCallRequest {
   id: string;
   name: string;
-  config: McpServerConfig;
+  argumentsText: string;
 }
 
-export interface McpRemoteTool {
-  name: string;
-  title?: string;
-  description?: string;
-  inputSchema: Record<string, unknown>;
+export type PromptTurn =
+  | { role: "user"; content: string; attachments?: ChatAttachment[] }
+  | { role: "assistant"; content: string; toolCalls?: ToolCallRequest[] }
+  | { role: "tool"; toolCallId: string; toolName: string; content: string };
+
+export interface BackendChatRunRequest {
+  conversationId: string;
+  modelConfigId: string;
+  messages: PromptTurn[];
+  workspaceDir?: string;
+  executionPolicy?: ExecutionPolicy;
+  thinkingEffort?: ThinkingEffort;
+  enabledMcpIds: string[];
+  builtinToolBadge?: string;
+}
+
+export type BackendChatEvent =
+  | { type: "reasoningDelta"; text: string }
+  | { type: "contentDelta"; text: string }
+  | { type: "roundSeparator" }
+  | {
+      type: "toolCallStart";
+      id: string;
+      serverId: string;
+      serverName: string;
+      toolName: string;
+      argumentsText: string;
+    }
+  | {
+      type: "approvalRequired";
+      id: string;
+      conversationId: string;
+      toolName: string;
+      kind: "command" | "externalWrite" | "tool";
+      command?: string;
+      shell?: string;
+      targetPath?: string;
+      cwd?: string;
+      argumentsText?: string;
+    }
+  | { type: "approvalCleared"; conversationId: string }
+  | { type: "sessionPolicyChanged"; executionPolicy: ExecutionPolicy }
+  | {
+      type: "toolCallResult";
+      id: string;
+      status: "done" | "error";
+      resultText: string;
+      outputFile?: ChatToolCall["outputFile"];
+    }
+  | { type: "notice"; message: string };
+
+export interface BackendChatRunResult {
+  aborted: boolean;
+  durationMs: number;
 }

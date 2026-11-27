@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Check, ChevronDown, ChevronRight, Info, Search } from "lucide-vue-next";
-import type { ModelOption, ThinkingEffort } from "../types";
+import type { ModelOption, ThinkingEffort } from "@/types/ai";
 
 const props = defineProps<{
   models: ModelOption[];
@@ -50,14 +50,15 @@ const filteredModels = computed(() => {
   );
 });
 
-/** 严格按提供商分组呈现：提供商1 -> 多个模型，提供商2 -> 多个模型 */
+/** 严格按具体模型厂商名称分组呈现：厂商1 -> 多个模型，厂商2 -> 多个模型 */
 const groups = computed<ProviderGroup[]>(() => {
   const map = new Map<string, ProviderGroup>();
   for (const item of filteredModels.value) {
-    let group = map.get(item.providerId);
+    const groupKey = item.providerName || item.providerId;
+    let group = map.get(groupKey);
     if (!group) {
-      group = { providerId: item.providerId, providerName: item.providerName, items: [] };
-      map.set(item.providerId, group);
+      group = { providerId: groupKey, providerName: item.providerName, items: [] };
+      map.set(groupKey, group);
     }
     group.items.push(item);
   }
@@ -251,6 +252,7 @@ onBeforeUnmount(() => {
     aria-haspopup="menu"
     @click="toggle"
   >
+    <span v-if="selectedModel?.providerName" class="trigger-provider">{{ selectedModel.providerName }}</span>
     <span class="trigger-name">{{ selectedModel?.modelLabel || t("ai.selectModel") }}</span>
     <span v-if="badgeEffortLabel(selectedModel?.thinkingEffort)" class="trigger-effort">
       {{ badgeEffortLabel(selectedModel?.thinkingEffort) }}
@@ -361,7 +363,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .model-trigger {
   height: 30px;
-  max-width: 300px;
+  max-width: 380px;
   padding: 0 10px;
   display: inline-flex;
   align-items: center;
@@ -379,6 +381,19 @@ onBeforeUnmount(() => {
 }
 .model-trigger.open {
   background: var(--active);
+}
+.trigger-provider {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--active);
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 500;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .trigger-name {
   font-weight: 500;

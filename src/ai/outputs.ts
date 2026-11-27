@@ -1,7 +1,7 @@
 import DOMPurify from "dompurify";
 import hljs from "highlight.js/lib/common";
 import { isImageFilePath, type LocalImagePreview } from "./builtinTools";
-import type { ChatMessage, ChatToolCall } from "./types";
+import type { ChatMessage, ChatToolCall } from "@/types/ai";
 
 export type OutputPreviewKind = "html" | "svg" | "markdown" | "image" | "code";
 

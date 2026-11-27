@@ -4,12 +4,12 @@
  * - 文本/代码：单文件上限 50 MB，完整文件落盘；进入消息上下文的正文上限 100,000 字符，超长时弹出警告提醒
  * - 其他二进制文件（PDF/Word/音视频/压缩包等）：单文件上限 100 MB，落盘后把路径与元信息交给 AI 工具处理
  */
+import { aiApi } from "@/api/ai";
+import { hasDesktopRuntime } from "@/api/common";
 import { t } from "@/locales";
+import type { ChatAttachment } from "@/types/ai";
 import { showError, showNotice } from "@/utils/errorToast";
-import { readLocalImageForPreview } from "./builtinTools";
-import type { PromptTurn } from "./client";
 import { makeEntityId } from "./presets";
-import type { ChatAttachment } from "./types";
 
 export const MAX_IMAGE_BYTES = 50 * 1024 * 1024;
 export const MAX_TEXT_BYTES = 50 * 1024 * 1024;
@@ -18,16 +18,6 @@ export const MAX_TEXT_CHARS = 100_000;
 
 const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|bmp|ico|tif|tiff|avif)$/i;
 const BINARY_SAMPLE_BYTES = 4096;
-
-interface SavedAttachmentResponse {
-  path: string;
-  fileName: string;
-  sizeBytes: number;
-}
-
-function hasTauriRuntime(): boolean {
-  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-}
 
 function encodeHeaderUtf8(text: string): string {
   const bytes = new TextEncoder().encode(text);
@@ -168,8 +158,7 @@ export async function persistAttachmentsToWorkspace(
 ): Promise<ChatAttachment[]> {
   if (!attachments.length) return [];
 
-  const isDesktop = hasTauriRuntime();
-  const { invoke } = isDesktop ? await import("@tauri-apps/api/core") : { invoke: null };
+  const isDesktop = hasDesktopRuntime();
   const result: ChatAttachment[] = [];
 
   for (const att of attachments) {
@@ -186,13 +175,11 @@ export async function persistAttachmentsToWorkspace(
     };
 
     if (att.rawFile) {
-      if (invoke && workspaceDir.trim()) {
+      if (isDesktop && workspaceDir.trim()) {
         const buffer = await att.rawFile.arrayBuffer();
-        const saved = await invoke<SavedAttachmentResponse>("ai_save_attachment", buffer, {
-          headers: {
-            "x-workspace-dir": encodeHeaderUtf8(workspaceDir),
-            "x-file-name": encodeHeaderUtf8(att.name || "attachment"),
-          },
+        const saved = await aiApi.saveAttachment(buffer, {
+          "x-workspace-dir": encodeHeaderUtf8(workspaceDir),
+          "x-file-name": encodeHeaderUtf8(att.name || "attachment"),
         });
         clean.filePath = saved.path;
         // 图片已无损落盘，不再把原图 base64 写进会话 JSON
@@ -207,37 +194,4 @@ export async function persistAttachmentsToWorkspace(
   }
 
   return result;
-}
-
-/** 发送给多模态模型前按需从磁盘加载原图 Data URL（仅作用于本次请求，不回写会话存档） */
-export async function hydrateTurnsForModel(
-  turns: readonly PromptTurn[],
-  workspaceDir: string,
-): Promise<PromptTurn[]> {
-  if (!hasTauriRuntime() || !workspaceDir.trim()) {
-    return [...turns];
-  }
-
-  return Promise.all(
-    turns.map(async (turn) => {
-      if (turn.role !== "user" || !turn.attachments?.length) return turn;
-      const needsHydrate = turn.attachments.some(
-        (att) => att.kind === "image" && !att.dataUrl && Boolean(att.filePath),
-      );
-      if (!needsHydrate) return turn;
-
-      const hydrated = await Promise.all(
-        turn.attachments.map(async (att) => {
-          if (att.kind !== "image" || att.dataUrl || !att.filePath) return att;
-          try {
-            const preview = await readLocalImageForPreview(workspaceDir, att.filePath);
-            return { ...att, dataUrl: preview.dataUrl };
-          } catch {
-            return att;
-          }
-        }),
-      );
-      return { ...turn, attachments: hydrated };
-    }),
-  );
 }

@@ -47,7 +47,7 @@ import type {
   PendingToolApproval,
   ThinkingEffort,
   ToolApprovalDecision,
-} from "../types";
+} from "@/types/ai";
 import type { SettingsTab } from "./AiSettingsModal.vue";
 import AiMessageItem from "./AiMessageItem.vue";
 import AiMessageTimeline from "./AiMessageTimeline.vue";

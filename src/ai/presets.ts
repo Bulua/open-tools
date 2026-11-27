@@ -1,23 +1,12 @@
 import { translationIn, type Locale, type Translations } from "@/locales/types";
 import type {
   AiConfig,
-  AiConversationMeta,
-  AiFolder,
-  AiGeneralSettings,
-  ApiProtocol,
   ConfiguredModel,
+  ProviderPreset,
   ThinkingEffort,
-  ThinkingSupportMode,
-} from "./types";
+} from "@/types/ai";
 
-export interface ProviderPreset {
-  id: string;
-  name: string;
-  protocol: ApiProtocol;
-  baseUrl: string;
-  requiresKey: boolean;
-  sampleModels: string[];
-}
+export type { ProviderPreset };
 
 /** 内置常用提供商预设，供新增模型时一键带出默认地址与协议 */
 export const PROVIDER_PRESETS: ProviderPreset[] = [
@@ -70,12 +59,36 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     sampleModels: ["glm-4-plus", "glm-4-air", "glm-4-flash", "glm-z1-air"],
   },
   {
+    id: "volcengine",
+    name: "火山方舟 (豆包)",
+    protocol: "openai",
+    baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+    requiresKey: true,
+    sampleModels: ["doubao-1-5-pro-32k-250115", "doubao-1-5-thinking-pro-250415"],
+  },
+  {
     id: "moonshot",
     name: "Moonshot (Kimi)",
     protocol: "openai",
     baseUrl: "https://api.moonshot.cn/v1",
     requiresKey: true,
     sampleModels: ["kimi-latest", "moonshot-v1-8k", "moonshot-v1-32k"],
+  },
+  {
+    id: "minimax",
+    name: "MiniMax",
+    protocol: "openai",
+    baseUrl: "https://api.minimax.chat/v1",
+    requiresKey: true,
+    sampleModels: ["MiniMax-Text-01", "abab6.5s-chat"],
+  },
+  {
+    id: "hunyuan",
+    name: "腾讯混元 (Hunyuan)",
+    protocol: "openai",
+    baseUrl: "https://api.hunyuan.cloud.tencent.com/v1",
+    requiresKey: true,
+    sampleModels: ["hunyuan-turbos-latest", "hunyuan-t1-latest"],
   },
   {
     id: "siliconflow",
@@ -92,6 +105,30 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     baseUrl: "https://openrouter.ai/api/v1",
     requiresKey: true,
     sampleModels: ["openai/gpt-4o", "anthropic/claude-sonnet-4", "google/gemini-2.5-flash"],
+  },
+  {
+    id: "xai",
+    name: "xAI (Grok)",
+    protocol: "openai",
+    baseUrl: "https://api.x.ai/v1",
+    requiresKey: true,
+    sampleModels: ["grok-3", "grok-3-mini"],
+  },
+  {
+    id: "groq",
+    name: "Groq",
+    protocol: "openai",
+    baseUrl: "https://api.groq.com/openai/v1",
+    requiresKey: true,
+    sampleModels: ["llama-3.3-70b-versatile", "deepseek-r1-distill-llama-70b"],
+  },
+  {
+    id: "mistral",
+    name: "Mistral",
+    protocol: "openai",
+    baseUrl: "https://api.mistral.ai/v1",
+    requiresKey: true,
+    sampleModels: ["mistral-large-latest", "codestral-latest"],
   },
   {
     id: "ollama",
@@ -115,6 +152,8 @@ export const PROVIDER_NAMES: Translations<Record<string, string>> = {
   en: {
     qwen: "Qwen (DashScope)",
     zhipu: "Zhipu GLM",
+    volcengine: "Volcengine Ark (Doubao)",
+    hunyuan: "Tencent Hunyuan",
     siliconflow: "SiliconFlow",
     ollama: "Ollama (Local)",
     custom: "Custom Endpoint",
@@ -122,11 +161,41 @@ export const PROVIDER_NAMES: Translations<Record<string, string>> = {
   ja: {
     qwen: "Qwen (DashScope)",
     zhipu: "Zhipu GLM",
+    volcengine: "Volcengine Ark (Doubao)",
+    hunyuan: "Tencent Hunyuan",
     siliconflow: "SiliconFlow",
     ollama: "Ollama (ローカル)",
     custom: "カスタムエンドポイント",
   },
 };
+
+const BASE_URL_VENDOR_RULES: ReadonlyArray<[RegExp, string]> = [
+  [/api\.deepseek\.com/i, "deepseek"],
+  [/dashscope\.aliyuncs\.com/i, "qwen"],
+  [/open\.bigmodel\.cn/i, "zhipu"],
+  [/volces\.com/i, "volcengine"],
+  [/moonshot\.(cn|ai)/i, "moonshot"],
+  [/minimax(i)?\.(chat|io|com)/i, "minimax"],
+  [/hunyuan\.cloud\.tencent\.com/i, "hunyuan"],
+  [/siliconflow\.(cn|com)/i, "siliconflow"],
+  [/openrouter\.ai/i, "openrouter"],
+  [/api\.x\.ai/i, "xai"],
+  [/api\.groq\.com/i, "groq"],
+  [/api\.mistral\.ai/i, "mistral"],
+  [/api\.anthropic\.com/i, "anthropic"],
+  [/generativelanguage\.googleapis\.com/i, "gemini"],
+  [/(localhost|127\.0\.0\.1):11434/i, "ollama"],
+];
+
+/** 按接口地址自动识别具体厂商，避免兼容接口笼统显示为 OpenAI 或自定义接口 */
+export function inferProviderIdFromBaseUrl(baseUrl?: string): string | undefined {
+  const url = baseUrl?.trim();
+  if (!url) return undefined;
+  for (const [pattern, id] of BASE_URL_VENDOR_RULES) {
+    if (pattern.test(url)) return id;
+  }
+  return undefined;
+}
 
 export function findProviderPreset(id: string): ProviderPreset | undefined {
   return PROVIDER_PRESETS.find((p) => p.id === id);
@@ -136,6 +205,20 @@ export function providerDisplayName(providerId: string, l: Locale): string {
   const preset = findProviderPreset(providerId);
   if (!preset) return providerId || (translationIn(PROVIDER_NAMES, l, "custom") ?? "自定义接口");
   return translationIn(PROVIDER_NAMES, l, preset.id) ?? preset.name;
+}
+
+/** 解析单个模型最终展示的具体厂商名：优先自定义厂商名 -> 预设厂商名 -> 按 baseUrl 推断的具体厂商 */
+export function resolveModelProviderName(
+  model: Pick<ConfiguredModel, "providerId" | "providerName" | "baseUrl">,
+  l: Locale,
+): string {
+  const custom = model.providerName?.trim();
+  if (custom) return custom;
+  if (model.providerId === "openai" || model.providerId === "custom") {
+    const inferred = inferProviderIdFromBaseUrl(model.baseUrl);
+    if (inferred) return providerDisplayName(inferred, l);
+  }
+  return providerDisplayName(model.providerId, l);
 }
 
 export function providerRequiresKey(providerId: string): boolean {
@@ -150,37 +233,19 @@ export function makeEntityId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export const DEFAULT_GENERAL_SETTINGS: AiGeneralSettings = {
-  defaultModelConfigId: "",
-};
-
 export function createDefaultConfig(): AiConfig {
   return {
-    version: 2,
     models: [],
     enabledMcpIds: [],
     folders: [],
     conversationMeta: {},
-    settings: { ...DEFAULT_GENERAL_SETTINGS },
   };
-}
-
-function validProtocol(value: unknown): ApiProtocol {
-  return value === "anthropic" || value === "gemini" ? value : "openai";
-}
-
-function validThinkingSupport(value: unknown): ThinkingSupportMode | undefined {
-  return value === "auto" || value === "enabled" || value === "disabled" ? value : undefined;
-}
-
-function validThinkingEffort(value: unknown): ThinkingEffort | undefined {
-  return value === "none" || value === "low" || value === "medium" || value === "high" ? value : undefined;
 }
 
 function isAlwaysReasoningModel(id: string): boolean {
   return (
     /(^|\/)(o1|o3|o4|gpt-5)([-.\w]*|$)/.test(id) ||
-    /gemini-(2\.5|3|4)/.test(id) && !/flash|lite/.test(id) ||
+    (/gemini-(2\.5|3|4)/.test(id) && !/flash|lite/.test(id)) ||
     /(reasoner|deepseek-r1|qwq|glm-z1|thinking|reasoning)/.test(id)
   );
 }
@@ -221,146 +286,10 @@ export function resolveThinkingEffort(
   return supported.includes("none") ? "none" : supported[0];
 }
 
-/** 兼容旧版按提供商分组的配置（version: 1）平滑迁移到新版扁平模型配置（version: 2） */
-function migrateV1Providers(rawProviders: unknown[]): ConfiguredModel[] {
-  const out: ConfiguredModel[] = [];
-  for (const item of rawProviders) {
-    if (!item || typeof item !== "object") continue;
-    const p = item as Record<string, unknown>;
-    const enabled = Boolean(p.enabled);
-    const apiKey = typeof p.apiKey === "string" ? p.apiKey : "";
-    const providerId = typeof p.id === "string" ? p.id : "custom";
-    const preset = findProviderPreset(providerId);
-    const requiresKey = preset ? preset.requiresKey : true;
-    // 只把用户实际配置过或启用过的提供商模型迁移出来，避免空配置刷屏
-    if (!enabled && !apiKey.trim()) continue;
-    if (requiresKey && !apiKey.trim()) continue;
-    const baseUrl = typeof p.baseUrl === "string" && p.baseUrl.trim()
-      ? p.baseUrl.trim()
-      : (preset?.baseUrl ?? "");
-    const protocol = validProtocol(p.protocol ?? preset?.protocol);
-    const rawModels = Array.isArray(p.models) ? p.models : [];
-    for (const m of rawModels) {
-      if (!m || typeof m !== "object") continue;
-      const modelRec = m as Record<string, unknown>;
-      const modelId = typeof modelRec.id === "string" ? modelRec.id.trim() : "";
-      if (!modelId || modelRec.enabled === false) continue;
-      out.push({
-        id: `${providerId}__${modelId}`.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 48),
-        providerId: preset ? preset.id : "custom",
-        name: typeof modelRec.name === "string" && modelRec.name.trim() ? modelRec.name.trim() : "",
-        protocol,
-        baseUrl,
-        apiKey,
-        modelId,
-        enabled: true,
-      });
-    }
-  }
-  return out;
-}
-
-export function normalizeConfig(raw: unknown): AiConfig {
-  const defaults = createDefaultConfig();
-  if (!raw || typeof raw !== "object") return defaults;
-  const record = raw as Record<string, unknown>;
-
-  let models: ConfiguredModel[] = [];
-  if (Array.isArray(record.models)) {
-    const seen = new Set<string>();
-    for (const item of record.models) {
-      if (!item || typeof item !== "object") continue;
-      const m = item as Record<string, unknown>;
-      const modelId = typeof m.modelId === "string" ? m.modelId.trim() : "";
-      if (!modelId) continue;
-      const id = typeof m.id === "string" && m.id.trim() ? m.id.trim() : makeEntityId("mdl");
-      if (seen.has(id)) continue;
-      seen.add(id);
-      const providerId = typeof m.providerId === "string" && m.providerId.trim() ? m.providerId.trim() : "custom";
-      const preset = findProviderPreset(providerId);
-      const maxTokens = typeof m.maxTokens === "number" && Number.isFinite(m.maxTokens) && m.maxTokens > 0
-        ? Math.round(m.maxTokens)
-        : null;
-      models.push({
-        id,
-        providerId: preset ? preset.id : "custom",
-        name: typeof m.name === "string" ? m.name.trim() : "",
-        protocol: validProtocol(m.protocol ?? preset?.protocol),
-        baseUrl: typeof m.baseUrl === "string" && m.baseUrl.trim() ? m.baseUrl.trim() : (preset?.baseUrl ?? ""),
-        apiKey: typeof m.apiKey === "string" ? m.apiKey : "",
-        modelId,
-        enabled: m.enabled !== false,
-        maxTokens,
-        thinkingSupport: validThinkingSupport(m.thinkingSupport),
-        thinkingEffort: validThinkingEffort(m.thinkingEffort),
-      });
-    }
-  } else if (Array.isArray(record.providers)) {
-    models = migrateV1Providers(record.providers);
-  }
-
-  const enabledMcpIds: string[] = Array.isArray(record.enabledMcpIds)
-    ? [...new Set(record.enabledMcpIds.filter((x): x is string => typeof x === "string" && x.trim().length > 0))]
-    : [];
-
-  const folders: AiFolder[] = [];
-  const folderIds = new Set<string>();
-  if (Array.isArray(record.folders)) {
-    for (const item of record.folders) {
-      if (!item || typeof item !== "object") continue;
-      const f = item as Record<string, unknown>;
-      const id = typeof f.id === "string" && f.id.trim() ? f.id.trim() : makeEntityId("fld");
-      if (folderIds.has(id)) continue;
-      const name = typeof f.name === "string" ? f.name.trim() : "";
-      folderIds.add(id);
-      folders.push({
-        id,
-        name: name || id,
-        pinned: Boolean(f.pinned),
-        collapsed: Boolean(f.collapsed),
-        createdAt: typeof f.createdAt === "number" && Number.isFinite(f.createdAt) ? f.createdAt : Date.now(),
-      });
-    }
-  }
-
-  const conversationMeta: Record<string, AiConversationMeta> = {};
-  if (record.conversationMeta && typeof record.conversationMeta === "object" && !Array.isArray(record.conversationMeta)) {
-    for (const [convId, rawMeta] of Object.entries(record.conversationMeta as Record<string, unknown>)) {
-      if (!convId || !rawMeta || typeof rawMeta !== "object") continue;
-      const m = rawMeta as Record<string, unknown>;
-      const folderId = typeof m.folderId === "string" && folderIds.has(m.folderId) ? m.folderId : undefined;
-      const pinned = Boolean(m.pinned);
-      const order = typeof m.order === "number" && Number.isFinite(m.order) ? m.order : undefined;
-      if (pinned || folderId || order !== undefined) {
-        conversationMeta[convId] = {
-          ...(pinned ? { pinned: true } : {}),
-          ...(folderId ? { folderId } : {}),
-          ...(order !== undefined ? { order } : {}),
-        };
-      }
-    }
-  }
-
-  const rawSettings = (record.settings && typeof record.settings === "object" ? record.settings : {}) as Record<string, unknown>;
-  let defaultModelConfigId = typeof rawSettings.defaultModelConfigId === "string" ? rawSettings.defaultModelConfigId : "";
-  if (!defaultModelConfigId && typeof rawSettings.defaultProviderId === "string" && typeof rawSettings.defaultModelId === "string") {
-    const matched = models.find(
-      (m) => m.providerId === rawSettings.defaultProviderId && m.modelId === rawSettings.defaultModelId,
-    );
-    if (matched) defaultModelConfigId = matched.id;
-  }
-
-  const settings: AiGeneralSettings = {
-    defaultModelConfigId,
-  };
-
-  return { version: 2, models, enabledMcpIds, folders, conversationMeta, settings };
-}
-
 /** 判断模型配置是否可用 */
 export function isModelReady(model: ConfiguredModel): boolean {
   if (!model.enabled) return false;
   if (!model.baseUrl.trim() || !model.modelId.trim()) return false;
-  if (providerRequiresKey(model.providerId) && !model.apiKey.trim()) return false;
+  if (providerRequiresKey(model.providerId) && !model.hasApiKey) return false;
   return true;
 }

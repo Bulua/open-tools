@@ -1,46 +1,13 @@
 import { computed, reactive, ref } from "vue";
+import { aiApi } from "@/api/ai";
 import { locale, t } from "@/locales";
-import { showError } from "@/utils/errorToast";
-import { hydrateTurnsForModel, persistAttachmentsToWorkspace } from "./attachments";
-import {
-  checkBuiltinToolPath,
-  invalidateLocalImageCache,
-  invokeBuiltinTool,
-  loadBuiltinAiContext,
-  resolveConversationWorkspaceDir,
-  setBuiltinContextTestProvider,
-  setBuiltinToolTestExecutor,
-} from "./builtinTools";
-import { streamChat, type PromptTurn, type ToolDefinition } from "./client";
-import {
-  collectEnabledMcpTools,
-  invokeMcpTool,
-  loadMcpConnections,
-  resetMcpStateForTest,
-  type ActiveMcpToolEntry,
-} from "./mcp";
-import {
-  createDefaultConfig,
-  isModelReady,
-  makeEntityId,
-  normalizeConfig,
-  providerDisplayName,
-  providerRequiresKey,
-  resolveThinkingEffort,
-  supportedThinkingEffortsOf,
-} from "./presets";
-import {
-  deleteAiConversation,
-  listAiConversations,
-  readAiConfigRaw,
-  readAiConversation,
-  saveAiConfig,
-  saveAiConversation,
-} from "./storage";
 import type {
   AiConfig,
   AiConversationMeta,
+  AiConversationMetaUpdate,
   AiFolder,
+  AiModelUpsertInput,
+  BackendChatEvent,
   ChatAttachment,
   ChatMessage,
   ChatMessagePart,
@@ -51,11 +18,22 @@ import type {
   ExecutionPolicy,
   ModelOption,
   PendingToolApproval,
+  PromptTurn,
   ThinkingEffort,
   ToolApprovalDecision,
-} from "./types";
-
-const MAX_TOOL_ROUNDS = 16;
+} from "@/types/ai";
+import { showError } from "@/utils/errorToast";
+import { persistAttachmentsToWorkspace } from "./attachments";
+import { invalidateLocalImageCache, resolveConversationWorkspaceDir } from "./builtinTools";
+import { loadMcpConnections } from "./mcp";
+import {
+  createDefaultConfig,
+  isModelReady,
+  makeEntityId,
+  resolveModelProviderName,
+  resolveThinkingEffort,
+  supportedThinkingEffortsOf,
+} from "./presets";
 
 function makeTitleFromText(text: string): string {
   const clean = text.replace(/\s+/g, " ").trim();
@@ -68,10 +46,7 @@ const conversations = ref<ConversationSummary[]>([]);
 const activeConversationId = ref<string>("");
 const conversationCache = reactive<Record<string, Conversation>>({});
 const streamingIds = reactive<Record<string, boolean>>({});
-const activeControllers = new Map<string, AbortController>();
 const pendingApprovals = reactive<Record<string, PendingToolApproval>>({});
-const approvalResolvers = new Map<string, (decision: ToolApprovalDecision) => void>();
-const sessionApprovals = reactive<Record<string, { allowCommand: boolean; allowExternalWrite: boolean }>>({});
 
 /** 尚未发送首条消息时的草稿会话设置 */
 const draft = reactive({
@@ -85,7 +60,6 @@ const draft = reactive({
 const initialized = ref(false);
 const loading = ref(false);
 let initPromise: Promise<void> | null = null;
-let configWriteChain: Promise<void> = Promise.resolve();
 
 export const availableModels = computed<ModelOption[]>(() =>
   config.value.models
@@ -94,7 +68,7 @@ export const availableModels = computed<ModelOption[]>(() =>
       value: m.id,
       modelConfigId: m.id,
       providerId: m.providerId,
-      providerName: providerDisplayName(m.providerId, locale.value),
+      providerName: resolveModelProviderName(m, locale.value),
       modelId: m.modelId,
       modelLabel: m.name || m.modelId,
       supportedEfforts: supportedThinkingEffortsOf(m),
@@ -102,7 +76,11 @@ export const availableModels = computed<ModelOption[]>(() =>
     })),
 );
 
-function findConfiguredModel(modelConfigId?: string, providerId?: string, modelId?: string): ConfiguredModel | undefined {
+function findConfiguredModel(
+  modelConfigId?: string,
+  providerId?: string,
+  modelId?: string,
+): ConfiguredModel | undefined {
   const ready = config.value.models.filter(isModelReady);
   if (modelConfigId) {
     const exact = ready.find((m) => m.id === modelConfigId);
@@ -118,7 +96,7 @@ function findConfiguredModel(modelConfigId?: string, providerId?: string, modelI
 export function resolveFallbackModel(): ConfiguredModel | undefined {
   const ready = config.value.models.filter(isModelReady);
   if (!ready.length) return undefined;
-  return ready.find((m) => m.id === config.value.settings.defaultModelConfigId) ?? ready[0];
+  return ready.find((m) => m.isDefault) ?? ready[0];
 }
 
 export const activeConversation = computed<Conversation | null>(() => {
@@ -162,32 +140,69 @@ export function isConversationStreaming(id: string): boolean {
   return Boolean(streamingIds[id]);
 }
 
-function getSessionApproval(conversationId: string) {
-  if (!sessionApprovals[conversationId]) {
-    sessionApprovals[conversationId] = { allowCommand: false, allowExternalWrite: false };
+async function upsertConversationRow(conv: Conversation): Promise<void> {
+  try {
+    conversations.value = await aiApi.upsertConversation(conv);
+  } catch (error) {
+    showError(error);
   }
-  return sessionApprovals[conversationId];
+}
+
+export async function upsertModel(input: AiModelUpsertInput): Promise<void> {
+  try {
+    config.value.models = await aiApi.upsertModel(input);
+  } catch (error) {
+    showError(error);
+    throw error;
+  }
+}
+
+export async function deleteModel(id: string): Promise<void> {
+  try {
+    config.value.models = await aiApi.deleteModel(id);
+  } catch (error) {
+    showError(error);
+  }
+}
+
+export async function setDefaultModel(id: string | null): Promise<void> {
+  try {
+    config.value.models = await aiApi.setDefaultModel(id);
+  } catch (error) {
+    showError(error);
+  }
+}
+
+export async function setModelEnabled(id: string, enabled: boolean): Promise<void> {
+  try {
+    config.value.models = await aiApi.setModelEnabled(id, enabled);
+  } catch (error) {
+    showError(error);
+  }
+}
+
+export async function setEnabledMcpIds(ids: string[]): Promise<void> {
+  const deduped = [...new Set(ids)];
+  config.value.enabledMcpIds = deduped;
+  try {
+    await aiApi.setEnabledMcpIds(deduped);
+  } catch (error) {
+    showError(error);
+  }
 }
 
 export function resolveToolApproval(conversationId: string, decision: ToolApprovalDecision): void {
   const pending = pendingApprovals[conversationId];
   if (pending && decision === "session") {
-    const perms = getSessionApproval(conversationId);
-    perms.allowCommand = true;
-    perms.allowExternalWrite = true;
     const conv = conversationCache[conversationId];
     if (conv && conv.executionPolicy !== "auto") {
       conv.executionPolicy = "auto";
       conv.updatedAt = Date.now();
-      void persistConversation(conv);
+      void upsertConversationRow(conv);
     }
   }
   delete pendingApprovals[conversationId];
-  const resolver = approvalResolvers.get(conversationId);
-  if (resolver) {
-    approvalResolvers.delete(conversationId);
-    resolver(decision);
-  }
+  void aiApi.approveTool(conversationId, decision);
 }
 
 export async function setCurrentExecutionPolicy(policy: ExecutionPolicy): Promise<void> {
@@ -197,32 +212,12 @@ export async function setCurrentExecutionPolicy(policy: ExecutionPolicy): Promis
     return;
   }
   conv.executionPolicy = policy;
-  const perms = getSessionApproval(conv.id);
-  perms.allowCommand = policy === "auto";
-  perms.allowExternalWrite = policy === "auto";
   if (policy === "auto" && pendingApprovals[conv.id]) {
     resolveToolApproval(conv.id, "once");
   }
+  void aiApi.setExecutionPolicy(conv.id, policy);
   conv.updatedAt = Date.now();
-  await persistConversation(conv);
-}
-
-function requestToolApproval(
-  approval: PendingToolApproval,
-  signal: AbortSignal,
-): Promise<ToolApprovalDecision> {
-  if (signal.aborted) return Promise.resolve("deny");
-  return new Promise((resolve) => {
-    const onAbort = () => {
-      resolveToolApproval(approval.conversationId, "deny");
-    };
-    signal.addEventListener("abort", onAbort, { once: true });
-    approvalResolvers.set(approval.conversationId, (decision) => {
-      signal.removeEventListener("abort", onAbort);
-      resolve(decision);
-    });
-    pendingApprovals[approval.conversationId] = approval;
-  });
+  await upsertConversationRow(conv);
 }
 
 export async function setCurrentWorkspaceDir(dir: string): Promise<void> {
@@ -234,7 +229,7 @@ export async function setCurrentWorkspaceDir(dir: string): Promise<void> {
   }
   conv.workspaceDir = trimmed || undefined;
   conv.updatedAt = Date.now();
-  await persistConversation(conv);
+  await upsertConversationRow(conv);
 }
 
 export async function initAiStore(): Promise<void> {
@@ -243,18 +238,19 @@ export async function initAiStore(): Promise<void> {
   loading.value = true;
   initPromise = (async () => {
     try {
-      const [rawConfig, list] = await Promise.all([
-        readAiConfigRaw(),
-        listAiConversations(),
-        loadMcpConnections(),
-      ]);
-      config.value = normalizeConfig(rawConfig);
-      conversations.value = list;
+      const [state] = await Promise.all([aiApi.loadState(), loadMcpConnections()]);
+      config.value = {
+        models: state.models,
+        enabledMcpIds: state.enabledMcpIds,
+        folders: state.folders,
+        conversationMeta: state.conversationMeta,
+      };
+      conversations.value = state.conversations;
       const fallback = resolveFallbackModel();
       draft.modelConfigId = fallback?.id ?? "";
 
-      if (list.length > 0) {
-        await selectConversation(list[0].id);
+      if (state.conversations.length > 0) {
+        await selectConversation(state.conversations[0].id);
       }
       initialized.value = true;
     } catch (error) {
@@ -267,21 +263,11 @@ export async function initAiStore(): Promise<void> {
   return initPromise;
 }
 
-export function persistConfig(): Promise<void> {
-  const snapshot: AiConfig = JSON.parse(JSON.stringify(config.value));
-  configWriteChain = configWriteChain
-    .then(() => saveAiConfig(snapshot))
-    .catch((error) => {
-      showError(error);
-    });
-  return configWriteChain;
-}
-
 export async function selectConversation(id: string): Promise<void> {
   activeConversationId.value = id;
   if (!id || conversationCache[id]) return;
   try {
-    const loaded = await readAiConversation(id);
+    const loaded = await aiApi.readConversation(id);
     if (loaded) {
       conversationCache[id] = reactive(loaded);
     } else {
@@ -306,7 +292,7 @@ export function startNewConversation(target?: { pinned?: boolean; folderId?: str
   draft.pinned = folder ? folder.pinned : Boolean(target?.pinned);
   if (folder?.collapsed) {
     folder.collapsed = false;
-    void persistConfig();
+    void aiApi.upsertFolder(folder).catch(showError);
   }
 }
 
@@ -329,8 +315,8 @@ export async function createConversationInFolder(folderId: string): Promise<void
   });
   conversationCache[id] = conv;
   activeConversationId.value = id;
+  await upsertConversationRow(conv);
   moveConversation(id, { pinned: folder.pinned, folderId: folder.id });
-  await persistConversation(conv);
 }
 
 export function createFolder(pinned: boolean, name?: string): AiFolder {
@@ -343,7 +329,7 @@ export function createFolder(pinned: boolean, name?: string): AiFolder {
     createdAt: Date.now(),
   };
   config.value.folders.push(folder);
-  void persistConfig();
+  void aiApi.upsertFolder(folder).catch(showError);
   return folder;
 }
 
@@ -353,14 +339,14 @@ export function renameFolder(id: string, name: string): void {
   const folder = config.value.folders.find((f) => f.id === id);
   if (!folder) return;
   folder.name = trimmed;
-  void persistConfig();
+  void aiApi.upsertFolder(folder).catch(showError);
 }
 
 export function toggleFolder(id: string): void {
   const folder = config.value.folders.find((f) => f.id === id);
   if (!folder) return;
   folder.collapsed = !folder.collapsed;
-  void persistConfig();
+  void aiApi.upsertFolder(folder).catch(showError);
 }
 
 export function sortConversationsByMeta(
@@ -387,7 +373,7 @@ export function deleteFolder(id: string): void {
     }
   }
   if (draft.folderId === id) draft.folderId = "";
-  void persistConfig();
+  void aiApi.deleteFolder(id).catch(showError);
 }
 
 export function togglePinConversation(id: string): void {
@@ -399,7 +385,9 @@ export function togglePinConversation(id: string): void {
   } else {
     delete config.value.conversationMeta[id];
   }
-  void persistConfig();
+  void aiApi
+    .updateConversationMeta([{ conversationId: id, pinned: nextPinned, folderId: null, order: null }])
+    .catch(showError);
 }
 
 export function moveConversation(
@@ -435,8 +423,11 @@ export function moveConversation(
   }
 
   // 是否需要写入显式排序（当存在目标定位或该分组内有多项时按新顺序固化）
-  const shouldWriteOrder = Boolean(target.beforeId || target.afterId) || orderedIds.some((cid) => config.value.conversationMeta[cid]?.order !== undefined);
+  const shouldWriteOrder =
+    Boolean(target.beforeId || target.afterId) ||
+    orderedIds.some((cid) => config.value.conversationMeta[cid]?.order !== undefined);
 
+  const metaUpdates: AiConversationMetaUpdate[] = [];
   if (shouldWriteOrder) {
     orderedIds.forEach((cid, idx) => {
       config.value.conversationMeta[cid] = {
@@ -444,20 +435,39 @@ export function moveConversation(
         ...(folderId ? { folderId } : {}),
         order: idx,
       };
+      metaUpdates.push({
+        conversationId: cid,
+        pinned,
+        folderId: folderId ?? null,
+        order: idx,
+      });
     });
   } else if (!pinned && !folderId) {
     delete config.value.conversationMeta[id];
+    metaUpdates.push({
+      conversationId: id,
+      pinned: false,
+      folderId: null,
+      order: null,
+    });
   } else {
     config.value.conversationMeta[id] = {
       ...(pinned ? { pinned: true } : {}),
       ...(folderId ? { folderId } : {}),
     };
+    metaUpdates.push({
+      conversationId: id,
+      pinned,
+      folderId: folderId ?? null,
+      order: null,
+    });
   }
 
   if (folder?.collapsed) {
     folder.collapsed = false;
+    void aiApi.upsertFolder(folder).catch(showError);
   }
-  void persistConfig();
+  void aiApi.updateConversationMeta(metaUpdates).catch(showError);
 }
 
 export async function setCurrentModel(modelConfigId: string, effort?: ThinkingEffort): Promise<void> {
@@ -465,7 +475,7 @@ export async function setCurrentModel(modelConfigId: string, effort?: ThinkingEf
   if (!model) return;
   if (effort !== undefined) {
     model.thinkingEffort = effort;
-    void persistConfig();
+    void aiApi.setModelThinkingEffort(model.id, effort).catch(showError);
   }
   const conv = activeConversation.value;
   if (!conv) {
@@ -476,16 +486,7 @@ export async function setCurrentModel(modelConfigId: string, effort?: ThinkingEf
   conv.providerId = model.providerId;
   conv.modelId = model.modelId;
   conv.updatedAt = Date.now();
-  await persistConversation(conv);
-}
-
-async function persistConversation(conv: Conversation): Promise<void> {
-  try {
-    const plain: Conversation = JSON.parse(JSON.stringify(conv));
-    conversations.value = await saveAiConversation(plain);
-  } catch (error) {
-    showError(error);
-  }
+  await upsertConversationRow(conv);
 }
 
 export async function renameConversation(id: string, title: string): Promise<void> {
@@ -494,7 +495,7 @@ export async function renameConversation(id: string, title: string): Promise<voi
   let conv: Conversation | null = conversationCache[id] ?? null;
   if (!conv) {
     try {
-      const loaded = await readAiConversation(id);
+      const loaded = await aiApi.readConversation(id);
       if (loaded) {
         conv = reactive(loaded);
         conversationCache[id] = conv;
@@ -507,19 +508,16 @@ export async function renameConversation(id: string, title: string): Promise<voi
   if (!conv) return;
   conv.title = trimmed;
   conv.updatedAt = Date.now();
-  await persistConversation(conv);
+  await upsertConversationRow(conv);
 }
 
 export async function removeConversation(id: string): Promise<void> {
   stopStreaming(id);
   delete conversationCache[id];
-  delete sessionApprovals[id];
-  if (config.value.conversationMeta[id]) {
-    delete config.value.conversationMeta[id];
-    void persistConfig();
-  }
+  void aiApi.clearChatSession(id);
+  delete config.value.conversationMeta[id];
   try {
-    conversations.value = await deleteAiConversation(id);
+    conversations.value = await aiApi.deleteConversation(id);
   } catch (error) {
     showError(error);
   }
@@ -533,11 +531,7 @@ export async function removeConversation(id: string): Promise<void> {
 export function stopStreaming(conversationId = activeConversationId.value): void {
   if (!conversationId) return;
   resolveToolApproval(conversationId, "deny");
-  const controller = activeControllers.get(conversationId);
-  if (controller) {
-    controller.abort();
-    activeControllers.delete(conversationId);
-  }
+  void aiApi.cancelChat(conversationId);
 }
 
 function buildContextTurns(messages: ChatMessage[], excludeId: string): PromptTurn[] {
@@ -551,19 +545,15 @@ function buildContextTurns(messages: ChatMessage[], excludeId: string): PromptTu
   );
 }
 
-function parseJsonObjectSafe(raw: string): Record<string, unknown> {
+async function persistMessage(conversationId: string, msg: ChatMessage): Promise<void> {
   try {
-    const parsed = JSON.parse(raw || "{}");
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>;
-    }
-  } catch {
-    // 忽略解析异常，传入空对象
+    conversations.value = await aiApi.upsertMessage(conversationId, msg);
+  } catch (error) {
+    showError(error);
   }
-  return {};
 }
 
-async function runAssistantTurn(conv: Conversation, fetchImpl?: typeof fetch): Promise<void> {
+async function runAssistantTurn(conv: Conversation): Promise<void> {
   const model =
     findConfiguredModel(conv.modelConfigId, conv.providerId, conv.modelId) ??
     findConfiguredModel(currentModelConfigId.value) ??
@@ -572,9 +562,17 @@ async function runAssistantTurn(conv: Conversation, fetchImpl?: typeof fetch): P
     throw new Error(t("ai.errors.noModelConfigured"));
   }
 
-  conv.modelConfigId = model.id;
-  conv.providerId = model.providerId;
-  conv.modelId = model.modelId;
+  if (
+    conv.modelConfigId !== model.id ||
+    conv.providerId !== model.providerId ||
+    conv.modelId !== model.modelId
+  ) {
+    conv.modelConfigId = model.id;
+    conv.providerId = model.providerId;
+    conv.modelId = model.modelId;
+    conv.updatedAt = Date.now();
+    await upsertConversationRow(conv);
+  }
 
   const assistantMsg = reactive<ChatMessage>({
     id: makeEntityId("msg"),
@@ -585,12 +583,13 @@ async function runAssistantTurn(conv: Conversation, fetchImpl?: typeof fetch): P
     parts: [],
     createdAt: Date.now(),
     modelConfigId: model.id,
+    providerName: resolveModelProviderName(model, locale.value),
     modelId: model.modelId,
     modelName: model.name || model.modelId,
   });
   conv.messages.push(assistantMsg);
   conv.updatedAt = Date.now();
-  await persistConversation(conv);
+  await persistMessage(conv.id, assistantMsg);
 
   const appendPart = (type: "reasoning" | "text", deltaText: string) => {
     const parts = assistantMsg.parts!;
@@ -602,249 +601,116 @@ async function runAssistantTurn(conv: Conversation, fetchImpl?: typeof fetch): P
     }
   };
 
-  const controller = new AbortController();
-  activeControllers.set(conv.id, controller);
   streamingIds[conv.id] = true;
   const started = performance.now();
 
   try {
-    // 系统提示词与已注册的内置工具声明统一由 Rust 后端返回
-    const builtinCtx = await loadBuiltinAiContext(conv.id, conv.workspaceDir);
-    const workspaceDir = builtinCtx.workspaceDir;
-    const turns = await hydrateTurnsForModel(buildContextTurns(conv.messages, assistantMsg.id), workspaceDir);
-    const systemPrompt = builtinCtx.systemPrompt;
-    const builtinByName = new Map(builtinCtx.tools.map((tool) => [tool.name, tool]));
-    const builtinToolDefs: ToolDefinition[] = builtinCtx.tools.map(({ name, description, parameters }) => ({
-      name,
-      description,
-      parameters,
-    }));
-
-    // 汇总内置本地工具与已启用的 MCP 工具
-    const mcpEntries: ActiveMcpToolEntry[] = await collectEnabledMcpTools(config.value.enabledMcpIds);
-    const mcpByFn = new Map(mcpEntries.map((entry) => [entry.functionName, entry]));
-    const mcpToolDefs: ToolDefinition[] = mcpEntries.map((entry) => ({
-      name: entry.functionName,
-      description: entry.tool.description || entry.tool.title || entry.tool.name,
-      parameters: entry.tool.inputSchema ?? { type: "object", properties: {} },
-    }));
-    const toolDefs: ToolDefinition[] = [...builtinToolDefs, ...mcpToolDefs];
-
-    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      let roundContent = "";
-      const result = await streamChat({
-        endpoint: {
-          protocol: model.protocol,
-          baseUrl: model.baseUrl,
-          apiKey: model.apiKey,
-          requiresKey: providerRequiresKey(model.providerId),
-        },
-        modelId: model.modelId,
-        messages: turns,
-        systemPrompt: systemPrompt || undefined,
-        maxTokens: model.maxTokens ?? null,
-        thinkingEffort: resolveThinkingEffort(model),
-        tools: toolDefs.length ? toolDefs : undefined,
-        signal: controller.signal,
-        fetchImpl,
-        onDelta(delta) {
-          if (delta.reasoning) {
-            assistantMsg.reasoning = (assistantMsg.reasoning ?? "") + delta.reasoning;
-            appendPart("reasoning", delta.reasoning);
+    const toolCallById = new Map<string, ChatToolCall>();
+    const handleBackendEvent = (event: BackendChatEvent) => {
+      switch (event.type) {
+        case "reasoningDelta":
+          assistantMsg.reasoning = (assistantMsg.reasoning ?? "") + event.text;
+          appendPart("reasoning", event.text);
+          break;
+        case "contentDelta":
+          assistantMsg.content += event.text;
+          appendPart("text", event.text);
+          break;
+        case "roundSeparator":
+          if (assistantMsg.content && !assistantMsg.content.endsWith("\n")) {
+            assistantMsg.content += "\n\n";
           }
-          if (delta.content) {
-            roundContent += delta.content;
-            assistantMsg.content += delta.content;
-            appendPart("text", delta.content);
-          }
-        },
-      });
-
-      if (!result.toolCalls.length || controller.signal.aborted) break;
-
-      turns.push({
-        role: "assistant",
-        content: roundContent,
-        toolCalls: result.toolCalls,
-      });
-
-      for (const call of result.toolCalls) {
-        if (controller.signal.aborted) break;
-
-        const builtinTool = builtinByName.get(call.name);
-        if (builtinTool) {
-          const parsedArgs = parseJsonObjectSafe(call.argumentsText);
+          break;
+        case "toolCallStart": {
           const uiCall = reactive<ChatToolCall>({
-            id: call.id,
-            serverId: "__builtin__",
-            serverName: t("ai.builtinToolBadge"),
-            toolName: call.name,
-            argumentsText: call.argumentsText || "{}",
+            id: event.id,
+            serverId: event.serverId,
+            serverName: event.serverName,
+            toolName: event.toolName,
+            argumentsText: event.argumentsText || "{}",
             status: "running",
           });
+          toolCallById.set(event.id, uiCall);
           assistantMsg.toolCalls!.push(uiCall);
           assistantMsg.parts!.push({ id: makeEntityId("prt"), type: "tool", call: uiCall });
-
-          let toolResultText = "";
-          let approved = true;
-
-          // 按后端工具声明的 approval 策略进行安全确认，新扩展工具自动遵循同一链路
-          const autoAll = conv.executionPolicy === "auto";
-          if (builtinTool.approval === "command" && !autoAll && !sessionApprovals[conv.id]?.allowCommand) {
-            const isShellCommand = call.name === "run_command";
-            const cmdStr = typeof parsedArgs.command === "string" ? parsedArgs.command : call.argumentsText;
-            const shellStr = typeof parsedArgs.shell === "string" && parsedArgs.shell.trim() ? parsedArgs.shell.trim() : "powershell";
-            const cwdStr = typeof parsedArgs.cwd === "string" && parsedArgs.cwd.trim() ? parsedArgs.cwd.trim() : workspaceDir;
-            const formattedArgs = Object.keys(parsedArgs).length
-              ? JSON.stringify(parsedArgs, null, 2)
-              : call.argumentsText || "{}";
-            const decision = await requestToolApproval(
-              isShellCommand
-                ? {
-                    id: call.id,
-                    conversationId: conv.id,
-                    toolName: call.name,
-                    kind: "command",
-                    command: cmdStr,
-                    shell: shellStr,
-                    cwd: cwdStr,
-                  }
-                : {
-                    id: call.id,
-                    conversationId: conv.id,
-                    toolName: call.name,
-                    kind: "tool",
-                    argumentsText: formattedArgs,
-                  },
-              controller.signal,
-            );
-            approved = decision !== "deny";
-          } else if (
-            builtinTool.approval === "externalWrite" &&
-            !autoAll &&
-            !sessionApprovals[conv.id]?.allowExternalWrite
-          ) {
-            const rawTarget =
-              typeof parsedArgs.output_path === "string" && parsedArgs.output_path.trim()
-                ? parsedArgs.output_path
-                : typeof parsedArgs.path === "string" && parsedArgs.path.trim()
-                  ? parsedArgs.path
-                  : "";
-            if (rawTarget) {
-              const check = await checkBuiltinToolPath(workspaceDir, rawTarget);
-              if (check.outsideWorkspace) {
-                const decision = await requestToolApproval(
-                  {
-                    id: call.id,
-                    conversationId: conv.id,
-                    toolName: call.name,
-                    kind: "externalWrite",
-                    targetPath: check.resolvedPath,
-                  },
-                  controller.signal,
-                );
-                approved = decision !== "deny";
+          break;
+        }
+        case "approvalRequired":
+          pendingApprovals[event.conversationId] = {
+            id: event.id,
+            conversationId: event.conversationId,
+            toolName: event.toolName,
+            kind: event.kind,
+            ...(event.command !== undefined ? { command: event.command } : {}),
+            ...(event.shell !== undefined ? { shell: event.shell } : {}),
+            ...(event.targetPath !== undefined ? { targetPath: event.targetPath } : {}),
+            ...(event.cwd !== undefined ? { cwd: event.cwd } : {}),
+            ...(event.argumentsText !== undefined ? { argumentsText: event.argumentsText } : {}),
+          };
+          break;
+        case "approvalCleared":
+          delete pendingApprovals[event.conversationId];
+          break;
+        case "sessionPolicyChanged":
+          if (conv.executionPolicy !== event.executionPolicy) {
+            conv.executionPolicy = event.executionPolicy;
+            conv.updatedAt = Date.now();
+            void upsertConversationRow(conv);
+          }
+          break;
+        case "toolCallResult": {
+          const uiCall = toolCallById.get(event.id);
+          if (uiCall) {
+            uiCall.status = event.status;
+            uiCall.resultText = event.resultText;
+            if (event.status === "done" && event.outputFile) {
+              uiCall.outputFile = event.outputFile;
+              if (event.outputFile.kind === "image") {
+                invalidateLocalImageCache(event.outputFile.path);
               }
             }
           }
-
-          if (!approved || controller.signal.aborted) {
-            uiCall.status = "error";
-            toolResultText = controller.signal.aborted
-              ? "Tool execution cancelled by user."
-              : "User denied permission to run this tool.";
-            uiCall.resultText = toolResultText;
-          } else {
-            const res = await invokeBuiltinTool(call.name, parsedArgs, workspaceDir, controller.signal);
-            toolResultText = res.text;
-            uiCall.status = res.isError ? "error" : "done";
-            uiCall.resultText = toolResultText;
-            if (!res.isError && res.outputFile) {
-              uiCall.outputFile = res.outputFile;
-              if (res.outputFile.kind === "image") {
-                invalidateLocalImageCache(res.outputFile.path);
-              }
-            }
-          }
-
-          turns.push({
-            role: "tool",
-            toolCallId: call.id,
-            toolName: call.name,
-            content: toolResultText,
-          });
-          continue;
+          break;
         }
-
-        const entry = mcpByFn.get(call.name);
-        const uiCall = reactive<ChatToolCall>({
-          id: call.id,
-          serverId: entry?.serverId ?? "",
-          serverName: entry?.serverName ?? "MCP",
-          toolName: entry?.tool.name ?? call.name,
-          argumentsText: call.argumentsText || "{}",
-          status: "running",
-        });
-        assistantMsg.toolCalls!.push(uiCall);
-        assistantMsg.parts!.push({ id: makeEntityId("prt"), type: "tool", call: uiCall });
-
-        let toolResultText = "";
-        if (!entry) {
-          uiCall.status = "error";
-          toolResultText = `Unknown MCP tool: ${call.name}`;
-          uiCall.resultText = toolResultText;
-        } else {
-          try {
-            const res = await invokeMcpTool(
-              entry.serverId,
-              entry.tool.name,
-              parseJsonObjectSafe(call.argumentsText),
-            );
-            toolResultText = res.text;
-            uiCall.status = res.isError ? "error" : "done";
-            uiCall.resultText = toolResultText;
-          } catch (error) {
-            uiCall.status = "error";
-            toolResultText = error instanceof Error ? error.message : String(error);
-            uiCall.resultText = toolResultText;
-          }
-        }
-
-        turns.push({
-          role: "tool",
-          toolCallId: call.id,
-          toolName: call.name,
-          content: toolResultText,
-        });
+        case "notice":
+          showError(event.message);
+          break;
       }
+    };
 
-      if (assistantMsg.content && !assistantMsg.content.endsWith("\n")) {
-        assistantMsg.content += "\n\n";
-      }
+    const runResult = await aiApi.runChat(
+      {
+        conversationId: conv.id,
+        modelConfigId: model.id,
+        messages: buildContextTurns(conv.messages, assistantMsg.id),
+        ...(conv.workspaceDir ? { workspaceDir: conv.workspaceDir } : {}),
+        ...(conv.executionPolicy ? { executionPolicy: conv.executionPolicy } : {}),
+        thinkingEffort: resolveThinkingEffort(model),
+        enabledMcpIds: [...config.value.enabledMcpIds],
+        builtinToolBadge: t("ai.builtinToolBadge"),
+      },
+      handleBackendEvent,
+    );
+    assistantMsg.durationMs = runResult.durationMs;
+    if (runResult.aborted) {
+      assistantMsg.aborted = true;
     }
-
-    assistantMsg.durationMs = Math.round(performance.now() - started);
   } catch (error) {
     assistantMsg.durationMs = Math.round(performance.now() - started);
-    if (controller.signal.aborted) {
-      assistantMsg.aborted = true;
-    } else {
-      const msg = error instanceof Error ? error.message : String(error);
-      assistantMsg.error = msg;
-      showError(msg);
-    }
+    const msg = error instanceof Error ? error.message : String(error);
+    assistantMsg.error = msg;
+    showError(msg);
   } finally {
-    activeControllers.delete(conv.id);
+    delete pendingApprovals[conv.id];
     streamingIds[conv.id] = false;
     conv.updatedAt = Date.now();
-    await persistConversation(conv);
+    await persistMessage(conv.id, assistantMsg);
   }
 }
 
 export async function sendMessage(
   text: string,
   attachments: ChatAttachment[] = [],
-  fetchImpl?: typeof fetch,
 ): Promise<boolean> {
   const trimmed = text.trim();
   const files = attachments.filter((item) =>
@@ -880,11 +746,14 @@ export async function sendMessage(
     });
     conversationCache[id] = conv;
     activeConversationId.value = id;
+    await upsertConversationRow(conv);
     if (draft.pinned || draft.folderId) {
       moveConversation(id, { pinned: draft.pinned, folderId: draft.folderId || undefined });
     }
   } else if (conv.messages.length === 0 && conv.title === t("ai.newChat")) {
     conv.title = initialTitle;
+    conv.updatedAt = now;
+    await upsertConversationRow(conv);
   }
 
   let persistedFiles: ChatAttachment[] = [];
@@ -898,19 +767,19 @@ export async function sendMessage(
     }
   }
 
-  conv.messages.push(
-    reactive<ChatMessage>({
-      id: makeEntityId("msg"),
-      role: "user",
-      content: trimmed,
-      ...(persistedFiles.length ? { attachments: persistedFiles } : {}),
-      createdAt: now,
-    }),
-  );
+  const userMsg = reactive<ChatMessage>({
+    id: makeEntityId("msg"),
+    role: "user",
+    content: trimmed,
+    ...(persistedFiles.length ? { attachments: persistedFiles } : {}),
+    createdAt: now,
+  });
+  conv.messages.push(userMsg);
   conv.updatedAt = now;
+  await persistMessage(conv.id, userMsg);
 
   try {
-    await runAssistantTurn(conv, fetchImpl);
+    await runAssistantTurn(conv);
     return true;
   } catch (error) {
     showError(error);
@@ -918,20 +787,22 @@ export async function sendMessage(
   }
 }
 
-export async function regenerateMessage(messageId: string, fetchImpl?: typeof fetch): Promise<void> {
+export async function regenerateMessage(messageId: string): Promise<void> {
   const conv = activeConversation.value;
   if (!conv || streamingIds[conv.id]) return;
   const idx = conv.messages.findIndex((m) => m.id === messageId);
   if (idx < 0) return;
   const target = conv.messages[idx];
-  if (target.role === "assistant") {
+  const inclusive = target.role === "assistant";
+  if (inclusive) {
     conv.messages.splice(idx);
   } else {
     conv.messages.splice(idx + 1);
   }
   if (!conv.messages.some((m) => m.role === "user")) return;
   try {
-    await runAssistantTurn(conv, fetchImpl);
+    conversations.value = await aiApi.truncateMessagesFrom(conv.id, messageId, inclusive);
+    await runAssistantTurn(conv);
   } catch (error) {
     showError(error);
   }
@@ -940,7 +811,6 @@ export async function regenerateMessage(messageId: string, fetchImpl?: typeof fe
 export async function editAndResendMessage(
   messageId: string,
   newContent: string,
-  fetchImpl?: typeof fetch,
 ): Promise<void> {
   const trimmed = newContent.trim();
   const conv = activeConversation.value;
@@ -950,7 +820,9 @@ export async function editAndResendMessage(
   conv.messages[idx].content = trimmed;
   conv.messages.splice(idx + 1);
   try {
-    await runAssistantTurn(conv, fetchImpl);
+    await aiApi.truncateMessagesFrom(conv.id, messageId, false);
+    conversations.value = await aiApi.upsertMessage(conv.id, conv.messages[idx]);
+    await runAssistantTurn(conv);
   } catch (error) {
     showError(error);
   }
@@ -963,7 +835,11 @@ export async function deleteMessage(messageId: string): Promise<void> {
   if (idx < 0) return;
   conv.messages.splice(idx, 1);
   conv.updatedAt = Date.now();
-  await persistConversation(conv);
+  try {
+    conversations.value = await aiApi.deleteMessage(conv.id, messageId);
+  } catch (error) {
+    showError(error);
+  }
 }
 
 export async function clearConversationMessages(): Promise<void> {
@@ -971,32 +847,11 @@ export async function clearConversationMessages(): Promise<void> {
   if (!conv || streamingIds[conv.id]) return;
   conv.messages = [];
   conv.updatedAt = Date.now();
-  await persistConversation(conv);
-}
-
-export function resetAiStoreForTest(): void {
-  for (const id of Object.keys(pendingApprovals)) {
-    resolveToolApproval(id, "deny");
+  try {
+    conversations.value = await aiApi.clearMessages(conv.id);
+  } catch (error) {
+    showError(error);
   }
-  for (const controller of activeControllers.values()) controller.abort();
-  activeControllers.clear();
-  for (const key of Object.keys(streamingIds)) delete streamingIds[key];
-  for (const key of Object.keys(conversationCache)) delete conversationCache[key];
-  for (const key of Object.keys(sessionApprovals)) delete sessionApprovals[key];
-  setBuiltinToolTestExecutor(null);
-  setBuiltinContextTestProvider(null);
-  resetMcpStateForTest();
-  config.value = createDefaultConfig();
-  conversations.value = [];
-  activeConversationId.value = "";
-  draft.modelConfigId = "";
-  draft.workspaceDir = "";
-  draft.executionPolicy = "review";
-  draft.pinned = false;
-  draft.folderId = "";
-  initialized.value = false;
-  loading.value = false;
-  initPromise = null;
 }
 
 export function useAiStore() {
@@ -1014,7 +869,11 @@ export function useAiStore() {
     initialized,
     loading,
     initAiStore,
-    persistConfig,
+    upsertModel,
+    deleteModel,
+    setDefaultModel,
+    setModelEnabled,
+    setEnabledMcpIds,
     selectConversation,
     startNewConversation,
     createConversationInFolder,

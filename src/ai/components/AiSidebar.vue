@@ -14,7 +14,7 @@ import {
   Trash2,
 } from "lucide-vue-next";
 import { sortConversationsByMeta } from "../store";
-import type { AiConversationMeta, AiFolder, ConversationSummary } from "../types";
+import type { AiConversationMeta, AiFolder, ConversationSummary } from "@/types/ai";
 import AiSidebarChatItem from "./AiSidebarChatItem.vue";
 
 const SIDEBAR_WIDTH_KEY = "open-tools:ai:sidebar-width";

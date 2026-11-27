@@ -5,7 +5,7 @@ import DOMPurify from "dompurify";
 import hljs from "highlight.js/lib/common";
 import { Check, ChevronRight, Copy, LoaderCircle } from "lucide-vue-next";
 import { useClipboard } from "@/composables/useClipboard";
-import type { ChatToolCall } from "../types";
+import type { ChatToolCall } from "@/types/ai";
 
 const props = defineProps<{
   call: ChatToolCall;

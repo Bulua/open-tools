@@ -2,7 +2,7 @@
 import { nextTick, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { Check, LoaderCircle, Pencil, Pin, Trash2 } from "lucide-vue-next";
-import type { ConversationSummary } from "../types";
+import type { ConversationSummary } from "@/types/ai";
 
 const props = defineProps<{
   item: ConversationSummary;

@@ -1,4 +1,4 @@
-import type { ChatMessage } from "./types";
+import type { ChatMessage } from "@/types/ai";
 
 export interface TimelineItem {
   /** 对应的用户消息 ID */

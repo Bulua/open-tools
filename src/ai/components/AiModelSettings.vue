@@ -16,27 +16,34 @@ import {
   Trash2,
   X,
 } from "lucide-vue-next";
+import { aiApi } from "@/api/ai";
 import AppSelect, { type SelectOption } from "@/components/common/AppSelect.vue";
 import { locale } from "@/locales";
+import type { ApiProtocol, ConfiguredModel, RemoteModelInfo, ThinkingSupportMode } from "@/types/ai";
 import { showError } from "@/utils/errorToast";
-import { fetchEndpointModels, type RemoteModelInfo } from "../client";
 import {
   PROVIDER_PRESETS,
   findProviderPreset,
-  isModelReady,
   makeEntityId,
   providerDisplayName,
   providerRequiresKey,
+  resolveModelProviderName,
 } from "../presets";
 import { useAiStore } from "../store";
-import type { ApiProtocol, ConfiguredModel, ThinkingSupportMode } from "../types";
 
 const { t } = useI18n();
-const { config, persistConfig } = useAiStore();
+const {
+  config,
+  upsertModel,
+  deleteModel: removeModelConfig,
+  setDefaultModel,
+  setModelEnabled,
+} = useAiStore();
 
 const mode = ref<"list" | "form">("list");
 const editingId = ref<string | null>(null);
 const showApiKey = ref(false);
+const apiKeyCleared = ref(false);
 const showAdvanced = ref(false);
 const fetchingModels = ref(false);
 const remoteModels = ref<RemoteModelInfo[]>([]);
@@ -46,6 +53,7 @@ const validationError = ref("");
 
 const form = reactive<{
   providerId: string;
+  providerName: string;
   apiKey: string;
   modelId: string;
   name: string;
@@ -55,6 +63,7 @@ const form = reactive<{
   thinkingSupport: ThinkingSupportMode;
 }>({
   providerId: "openai",
+  providerName: "",
   apiKey: "",
   modelId: "",
   name: "",
@@ -85,6 +94,17 @@ const thinkingSupportOptions = computed<SelectOption<ThinkingSupportMode>[]>(() 
 
 const currentPreset = computed(() => findProviderPreset(form.providerId));
 const isCustomProvider = computed(() => form.providerId === "custom");
+const editingModel = computed<ConfiguredModel | null>(() =>
+  editingId.value ? (config.value.models.find((m) => m.id === editingId.value) ?? null) : null,
+);
+const apiKeyPlaceholder = computed(() => {
+  if (editingModel.value?.hasApiKey && !apiKeyCleared.value) {
+    return t("ai.settingsModal.apiKeyKeepPlaceholder", { masked: editingModel.value.maskedApiKey });
+  }
+  return providerRequiresKey(form.providerId)
+    ? t("ai.settingsModal.apiKeyPlaceholder")
+    : t("ai.settingsModal.apiKeyOptionalPlaceholder");
+});
 
 const filteredRemoteModels = computed(() => {
   const q = remoteQuery.value.trim().toLowerCase();
@@ -101,22 +121,15 @@ const pendingSaveCount = computed(() => {
   return set.size;
 });
 
-function maskKey(key: string): string {
-  const trimmed = key.trim();
-  if (!trimmed) return "";
-  if (trimmed.length <= 8) return "••••••••";
-  return `${trimmed.slice(0, 4)}••••${trimmed.slice(-4)}`;
-}
-
 function openCreate() {
   editingId.value = null;
   const firstPreset = PROVIDER_PRESETS[0];
   form.providerId = firstPreset.id;
+  form.providerName = "";
   form.protocol = firstPreset.protocol;
   form.baseUrl = firstPreset.baseUrl;
-  // 若已有同提供商配置，自动带出已保存的 API Key 减少重复粘贴
-  const existing = config.value.models.find((m) => m.providerId === firstPreset.id && m.apiKey.trim());
-  form.apiKey = existing?.apiKey ?? "";
+  form.apiKey = "";
+  apiKeyCleared.value = false;
   form.modelId = "";
   form.name = "";
   form.maxTokens = "";
@@ -133,9 +146,12 @@ function openCreate() {
 function openEdit(model: ConfiguredModel) {
   editingId.value = model.id;
   form.providerId = model.providerId;
+  form.providerName = model.providerName ?? "";
   form.protocol = model.protocol;
   form.baseUrl = model.baseUrl;
-  form.apiKey = model.apiKey;
+  // 明文密钥不下发前端；留空提交表示保持数据库中已加密的密钥不变
+  form.apiKey = "";
+  apiKeyCleared.value = false;
   form.modelId = model.modelId;
   form.name = model.name;
   form.maxTokens = model.maxTokens ? String(model.maxTokens) : "";
@@ -156,13 +172,15 @@ function onProviderChange(providerId: string) {
   remoteQuery.value = "";
   selectedRemoteIds.value = [];
   validationError.value = "";
+  if (providerId !== "custom") {
+    form.providerName = "";
+  }
   if (preset) {
     form.protocol = preset.protocol;
     form.baseUrl = preset.baseUrl;
     if (!editingId.value) {
-      const existing = config.value.models.find((m) => m.providerId === preset.id && m.apiKey.trim());
+      const existing = config.value.models.find((m) => m.providerId === preset.id && m.baseUrl.trim());
       if (existing) {
-        form.apiKey = existing.apiKey;
         form.baseUrl = existing.baseUrl;
       }
     }
@@ -181,12 +199,17 @@ async function fetchModels() {
   validationError.value = "";
   fetchingModels.value = true;
   try {
-    const list = await fetchEndpointModels({
-      protocol: form.protocol,
-      baseUrl: form.baseUrl,
-      apiKey: form.apiKey,
-      requiresKey: providerRequiresKey(form.providerId),
-    });
+    const reuseSavedKeyId =
+      editingId.value && !form.apiKey.trim() && !apiKeyCleared.value ? editingId.value : null;
+    const list = await aiApi.fetchEndpointModels(
+      {
+        protocol: form.protocol,
+        baseUrl: form.baseUrl,
+        apiKey: form.apiKey,
+        requiresKey: providerRequiresKey(form.providerId),
+      },
+      reuseSavedKeyId,
+    );
     remoteModels.value = list;
     remoteQuery.value = "";
     if (!list.length) {
@@ -231,7 +254,7 @@ function parseMaxTokens(raw: string | number | null | undefined): number | null 
   return Math.round(num);
 }
 
-function saveForm() {
+async function saveForm() {
   validationError.value = "";
   const baseUrl = form.baseUrl.trim();
   if (!baseUrl) {
@@ -239,81 +262,86 @@ function saveForm() {
     showAdvanced.value = true;
     return;
   }
-  if (providerRequiresKey(form.providerId) && !form.apiKey.trim()) {
+  const hasEffectiveKey =
+    Boolean(form.apiKey.trim()) || Boolean(editingModel.value?.hasApiKey && !apiKeyCleared.value);
+  if (providerRequiresKey(form.providerId) && !hasEffectiveKey) {
     validationError.value = t("ai.errors.missingApiKey");
     return;
   }
 
   const maxTokens = parseMaxTokens(form.maxTokens);
+  const customProviderName = form.providerName.trim() || null;
+  const thinkingSupport = form.thinkingSupport === "auto" ? null : form.thinkingSupport;
 
-  if (editingId.value) {
-    const modelId = form.modelId.trim();
-    if (!modelId) {
-      validationError.value = t("ai.settingsModal.needModelId");
-      return;
-    }
-    const target = config.value.models.find((m) => m.id === editingId.value);
-    if (target) {
-      target.providerId = form.providerId;
-      target.protocol = form.protocol;
-      target.baseUrl = baseUrl;
-      target.apiKey = form.apiKey.trim();
-      target.modelId = modelId;
-      target.name = form.name.trim();
-      target.maxTokens = maxTokens;
-      target.thinkingSupport = form.thinkingSupport === "auto" ? undefined : form.thinkingSupport;
-    }
-  } else {
-    const ids = new Set<string>(selectedRemoteIds.value);
-    if (form.modelId.trim()) ids.add(form.modelId.trim());
-    if (ids.size === 0) {
-      validationError.value = t("ai.settingsModal.needModelId");
-      return;
-    }
-    const remoteNameMap = new Map(remoteModels.value.map((m) => [m.id, m.name ?? ""]));
-    let firstCreatedId = "";
-    for (const modelId of ids) {
-      const id = makeEntityId("mdl");
-      if (!firstCreatedId) firstCreatedId = id;
-      config.value.models.push({
-        id,
+  try {
+    if (editingId.value) {
+      const modelId = form.modelId.trim();
+      if (!modelId) {
+        validationError.value = t("ai.settingsModal.needModelId");
+        return;
+      }
+      const target = editingModel.value;
+      const nextApiKey = form.apiKey.trim() ? form.apiKey.trim() : apiKeyCleared.value ? "" : null;
+      await upsertModel({
+        id: editingId.value,
         providerId: form.providerId,
+        providerName: customProviderName,
         protocol: form.protocol,
         baseUrl,
-        apiKey: form.apiKey.trim(),
+        apiKey: nextApiKey,
         modelId,
-        name: ids.size === 1 ? (form.name.trim() || remoteNameMap.get(modelId) || "") : (remoteNameMap.get(modelId) || ""),
-        enabled: true,
+        name: form.name.trim(),
+        enabled: target?.enabled ?? true,
         maxTokens,
-        thinkingSupport: form.thinkingSupport === "auto" ? undefined : form.thinkingSupport,
+        thinkingSupport,
+        thinkingEffort: target?.thinkingEffort ?? null,
+        isDefault: target?.isDefault ?? null,
       });
+    } else {
+      const ids = [...new Set([...selectedRemoteIds.value, ...(form.modelId.trim() ? [form.modelId.trim()] : [])])];
+      if (ids.length === 0) {
+        validationError.value = t("ai.settingsModal.needModelId");
+        return;
+      }
+      const remoteNameMap = new Map(remoteModels.value.map((m) => [m.id, m.name ?? ""]));
+      const hasDefault = config.value.models.some((m) => m.isDefault);
+      for (let i = 0; i < ids.length; i++) {
+        const modelId = ids[i];
+        await upsertModel({
+          id: makeEntityId("mdl"),
+          providerId: form.providerId,
+          providerName: customProviderName,
+          protocol: form.protocol,
+          baseUrl,
+          apiKey: form.apiKey.trim(),
+          modelId,
+          name:
+            ids.length === 1
+              ? form.name.trim() || remoteNameMap.get(modelId) || ""
+              : remoteNameMap.get(modelId) || "",
+          enabled: true,
+          maxTokens,
+          thinkingSupport,
+          isDefault: !hasDefault && i === 0 ? true : null,
+        });
+      }
     }
-    if (!config.value.settings.defaultModelConfigId && firstCreatedId) {
-      config.value.settings.defaultModelConfigId = firstCreatedId;
-    }
+    mode.value = "list";
+  } catch {
+    // 错误已由 store.upsertModel 通过 showError 提示
   }
-
-  void persistConfig();
-  mode.value = "list";
 }
 
 function toggleEnabled(model: ConfiguredModel) {
-  model.enabled = !model.enabled;
-  void persistConfig();
+  void setModelEnabled(model.id, !model.enabled);
 }
 
 function setDefault(model: ConfiguredModel) {
-  config.value.settings.defaultModelConfigId =
-    config.value.settings.defaultModelConfigId === model.id ? "" : model.id;
-  void persistConfig();
+  void setDefaultModel(model.isDefault ? null : model.id);
 }
 
 function deleteModel(model: ConfiguredModel) {
-  config.value.models = config.value.models.filter((m) => m.id !== model.id);
-  if (config.value.settings.defaultModelConfigId === model.id) {
-    config.value.settings.defaultModelConfigId = config.value.models.find(isModelReady)?.id ?? "";
-  }
-  void persistConfig();
+  void removeModelConfig(model.id);
 }
 </script>
 
@@ -337,8 +365,8 @@ function deleteModel(model: ConfiguredModel) {
           <div class="item-main">
             <div class="item-title-row">
               <strong class="item-title">{{ model.name || model.modelId }}</strong>
-              <span class="badge">{{ providerDisplayName(model.providerId, locale) }}</span>
-              <span v-if="config.settings.defaultModelConfigId === model.id" class="badge accent">
+              <span class="badge">{{ resolveModelProviderName(model, locale) }}</span>
+              <span v-if="model.isDefault" class="badge accent">
                 {{ t("ai.settingsModal.defaultBadge") }}
               </span>
             </div>
@@ -346,8 +374,8 @@ function deleteModel(model: ConfiguredModel) {
               <span class="mono-text">{{ model.modelId }}</span>
               <span v-if="model.maxTokens" class="meta-sep">·</span>
               <span v-if="model.maxTokens" class="mono-text">{{ t("ai.settingsModal.maxTokensMeta", { n: model.maxTokens }) }}</span>
-              <span v-if="model.apiKey" class="meta-sep">·</span>
-              <span v-if="model.apiKey" class="mono-text">{{ maskKey(model.apiKey) }}</span>
+              <span v-if="model.hasApiKey" class="meta-sep">·</span>
+              <span v-if="model.hasApiKey" class="mono-text">{{ model.maskedApiKey }}</span>
             </div>
           </div>
 
@@ -355,7 +383,7 @@ function deleteModel(model: ConfiguredModel) {
             <button
               type="button"
               class="icon-btn"
-              :class="{ starred: config.settings.defaultModelConfigId === model.id }"
+              :class="{ starred: model.isDefault }"
               :title="t('ai.settingsModal.setAsDefault')"
               :aria-label="t('ai.settingsModal.setAsDefault')"
               @click="setDefault(model)"
@@ -425,6 +453,30 @@ function deleteModel(model: ConfiguredModel) {
         </div>
       </div>
 
+      <div v-if="isCustomProvider" class="form-row">
+        <label class="form-label" for="ai-provider-name">{{ t("ai.settingsModal.customProviderName") }}</label>
+        <div class="form-control">
+          <div class="input-wrap">
+            <input
+              id="ai-provider-name"
+              v-model="form.providerName"
+              type="text"
+              class="field small-text"
+              :placeholder="t('ai.settingsModal.customProviderNamePlaceholder')"
+            />
+            <button
+              v-if="form.providerName"
+              type="button"
+              class="field-clear"
+              :aria-label="t('common.clear')"
+              @click="form.providerName = ''"
+            >
+              <X :size="13" />
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div class="form-row">
         <label class="form-label" for="ai-model-apikey">{{ t("ai.settingsModal.apiKey") }}</label>
         <div class="form-control">
@@ -434,17 +486,18 @@ function deleteModel(model: ConfiguredModel) {
               v-model="form.apiKey"
               :type="showApiKey ? 'text' : 'password'"
               class="field mono key-input"
-              :placeholder="providerRequiresKey(form.providerId) ? t('ai.settingsModal.apiKeyPlaceholder') : t('ai.settingsModal.apiKeyOptionalPlaceholder')"
+              :placeholder="apiKeyPlaceholder"
               autocomplete="off"
               spellcheck="false"
+              @input="apiKeyCleared = false"
             />
             <div class="inline-actions">
               <button
-                v-if="form.apiKey"
+                v-if="form.apiKey || (editingModel?.hasApiKey && !apiKeyCleared)"
                 type="button"
                 class="field-action"
                 :aria-label="t('common.clear')"
-                @click="form.apiKey = ''"
+                @click="form.apiKey = ''; apiKeyCleared = true"
               >
                 <X :size="13" />
               </button>

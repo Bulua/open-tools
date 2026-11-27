@@ -18,7 +18,7 @@ import { openExternal } from "@/utils/openExternal";
 import { saveFile } from "@/utils/saveFile";
 import { readLocalImageForPreview, resolveConversationWorkspaceDir } from "../builtinTools";
 import { inferCodeFileName, renderChatMarkdown, type ParsedFileLink } from "../markdown";
-import type { ChatMessage, ChatMessagePart } from "../types";
+import type { ChatMessage, ChatMessagePart } from "@/types/ai";
 import AiToolCallItem from "./AiToolCallItem.vue";
 
 const props = defineProps<{
@@ -529,7 +529,7 @@ async function onMarkdownClick(event: MouseEvent) {
         </div>
 
         <span v-if="message.modelName || message.modelId" class="foot-meta">
-          {{ message.modelName || message.modelId }}
+          {{ message.providerName ? `${message.providerName} · ${message.modelName || message.modelId}` : (message.modelName || message.modelId) }}
         </span>
         <span v-if="durationLabel" class="foot-meta">{{ durationLabel }}</span>
         <span v-if="message.aborted" class="foot-meta">{{ t("ai.stopped") }}</span>
