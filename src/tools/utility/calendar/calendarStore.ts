@@ -1,9 +1,17 @@
 import { computed, ref, watch } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { calendarApi } from "@/api/calendar";
 import { locale, t } from "@/locales";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { showError } from "@/utils/errorToast";
-import { calendarDateKey, calendarFestivals, calendarNotesOn, calendarReminderSecond, isCalendarReminderTime, localCalendarDate, type CalendarNote, type CalendarNotes } from "./calendar";
+import {
+  calendarDateKey,
+  calendarFestivals,
+  calendarNotesOn,
+  calendarReminderSecond,
+  localCalendarDate,
+  type CalendarNote,
+  type CalendarNotes,
+} from "./calendar";
 
 const notes = ref<CalendarNotes>({});
 export const calendarNotes = computed(() => notes.value);
@@ -13,16 +21,19 @@ const sent = useStoredRef<{ date: string; ids: string[] }>("calendar.sent", { da
 
 let loading: Promise<void> | undefined;
 let writing: Promise<void> = Promise.resolve();
+
 export function loadCalendarNotes() {
   loading ??= (async () => {
-    const raw = await invoke<string | null>("calendar_read");
-    const stored: CalendarNotes = raw === null ? {} : JSON.parse(raw);
-    if (!stored || typeof stored !== "object" || Array.isArray(stored)
-      || Object.values(stored).some((note) => !note || typeof note.text !== "string" || typeof note.annual !== "boolean"
-        || (note.reminderTime !== undefined && !isCalendarReminderTime(note.reminderTime)))) {
-      throw new Error("Invalid calendar notes file");
+    const records = await calendarApi.listNotes();
+    const map: CalendarNotes = {};
+    for (const item of records) {
+      map[item.date] = {
+        text: item.text,
+        annual: item.annual,
+        ...(item.reminderTime ? { reminderTime: item.reminderTime } : {}),
+      };
     }
-    notes.value = stored;
+    notes.value = map;
     calendarNotesReady.value = true;
   })().catch((error) => {
     loading = undefined;
@@ -36,10 +47,22 @@ export function saveCalendarNote(date: string, note: CalendarNote | null) {
   const save = writing.then(async () => {
     await loadCalendarNotes();
     const next = { ...notes.value };
-    if (note) next[date] = note;
-    else delete next[date];
-    const raw = JSON.stringify(next);
-    await invoke("calendar_write", { data: raw });
+    if (note) {
+      const saved = await calendarApi.upsertNote({
+        date,
+        text: note.text,
+        annual: note.annual,
+        reminderTime: note.reminderTime ?? null,
+      });
+      next[saved.date] = {
+        text: saved.text,
+        annual: saved.annual,
+        ...(saved.reminderTime ? { reminderTime: saved.reminderTime } : {}),
+      };
+    } else {
+      await calendarApi.deleteNote(date);
+      delete next[date];
+    }
     notes.value = next;
   });
   writing = save.catch(() => {});
@@ -76,10 +99,7 @@ async function checkCalendarReminders() {
       const dateLabel = new Intl.DateTimeFormat(locale.value, { dateStyle: "full", timeZone: "UTC" }).format(today);
       const lines = due.slice(0, 4).map(({ text }) => text);
       if (due.length > lines.length) lines.push(t("utility.calendar.moreReminders", { count: due.length - lines.length }));
-      await invoke("calendar_notify", {
-        title: t("utility.calendar.reminderTitle"),
-        body: [dateLabel, ...lines].join("\n"),
-      });
+      await calendarApi.notify(t("utility.calendar.reminderTitle"), [dateLabel, ...lines].join("\n"));
       sent.value = { date, ids: [...alreadySent, ...due.map(({ id }) => id)] };
     }
     reminderFailed = false;
@@ -106,7 +126,7 @@ export function startCalendarReminders() {
         const delayMs = await checkCalendarReminders();
         if (!running || !calendarReminders.value) return;
         try {
-          revision = await invoke<number>("calendar_wait", { delayMs, revision });
+          revision = await calendarApi.wait(delayMs, revision);
         } catch {
           await new Promise((resolve) => setTimeout(resolve, Math.min(delayMs, 1000)));
         }
@@ -116,7 +136,7 @@ export function startCalendarReminders() {
     }
   }
   function reschedule() {
-    if (waiting) void invoke("calendar_wake").catch(() => {});
+    if (waiting) void calendarApi.wake().catch(() => {});
     else if (calendarReminders.value) void tick();
   }
   const stopWatching = watch([calendarReminders, notes], reschedule, { immediate: true });
@@ -125,6 +145,6 @@ export function startCalendarReminders() {
     running = false;
     stopWatching();
     window.removeEventListener("focus", reschedule);
-    if (waiting) void invoke("calendar_wake").catch(() => {});
+    if (waiting) void calendarApi.wake().catch(() => {});
   };
 }

@@ -2,14 +2,16 @@
  * 倒计时的纯计算：剩余时间拆分、重复提醒的下一次时间。
  */
 import { i18n, locale, LOCALES, t, type Locale } from "@/locales";
+import type { CountdownItem, Repeat } from "@/types/clock";
+import { parseDateTimeMillis } from "@/utils/datetime";
 import type { AlarmSchedule } from "./alarm";
+
+export type { CountdownItem, Repeat };
 
 // 与 locales 入口一致，收窄翻译函数类型，避免全量文案的递归类型推导。
 const translateIn = (i18n.global as unknown as {
   t: (key: string, named: Record<string, unknown>, options: { locale: Locale }) => string;
 }).t;
-
-export type Repeat = "none" | "daily" | "weekly" | "monthly" | "yearly";
 
 /** 重复方式，名称见文案 utility.repeatNone 等 */
 export const REPEATS: { value: Repeat; label: string }[] = [
@@ -19,25 +21,6 @@ export const REPEATS: { value: Repeat; label: string }[] = [
   { value: "monthly", label: "repeatMonthly" },
   { value: "yearly", label: "repeatYearly" },
 ];
-
-export interface CountdownItem {
-  id: string;
-  title: string;
-  /** 区分自动名称和用户输入；旧数据没有此标记。 */
-  defaultTitle?: boolean;
-  /** 到期时刻（毫秒时间戳） */
-  target: number;
-  createdAt: number;
-  /** 计时器的总时长（毫秒）；到指定时间的倒计时没有 */
-  duration?: number;
-  /** 暂停时剩余的毫秒数 */
-  pausedRemaining?: number;
-  repeat: Repeat;
-  /** 已经提醒过 */
-  done: boolean;
-  alarm?: AlarmSchedule;
-  enabled?: boolean;
-}
 
 export interface Remaining {
   total: number;
@@ -95,7 +78,7 @@ export const remainingOf = (item: CountdownItem, now: number) => item.pausedRema
 
 /** 计时器的进度（0～1），到指定时间的倒计时按创建时间计算 */
 export function progressOf(item: CountdownItem, now: number): number {
-  const total = item.duration ?? item.target - item.createdAt;
+  const total = item.duration ?? item.target - parseDateTimeMillis(item.createdAt);
   if (total <= 0) return 1;
   return Math.min(1, Math.max(0, 1 - remainingOf(item, now) / total));
 }

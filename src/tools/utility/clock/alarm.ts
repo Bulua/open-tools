@@ -1,8 +1,6 @@
-export interface AlarmSchedule {
-  time: string;
-  /** 星期日为 0，星期一到星期六为 1～6；空数组表示仅提醒一次。 */
-  weekdays: number[];
-}
+import type { AlarmSchedule } from "@/types/clock";
+
+export type { AlarmSchedule };
 
 /** 使用本地日历构造下次提醒，跨天时不按固定 24 小时累加。 */
 export function nextAlarmTarget(schedule: AlarmSchedule, now: number): number {

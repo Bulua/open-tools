@@ -36,13 +36,9 @@ export function calendarDateKey(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
-export interface CalendarNote {
-  text: string;
-  annual: boolean;
-  reminderTime?: string;
-}
+import type { CalendarNote, CalendarNotes } from "@/types/calendar";
 
-export type CalendarNotes = Record<string, CalendarNote>;
+export type { CalendarNote, CalendarNotes };
 
 export const isCalendarReminderTime = (time: unknown): time is string =>
   typeof time === "string" && /^(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(time);
