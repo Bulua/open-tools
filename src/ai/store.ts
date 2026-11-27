@@ -30,11 +30,17 @@ import { loadMcpConnections } from "./mcp";
 import {
   createDefaultConfig,
   isModelReady,
-  makeEntityId,
   resolveModelProviderName,
   resolveThinkingEffort,
   supportedThinkingEffortsOf,
 } from "./presets";
+
+function nextPartKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
 
 function makeTitleFromText(text: string): string {
   const clean = text.replace(/\s+/g, " ").trim();
@@ -146,11 +152,15 @@ export function isConversationStreaming(id: string): boolean {
   return Boolean(streamingIds[id]);
 }
 
-async function upsertConversationRow(conv: Conversation): Promise<void> {
+async function upsertConversationRow(conv: Conversation): Promise<string | null> {
   try {
-    conversations.value = await aiApi.upsertConversation(conv);
+    const res = await aiApi.upsertConversation(conv);
+    if (!conv.id) conv.id = res.id;
+    conversations.value = res.conversations;
+    return res.id;
   } catch (error) {
     showError(error);
+    return null;
   }
 }
 
@@ -331,9 +341,8 @@ export async function createConversationInFolder(folderId: string): Promise<void
   if (!folder) return;
   const fallback = resolveFallbackModel();
   const now = Date.now();
-  const id = makeEntityId("conv");
   const conv = reactive<Conversation>({
-    id,
+    id: "",
     title: t("ai.newChat"),
     modelConfigId: fallback?.id ?? "",
     providerId: fallback?.providerId ?? "",
@@ -343,24 +352,30 @@ export async function createConversationInFolder(folderId: string): Promise<void
     messageCount: 0,
     messages: [],
   });
+  const id = await upsertConversationRow(conv);
+  if (!id) return;
   conversationCache[id] = conv;
   activeConversationId.value = id;
-  await upsertConversationRow(conv);
   moveConversation(id, { pinned: folder.pinned, folderId: folder.id });
 }
 
-export function createFolder(pinned: boolean, name?: string): AiFolder {
+export async function createFolder(pinned: boolean, name?: string): Promise<AiFolder | null> {
   const existing = config.value.folders.filter((f) => f.pinned === pinned).length;
-  const folder: AiFolder = {
-    id: makeEntityId("fld"),
+  const draftFolder: AiFolder = {
+    id: "",
     name: name?.trim() || t("ai.defaultFolderName", { n: existing + 1 }),
     pinned,
     collapsed: false,
     createdAt: Date.now(),
   };
-  config.value.folders.push(folder);
-  void aiApi.upsertFolder(folder).catch(showError);
-  return folder;
+  try {
+    const saved = await aiApi.upsertFolder(draftFolder);
+    config.value.folders.push(saved);
+    return saved;
+  } catch (error) {
+    showError(error);
+    return null;
+  }
 }
 
 export function renameFolder(id: string, name: string): void {
@@ -575,11 +590,15 @@ function buildContextTurns(messages: ChatMessage[], excludeId: string): PromptTu
   );
 }
 
-async function persistMessage(conversationId: string, msg: ChatMessage): Promise<void> {
+async function persistMessage(conversationId: string, msg: ChatMessage): Promise<string | null> {
   try {
-    conversations.value = await aiApi.upsertMessage(conversationId, msg);
+    const res = await aiApi.upsertMessage(conversationId, msg);
+    if (!msg.id) msg.id = res.id;
+    conversations.value = res.conversations;
+    return res.id;
   } catch (error) {
     showError(error);
+    return null;
   }
 }
 
@@ -605,7 +624,7 @@ async function runAssistantTurn(conv: Conversation): Promise<void> {
   }
 
   const assistantMsg = reactive<ChatMessage>({
-    id: makeEntityId("msg"),
+    id: "",
     role: "assistant",
     content: "",
     reasoning: "",
@@ -626,7 +645,7 @@ async function runAssistantTurn(conv: Conversation): Promise<void> {
     if (last && last.type === type) {
       last.text += deltaText;
     } else {
-      parts.push(reactive({ id: makeEntityId("prt"), type, text: deltaText }) as ChatMessagePart);
+      parts.push(reactive({ id: nextPartKey(), type, text: deltaText }) as ChatMessagePart);
     }
   };
 
@@ -660,7 +679,7 @@ async function runAssistantTurn(conv: Conversation): Promise<void> {
             status: "running",
           });
           toolCallById.set(event.id, uiCall);
-          assistantMsg.parts!.push({ id: makeEntityId("prt"), type: "tool", call: uiCall });
+          assistantMsg.parts!.push({ id: nextPartKey(), type: "tool", call: uiCall });
           break;
         }
         case "approvalRequired":
@@ -758,9 +777,8 @@ export async function sendMessage(
   const now = Date.now();
   const initialTitle = trimmed ? makeTitleFromText(trimmed) : makeTitleFromText(files[0].name);
   if (!conv) {
-    const id = makeEntityId("conv");
     conv = reactive<Conversation>({
-      id,
+      id: "",
       title: initialTitle,
       modelConfigId: model.id,
       providerId: model.providerId,
@@ -772,9 +790,10 @@ export async function sendMessage(
       messageCount: 0,
       messages: [],
     });
+    const id = await upsertConversationRow(conv);
+    if (!id) return false;
     conversationCache[id] = conv;
     activeConversationId.value = id;
-    await upsertConversationRow(conv);
     if (draft.pinned || draft.folderId) {
       moveConversation(id, { pinned: draft.pinned, folderId: draft.folderId || undefined });
     }
@@ -796,7 +815,7 @@ export async function sendMessage(
   }
 
   const userMsg = reactive<ChatMessage>({
-    id: makeEntityId("msg"),
+    id: "",
     role: "user",
     content: trimmed,
     ...(persistedFiles.length ? { attachments: persistedFiles } : {}),
@@ -804,7 +823,12 @@ export async function sendMessage(
   });
   conv.messages.push(userMsg);
   conv.updatedAt = now;
-  await persistMessage(conv.id, userMsg);
+  const userMsgId = await persistMessage(conv.id, userMsg);
+  if (!userMsgId) {
+    const idx = conv.messages.indexOf(userMsg);
+    if (idx >= 0) conv.messages.splice(idx, 1);
+    return false;
+  }
 
   try {
     await runAssistantTurn(conv);
@@ -849,7 +873,8 @@ export async function editAndResendMessage(
   conv.messages.splice(idx + 1);
   try {
     await aiApi.truncateMessagesFrom(conv.id, messageId, false);
-    conversations.value = await aiApi.upsertMessage(conv.id, conv.messages[idx]);
+    const res = await aiApi.upsertMessage(conv.id, conv.messages[idx]);
+    conversations.value = res.conversations;
     await runAssistantTurn(conv);
   } catch (error) {
     showError(error);

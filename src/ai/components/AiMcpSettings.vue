@@ -13,7 +13,6 @@ import {
 } from "lucide-vue-next";
 import { showError } from "@/utils/errorToast";
 import { useAiMcp } from "../mcp";
-import { makeEntityId } from "../presets";
 import { useAiStore } from "../store";
 import type { McpConnectionItem, McpServerConfig } from "@/types/mcp";
 
@@ -206,7 +205,7 @@ async function saveForm() {
   }
 
   const next = [...connections.value];
-  const id = editingId.value ?? makeEntityId("mcp");
+  const id = editingId.value ?? "";
   if (editingId.value) {
     const idx = next.findIndex((item) => item.id === editingId.value);
     if (idx >= 0) {

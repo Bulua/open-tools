@@ -24,7 +24,6 @@ import { showError } from "@/utils/errorToast";
 import {
   PROVIDER_PRESETS,
   findProviderPreset,
-  makeEntityId,
   providerDisplayName,
   providerRequiresKey,
   resolveModelProviderName,
@@ -308,7 +307,7 @@ async function saveForm() {
       for (let i = 0; i < ids.length; i++) {
         const modelId = ids[i];
         await upsertModel({
-          id: makeEntityId("mdl"),
+          id: "",
           providerId: form.providerId,
           providerName: customProviderName,
           protocol: form.protocol,

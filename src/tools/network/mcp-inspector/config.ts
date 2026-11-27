@@ -1,14 +1,9 @@
+import type { McpServerConfig, McpServerInfo } from "@/types/mcp";
+
 type StringMap = Record<string, string>;
 
-export type McpConfig =
-  | { type: "stdio"; command: string; args?: string[]; env?: StringMap; env_vars?: string[]; cwd?: string }
-  | {
-      type: "http";
-      url: string;
-      headers?: StringMap;
-      env_http_headers?: StringMap;
-      bearer_token_env_var?: string;
-    };
+export type McpConfig = McpServerConfig;
+export type { McpServerInfo };
 
 export interface McpTool {
   name: string;
@@ -16,11 +11,6 @@ export interface McpTool {
   description?: string;
   inputSchema: Record<string, unknown>;
   outputSchema?: Record<string, unknown>;
-}
-
-export interface McpServerInfo {
-  serverInfo?: { name: string; version: string } | null;
-  protocolVersion: string;
 }
 
 export interface McpPrompt {

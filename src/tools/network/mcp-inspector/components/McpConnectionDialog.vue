@@ -130,7 +130,7 @@ async function save() {
     const item = parseMcpServer(formConfig());
     if ("error" in item) throw new Error(t("network.mcp." + item.error));
     await props.saveConnection({
-      id: editing.value?.id ?? crypto.randomUUID(),
+      id: editing.value?.id ?? "",
       name: name.value.trim(),
       config: item.config,
     });

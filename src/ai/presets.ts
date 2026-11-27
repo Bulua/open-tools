@@ -226,13 +226,6 @@ export function providerRequiresKey(providerId: string): boolean {
   return preset ? preset.requiresKey : false;
 }
 
-export function makeEntityId(prefix: string): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return `${prefix}_${crypto.randomUUID().replace(/-/g, "").slice(0, 14)}`;
-  }
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
 export function createDefaultConfig(): AiConfig {
   return {
     models: [],

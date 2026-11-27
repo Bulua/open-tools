@@ -314,8 +314,8 @@ export const aiApi = {
     await executeGeneratedCommand(() => commands.aiSetDisabledBuiltinTools(names));
   },
 
-  async upsertFolder(folder: AiFolder): Promise<void> {
-    await executeGeneratedCommand(() =>
+  async upsertFolder(folder: AiFolder): Promise<AiFolder> {
+    const saved = await executeGeneratedCommand(() =>
       commands.aiUpsertFolder({
         id: folder.id,
         name: folder.name,
@@ -324,6 +324,7 @@ export const aiApi = {
         createdAt: folder.createdAt,
       }),
     );
+    return toFolder(saved);
   },
 
   async deleteFolder(id: string): Promise<void> {
@@ -348,8 +349,8 @@ export const aiApi = {
       | "createdAt"
       | "updatedAt"
     >,
-  ): Promise<ConversationSummary[]> {
-    const list = await executeGeneratedCommand(() =>
+  ): Promise<{ id: string; conversations: ConversationSummary[] }> {
+    const res = await executeGeneratedCommand(() =>
       commands.aiUpsertConversation({
         id: conv.id,
         title: conv.title,
@@ -362,7 +363,10 @@ export const aiApi = {
         updatedAt: conv.updatedAt,
       }),
     );
-    return list.map(toConversationSummary);
+    return {
+      id: res.id,
+      conversations: res.conversations.map(toConversationSummary),
+    };
   },
 
   async updateConversationMeta(updates: AiConversationMetaUpdate[]): Promise<void> {
@@ -383,11 +387,17 @@ export const aiApi = {
     return list.map(toConversationSummary);
   },
 
-  async upsertMessage(conversationId: string, message: ChatMessage): Promise<ConversationSummary[]> {
-    const list = await executeGeneratedCommand(() =>
+  async upsertMessage(
+    conversationId: string,
+    message: ChatMessage,
+  ): Promise<{ id: string; conversations: ConversationSummary[] }> {
+    const res = await executeGeneratedCommand(() =>
       commands.aiUpsertMessage(conversationId, toMessageDto(message)),
     );
-    return list.map(toConversationSummary);
+    return {
+      id: res.id,
+      conversations: res.conversations.map(toConversationSummary),
+    };
   },
 
   async deleteMessage(conversationId: string, messageId: string): Promise<ConversationSummary[]> {

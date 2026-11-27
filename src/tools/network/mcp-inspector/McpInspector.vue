@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { ChevronDown, FileText, FolderOpen, Pencil, Plug, Plus, Server, Wrench } from "lucide-vue-next";
 import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, shallowRef, useId, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { mcpApi } from "@/api/mcp";
 import { errorMessage, showError } from "@/utils/errorToast";
 import { loadCatalog, type CatalogTab, type McpEntry } from "./catalog";
-import { connectionTarget, type McpServerInfo } from "./config";
+import { connectionTarget } from "./config";
 import McpCatalogList from "./components/McpCatalogList.vue";
 import McpConnectionDialog from "./components/McpConnectionDialog.vue";
 import McpContentDetail from "./components/McpContentDetail.vue";
@@ -79,7 +78,7 @@ async function checkSessions() {
   const snapshot = connected.value.map(({ id, name }) => ({ id, name, session: sessions.get(id) }));
   checking = true;
   try {
-    const active = new Set(await invoke<string[]>("mcp_active_sessions"));
+    const active = new Set(await mcpApi.activeSessions());
     for (const { id, name, session } of snapshot) {
       if (session?.status === "connected" && sessions.get(id) === session && !active.has(session.sessionId)) {
         sessions.set(id, { status: "failed" });
@@ -108,18 +107,18 @@ async function restoreConnections() {
   loadingConnections.value = true;
   storageError.value = "";
   try {
-    connections.value = await invoke<McpConnection[]>("mcp_read_connections");
+    connections.value = await mcpApi.readConnections();
   } catch (issue) {
     storageError.value = errorMessage(issue);
   } finally {
     loadingConnections.value = false;
   }
 }
-let unlistenMcpChanged: UnlistenFn | undefined;
+let unlistenMcpChanged: (() => void) | undefined;
 onMounted(() => {
   startStatus();
   void restoreConnections();
-  void listen("mcp-connections-changed", () => void restoreConnections())
+  void mcpApi.onConnectionsChanged(() => void restoreConnections())
     .then((unlisten) => { unlistenMcpChanged = unlisten; })
     .catch(() => undefined);
 });
@@ -138,7 +137,7 @@ async function connectServer(item: McpConnection) {
   const sessionId = crypto.randomUUID();
   sessions.set(item.id, { status: "connecting", sessionId });
   try {
-    const info = await invoke<McpServerInfo>("mcp_connect", { sessionId, config: item.config });
+    const info = await mcpApi.connect(sessionId, item.config);
     sessions.set(item.id, { status: "connected", sessionId, info });
     if (visible && tab.value === "servers") browse(item);
   } catch (issue) {
@@ -152,7 +151,7 @@ async function disconnectServer(id: string): Promise<boolean> {
   if (previous?.status !== "connected") return !previous || previous.status === "failed";
   sessions.set(id, { status: "disconnecting", sessionId: previous.sessionId });
   try {
-    await invoke("mcp_disconnect", { sessionId: previous.sessionId });
+    await mcpApi.disconnect(previous.sessionId);
     sessions.delete(id);
     return true;
   } catch (issue) {
@@ -179,13 +178,13 @@ function toggleConnection(item: McpConnection) {
 }
 
 async function saveConnection(item: McpConnection) {
-  const existing = connections.value.some(({ id }) => id === item.id);
+  const existing = Boolean(item.id) && connections.value.some(({ id }) => id === item.id);
   if (existing && !await disconnectServer(item.id)) throw new Error(t("network.mcp.disconnectFailed"));
   const next = existing
     ? connections.value.map((previous) => previous.id === item.id ? item : previous)
     : [...connections.value, item];
   await persistConnections(next);
-  sessions.delete(item.id);
+  if (item.id) sessions.delete(item.id);
 }
 
 async function removeConnection(id: string) {
@@ -196,8 +195,7 @@ async function removeConnection(id: string) {
 
 async function persistConnections(next: McpConnection[]) {
   try {
-    await invoke("mcp_save_connections", { connections: next });
-    connections.value = next;
+    connections.value = await mcpApi.saveConnections(next);
   } catch (issue) {
     throw new Error(t("network.mcp.saveConnectionsFailed", { error: errorMessage(issue) }));
   }

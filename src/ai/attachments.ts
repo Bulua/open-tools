@@ -9,7 +9,13 @@ import { hasDesktopRuntime } from "@/api/common";
 import { t } from "@/locales";
 import type { ChatAttachment } from "@/types/ai";
 import { showError, showNotice } from "@/utils/errorToast";
-import { makeEntityId } from "./presets";
+
+function nextAttachmentKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
 
 export const MAX_IMAGE_BYTES = 50 * 1024 * 1024;
 export const MAX_TEXT_BYTES = 50 * 1024 * 1024;
@@ -83,7 +89,7 @@ export async function parsePendingFiles(fileList: FileList | File[]): Promise<Ch
           ? URL.createObjectURL(file)
           : await readFileAsDataUrl(file);
         parsed.push({
-          id: makeEntityId("att"),
+          id: nextAttachmentKey(),
           name: file.name || t("common.pastedImage"),
           mimeType: mime || "image/png",
           size: file.size,
@@ -104,7 +110,7 @@ export async function parsePendingFiles(fileList: FileList | File[]): Promise<Ch
       const isBinary = looksBinaryBytes(new Uint8Array(sampleBuf));
       if (isBinary) {
         parsed.push({
-          id: makeEntityId("att"),
+          id: nextAttachmentKey(),
           name: file.name,
           mimeType: mime || "application/octet-stream",
           size: file.size,
@@ -134,7 +140,7 @@ export async function parsePendingFiles(fileList: FileList | File[]): Promise<Ch
       }
 
       parsed.push({
-        id: makeEntityId("att"),
+        id: nextAttachmentKey(),
         name: file.name,
         mimeType: mime || "text/plain",
         size: file.size,

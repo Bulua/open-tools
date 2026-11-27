@@ -25,6 +25,11 @@ export interface McpConnectionItem {
   config: McpServerConfig;
 }
 
+export interface McpServerInfo {
+  serverInfo?: { name: string; version: string } | null;
+  protocolVersion: string;
+}
+
 export interface McpRemoteTool {
   name: string;
   title?: string;

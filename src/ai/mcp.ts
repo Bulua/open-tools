@@ -54,11 +54,12 @@ export async function loadMcpConnections(): Promise<McpConnectionItem[]> {
   return connections.value;
 }
 
-/** 写回共享的 MCP 持久化文件（与 MCP 工具查看器双向同步） */
-export async function saveMcpConnections(list: McpConnectionItem[]): Promise<void> {
+/** 写回共享的 MCP 持久化存储（新建未分配 ID 的连接将由后端自动生成雪花 ID 并返回） */
+export async function saveMcpConnections(list: McpConnectionItem[]): Promise<McpConnectionItem[]> {
   const plain: McpConnectionItem[] = JSON.parse(JSON.stringify(list));
-  await mcpApi.saveConnections(plain);
-  connections.value = plain;
+  const saved = await mcpApi.saveConnections(plain);
+  connections.value = saved;
+  return saved;
 }
 
 export async function connectMcpServer(conn: McpConnectionItem): Promise<McpRemoteTool[]> {

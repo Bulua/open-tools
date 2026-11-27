@@ -48,7 +48,7 @@ export const commands = {
 	aiUpsertFolder: (folder: AiFolderDto, options?: InvokeOptions) => __TAURI_INVOKE<{
 	code: ApiCode,
 	msg: string,
-	data: null,
+	data: AiFolderDto | null,
 }>("ai_upsert_folder", { folder }, options),
 	aiDeleteFolder: (id: string, options?: InvokeOptions) => __TAURI_INVOKE<{
 	code: ApiCode,
@@ -63,7 +63,7 @@ export const commands = {
 	aiUpsertConversation: (input: AiConversationUpsertInput_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<{
 	code: ApiCode,
 	msg: string,
-	data: ConversationIndexEntry_Serialize[] | null,
+	data: AiConversationUpsertResult_Serialize | null,
 }>("ai_upsert_conversation", { input }, options),
 	aiUpdateConversationMeta: (updates: AiConversationMetaUpdate_Deserialize[], options?: InvokeOptions) => __TAURI_INVOKE<{
 	code: ApiCode,
@@ -78,7 +78,7 @@ export const commands = {
 	aiUpsertMessage: (conversationId: string, message: AiMessageDto_Deserialize, options?: InvokeOptions) => __TAURI_INVOKE<{
 	code: ApiCode,
 	msg: string,
-	data: ConversationIndexEntry_Serialize[] | null,
+	data: AiMessageUpsertResult_Serialize | null,
 }>("ai_upsert_message", { conversationId, message }, options),
 	aiDeleteMessage: (conversationId: string, messageId: string, options?: InvokeOptions) => __TAURI_INVOKE<{
 	code: ApiCode,
@@ -274,6 +274,18 @@ export type AiConversationUpsertInput_Serialize = {
 	updatedAt: number | null,
 };
 
+export type AiConversationUpsertResult = AiConversationUpsertResult_Serialize | AiConversationUpsertResult_Deserialize;
+
+export type AiConversationUpsertResult_Deserialize = {
+	id: string,
+	conversations: ConversationIndexEntry_Deserialize[],
+};
+
+export type AiConversationUpsertResult_Serialize = {
+	id: string,
+	conversations: ConversationIndexEntry_Serialize[],
+};
+
 export type AiFolderDto = {
 	id: string,
 	name: string,
@@ -340,6 +352,18 @@ export type AiMessageDto_Serialize = {
 	error?: string,
 	aborted: boolean,
 	createdAt: number | null,
+};
+
+export type AiMessageUpsertResult = AiMessageUpsertResult_Serialize | AiMessageUpsertResult_Deserialize;
+
+export type AiMessageUpsertResult_Deserialize = {
+	id: string,
+	conversations: ConversationIndexEntry_Deserialize[],
+};
+
+export type AiMessageUpsertResult_Serialize = {
+	id: string,
+	conversations: ConversationIndexEntry_Serialize[],
 };
 
 /**

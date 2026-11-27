@@ -1,11 +1,8 @@
 import { ref, shallowReactive, shallowRef } from "vue";
-import type { McpConfig, McpServerInfo } from "./config";
+import type { McpConnectionItem } from "@/types/mcp";
+import type { McpServerInfo } from "./config";
 
-export interface McpConnection {
-  id: string;
-  name: string;
-  config: McpConfig;
-}
+export type McpConnection = McpConnectionItem;
 
 // 配置由后端持久保存，已建立的会话只在应用运行期间保留。
 export const connections = shallowRef<McpConnection[]>([]);
