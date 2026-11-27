@@ -13,7 +13,7 @@ use tauri::{
 
 use crate::core::db::Database;
 use crate::core::error::{api_ok, api_result, ApiResult, AppError, AppResult};
-use crate::tools::network::mcp_inspector::commands::McpSessions;
+use crate::tools::network::mcp_inspector::sessions::McpSessions;
 
 use super::attachments::{save_attachment_from_request, SavedAttachment};
 use super::engine::{
@@ -26,8 +26,9 @@ use super::providers::{fetch_models, EndpointConfig, RemoteModelInfo, ThinkingEf
 use super::registry::AiToolRegistry;
 use super::shell::AiCommandState;
 use super::store::{
-    self, AiConversationDetail, AiConversationMetaUpdate, AiConversationUpsertInput, AiFolderDto,
-    AiInitialState, AiMessageDto, AiModelUpsertInput, AiModelView, ConversationIndexEntry,
+    self, AiConversationDetail, AiConversationMetaUpdate, AiConversationUpsertInput,
+    AiConversationUpsertResult, AiFolderDto, AiInitialState, AiMessageDto, AiMessageUpsertResult,
+    AiModelUpsertInput, AiModelView, ConversationIndexEntry,
 };
 
 // ---------- 初始化与细粒度配置持久化（SQLite） ----------
@@ -111,7 +112,7 @@ pub(crate) async fn ai_set_disabled_builtin_tools(
 pub(crate) async fn ai_upsert_folder(
     db: State<'_, Database>,
     folder: AiFolderDto,
-) -> ApiResult<()> {
+) -> ApiResult<AiFolderDto> {
     api_result(store::ai_upsert_folder_impl(db.inner(), folder).await)
 }
 
@@ -137,7 +138,7 @@ pub(crate) async fn ai_read_conversation(
 pub(crate) async fn ai_upsert_conversation(
     db: State<'_, Database>,
     input: AiConversationUpsertInput,
-) -> ApiResult<Vec<ConversationIndexEntry>> {
+) -> ApiResult<AiConversationUpsertResult> {
     api_result(store::ai_upsert_conversation_impl(db.inner(), input).await)
 }
 
@@ -165,7 +166,7 @@ pub(crate) async fn ai_upsert_message(
     db: State<'_, Database>,
     conversation_id: String,
     message: AiMessageDto,
-) -> ApiResult<Vec<ConversationIndexEntry>> {
+) -> ApiResult<AiMessageUpsertResult> {
     api_result(store::ai_upsert_message_impl(db.inner(), conversation_id, message).await)
 }
 

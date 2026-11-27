@@ -22,6 +22,7 @@ use crate::core::db::{
 #[cfg(windows)]
 use crate::core::dpapi::protect;
 use crate::core::error::{AppError, AppResult};
+use crate::core::id::next_id_string;
 
 use super::paths::validate_conv_id;
 use super::providers::{ApiProtocol, EndpointConfig, ThinkingEffort};
@@ -314,6 +315,20 @@ pub(crate) struct AiConversationUpsertInput {
     pub(crate) created_at: i64,
     #[specta(type = f64)]
     pub(crate) updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AiConversationUpsertResult {
+    pub(crate) id: String,
+    pub(crate) conversations: Vec<ConversationIndexEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AiMessageUpsertResult {
+    pub(crate) id: String,
+    pub(crate) conversations: Vec<ConversationIndexEntry>,
 }
 
 // ---------- 加密与脱敏辅助 ----------
@@ -840,15 +855,20 @@ pub(crate) async fn ai_upsert_model_impl(
     db: &Database,
     input: AiModelUpsertInput,
 ) -> AppResult<Vec<AiModelView>> {
-    if input.id.trim().is_empty() || input.model_id.trim().is_empty() {
+    if input.model_id.trim().is_empty() {
         return Err(AppError::invalid_input("Model ID is required."));
     }
+    let model_row_id = if input.id.trim().is_empty() {
+        next_id_string()
+    } else {
+        input.id.trim().to_string()
+    };
     db.run_transaction(move |tx| {
         let now = now_millis();
         let existing_key: Option<Vec<u8>> = tx
             .query_row(
                 "SELECT api_key_enc FROM ai_models WHERE id = ?1",
-                [&input.id],
+                [&model_row_id],
                 |row| row.get(0),
             )
             .optional()?;
@@ -867,7 +887,7 @@ pub(crate) async fn ai_upsert_model_impl(
         let existing_default: Option<i64> = tx
             .query_row(
                 "SELECT is_default FROM ai_models WHERE id = ?1",
-                [&input.id],
+                [&model_row_id],
                 |row| row.get(0),
             )
             .optional()?;
@@ -927,7 +947,7 @@ pub(crate) async fn ai_upsert_model_impl(
                 is_default = excluded.is_default,
                 updated_at = excluded.updated_at",
             params![
-                input.id,
+                model_row_id,
                 input.provider_id,
                 provider_name,
                 input.name.trim(),
@@ -1063,7 +1083,15 @@ pub(crate) async fn ai_set_disabled_builtin_tools_impl(
     .await
 }
 
-pub(crate) async fn ai_upsert_folder_impl(db: &Database, folder: AiFolderDto) -> AppResult<()> {
+pub(crate) async fn ai_upsert_folder_impl(
+    db: &Database,
+    folder: AiFolderDto,
+) -> AppResult<AiFolderDto> {
+    let folder_id = if folder.id.trim().is_empty() {
+        next_id_string()
+    } else {
+        folder.id.trim().to_string()
+    };
     db.run_transaction(move |tx| {
         let now = now_millis();
         let next_order: i64 = tx.query_row(
@@ -1072,9 +1100,9 @@ pub(crate) async fn ai_upsert_folder_impl(db: &Database, folder: AiFolderDto) ->
             |row| row.get(0),
         )?;
         let rec = FolderRecord {
-            id: folder.id,
+            id: folder_id.clone(),
             parent_id: None,
-            name: folder.name,
+            name: folder.name.clone(),
             pinned: folder.pinned,
             collapsed: folder.collapsed,
             sort_order: next_order,
@@ -1100,7 +1128,13 @@ pub(crate) async fn ai_upsert_folder_impl(db: &Database, folder: AiFolderDto) ->
                 now,
             ],
         )?;
-        Ok(())
+        Ok(AiFolderDto {
+            id: folder_id,
+            name: folder.name,
+            pinned: folder.pinned,
+            collapsed: folder.collapsed,
+            created_at: folder.created_at,
+        })
     })
     .await
 }
@@ -1212,8 +1246,13 @@ pub(crate) async fn ai_read_conversation_impl(
 pub(crate) async fn ai_upsert_conversation_impl(
     db: &Database,
     input: AiConversationUpsertInput,
-) -> AppResult<Vec<ConversationIndexEntry>> {
-    validate_conv_id(&input.id)?;
+) -> AppResult<AiConversationUpsertResult> {
+    let conv_id = if input.id.trim().is_empty() {
+        next_id_string()
+    } else {
+        input.id.trim().to_string()
+    };
+    validate_conv_id(&conv_id)?;
     db.run_transaction(move |tx| {
         tx.execute(
             "INSERT INTO ai_conversations (
@@ -1229,7 +1268,7 @@ pub(crate) async fn ai_upsert_conversation_impl(
                 execution_policy = excluded.execution_policy,
                 updated_at = excluded.updated_at",
             params![
-                input.id,
+                &conv_id,
                 input.title,
                 input.model_config_id,
                 input.provider_id,
@@ -1240,7 +1279,11 @@ pub(crate) async fn ai_upsert_conversation_impl(
                 input.updated_at,
             ],
         )?;
-        list_conversations_conn(tx)
+        let conversations = list_conversations_conn(tx)?;
+        Ok(AiConversationUpsertResult {
+            id: conv_id,
+            conversations,
+        })
     })
     .await
 }
@@ -1284,13 +1327,18 @@ pub(crate) async fn ai_upsert_message_impl(
     db: &Database,
     conversation_id: String,
     message: AiMessageDto,
-) -> AppResult<Vec<ConversationIndexEntry>> {
+) -> AppResult<AiMessageUpsertResult> {
     validate_conv_id(&conversation_id)?;
+    let message_id = if message.id.trim().is_empty() {
+        next_id_string()
+    } else {
+        message.id.trim().to_string()
+    };
     db.run_transaction(move |tx| {
         let existing_seq: Option<i64> = tx
             .query_row(
                 "SELECT seq FROM ai_messages WHERE id = ?1",
-                [&message.id],
+                [&message_id],
                 |row| row.get(0),
             )
             .optional()?;
@@ -1325,7 +1373,7 @@ pub(crate) async fn ai_upsert_message_impl(
                 error = excluded.error,
                 aborted = excluded.aborted",
             params![
-                message.id,
+                &message_id,
                 conversation_id,
                 seq,
                 message.role,
@@ -1345,7 +1393,11 @@ pub(crate) async fn ai_upsert_message_impl(
             ],
         )?;
         update_conversation_counts_tx(tx, &conversation_id)?;
-        list_conversations_conn(tx)
+        let conversations = list_conversations_conn(tx)?;
+        Ok(AiMessageUpsertResult {
+            id: message_id,
+            conversations,
+        })
     })
     .await
 }

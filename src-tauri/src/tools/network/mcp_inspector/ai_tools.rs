@@ -1,36 +1,29 @@
 //! 将「MCP 工具查看器」的持久化连接管理与状态探测能力封装为统一 `AiTool`。
 
 use std::collections::HashSet;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use reqwest::Url;
 use serde_json::{json, Value};
 use tauri::{Emitter, Manager};
 
+use crate::core::db::Database;
+use crate::core::id::next_id_string;
 use crate::tools::ai::args;
 use crate::tools::ai::registry::{
     AiTool, AiToolContext, AiToolFuture, AiToolResult, ToolApprovalPolicy,
 };
 
-use super::commands::{
+use super::config::{HttpConfig, McpConfig};
+use super::sessions::{
     active_session_ids, connect_or_reuse_session, disconnect_session, inspect_session,
     McpInspectionSnapshot, McpSessions,
 };
-use super::config::{HttpConfig, McpConfig};
 use super::store::{load_stored_connections, save_stored_connections, StoredConnection};
 
 const MCP_CHANGED_EVENT: &str = "mcp-connections-changed";
 
 fn ai_session_id(connection_id: &str) -> String {
     format!("ai-chat:{connection_id}")
-}
-
-fn generate_connection_id() -> String {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    format!("mcp_{nanos:x}")
 }
 
 fn format_tool_summary(tool: &rmcp::model::Tool) -> String {
@@ -180,7 +173,8 @@ impl AiTool for McpListConnectionsTool {
 
     fn execute<'a>(&'a self, _args: Value, ctx: &'a AiToolContext<'a>) -> AiToolFuture<'a> {
         Box::pin(async move {
-            let connections = match load_stored_connections(ctx.app.clone()).await {
+            let db = ctx.app.state::<Database>();
+            let connections = match load_stored_connections(db.inner()).await {
                 Ok(list) => list,
                 Err(err) => return AiToolResult::err(err),
             };
@@ -310,7 +304,8 @@ impl AiTool for McpAddConnectionTool {
             let overwrite = args::bool_or(&args, "overwrite", false);
             let test_connection = args::bool_or(&args, "test_connection", true);
 
-            let mut list = match load_stored_connections(ctx.app.clone()).await {
+            let db = ctx.app.state::<Database>();
+            let mut list = match load_stored_connections(db.inner()).await {
                 Ok(items) => items,
                 Err(err) => return AiToolResult::err(err),
             };
@@ -335,16 +330,16 @@ impl AiTool for McpAddConnectionTool {
                 list[idx] = updated.clone();
                 ("Updated", updated)
             } else {
-                let mut id = requested_id.unwrap_or_else(generate_connection_id);
+                let mut id = requested_id.unwrap_or_else(next_id_string);
                 while list.iter().any(|item| item.id == id) {
-                    id = format!("{id}_1");
+                    id = next_id_string();
                 }
                 let created = StoredConnection { id, name, config };
                 list.push(created.clone());
                 ("Added", created)
             };
 
-            if let Err(err) = save_stored_connections(ctx.app.clone(), list).await {
+            if let Err(err) = save_stored_connections(db.inner(), list).await {
                 return AiToolResult::err(err);
             }
             let _ = ctx.app.emit(MCP_CHANGED_EVENT, ());
@@ -430,7 +425,8 @@ impl AiTool for McpInspectConnectionTool {
             }
             let connect_if_disconnected = args::bool_or(&args, "connect_if_disconnected", true);
 
-            let list = match load_stored_connections(ctx.app.clone()).await {
+            let db = ctx.app.state::<Database>();
+            let list = match load_stored_connections(db.inner()).await {
                 Ok(items) => items,
                 Err(err) => return AiToolResult::err(err),
             };

@@ -14,7 +14,7 @@ use tokio::sync::{oneshot, watch};
 use crate::core::db::Database;
 use crate::core::error::{AppError, AppErrorCode, AppResult};
 use crate::tools::network::mcp_inspector::{
-    commands::{call_tool_on_session, connect_or_reuse_session, inspect_session, McpSessions},
+    sessions::{call_tool_on_session, connect_or_reuse_session, inspect_session, McpSessions},
     store::load_stored_connections,
 };
 
@@ -392,6 +392,7 @@ fn format_mcp_tool_result(val: &Value) -> String {
 
 async fn collect_enabled_mcp_tools(
     app: &AppHandle,
+    db: &Database,
     sessions: &McpSessions,
     enabled_ids: &[String],
     on_event: &Channel<AiChatEvent>,
@@ -399,10 +400,12 @@ async fn collect_enabled_mcp_tools(
     if enabled_ids.is_empty() {
         return Vec::new();
     }
-    let stored = match load_stored_connections(app.clone()).await {
+    let stored = match load_stored_connections(db).await {
         Ok(list) => list,
         Err(err) => {
-            let _ = on_event.send(AiChatEvent::Notice { message: err });
+            let _ = on_event.send(AiChatEvent::Notice {
+                message: err.message,
+            });
             return Vec::new();
         }
     };
@@ -617,7 +620,7 @@ async fn run_chat_turn_inner(
         .collect();
 
     let mcp_entries =
-        collect_enabled_mcp_tools(app, mcp_sessions, &req.enabled_mcp_ids, on_event).await;
+        collect_enabled_mcp_tools(app, db, mcp_sessions, &req.enabled_mcp_ids, on_event).await;
     let mut mcp_by_fn: HashMap<String, ActiveMcpTool> = HashMap::new();
     for entry in mcp_entries {
         all_tool_defs.push(ProviderToolDefinition {

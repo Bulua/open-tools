@@ -6,7 +6,9 @@ use crate::tools::ai::{
     commands as ai, engine as ai_engine, registry as ai_registry, shell as ai_shell,
     store as ai_store,
 };
-use crate::tools::network::mcp_inspector::{commands as mcp, store as mcp_store};
+use crate::tools::network::mcp_inspector::{
+    commands as mcp, sessions as mcp_sessions, store as mcp_store,
+};
 use crate::tools::{
     audio::tts::commands as tts,
     document::{
@@ -66,7 +68,7 @@ pub fn run() {
         .plugin(tauri_plugin_http::init());
 
     let builder = builder
-        .manage(mcp::McpSessions::default())
+        .manage(mcp_sessions::McpSessions::default())
         .manage(ai_shell::AiCommandState::default())
         .manage(ai_engine::AiChatState::default())
         .manage(ai_registry::AiToolRegistry::with_builtin_tools())
@@ -98,8 +100,8 @@ pub fn run() {
             large_file::large_text_exit,
             ping::ping_once,
             mcp::mcp_connect,
-            mcp_store::mcp_read_connections,
-            mcp_store::mcp_save_connections,
+            mcp::mcp_read_connections,
+            mcp::mcp_save_connections,
             mcp::mcp_disconnect,
             mcp::mcp_active_sessions,
             mcp::mcp_list_entries,
@@ -228,6 +230,7 @@ pub fn run() {
             let data_dir = paths::data_dir(app.handle())?;
             let db = Database::open(&data_dir.join("open-tools.db"))?;
             ai_store::init_ai_storage(&db, &data_dir)?;
+            mcp_store::init_mcp_storage(&db)?;
             use tauri::Manager;
             app.manage(db);
             #[cfg(windows)]

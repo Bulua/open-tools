@@ -34,6 +34,14 @@ pub(crate) struct HttpConfig {
 }
 
 impl McpConfig {
+    /// 返回落库使用的传输类型标识（`stdio` 或 `streaming_http`）
+    pub(super) fn transport_kind(&self) -> &'static str {
+        match self {
+            McpConfig::Stdio { .. } => "stdio",
+            McpConfig::Http(_) => "streaming_http",
+        }
+    }
+
     /// 生成脱敏后的连接摘要（不包含明文密钥或请求头值）
     pub(super) fn summary(&self) -> String {
         match self {
