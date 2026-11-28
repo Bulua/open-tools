@@ -13,7 +13,7 @@ use tauri::{
 
 use crate::core::db::Database;
 use crate::core::error::{api_ok, api_result, ApiResult, AppError, AppResult};
-use crate::tools::network::mcp_inspector::sessions::McpSessions;
+use crate::tools::developer::mcp_inspector::sessions::McpSessions;
 
 use super::attachments::{save_attachment_from_request, SavedAttachment};
 use super::engine::{

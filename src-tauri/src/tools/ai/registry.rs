@@ -14,18 +14,18 @@ use serde_json::Value;
 use specta::Type;
 use tauri::AppHandle;
 
-use crate::tools::encode::id_card::ai_tools::ParseIdCardTool;
+use crate::tools::calc::calculator::ai_tools::CalculateTool;
+use crate::tools::daily::id_card::ai_tools::ParseIdCardTool;
+use crate::tools::daily::notebook::ai_tools::{
+    NotebookDeleteTool, NotebookListTool, NotebookReadTool, NotebookSaveTool,
+};
+use crate::tools::developer::mcp_inspector::ai_tools::{
+    McpAddConnectionTool, McpInspectConnectionTool, McpListConnectionsTool,
+};
 use crate::tools::image::shared::ai_tools::{
     ImageInfoTool, ImageProcessTool, ImageRemoveBgTool, ImageStitchTool, ImageToIcoTool,
 };
-use crate::tools::markdown::notebook::ai_tools::{
-    NotebookDeleteTool, NotebookListTool, NotebookReadTool, NotebookSaveTool,
-};
-use crate::tools::network::mcp_inspector::ai_tools::{
-    McpAddConnectionTool, McpInspectConnectionTool, McpListConnectionsTool,
-};
-use crate::tools::utility::calculator::ai_tools::CalculateTool;
-use crate::tools::utility::clock::ai_tools::{
+use crate::tools::time::clock::ai_tools::{
     ClockListTool, ClockManageTool, ClockSetAlarmTool, ClockStartTimerTool,
 };
 

@@ -13,7 +13,7 @@ use tokio::sync::{oneshot, watch};
 
 use crate::core::db::Database;
 use crate::core::error::{AppError, AppErrorCode, AppResult};
-use crate::tools::network::mcp_inspector::{
+use crate::tools::developer::mcp_inspector::{
     sessions::{call_tool_on_session, connect_or_reuse_session, inspect_session, McpSessions},
     store::load_stored_connections,
 };

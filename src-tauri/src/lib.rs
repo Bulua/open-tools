@@ -6,32 +6,32 @@ use crate::tools::ai::{
     commands as ai, engine as ai_engine, registry as ai_registry, shell as ai_shell,
     store as ai_store,
 };
-use crate::tools::network::mcp_inspector::{
+use crate::tools::developer::mcp_inspector::{
     commands as mcp, sessions as mcp_sessions, store as mcp_store,
 };
 use crate::tools::{
     audio::tts::commands as tts,
+    calc::calculator::{commands as calculator, store as calculator_store},
+    daily::{
+        id_card::{commands as id_card, store as id_card_store},
+        notebook::commands as notebook,
+        password_vault::commands as vault,
+    },
     document::{
         large_file::{commands as large_file, service as large_file_service},
         pdf_to_word::commands as pdf_to_word,
         shared::office,
-        word_to_pdf::commands as word_to_pdf,
         word_to_markdown::commands as word_to_markdown,
-    },
-    encode::{
-        id_card::{commands as id_card, store as id_card_store},
-        password_vault::commands as vault,
+        word_to_pdf::commands as word_to_pdf,
     },
     image::shared::{ai_models, inference},
-    markdown::notebook::commands as notebook,
     network::{
         http_client::{commands as http_client, store as http_client_store},
         ip_lookup::commands as ip_lookup,
         mqtt_client::{commands as mqtt, store as mqtt_store},
         ping::commands as ping,
     },
-    utility::{
-        calculator::{commands as calculator, store as calculator_store},
+    time::{
         calendar::{commands as calendar, store as calendar_store},
         clock::{commands as clock, store as clock_store},
     },
@@ -44,11 +44,13 @@ use crate::tools::{
 };
 #[cfg(windows)]
 use crate::tools::{
-    document::pdf_content_editor::commands as pdf_content_editor,
-    encode::clipboard_history::{
-        commands as clipboard, service as clipboard_service, store as clipboard_store,
+    daily::{
+        clipboard_history::{
+            commands as clipboard, service as clipboard_service, store as clipboard_store,
+        },
+        screenshot_history::{commands as screenshot, windows as screenshot_windows},
     },
-    image::screenshot_history::{commands as screenshot, windows as screenshot_windows},
+    document::pdf_content_editor::commands as pdf_content_editor,
 };
 
 #[cfg(debug_assertions)]
