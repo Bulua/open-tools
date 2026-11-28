@@ -9,7 +9,7 @@
 | 数据 | 存储位置与方式 |
 | --- | --- |
 | AI 工作台 | `open-tools.db`（模型配置、API Key 由 DPAPI 加密存储，以及文件夹、会话、消息、审批策略等表）；附件与工作区文件位于 `ai/` |
-| MCP 工具查看器 | `open-tools.db`（连接配置由当前 Windows 用户的 DPAPI 加密后入库） |
+| MCP 工具查看器 | `open-tools.db`（`mcp_connections` 表，按列存放 `stdio` 与 `streaming_http` 连接配置） |
 | 剪贴板历史 | `open-tools.db`（历史记录与采集设置，敏感内容由 DPAPI 加密） |
 | 时钟 | `open-tools.db`（闹钟与计时器表） |
 | 日历 | `open-tools.db`（备注和提醒事项表） |
