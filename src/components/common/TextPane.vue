@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { defineAsyncComponent, ref } from "vue";
-import { Check, ChevronsDownUp, ChevronsUpDown, ClipboardPaste, Copy, X } from "lucide-vue-next";
+import { Check, ChevronsDownUp, ChevronsUpDown, CircleAlert, ClipboardPaste, Copy, X } from "lucide-vue-next";
 import { useClipboard } from "@/composables/useClipboard";
 import { useI18n } from "vue-i18n";
 import type CodeEditorComponent from "./CodeEditor.vue";
@@ -24,6 +24,10 @@ const props = withDefaults(
     hideHeader?: boolean;
     placeholder?: string;
     readonly?: boolean;
+    /** 只读或可编辑时都在右上角提供「复制」 */
+    copyable?: boolean;
+    /** 复制时优先使用的完整文本（用于超长内容截断预览场景） */
+    copyText?: string;
     /** 显示错误信息替代文本内容 */
     error?: string;
     /** 不自动换行（适合格式化后的代码） */
@@ -35,7 +39,7 @@ const props = withDefaults(
     /** 代码编辑器中高亮的区间 */
     codeMarks?: TextMark[];
   }>(),
-  { hideHeader: false, placeholder: "", readonly: false, error: "", nowrap: false, language: undefined, codeError: null, codeMarks: () => [] },
+  { hideHeader: false, placeholder: "", readonly: false, copyable: false, copyText: undefined, error: "", nowrap: false, language: undefined, codeError: null, codeMarks: () => [] },
 );
 const { t } = useI18n();
 
@@ -72,16 +76,30 @@ defineExpose({ focusAt });
           <button class="icon-btn" :title="t('common.unfoldAll')" @click="editor?.unfoldAll()"><ChevronsUpDown :size="14" /></button>
         </template>
         <template v-if="!props.readonly">
+          <button
+            v-if="props.copyable"
+            class="icon-btn"
+            :class="{ ok: copied }"
+            :disabled="!(props.copyText ?? model)"
+            :title="t('common.copy')"
+            @click="copy(props.copyText ?? model)"
+          >
+            <Check v-if="copied" :size="14" />
+            <Copy v-else :size="14" />
+          </button>
           <button class="icon-btn" :title="t('common.paste')" @click="onPaste"><ClipboardPaste :size="14" /></button>
-          <button class="icon-btn" :title="t('common.clear')" @click="model = ''"><X :size="14" /></button>
+          <button class="icon-btn" :disabled="!model" :title="t('common.clear')" @click="model = ''"><X :size="14" /></button>
         </template>
-        <button v-else class="icon-btn" :class="{ ok: copied }" :title="t('common.copy')" @click="copy(model)">
+        <button v-else class="icon-btn" :class="{ ok: copied }" :disabled="!(props.copyText ?? model)" :title="t('common.copy')" @click="copy(props.copyText ?? model)">
           <Check v-if="copied" :size="14" />
           <Copy v-else :size="14" />
         </button>
       </div>
     </header>
-    <p v-if="error" class="pane-error">{{ error }}</p>
+    <div v-if="error" class="pane-error" role="alert">
+      <CircleAlert :size="15" class="pane-error-icon" />
+      <span>{{ error }}</span>
+    </div>
     <slot v-else-if="$slots.body" name="body" />
     <CodeEditor
       v-else-if="language"
@@ -107,7 +125,7 @@ defineExpose({ focusAt });
 </template>
 
 <style scoped>
-/* 扁平面板：细边框、无阴影，顶部一条标题栏放名称和操作 */
+/* 扁平面板：细边框、柔和投影，顶部一条标题栏放名称和操作 */
 .pane {
   flex: 1;
   display: flex;
@@ -117,8 +135,9 @@ defineExpose({ focusAt });
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
-  transition: border-color 0.15s;
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur) var(--ease-out);
 }
 .pane:focus-within {
   border-color: var(--border-strong);
@@ -128,8 +147,9 @@ defineExpose({ focusAt });
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   min-height: 38px;
-  padding: 0 6px 0 14px;
+  padding: 0 8px 0 14px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-sunken);
 }
@@ -138,7 +158,9 @@ defineExpose({ focusAt });
   white-space: nowrap;
   font-size: 12px;
   font-weight: 500;
+  letter-spacing: 0.01em;
   color: var(--text-2);
+  transition: color var(--dur-fast) var(--ease-out);
 }
 .pane:focus-within .pane-label {
   color: var(--text);
@@ -150,6 +172,11 @@ defineExpose({ focusAt });
   gap: 2px;
   min-width: 0;
   margin-left: 12px;
+}
+.pane-actions .icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
 }
 textarea {
   flex: 1;
@@ -174,10 +201,21 @@ textarea::placeholder {
   font-family: var(--font-sans);
 }
 .pane-error {
-  margin: 0;
-  padding: 10px 14px 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 14px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--danger) 24%, transparent);
+  border-radius: 8px;
+  background: var(--danger-soft);
   color: var(--danger);
   font-size: 13px;
+  line-height: 1.6;
   white-space: pre-wrap;
+}
+.pane-error-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 </style>

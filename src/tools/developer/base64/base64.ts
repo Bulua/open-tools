@@ -29,8 +29,10 @@ export function formatFileOutput(dataUri: string, format: FileOutputFormat): str
   switch (format) {
     case "dataUri":
       return dataUri;
-    case "base64":
-      return parseDataUri(dataUri)?.base64 ?? "";
+    case "base64": {
+      const comma = dataUri.indexOf(",");
+      return dataUri.startsWith("data:") && comma >= 0 ? dataUri.slice(comma + 1) : (parseDataUri(dataUri)?.base64 ?? "");
+    }
     case "css":
       return `background-image: url("${dataUri}");`;
     case "html":
