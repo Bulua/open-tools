@@ -48,7 +48,7 @@ Formatting JSON, decoding Base64, converting timestamps, or compressing images o
 | Audio | Compression, format conversion (including extracting audio from video), trimming, joining, recording, text to speech |
 | Video | Video compression, Bilibili video download (with in-app playback), Douyin download without watermark, RedNote video and photo download (automatic content detection and local playback), X and Weibo video download, video to audio (copy the original track or convert to MP3/M4A/WAV), video to GIF, video trimming (length and picture), video concatenation, background music, screen recording, camera recording |
 | Documents & files | Large-text editing (multiple tabs and continuous scrolling), Word to PDF, Word to Markdown, PDF to Word, Word watermarks and watermark removal, PDF content editing (existing text, added text, images, signatures and markup), PDF page management, PDF watermark removal, Markdown to Word conversion, archiving and extraction |
-| Network | HTTP request client, IP address and location lookup, ping, MQTT (TCP/TLS and WebSocket), HTTP headers to JSON/cURL |
+| Network | HTTP request client, IP address and location lookup, ping, MQTT (TCP/TLS and WebSocket) |
 
 ## Download and install
 
@@ -73,7 +73,7 @@ The app checks for updates shortly after startup and opens an update dialog for 
 | `Ctrl K` | Search all tools by name or description and open one with Enter |
 | Sidebar search | Filter tools in the current category |
 | Favorite star | Add a tool to Home favorites; Home also shows recently used tools |
-| Session tabs | JSON tools, regex testing, HTTP requests, and header conversion support independent sessions; use `+` to add one, double-click to rename, and middle-click or use `×` to close |
+| Session tabs | JSON tools, regex testing, and HTTP requests support independent sessions; use `+` to add one, double-click to rename, and middle-click or use `×` to close |
 | `Ctrl V` | Paste screenshots or copied files into supported image and file tools |
 | Drag and drop | Add images and files directly to the window |
 | `Ctrl F` | Search in the JSON editor |
