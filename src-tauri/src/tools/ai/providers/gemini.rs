@@ -14,7 +14,7 @@ use crate::core::error::{AppError, AppResult};
 use super::{
     build_text_with_file_attachments, classify_provider_error, safe_parse_json_object,
     split_data_url, ChatRoundRequest, ChatRoundResult, EndpointConfig, PromptTurn,
-    ProviderToolCall, RemoteModelInfo, StreamDelta, ThinkingEffort,
+    ProviderToolCall, RemoteModelInfo, StreamDelta, ThinkingEffort, TokenUsage,
 };
 
 /// 清理 Gemini 不支持的 JSON Schema 字段（如 `$schema`、`additionalProperties`、`default`）。
@@ -242,6 +242,7 @@ pub(crate) async fn stream_chat(
 
     let mut content = String::new();
     let mut tool_calls: Vec<ProviderToolCall> = Vec::new();
+    let mut round_usage: Option<TokenUsage> = None;
 
     loop {
         let next_item = tokio::select! {
@@ -259,6 +260,27 @@ pub(crate) async fn stream_chat(
             break;
         };
         let resp = chunk_res.map_err(|err| classify_provider_error(err.to_string()))?;
+        // Gemini 的流式 usage_metadata 可能随内容一起或单独放在尾帧，先于 candidates 检查读取
+        if let Some(meta) = resp.usage_metadata {
+            let input_tokens = meta.prompt_token_count.map(|v| v.max(0) as u64);
+            let output_tokens = match (meta.candidates_token_count, meta.thoughts_token_count) {
+                (None, None) => None,
+                (cand, thoughts) => Some(
+                    (cand.unwrap_or(0).max(0) as u64)
+                        .saturating_add(thoughts.unwrap_or(0).max(0) as u64),
+                ),
+            };
+            let total_tokens = meta.total_token_count.map(|v| v.max(0) as u64);
+            if let Some(usage) = (TokenUsage {
+                input_tokens,
+                output_tokens,
+                total_tokens,
+            })
+            .normalized()
+            {
+                round_usage = Some(usage);
+            }
+        }
         let Some(first) = resp.candidates.into_iter().next() else {
             continue;
         };
@@ -303,6 +325,7 @@ pub(crate) async fn stream_chat(
     Ok(ChatRoundResult {
         content,
         tool_calls,
+        usage: round_usage,
     })
 }
 

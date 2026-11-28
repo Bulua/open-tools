@@ -108,10 +108,58 @@ pub(crate) struct StreamDelta {
     pub(crate) reasoning: Option<String>,
 }
 
+/// 单轮或整次对话的 Token 消耗统计（未返回或不支持时字段为 `None`）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct TokenUsage {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<f64>)]
+    pub(crate) input_tokens: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<f64>)]
+    pub(crate) output_tokens: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<f64>)]
+    pub(crate) total_tokens: Option<u64>,
+}
+
+impl TokenUsage {
+    pub(crate) fn normalized(mut self) -> Option<Self> {
+        if self.total_tokens.is_none() {
+            if let (Some(inp), Some(out)) = (self.input_tokens, self.output_tokens) {
+                self.total_tokens = Some(inp.saturating_add(out));
+            }
+        }
+        if self.input_tokens.is_none() && self.output_tokens.is_none() && self.total_tokens.is_none() {
+            None
+        } else {
+            Some(self)
+        }
+    }
+
+    pub(crate) fn accumulate(&mut self, other: &Self) {
+        fn add_opt(dst: &mut Option<u64>, rhs: Option<u64>) {
+            if let Some(val) = rhs {
+                *dst = Some(dst.unwrap_or(0).saturating_add(val));
+            }
+        }
+        add_opt(&mut self.input_tokens, other.input_tokens);
+        add_opt(&mut self.output_tokens, other.output_tokens);
+        let rhs_total = other.total_tokens.or_else(|| {
+            other
+                .input_tokens
+                .zip(other.output_tokens)
+                .map(|(i, o)| i.saturating_add(o))
+        });
+        add_opt(&mut self.total_tokens, rhs_total);
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub(crate) struct ChatRoundResult {
     pub(crate) content: String,
     pub(crate) tool_calls: Vec<ProviderToolCall>,
+    pub(crate) usage: Option<TokenUsage>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -349,5 +397,40 @@ pub(crate) async fn fetch_models(endpoint: &EndpointConfig) -> AppResult<Vec<Rem
         ApiProtocol::Openai => openai::fetch_models(&base, endpoint).await,
         ApiProtocol::Anthropic => anthropic::fetch_models(&base, endpoint).await,
         ApiProtocol::Gemini => gemini::fetch_models(&base, endpoint).await,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::TokenUsage;
+
+    #[test]
+    fn normalizes_and_accumulates_token_usage() {
+        assert_eq!(TokenUsage::default().normalized(), None);
+
+        let single = TokenUsage {
+            input_tokens: Some(120),
+            output_tokens: Some(30),
+            total_tokens: None,
+        }
+        .normalized()
+        .unwrap();
+        assert_eq!(single.total_tokens, Some(150));
+
+        let mut acc = TokenUsage::default();
+        acc.accumulate(&TokenUsage {
+            input_tokens: Some(100),
+            output_tokens: Some(40),
+            total_tokens: None,
+        });
+        acc.accumulate(&TokenUsage {
+            input_tokens: Some(160),
+            output_tokens: Some(50),
+            total_tokens: Some(220),
+        });
+        let total = acc.normalized().unwrap();
+        assert_eq!(total.input_tokens, Some(260));
+        assert_eq!(total.output_tokens, Some(90));
+        assert_eq!(total.total_tokens, Some(360));
     }
 }

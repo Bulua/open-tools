@@ -13,7 +13,7 @@ use crate::core::error::{AppError, AppResult};
 use super::{
     build_text_with_file_attachments, classify_provider_error, ChatRoundRequest, ChatRoundResult,
     EndpointConfig, PromptTurn, ProviderToolCall, RemoteModelInfo, StreamDelta, ThinkTagSplitter,
-    ThinkingEffort,
+    ThinkingEffort, TokenUsage,
 };
 
 #[derive(Debug, Deserialize)]
@@ -21,7 +21,34 @@ struct OpenAiStreamChunk {
     #[serde(default)]
     choices: Vec<OpenAiChoice>,
     #[serde(default)]
+    usage: Option<OpenAiUsage>,
+    #[serde(default)]
     error: Option<OpenAiErrorBody>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenAiUsage {
+    #[serde(default)]
+    prompt_tokens: Option<u64>,
+    #[serde(default)]
+    completion_tokens: Option<u64>,
+    #[serde(default)]
+    total_tokens: Option<u64>,
+    #[serde(default)]
+    input_tokens: Option<u64>,
+    #[serde(default)]
+    output_tokens: Option<u64>,
+}
+
+impl OpenAiUsage {
+    fn into_token_usage(self) -> Option<TokenUsage> {
+        TokenUsage {
+            input_tokens: self.prompt_tokens.or(self.input_tokens),
+            output_tokens: self.completion_tokens.or(self.output_tokens),
+            total_tokens: self.total_tokens,
+        }
+        .normalized()
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -180,6 +207,7 @@ pub(crate) async fn stream_chat(
     body.insert("model".into(), Value::String(req.model_id.to_string()));
     body.insert("messages".into(), Value::Array(payload_messages));
     body.insert("stream".into(), Value::Bool(true));
+    body.insert("stream_options".into(), json!({ "include_usage": true }));
 
     if let Some(max_tokens) = req.max_tokens.filter(|&n| n > 0) {
         body.insert("max_tokens".into(), Value::from(max_tokens));
@@ -219,20 +247,40 @@ pub(crate) async fn stream_chat(
     }
 
     // 通过 async-openai 的 byot 流式接口发送，既使用 SDK 的认证与 SSE 通道，
-    // 又能完整保留 DeepSeek/Qwen/Ollama 等兼容接口的 reasoning_content 字段。
+    // 又能完整保留 DeepSeek/Qwen/Ollama 等兼容接口的 reasoning_content 与 usage 字段。
     let chat = client.chat();
-    let mut stream = tokio::select! {
-        res = chat.create_stream_byot::<Value, OpenAiStreamChunk>(Value::Object(body)) => {
-            res.map_err(|err| classify_provider_error(err.to_string()))?
-        }
+    let first_attempt = tokio::select! {
+        res = chat.create_stream_byot::<Value, OpenAiStreamChunk>(Value::Object(body.clone())) => res,
         _ = cancel_rx.changed() => {
             return Err(AppError::cancelled("Chat cancelled."));
+        }
+    };
+    let mut stream = match first_attempt {
+        Ok(s) => s,
+        Err(err) => {
+            let err_msg = err.to_string();
+            let lower = err_msg.to_ascii_lowercase();
+            // 部分老旧 OpenAI 兼容网关不支持 stream_options，遇到相关拒参时去掉后自动重试一次
+            if lower.contains("stream_options") || lower.contains("include_usage") {
+                body.remove("stream_options");
+                tokio::select! {
+                    res = chat.create_stream_byot::<Value, OpenAiStreamChunk>(Value::Object(body)) => {
+                        res.map_err(|e| classify_provider_error(e.to_string()))?
+                    }
+                    _ = cancel_rx.changed() => {
+                        return Err(AppError::cancelled("Chat cancelled."));
+                    }
+                }
+            } else {
+                return Err(classify_provider_error(err_msg));
+            }
         }
     };
 
     let mut content = String::new();
     let mut tool_call_map: BTreeMap<usize, ProviderToolCall> = BTreeMap::new();
     let mut splitter = ThinkTagSplitter::new();
+    let mut round_usage: Option<TokenUsage> = None;
 
     loop {
         let next_item = tokio::select! {
@@ -254,6 +302,10 @@ pub(crate) async fn stream_chat(
             if let Some(msg) = err_body.message.filter(|m| !m.is_empty()) {
                 return Err(classify_provider_error(msg));
             }
+        }
+        // OpenAI 的流式 usage 通常放在最后一个 choices 为空的 chunk 中，必须先于 choices 检查提取
+        if let Some(usage) = chunk.usage.and_then(OpenAiUsage::into_token_usage) {
+            round_usage = Some(usage);
         }
         let Some(first) = chunk.choices.into_iter().next() else {
             continue;
@@ -334,6 +386,7 @@ pub(crate) async fn stream_chat(
     Ok(ChatRoundResult {
         content,
         tool_calls,
+        usage: round_usage,
     })
 }
 

@@ -72,14 +72,14 @@ pub(crate) enum ToolOutputFileKind {
 }
 
 /// 写/改文件或生成图片类工具成功完成后附带的文件快照，供前端右侧「输出内容」自动展示
-#[derive(Debug, Clone, Serialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct AiToolOutputFile {
     pub(crate) path: String,
     pub(crate) content: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) kind: Option<ToolOutputFileKind>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[specta(type = Option<f64>)]
     pub(crate) size_bytes: Option<u64>,
 }

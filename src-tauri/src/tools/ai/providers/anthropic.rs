@@ -17,7 +17,7 @@ use crate::core::error::{AppError, AppResult};
 use super::{
     build_text_with_file_attachments, classify_provider_error, safe_parse_json_object,
     split_data_url, ChatRoundRequest, ChatRoundResult, EndpointConfig, PromptTurn,
-    ProviderToolCall, RemoteModelInfo, StreamDelta, ThinkingEffort,
+    ProviderToolCall, RemoteModelInfo, StreamDelta, ThinkingEffort, TokenUsage,
 };
 
 /// `adk-anthropic` 内部会自动拼接 `/v1/{endpoint}`，如果用户填写的 baseUrl 以 `/v1` 结尾需先剥离。
@@ -211,6 +211,8 @@ pub(crate) async fn stream_chat(
 
     let mut content = String::new();
     let mut tool_call_map: BTreeMap<usize, ProviderToolCall> = BTreeMap::new();
+    let mut input_tokens: Option<u64> = None;
+    let mut output_tokens: Option<u64> = None;
 
     loop {
         let next_item = tokio::select! {
@@ -229,6 +231,37 @@ pub(crate) async fn stream_chat(
         };
         let event = event_res.map_err(|err| classify_provider_error(err.to_string()))?;
         match event {
+            MessageStreamEvent::MessageStart(start) => {
+                let u = start.message.usage;
+                let total_in = (u.input_tokens.max(0) as u64)
+                    .saturating_add(u.cache_creation_input_tokens.unwrap_or(0).max(0) as u64)
+                    .saturating_add(u.cache_read_input_tokens.unwrap_or(0).max(0) as u64);
+                input_tokens = Some(total_in);
+                if u.output_tokens > 0 {
+                    output_tokens = Some(u.output_tokens as u64);
+                }
+            }
+            MessageStreamEvent::MessageDelta(delta_ev) => {
+                if let Some(inp) = delta_ev.usage.input_tokens {
+                    let total_in = (inp.max(0) as u64)
+                        .saturating_add(
+                            delta_ev
+                                .usage
+                                .cache_creation_input_tokens
+                                .unwrap_or(0)
+                                .max(0) as u64,
+                        )
+                        .saturating_add(
+                            delta_ev
+                                .usage
+                                .cache_read_input_tokens
+                                .unwrap_or(0)
+                                .max(0) as u64,
+                        );
+                    input_tokens = Some(total_in);
+                }
+                output_tokens = Some(delta_ev.usage.output_tokens.max(0) as u64);
+            }
             MessageStreamEvent::ContentBlockStart(start) => {
                 if let ContentBlock::ToolUse(tu) = start.content_block {
                     let id = if tu.id.is_empty() {
@@ -283,9 +316,17 @@ pub(crate) async fn stream_chat(
         .filter(|call| !call.name.is_empty())
         .collect();
 
+    let usage = TokenUsage {
+        input_tokens,
+        output_tokens,
+        total_tokens: None,
+    }
+    .normalized();
+
     Ok(ChatRoundResult {
         content,
         tool_calls,
+        usage,
     })
 }
 

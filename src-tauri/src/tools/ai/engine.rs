@@ -23,7 +23,7 @@ use super::paths::{ensure_conversation_workspace_dir, resolve_target_path};
 use super::prompt::build_system_prompt;
 use super::providers::{
     safe_parse_json_object, stream_chat_round, ChatRoundRequest, PromptTurn,
-    ProviderToolDefinition, ThinkingEffort,
+    ProviderToolDefinition, ThinkingEffort, TokenUsage,
 };
 use super::registry::{
     AiToolContext, AiToolOutputFile, AiToolRegistry, ToolApprovalPolicy,
@@ -307,6 +307,15 @@ pub(crate) struct AiChatRunResult {
     pub(crate) aborted: bool,
     #[specta(type = f64)]
     pub(crate) duration_ms: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<f64>)]
+    pub(crate) input_tokens: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<f64>)]
+    pub(crate) output_tokens: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<f64>)]
+    pub(crate) total_tokens: Option<u64>,
 }
 
 struct ActiveMcpTool {
@@ -536,6 +545,7 @@ pub(crate) async fn run_chat_turn(
     let creds = resolve_model_credentials(db, &req.model_config_id).await?;
 
     let (mut cancel_rx, active_run_id, pending_approval) = chat_state.register(&conv_id)?;
+    let mut total_usage = TokenUsage::default();
 
     let result = run_chat_turn_inner(
         app,
@@ -550,21 +560,29 @@ pub(crate) async fn run_chat_turn(
         &mut cancel_rx,
         &active_run_id,
         &pending_approval,
+        &mut total_usage,
     )
     .await;
 
     chat_state.unregister(&conv_id);
     let duration_ms = started.elapsed().as_millis() as u64;
+    let usage = total_usage.normalized().unwrap_or_default();
 
     match result {
         Ok(aborted) => Ok(AiChatRunResult {
             aborted,
             duration_ms,
+            input_tokens: usage.input_tokens,
+            output_tokens: usage.output_tokens,
+            total_tokens: usage.total_tokens,
         }),
         Err(err) if err.code == AppErrorCode::Cancelled || *cancel_rx.borrow() => {
             Ok(AiChatRunResult {
                 aborted: true,
                 duration_ms,
+                input_tokens: usage.input_tokens,
+                output_tokens: usage.output_tokens,
+                total_tokens: usage.total_tokens,
             })
         }
         Err(err) => Err(err),
@@ -585,6 +603,7 @@ async fn run_chat_turn_inner(
     cancel_rx: &mut watch::Receiver<bool>,
     active_run_id: &Arc<Mutex<Option<String>>>,
     pending_approval: &Arc<Mutex<Option<oneshot::Sender<ToolApprovalDecision>>>>,
+    total_usage: &mut TokenUsage,
 ) -> AppResult<bool> {
     let workspace_dir = match req
         .workspace_dir
@@ -596,7 +615,6 @@ async fn run_chat_turn_inner(
         None => ensure_conversation_workspace_dir(app, &req.conversation_id)?,
     };
 
-    let system_prompt = build_system_prompt(&workspace_dir);
     let disabled_builtin_tools = read_disabled_builtin_tools(db).await?;
     let builtin_defs = registry.definitions();
     let all_builtin_names: HashSet<String> =
@@ -605,6 +623,11 @@ async fn run_chat_turn_inner(
         .into_iter()
         .filter(|d| !disabled_builtin_tools.contains(&d.name))
         .collect();
+    let enabled_builtin_names: HashSet<String> = enabled_builtin_defs
+        .iter()
+        .map(|d| d.name.clone())
+        .collect();
+    let system_prompt = build_system_prompt(&workspace_dir, &enabled_builtin_names);
     let builtin_by_name: HashMap<String, ToolApprovalPolicy> = enabled_builtin_defs
         .iter()
         .map(|d| (d.name.clone(), d.approval))
@@ -670,6 +693,9 @@ async fn run_chat_turn_inner(
         };
 
         let round_result = stream_chat_round(&round_req, cancel_rx, &mut on_delta).await?;
+        if let Some(ref usage) = round_result.usage {
+            total_usage.accumulate(usage);
+        }
 
         if round_result.tool_calls.is_empty() || *cancel_rx.borrow() {
             return Ok(*cancel_rx.borrow());
