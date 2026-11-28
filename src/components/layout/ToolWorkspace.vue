@@ -8,7 +8,7 @@ import ToolView from "@/components/tool/ToolView.vue";
 export type WorkspacePage = "home" | "ai" | "tool";
 
 const props = defineProps<{ page: WorkspacePage; categories: Category[]; tool?: Tool }>();
-const emit = defineEmits<{ select: [categoryId: string, toolId: string]; search: [] }>();
+const emit = defineEmits<{ select: [categoryId: string, toolId: string]; search: []; ai: [] }>();
 const workspace = ref<HTMLElement>();
 let animation: Animation | undefined;
 
@@ -27,7 +27,7 @@ onBeforeUnmount(() => animation?.cancel());
 <template>
   <div ref="workspace" class="tool-workspace">
     <KeepAlive :max="14">
-      <HomePage v-if="page === 'home'" key="home" :categories="categories" @select="(categoryId, toolId) => emit('select', categoryId, toolId)" @search="emit('search')" />
+      <HomePage v-if="page === 'home'" key="home" :categories="categories" @select="(categoryId, toolId) => emit('select', categoryId, toolId)" @search="emit('search')" @ai="emit('ai')" />
       <AiWorkspace v-else-if="page === 'ai'" key="ai" />
       <ToolView v-else-if="tool" :key="tool.id" :tool="tool" />
     </KeepAlive>

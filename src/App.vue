@@ -174,6 +174,7 @@ onBeforeUnmount(() => {
           :tool="activeTool"
           @select="selectTool"
           @search="searchOpen = true"
+          @ai="openAi"
         />
         <EmptyState
           v-if="activePage === 'tool' && !activeTool"

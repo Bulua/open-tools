@@ -29,6 +29,9 @@ export function toggleFavorite(id: string) {
 export function rememberRecentTool(id: string) {
   recent.value = toolIds([id, ...recent.value]);
 }
+export function clearRecentTools() {
+  recent.value = [];
+}
 
 /** 仅由工具成功处理或用户实际操作调用，页面导航不计数。 */
 export function recordToolUsage() {
