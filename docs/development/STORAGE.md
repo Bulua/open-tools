@@ -13,6 +13,11 @@
 | 剪贴板历史 | `open-tools.db`（历史记录与采集设置，敏感内容由 DPAPI 加密） |
 | 时钟 | `open-tools.db`（闹钟与计时器表） |
 | 日历 | `open-tools.db`（备注和提醒事项表） |
+| MQTT 连接 | `open-tools.db`（复用 `folders` 与 `mqtt_sessions` / `mqtt_session_topics` 关系表，保存目录、连接参数、预设订阅与发布草稿；连接密码与收发日志仅运行期使用） |
+| HTTP 请求历史 | `open-tools.db`（`http_history` 与 `http_history_items` 关系表，保存最近 50 条去重请求快照；Bearer Token、Basic 密码及敏感请求头由 DPAPI 加密） |
+| B 站下载设置与凭据 | `open-tools.db`（`bilibili_settings` 单行表，保存默认画质、编码及 DPAPI 加密的 `SESSDATA`） |
+| 身份证解析历史 | `open-tools.db`（`id_card_history` 表，SHA-256 去重并保存最近 10 条由 DPAPI 加密的 18 位号码） |
+| 计算器历史 | `open-tools.db`（`calculator_history` 表，保存最近 50 条算式、结果与角度单位） |
 | 密码本 | `vault.dat`、`vault.dat.bak`（前端主密码派生密钥并以 AES-256-GCM 加密，Rust 写入密文并保留上一版） |
 | 笔记本 | `notebook/index.json`、`notebook/notes/`（JSON 索引、独立 Markdown 正文；图片存于正文同目录 `assets/`，正文使用相对引用） |
 | 截图与贴图 | `screenshots/<日期>/<小时>/`（每张截图保存为 PNG，按目录扫描展示） |
@@ -25,17 +30,7 @@
 
 ## WebView2 本地存储
 
-WebView2 的 `localStorage` 保存主题、语言、收藏、最近使用、快捷键和工具参数。大部分键通过 [useStoredRef](../../src/composables/useStoredRef.ts) 自动以 JSON 写入。复制应用数据目录时，这部分数据仍留在原 WebView2 配置中。
-
-| 工具 | 存储键和内容 |
-| --- | --- |
-| HTTP 请求 | `http.history` 保存最近 30 条去重后的请求快照，包括请求头、认证字段、文本和表单字段。上传的文件对象不写入历史 |
-| MQTT 连接 | `mqtt.workspace.v2` 保存目录、连接参数、订阅配置和发布草稿。连接密码和收发日志只在运行期间使用 |
-| 身份证号解析 | `idCard.history` 保存解析过的完整 18 位号码 |
-| 计算器 | `calculator.history` 保存最近 50 条算式和结果 |
-| B 站视频下载 | `bilibili.sessdata` 保存登录凭据，画质和编码使用独立设置键 |
-
-HTTP 请求历史里的认证内容、B 站 SESSDATA 和身份证号码都以未加密的 JSON 值保存。剪贴板历史和 MCP 连接文件依赖当前 Windows 用户的 DPAPI，跨用户或设备复制文件时应考虑解密限制。
+WebView2 的 `localStorage` 主要保存主题、语言、收藏、最近使用、界面分栏尺寸与纯界面参数。大部分键通过 [useStoredRef](../../src/composables/useStoredRef.ts) 自动以 JSON 写入。上述业务数据在首次启动或打开对应工具时会自动无损迁入 `open-tools.db` 并清理旧 `localStorage` 键。注意涉及 Windows DPAPI 加密的数据库字段依赖当前 Windows 用户凭据，跨设备或跨用户迁移 `open-tools.db` 时需考虑解密限制。
 
 ## AI 模型与运行库
 
