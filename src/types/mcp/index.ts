@@ -35,6 +35,42 @@ export interface McpRemoteTool {
   title?: string;
   description?: string;
   inputSchema: Record<string, unknown>;
+  outputSchema?: Record<string, unknown>;
+}
+
+export type McpTool = McpRemoteTool;
+
+export interface McpPromptArgument {
+  name: string;
+  title?: string;
+  description?: string;
+  required?: boolean;
+}
+
+export interface McpPrompt {
+  name: string;
+  title?: string;
+  description?: string;
+  arguments?: McpPromptArgument[];
+}
+
+export interface McpResource {
+  uri: string;
+  name: string;
+  title?: string;
+  description?: string;
+  mimeType?: string;
+}
+
+export interface McpResourceTemplate extends Omit<McpResource, "uri"> {
+  uriTemplate: string;
+}
+
+export type McpCatalogKind = "tools" | "prompts" | "resources" | "resourceTemplates";
+
+export interface McpToolCallResult {
+  isError?: boolean;
+  [key: string]: unknown;
 }
 
 export interface McpRuntimeState {

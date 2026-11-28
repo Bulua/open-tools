@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { recordToolUsage } from "@/composables/toolLibrary";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { screenshotApi } from "@/api/screenshot";
 import {
   ArrowUpRight,
   Check,
@@ -33,7 +32,7 @@ type Mark = ScreenshotMark;
 
 const props = defineProps<{ draftId: string }>();
 const activeDraftId = ref(props.draftId);
-let unlisten: UnlistenFn | undefined;
+let unlisten: (() => void) | undefined;
 let loadedDraftId = "";
 const { t } = useI18n();
 const canvas = ref<HTMLCanvasElement>();
@@ -538,12 +537,12 @@ async function finish(action: "copy" | "save" | "pin") {
   commitText();
   busy.value = true;
   try {
-    const base64 = await invoke<string>("screenshot_capture", { draftId: activeDraftId.value });
+    const base64 = await screenshotApi.capture(activeDraftId.value);
     image.src = `data:image/png;base64,${base64}`;
     await image.decode();
     const blob = await exportedPng();
     const bytes = new Uint8Array(await blob.arrayBuffer());
-    await invoke("screenshot_finish", {
+    await screenshotApi.finish({
       draftId: activeDraftId.value,
       pngBase64: bytesToBase64(bytes),
       pin: action === "pin",
@@ -552,7 +551,7 @@ async function finish(action: "copy" | "save" | "pin") {
     recordToolUsage();
   } catch (error) {
     busy.value = false;
-    await invoke("screenshot_show", { draftId: activeDraftId.value }).catch(() => undefined);
+    await screenshotApi.show(activeDraftId.value).catch(() => undefined);
     alert(error instanceof Error ? error.message : String(error));
   }
 }
@@ -560,7 +559,7 @@ async function finish(action: "copy" | "save" | "pin") {
 async function cancel() {
   if (busy.value) return;
   busy.value = true;
-  await invoke("screenshot_cancel", { draftId: activeDraftId.value }).catch(() => undefined);
+  await screenshotApi.cancel(activeDraftId.value).catch(() => undefined);
 }
 
 function keydown(event: KeyboardEvent) {
@@ -605,14 +604,14 @@ async function loadDraft(id: string) {
     await nextTick();
     const el = canvas.value;
     el?.getContext("2d")?.clearRect(0, 0, el.width, el.height);
-    await invoke("screenshot_show", { draftId: id });
-    const targets = await invoke<{ width: number; height: number; windows: Rect[]; viewport: Rect }>("screenshot_targets", { draftId: id });
+    await screenshotApi.show(id);
+    const targets = await screenshotApi.targets(id);
     windowRects = targets.windows;
     physicalViewport.value = targets.viewport;
     ready.value = true;
     await nextTick();
     resized();
-    await invoke("screenshot_show", { draftId: id });
+    await screenshotApi.show(id);
   } catch (error) {
     alert(String(error));
     void cancel();
@@ -622,9 +621,9 @@ async function loadDraft(id: string) {
 onMounted(async () => {
   window.addEventListener("keydown", keydown);
   window.addEventListener("resize", resized);
-  unlisten = await listen<string>("screenshot-start", (event) => void loadDraft(event.payload));
+  unlisten = await screenshotApi.onStart((draftId) => void loadDraft(draftId));
   // 首次启动时事件可能早于监听器，注册后再读取当前截图以补齐。
-  const id = await invoke<string | null>("screenshot_active");
+  const id = await screenshotApi.active();
   if (id) await loadDraft(id);
 });
 onBeforeUnmount(() => {

@@ -1,5 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
 import { strFromU8, unzipSync } from "fflate";
+import { documentApi } from "@/api/document";
 import { t } from "@/locales";
 
 export const MAX_WORD_BYTES = 64 * 1024 * 1024;
@@ -14,10 +14,7 @@ export interface WordMarkdownResult {
 /** 原生端统一返回正文与资源包；只解压正文，有图片时直接保留原 ZIP。 */
 export async function convertDocx(file: File): Promise<WordMarkdownResult> {
   const data = new Uint8Array(await file.arrayBuffer());
-  const name = btoa(String.fromCharCode(...new TextEncoder().encode(file.name)));
-  const archive = new Uint8Array(await invoke<ArrayBuffer>("word_to_markdown", data, {
-    headers: { "x-file-ext": "docx", "x-file-name": name },
-  }));
+  const archive = new Uint8Array(await documentApi.wordToMarkdown(data, file.name));
   let hasImages = false;
   const entries = unzipSync(archive, { filter: (entry) => {
     if (entry.name.startsWith("assets/") && !entry.name.endsWith("/")) hasImages = true;

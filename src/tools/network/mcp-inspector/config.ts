@@ -1,36 +1,16 @@
-import type { McpServerConfig, McpServerInfo } from "@/types/mcp";
+import type {
+  McpPrompt,
+  McpResource,
+  McpResourceTemplate,
+  McpServerConfig,
+  McpServerInfo,
+  McpTool,
+} from "@/types/mcp";
 
 type StringMap = Record<string, string>;
 
 export type McpConfig = McpServerConfig;
-export type { McpServerInfo };
-
-export interface McpTool {
-  name: string;
-  title?: string;
-  description?: string;
-  inputSchema: Record<string, unknown>;
-  outputSchema?: Record<string, unknown>;
-}
-
-export interface McpPrompt {
-  name: string;
-  title?: string;
-  description?: string;
-  arguments?: { name: string; title?: string; description?: string; required?: boolean }[];
-}
-
-export interface McpResource {
-  uri: string;
-  name: string;
-  title?: string;
-  description?: string;
-  mimeType?: string;
-}
-
-export interface McpResourceTemplate extends Omit<McpResource, "uri"> {
-  uriTemplate: string;
-}
+export type { McpServerInfo, McpTool, McpPrompt, McpResource, McpResourceTemplate };
 
 type ParseError = "invalidServer" | "unsupportedType" | "invalidUrl";
 type ParsedServer = { config: McpConfig } | { error: ParseError };

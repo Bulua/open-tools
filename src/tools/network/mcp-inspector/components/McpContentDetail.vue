@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { invoke } from "@tauri-apps/api/core";
 import { FileText } from "lucide-vue-next";
 import { computed, ref, shallowRef } from "vue";
 import { useI18n } from "vue-i18n";
+import { mcpApi } from "@/api/mcp";
 import TextPane from "@/components/common/TextPane.vue";
 import { errorMessage } from "@/utils/errorToast";
 import type { McpEntry } from "../catalog";
@@ -33,11 +33,12 @@ async function load() {
   result.value = undefined;
   try {
     result.value = entry.kind === "prompt"
-      ? await invoke("mcp_get_prompt", {
-          sessionId, name: entry.value.name,
-          arguments: Object.fromEntries(Object.entries(argumentsDraft.value).filter(([, value]) => value !== "")),
-        })
-      : await invoke("mcp_read_resource", { sessionId, uri: resourceUri });
+      ? await mcpApi.getPrompt(
+          sessionId,
+          entry.value.name,
+          Object.fromEntries(Object.entries(argumentsDraft.value).filter(([, value]) => value !== "")),
+        )
+      : await mcpApi.readResource(sessionId, resourceUri);
   } catch (issue) {
     error.value = errorMessage(issue);
   } finally {

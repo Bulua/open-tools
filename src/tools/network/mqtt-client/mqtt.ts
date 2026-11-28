@@ -1,15 +1,30 @@
+import type {
+  ConnectionConfig,
+  ConnectionStatus,
+  ConnectionTransport,
+  MqttNotice,
+  ProtocolVersion,
+  QoS,
+} from "@/types/mqtt";
 import type { PayloadFormat } from "./payload";
+
+export type {
+  ConnectionConfig,
+  ConnectionStatus,
+  ConnectionTransport,
+  MqttNotice,
+  ProtocolVersion,
+  QoS,
+};
 
 export const MAX_PAYLOAD = 256 * 1024;
 export const MAX_MESSAGES = 200;
 export const MAX_LOG_BYTES = 4 * 1024 * 1024;
-export type QoS = 0 | 1 | 2;
 export const MQTT_VERSIONS = [
   { value: "3.1.1", labelKey: "network.mqtt.version311" },
   { value: "5.0", labelKey: "network.mqtt.version50" },
 ] as const;
 export const CONNECTION_TRANSPORTS = ["mqtt", "mqtts", "ws", "wss"] as const;
-export type ConnectionTransport = (typeof CONNECTION_TRANSPORTS)[number];
 export const DEFAULT_PORTS: Record<ConnectionTransport, number> = { mqtt: 1883, mqtts: 8883, ws: 80, wss: 443 };
 export const isConnectionTransport = (value: unknown): value is ConnectionTransport => CONNECTION_TRANSPORTS.some(item => item === value);
 export const isWebSocket = (transport: ConnectionTransport) => transport === "ws" || transport === "wss";
@@ -19,22 +34,12 @@ export function connectionAddress(config: Pick<ConnectionConfig, "transport" | "
   const host = config.host.includes(":") && !config.host.startsWith("[") ? `[${config.host}]` : config.host;
   return `${config.transport}://${host}:${config.port}${isWebSocket(config.transport) ? config.path : ""}`;
 }
-export type ProtocolVersion = (typeof MQTT_VERSIONS)[number]["value"];
 export const DEFAULT_CONNECTION_OPTIONS = {
   transport: "mqtt" as ConnectionTransport, path: "/mqtt",
   protocolVersion: "3.1.1" as ProtocolVersion,
   connectTimeout: 10, autoReconnect: false, reconnectPeriod: 4000,
   willEnabled: false, willTopic: "", willPayload: "", willQos: 0 as QoS, willRetain: false,
 };
-export interface ConnectionConfig {
-  host: string; port: number; clientId: string; username: string; password: string;
-  keepAlive: number; cleanSession: boolean; tls: boolean;
-  transport: ConnectionTransport; path: string;
-  protocolVersion: ProtocolVersion;
-  connectTimeout: number; autoReconnect: boolean; reconnectPeriod: number;
-  willEnabled: boolean; willTopic: string; willPayload: string; willQos: QoS; willRetain: boolean;
-}
-export type ConnectionStatus = "disconnected" | "connecting" | "reconnecting" | "connected" | "disconnecting";
 export interface PublishDraft {
   publishTopic: string; publishQos: QoS; retain: boolean; payload: string; mode: PayloadFormat;
 }
@@ -42,9 +47,6 @@ export const createClientId = () => `open-tools-${crypto.randomUUID().slice(0, 8
 export function createConnectionConfig(): ConnectionConfig {
   return { ...DEFAULT_CONNECTION_OPTIONS, host: "127.0.0.1", port: 1883, clientId: createClientId(), username: "", password: "", keepAlive: 60, cleanSession: true, tls: false };
 }
-export type MqttNotice =
-  | { kind: "message"; topic: string; payload: number[]; qos: QoS; retain: boolean }
-  | { kind: "closed"; error: string | null };
 export interface SentPayload { format: PayloadFormat; payload: string; }
 export interface Message {
   id: number; time: number; direction: "received" | "sent"; topic: string;

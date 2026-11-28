@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { recordToolUsage } from "@/composables/toolLibrary";
 import { computed, onMounted, ref, shallowRef, watch } from "vue";
-import { invoke } from "@tauri-apps/api/core";
 import { Download, Gauge, Play, Square } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
+import { audioApi } from "@/api/audio";
 import { locale } from "@/locales";
 import AppSelect from "@/components/common/AppSelect.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
@@ -44,7 +44,7 @@ const voices = computed(() =>
 );
 
 onMounted(async () => {
-  const list = await invoke<{ name: string; culture: string; gender: string }[]>("tts_voices").catch(() => []);
+  const list = await audioApi.listVoices().catch(() => []);
   rawVoices.value = list.map((v) => ({
     name: v.name,
     label: v.name.replace(/^Microsoft\s+/, "").replace(/\s+Desktop$/, ""),
@@ -68,7 +68,7 @@ const cacheKey = computed(() => `${voice.value}|${rate.value}|${text.value}`);
 
 const synthesize = async (): Promise<Pcm> => {
   if (cache.value?.key === cacheKey.value) return cache.value.pcm;
-  const wav = await invoke<ArrayBuffer>("tts_synthesize", { text: text.value, voice: voice.value, rate: rate.value });
+  const wav = await audioApi.synthesize(text.value, voice.value, rate.value);
   const pcm = await decodeFile(new Blob([wav]));
   cache.value = { key: cacheKey.value, pcm };
   return pcm;

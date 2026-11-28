@@ -2,8 +2,8 @@
 import { recordToolUsage } from "@/composables/toolLibrary";
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { invoke } from "@tauri-apps/api/core";
 import { Check, Copy, MapPin, RefreshCw, Search } from "lucide-vue-next";
+import { networkApi } from "@/api/network";
 import CopyList from "@/components/common/CopyList.vue";
 import { useClipboard } from "@/composables/useClipboard";
 import { showError } from "@/utils/errorToast";
@@ -34,7 +34,7 @@ const run = async (ip = "", track = true) => {
 
 onMounted(async () => {
   run("", false);
-  localIp.value = (await invoke<string | null>("local_ip").catch(() => null)) ?? "";
+  localIp.value = (await networkApi.localIp().catch(() => null)) ?? "";
 });
 
 const location = computed(() => {

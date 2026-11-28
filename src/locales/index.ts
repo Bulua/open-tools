@@ -84,14 +84,16 @@ export function useLocale() {
 
 /** 托盘菜单的文字由 Rust 显示，切换语言时把当前语言的文字传过去 */
 async function syncTray() {
-  const { invoke } = await import("@tauri-apps/api/core");
-  await invoke("set_tray_text", {
-    show: t("tray.show"),
-    quit: t("tray.quit"),
-    tooltip: t("tray.tooltip"),
-    clipboard: t("tray.clipboard"),
-    clipboardToggle: t("tray.clipboardToggle"),
-  }).catch(() => {});
+  const { systemApi } = await import("@/api/system");
+  await systemApi
+    .setTrayText({
+      show: t("tray.show"),
+      quit: t("tray.quit"),
+      tooltip: t("tray.tooltip"),
+      clipboard: t("tray.clipboard"),
+      clipboardToggle: t("tray.clipboardToggle"),
+    })
+    .catch(() => {});
 }
 
 /** 启动时调用：按用户选择设置语言，之后选择变化时自动切换 */

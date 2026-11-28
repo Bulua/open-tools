@@ -3,6 +3,7 @@ import { recordToolUsage } from "@/composables/toolLibrary";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { CircleAlert, CircleCheck, Download, FileText, LoaderCircle, X } from "lucide-vue-next";
+import { documentApi } from "@/api/document";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import CheckAll from "@/components/common/CheckAll.vue";
 import ProcessingMascot from "@/components/common/ProcessingMascot.vue";
@@ -49,8 +50,7 @@ const { isChecked, toggle, checkedItems, allChecked, partlyChecked, toggleAll } 
 /** 本机是否装有 Word；null 表示还在检测 */
 const hasWord = ref<boolean | null>(null);
 onMounted(async () => {
-  const { invoke } = await import("@tauri-apps/api/core");
-  const engines = await invoke<string[]>("office_engines").catch((): string[] => []);
+  const engines = await documentApi.officeEngines().catch((): string[] => []);
   hasWord.value = engines.includes("Microsoft Word");
   void startAuto();
 });
@@ -83,8 +83,7 @@ const convertOne = async (item: Item) => {
   if (useWord.value) {
     item.message = t("document.wordConverting");
     try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      return { docx: new Uint8Array(await invoke<ArrayBuffer>("pdf_to_word", data)), message: "", warn: false };
+      return { docx: new Uint8Array(await documentApi.pdfToWord(data)), message: "", warn: false };
     } catch (e) {
       // Word 转换失败（例如版本太旧）时改用内置转换
       const result = await convertBuiltin(item, data);

@@ -1,13 +1,8 @@
-import { invoke } from "@tauri-apps/api/core";
+import { screenshotApi } from "@/api/screenshot";
+import type { ScreenshotItem } from "@/types/screenshot";
 import { showError } from "@/utils/errorToast";
 
-export interface ScreenshotItem {
-  id: string;
-  name: string;
-  createdAt: string;
-  day: string;
-  hour: string;
-}
+export type { ScreenshotItem };
 
 export interface ScreenshotDayGroup {
   day: string;
@@ -43,11 +38,11 @@ export function setScreenshotShortcutRecording(recording: boolean, onShortcut?: 
 export const screenshotShortcut = () => localStorage.getItem(SHORTCUT_KEY) || DEFAULT_SCREENSHOT_SHORTCUT;
 
 export async function beginScreenshot(): Promise<void> {
-  await invoke("screenshot_begin");
+  await screenshotApi.begin();
 }
 
 export async function registerScreenshotShortcut(shortcut = screenshotShortcut()): Promise<void> {
-  await invoke("screenshot_prepare");
+  await screenshotApi.prepare();
   const { isRegistered, register, unregister } = await import("@tauri-apps/plugin-global-shortcut");
   if (await isRegistered(shortcut)) {
     if (registeredShortcut === shortcut) return;
@@ -86,11 +81,11 @@ export async function updateScreenshotShortcut(shortcut: string): Promise<void> 
   }
 }
 
-export const listScreenshots = () => invoke<ScreenshotItem[]>("screenshot_list");
-export const readScreenshot = (id: string) => invoke<string>("screenshot_read", { id });
-export const deleteScreenshot = (id: string) => invoke("screenshot_delete", { id });
-export const pinScreenshot = (id: string) => invoke("screenshot_pin", { id });
-export const revealScreenshot = (id: string) => invoke("screenshot_reveal", { id });
+export const listScreenshots = () => screenshotApi.list();
+export const readScreenshot = (id: string) => screenshotApi.read(id);
+export const deleteScreenshot = (id: string) => screenshotApi.remove(id);
+export const pinScreenshot = (id: string) => screenshotApi.pin(id);
+export const revealScreenshot = (id: string) => screenshotApi.reveal(id);
 
 export function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from "vue";
+import { systemApi } from "@/api/system";
 import defaultLogo from "@/assets/app-logo.png";
 import { BRANDING_CHANGED } from "@/utils/branding";
 
@@ -9,8 +10,7 @@ withDefaults(defineProps<{ size?: number }>(), { size: 22 });
 const src = ref(defaultLogo);
 
 const load = async () => {
-  const { invoke } = await import("@tauri-apps/api/core");
-  const data = await invoke<ArrayBuffer>("branding_logo").catch(() => new ArrayBuffer(0));
+  const data = await systemApi.brandingLogo().catch(() => new ArrayBuffer(0));
   if (src.value !== defaultLogo) URL.revokeObjectURL(src.value);
   src.value = data.byteLength ? URL.createObjectURL(new Blob([data], { type: "image/png" })) : defaultLogo;
 };

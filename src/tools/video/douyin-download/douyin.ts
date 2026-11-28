@@ -1,5 +1,6 @@
-import { fetchBytes } from "@/tools/network/shared/transport";
+import { videoApi } from "@/api/video";
 import { t } from "@/locales";
+import { fetchBytes } from "@/tools/network/shared/transport";
 import { safeFileName } from "../shared/fileName";
 import { groupVideoQualities, type VideoQuality } from "../shared/videoQuality";
 
@@ -115,8 +116,8 @@ export async function getDouyinItem(input: string): Promise<DouyinItem> {
     const { url } = await fetchBytes(ref.shortUrl, { headers: [["User-Agent", UA]] });
     ref = parseDouyinRef(url);
   }
-  const { invoke } = await import("@tauri-apps/api/core");
-  const json = await invoke<string>("douyin_capture", { id: ref.id, kind: ref.kind ?? "video" });
+  if (!ref.id) throw new Error(t("video.dyNotFound"));
+  const json = await videoApi.captureDouyin(ref.id, ref.kind ?? "video");
   const raw = JSON.parse(json) as RawAweme;
   const item = toItem(raw);
   if (item.type === "video" && !item.videoUrls.length) throw new Error(t("video.dyNoVideo"));

@@ -1,7 +1,7 @@
-import { invoke } from "@tauri-apps/api/core";
 import { Fragment, Slice, type Node as ProseNode } from "@milkdown/prose/model";
 import { Plugin, type SelectionBookmark } from "@milkdown/prose/state";
 import type { EditorView } from "@milkdown/prose/view";
+import { notebookApi } from "@/api/notebook";
 import { imageWidth } from "./imageSize";
 import { savePastedImages } from "./storage";
 
@@ -68,7 +68,7 @@ export function notebookImageView(
   // 磁盘路径不进入 DOM，Markdown 和剪贴板也继续使用相对引用。
   if (asset) {
     const [, name, ext] = asset;
-    void invoke<ArrayBuffer>("notebook_read_image", { id, name }).then(data => {
+    void notebookApi.readImage(id, name).then(data => {
       if (destroyed) return;
       url = URL.createObjectURL(new Blob([data], { type: `image/${ext === "jpg" ? "jpeg" : ext}` }));
       img.src = url;

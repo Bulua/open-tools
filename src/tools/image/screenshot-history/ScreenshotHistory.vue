@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onDeactivated, onMounted, ref } from "vue";
 import { Camera, ChevronDown, FolderOpen, ImageOff, Pencil, Pin, RefreshCw, Trash2 } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { screenshotApi } from "@/api/screenshot";
 import { showError } from "@/utils/errorToast";
 import { activeHistoryLocation, scrollToHistoryHour } from "@/utils/historyNavigation";
 import {
@@ -32,7 +32,7 @@ const savingShortcut = ref(false);
 const editingShortcut = ref(false);
 const shortcutInput = ref<HTMLInputElement>();
 const shortcutState = ref<"idle" | "saved" | "error">("idle");
-let unlistenSaved: UnlistenFn | undefined;
+let unlistenSaved: (() => void) | undefined;
 let disposed = false;
 let refreshVersion = 0;
 
@@ -194,7 +194,7 @@ const run = (action: () => Promise<unknown>) => action().catch(showError);
 onMounted(async () => {
   window.addEventListener("focus", refresh);
   try {
-    const stop = await listen<ScreenshotItem>("screenshot-saved", () => void refresh());
+    const stop = await screenshotApi.onSaved(() => void refresh());
     if (disposed) { stop(); return; }
     unlistenSaved = stop;
   } catch (error) {

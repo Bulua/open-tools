@@ -2,23 +2,11 @@
  * 计算器前端类型与后端求值调用封装。
  * 表达式解析与浮点消噪格式化统一由 Rust 后端维护，供界面与 AI 工具共用。
  */
-import { invoke } from "@tauri-apps/api/core";
+import { calculatorApi } from "@/api/calculator";
 import { t as i18n } from "@/locales";
+import type { AngleUnit, BackendEvalError, BackendEvalResult } from "@/types/calculator";
 
-export type AngleUnit = "deg" | "rad";
-
-interface BackendEvalError {
-  code: string;
-  detail?: string;
-  message: string;
-}
-
-interface BackendEvalResult {
-  ok: boolean;
-  value?: number;
-  formatted?: string;
-  error?: BackendEvalError;
-}
+export type { AngleUnit, BackendEvalError, BackendEvalResult };
 
 export type LiveEval =
   | { ok: true; text: string }
@@ -49,7 +37,7 @@ function localizeError(err?: BackendEvalError): string {
 /** 调用 Rust 后端求值并返回可直接展示的本地化结果或错误文案 */
 export async function evaluateExpression(expression: string, angle: AngleUnit = "deg"): Promise<LiveEval> {
   if (!expression.trim()) return { ok: true, text: "" };
-  const res = await invoke<BackendEvalResult>("calculator_eval", { expression, angle });
+  const res = await calculatorApi.evaluate(expression, angle);
   if (res.ok) return { ok: true, text: res.formatted ?? "" };
   return { ok: false, text: localizeError(res.error) };
 }

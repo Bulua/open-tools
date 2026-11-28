@@ -189,11 +189,11 @@ export async function openCapture(o: RecordOptions): Promise<Capture> {
 
 /** 桌面版可以由程序开关 HDR */
 
-const invokeHdr = async <T>(cmd: string): Promise<T> => (await import("@tauri-apps/api/core")).invoke<T>(cmd);
+import { videoApi } from "@/api/video";
 
 /** 是否有屏幕开着 HDR；出错时当作没有，照常录制 */
-export const hdrEnabled = () => invokeHdr<boolean>("hdr_enabled").catch(() => false);
+export const hdrEnabled = () => videoApi.hdrEnabled().catch(() => false);
 /** 临时关闭 HDR，返回关掉的屏幕数量 */
-export const disableHdr = () => invokeHdr<number>("hdr_disable").catch(() => 0);
+export const disableHdr = () => videoApi.hdrDisable().catch(() => 0);
 /** 恢复被临时关闭的 HDR */
-export const restoreHdr = () => invokeHdr<void>("hdr_restore").catch(() => {});
+export const restoreHdr = () => videoApi.hdrRestore().catch(() => {});

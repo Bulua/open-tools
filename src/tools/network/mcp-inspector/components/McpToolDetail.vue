@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { invoke } from "@tauri-apps/api/core";
 import { Play, RotateCcw } from "lucide-vue-next";
 import { computed, onBeforeUnmount, ref, shallowRef } from "vue";
 import { useI18n } from "vue-i18n";
+import { mcpApi } from "@/api/mcp";
 import { recordToolUsage } from "@/composables/toolLibrary";
 import { useWindowEvent } from "@/composables/useWindowEvent";
+import type { McpToolCallResult } from "@/types/mcp";
 import { errorMessage, showError } from "@/utils/errorToast";
 import { parseToolArguments, type McpTool } from "../config";
 import { draftsFromArgs, fieldsFromSchema, initialDrafts, readDrafts, type ArgumentDraft } from "../toolArguments";
@@ -24,7 +25,7 @@ const submitted = ref(false);
 const modeChanged = ref(false);
 const switchError = ref<"fixFormBeforeJson" | "cannotUseForm">();
 const showingResult = ref(false);
-const response = shallowRef<{ isError?: boolean; [key: string]: unknown }>();
+const response = shallowRef<McpToolCallResult>();
 const failure = ref("");
 const running = ref(false);
 const elapsed = ref<number>();
@@ -88,11 +89,7 @@ async function testTool() {
   elapsed.value = undefined;
   const start = performance.now();
   try {
-    const result = await invoke<NonNullable<typeof response.value>>("mcp_call_tool", {
-      sessionId: props.sessionId,
-      name: props.tool.name,
-      arguments: request,
-    });
+    const result = await mcpApi.callTool(props.sessionId, props.tool.name, request);
     recordToolUsage();
     if (active) response.value = result;
   } catch (error) {

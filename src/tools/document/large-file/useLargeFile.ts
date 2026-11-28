@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { largeFileApi } from "@/api/large-file";
 import { t } from "@/locales";
 import { recordToolUsage } from "@/composables/toolLibrary";
 import { showError, showNotice } from "@/utils/errorToast";
@@ -87,10 +87,9 @@ export async function initializeLargeText(): Promise<void> {
   if (initialized) return;
   initialized = true;
   registerExitGuard("large-file", closeAllFiles);
-  const { listen } = await import("@tauri-apps/api/event");
   try {
-    await listen<number | null>("large-text-exit-requested", async (event) => {
-      if (await closeAllFiles()) await invoke("large_text_exit", { code: event.payload }).catch(showError);
+    await largeFileApi.onExitRequested(async (code) => {
+      if (await closeAllFiles()) await largeFileApi.exit(code).catch(showError);
     });
   } catch (e) { initialized = false; showError(e); }
   // 与原生会话同生命周期；页面被 KeepAlive 淘汰后仍保护草稿及退出流程。

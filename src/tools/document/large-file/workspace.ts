@@ -1,5 +1,5 @@
 import { computed, ref, shallowReactive } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { largeFileApi, type LargeFileApi } from "@/api/large-file";
 import { createTextController, type TextController } from "./controller";
 
 export const MAX_TEXT_TABS = 8;
@@ -11,7 +11,7 @@ const pathKey = (path: string) => {
 };
 
 /** 每个标签拥有独立控制器；标签切换不关闭会话，也不暂存或覆盖其他文件。 */
-export function createTextWorkspace(call: typeof invoke = invoke) {
+export function createTextWorkspace(api: LargeFileApi = largeFileApi) {
   const tabs = shallowReactive<TextTab[]>([]);
   const activeKey = ref<number>();
   const opening = ref(false);
@@ -36,7 +36,7 @@ export function createTextWorkspace(call: typeof invoke = invoke) {
     if (tabs.length >= MAX_TEXT_TABS) throw new Error("Close a text tab before opening another file (maximum 8 tabs)");
     opening.value = true;
     try {
-      const controller = createTextController(call);
+      const controller = createTextController(api);
       await controller.open(path, encoding);
       // 后端返回规范路径，避免相对路径、符号链接等别名重复打开同一文件。
       const duplicate = tabs.find((tab) => pathKey(tab.controller.state.info!.path) === pathKey(controller.state.info!.path));

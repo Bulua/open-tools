@@ -3,6 +3,7 @@ import { recordToolUsage } from "@/composables/toolLibrary";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { Translation, useI18n } from "vue-i18n";
 import { CircleAlert, CircleCheck, Download, FileText, LoaderCircle, Printer, X } from "lucide-vue-next";
+import { documentApi } from "@/api/document";
 import CheckAll from "@/components/common/CheckAll.vue";
 import FileDropZone from "@/components/common/FileDropZone.vue";
 import ProcessingMascot from "@/components/common/ProcessingMascot.vue";
@@ -60,8 +61,7 @@ watch(() => selected.value?.id, loadPreview);
 // ---------- 本机的转换软件 ----------
 const engines = ref<string[] | null>(null);
 onMounted(async () => {
-  const { invoke } = await import("@tauri-apps/api/core");
-  engines.value = await invoke<string[]>("office_engines").catch(() => []);
+  engines.value = await documentApi.officeEngines().catch(() => []);
   void startAuto();
 });
 const canConvert = computed(() => !!engines.value?.length);
@@ -76,8 +76,7 @@ const convertItem = async (item: Item) => {
   await nextTick();
   try {
     const data = new Uint8Array(await item.file.arrayBuffer());
-    const { invoke } = await import("@tauri-apps/api/core");
-    const result = await invoke<ArrayBuffer>("office_to_pdf", data, { headers: { "x-file-ext": item.ext } });
+    const result = await documentApi.officeToPdf(data, item.ext);
     item.pdf = new Uint8Array(result);
     item.status = "done";
     recordToolUsage();

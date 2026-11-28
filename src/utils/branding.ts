@@ -67,27 +67,32 @@ async function download(fetchFn: typeof fetch, url: string, sha256: string) {
   return data;
 }
 
+import { systemApi } from "@/api/system";
+
 /** 读取远程配置，图标变了就换上。网络不通、配置写错时保持现在的图标 */
 export async function syncBranding() {
   const { fetch } = await import("@tauri-apps/plugin-http");
-  const { invoke } = await import("@tauri-apps/api/core");
   for (const url of BRANDING_URLS) {
     try {
       const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) continue;
       const pick = pickIcon((await res.json()) as BrandingManifest);
       if (pick.kind === "invalid") return;
-      const current = await invoke<string | null>("branding_current");
+      const current = await systemApi.brandingCurrent();
       if (pick.kind === "default") {
         if (!current) return;
-        await invoke("branding_activate", { id: null, png: [], ico: [] });
+        await systemApi.brandingActivate({ id: null, png: [], ico: [] });
       } else {
         if (pick.icon.id === current) return;
         const [png, ico] = await Promise.all([
           download(fetch, resolveAsset(url, pick.icon.png), pick.icon.sha256.png),
           download(fetch, resolveAsset(url, pick.icon.ico), pick.icon.sha256.ico),
         ]);
-        await invoke("branding_activate", { id: pick.icon.id, png: Array.from(png), ico: Array.from(ico) });
+        await systemApi.brandingActivate({
+          id: pick.icon.id,
+          png: Array.from(png),
+          ico: Array.from(ico),
+        });
       }
       window.dispatchEvent(new Event(BRANDING_CHANGED));
       return;

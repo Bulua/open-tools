@@ -1,15 +1,7 @@
-import { invoke } from "@tauri-apps/api/core";
+import { documentApi } from "@/api/document";
+import type { SystemFont } from "@/types/document";
 
-export interface SystemFont {
-  id: number;
-  family: string;
-  name: string;
-  aliases: string[];
-  postscriptNames?: string[];
-  weight?: number;
-  bold: boolean;
-  italic: boolean;
-}
+export type { SystemFont };
 export const normalizeFontName = (name: string) => name.replace(/^[A-Z]{6}\+/, "").replace(/[\s_,.-]/g, "").toLowerCase();
 
 /** 完整名称优先，家族名必须同时匹配字重和斜体；不将近似字体冒充原字体。 */
@@ -24,10 +16,10 @@ export function matchingSystemFonts(fonts: SystemFont[], name: string, bold = fa
 }
 
 export async function listSystemFonts(): Promise<SystemFont[]> {
-  return invoke<SystemFont[]>("pdf_system_fonts");
+  return documentApi.listSystemFonts();
 }
 
 export async function readSystemFont(id: number) {
-  const data = await invoke<string>("pdf_system_font_read", { id });
+  const data = await documentApi.readSystemFont(id);
   return Uint8Array.from(atob(data), (char) => char.charCodeAt(0));
 }

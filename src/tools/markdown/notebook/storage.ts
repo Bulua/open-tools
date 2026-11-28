@@ -1,11 +1,8 @@
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { nextTick, readonly, ref, watch } from "vue";
+import { notebookApi } from "@/api/notebook";
 import { t } from "@/locales";
 import { showError } from "@/utils/errorToast";
 import { emptyNotebook, readNotebook, type Notebook } from "./notebook";
-
-const NOTEBOOK_CHANGED_EVENT = "notebook-changed";
 
 const notebook = ref<Notebook>();
 const loadState = ref<"loading" | "error" | "ready">("loading");
@@ -23,7 +20,7 @@ function load() {
   loadState.value = "loading";
   loading = (async () => {
     try {
-      const raw = await invoke<string | null>("notebook_read");
+      const raw = await notebookApi.read();
       notebook.value = raw === null ? emptyNotebook() : readNotebook(raw);
       loadState.value = "ready";
     } catch (error) {
@@ -58,13 +55,10 @@ export function savePastedImages(
     // 附件写入后先插入引用，再提交期间排队的正文或移动操作。
     storingImages = true;
     try {
-      const noteId = btoa(String.fromCharCode(...new TextEncoder().encode(id)));
       const paths = [];
       for (const image of images) {
         const blob = typeof image === "string" ? await (await fetch(image)).blob() : image;
-        paths.push(await invoke<string>("notebook_save_image", await blob.arrayBuffer(), {
-          headers: { "x-note-id": noteId },
-        }));
+        paths.push(await notebookApi.saveImage(id, await blob.arrayBuffer()));
       }
       if (isCurrent()) insert(paths);
       await nextTick();
@@ -84,7 +78,7 @@ async function savePending() {
       const snapshot = pending;
       pending = undefined;
       try {
-        await invoke("notebook_write", { data: snapshot });
+        await notebookApi.write(snapshot);
       } catch (error) {
         pending ??= snapshot;
         throw error;
@@ -104,7 +98,7 @@ async function revealEntry(id: string) {
   await flush();
   if (saveState.value !== "saved") return;
   try {
-    await invoke("notebook_reveal", { id });
+    await notebookApi.reveal(id);
   } catch (error) {
     showError(error);
   }
@@ -118,7 +112,7 @@ async function reloadFromDisk() {
   const previousSelected = notebook.value.selectedId;
   loading = (async () => {
     try {
-      const raw = await invoke<string | null>("notebook_read");
+      const raw = await notebookApi.read();
       const next = raw === null ? emptyNotebook() : readNotebook(raw);
       if (previousSelected && next.nodes.some((n) => n.id === previousSelected)) {
         next.selectedId = previousSelected;
@@ -140,7 +134,7 @@ async function reloadFromDisk() {
 function ensureExternalListener() {
   if (listeningExternal) return;
   listeningExternal = true;
-  void listen(NOTEBOOK_CHANGED_EVENT, () => {
+  void notebookApi.onChanged(() => {
     void reloadFromDisk();
   }).catch(() => {
     listeningExternal = false;

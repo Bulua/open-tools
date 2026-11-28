@@ -1,5 +1,8 @@
-import { invoke } from "@tauri-apps/api/core";
+import { vaultApi } from "@/api/vault";
 import { t } from "@/locales";
+import type { VaultEntry, VaultFile } from "@/types/vault";
+
+export type { VaultEntry, VaultFile };
 
 /**
  * 密码本的加密与存储。
@@ -8,17 +11,6 @@ import { t } from "@/locales";
  * 文件里只有盐、IV 和密文，没有主密码也没有明文；GCM 自带校验，主密码错误或文件被改动都会解密失败。
  * 加密数据由 Rust 读写，保存在应用数据目录下的 vault.dat。
  */
-
-export interface VaultEntry {
-  id: string;
-  /** 名称，例如「GitHub」「公司邮箱」 */
-  title: string;
-  username: string;
-  password: string;
-  url: string;
-  note: string;
-  updatedAt: number;
-}
 
 /** 解锁后的密钥，保存时用它重新加密 */
 export interface VaultSession {
@@ -92,12 +84,12 @@ export async function decryptVault(text: string, password: string): Promise<{ se
 // ---------- 存储 ----------
 
 /** 读取加密文件；还没有创建密码本时 data 为 null */
-export function loadVaultFile(): Promise<{ path: string; data: string | null }> {
-  return invoke("vault_read");
+export function loadVaultFile(): Promise<VaultFile> {
+  return vaultApi.read();
 }
 
 export function saveVaultFile(data: string): Promise<void> {
-  return invoke("vault_write", { data });
+  return vaultApi.write(data);
 }
 
 export const newEntry = (): VaultEntry => ({ id: crypto.randomUUID(), title: "", username: "", password: "", url: "", note: "", updatedAt: Date.now() });

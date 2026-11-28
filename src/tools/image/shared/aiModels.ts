@@ -1,4 +1,7 @@
-import { invoke } from "@tauri-apps/api/core";
+import { imageAiApi } from "@/api/image-ai";
+import type { AiSource, AiStatus, ModelInput } from "@/types/image-ai";
+
+export type { AiSource, AiStatus, ModelInput };
 
 /**
  * AI 抠图模型（来自开源项目 rembg，均可免费商用）。
@@ -59,63 +62,33 @@ export function toMask(output: Float32Array): Uint8ClampedArray {
 // ---------- 模型文件与运行：都在桌面版的 Rust 里（见 src-tauri/src/tools/image/shared/ai_models.rs、inference.rs） ----------
 
 /** 下载源：auto 先试国内的魔搭，失败时换 Hugging Face；选了其中一个时优先用它 */
-export type AiSource = "auto" | "modelscope" | "huggingface";
 export const AI_SOURCES: AiSource[] = ["auto", "modelscope", "huggingface"];
-
-export interface AiStatus {
-  /** 已下载的模型 id */
-  models: string[];
-  /** 运行环境是否已下载；第一次下载模型时会一起下载 */
-  runtimeReady: boolean;
-  /** 运行环境还要下载的大小（字节） */
-  runtimeSize: number;
-  /** 数据保存的位置 */
-  dir: string;
-}
-
 
 /** 模型和运行环境的下载情况 */
 export async function aiStatus(): Promise<AiStatus> {
   const empty: AiStatus = { models: [], runtimeReady: false, runtimeSize: 0, dir: "" };
-  return invoke<AiStatus>("ai_status").catch(() => empty);
+  return imageAiApi.status().catch(() => empty);
 }
 
 /** 下载模型（运行环境缺少的文件一起下载）；onProgress 收到 0～1 的进度。抠图、修补等各类模型都可以用 */
 export async function downloadModel(model: { id: string }, source: AiSource, onProgress: (ratio: number) => void): Promise<void> {
   const timer = window.setInterval(async () => {
-    const p = await invoke<{ done: number; total: number }>("ai_model_progress", { id: model.id }).catch(() => null);
+    const p = await imageAiApi.progress(model.id).catch(() => null);
     if (p?.total) onProgress(Math.min(0.99, p.done / p.total));
   }, 500);
   try {
-    await invoke("ai_model_download", { id: model.id, source: source === "auto" ? null : source });
+    await imageAiApi.download(model.id, source);
     onProgress(1);
   } finally {
     clearInterval(timer);
   }
 }
 
-export const deleteModel = (model: { id: string }) => invoke("ai_model_delete", { id: model.id });
-
-/** 模型的一个输入张量：float32 或 uint8（同一次运行的输入类型要相同） */
-export interface ModelInput {
-  data: Float32Array | Uint8Array;
-  shape: number[];
-}
+export const deleteModel = (model: { id: string }) => imageAiApi.remove(model.id);
 
 /** 运行模型：按模型输入的顺序传入张量，返回第一个输出的原始字节（float32 小端或 uint8，取决于模型） */
 export async function runModelRaw(id: string, inputs: ModelInput[]): Promise<ArrayBuffer> {
-  const body = new Uint8Array(inputs.reduce((n, i) => n + i.data.byteLength, 0));
-  let offset = 0;
-  for (const { data } of inputs) {
-    body.set(new Uint8Array(data.buffer, data.byteOffset, data.byteLength), offset);
-    offset += data.byteLength;
-  }
-  const headers = {
-    "x-model": id,
-    "x-shape": inputs.map((i) => i.shape.join(",")).join(";"),
-    "x-dtype": inputs[0]?.data instanceof Uint8Array ? "u8" : "f32",
-  };
-  return invoke<ArrayBuffer>("ai_run", body, { headers });
+  return imageAiApi.runRaw(id, inputs);
 }
 
 /** 运行模型：输入一个 float32 张量及形状，返回第一个输出 */

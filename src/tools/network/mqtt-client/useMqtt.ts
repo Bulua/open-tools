@@ -1,5 +1,5 @@
 import { computed, onBeforeUnmount, reactive, ref } from "vue";
-import { Channel, invoke } from "@tauri-apps/api/core";
+import { mqttApi } from "@/api/mqtt";
 import { recordToolUsage } from "@/composables/toolLibrary";
 import { showError } from "@/utils/errorToast";
 import { createConnectionConfig, appendMessage, decodePayload, type ConnectionStatus, type Message, type MqttNotice, type QoS, type SentPayload } from "./mqtt";
@@ -32,7 +32,7 @@ export function useMqtt() {
   };
   // 手动订阅和重连恢复共用确认路径，避免状态校验与 QoS 处理逐渐分叉。
   const confirmSubscription = async (id: string, topic: string, qos: QoS) => {
-    const granted = await invoke<QoS>("mqtt_subscribe", { id, topic, qos });
+    const granted = (await mqttApi.subscribe(id, topic, qos)) ?? qos;
     if (disposed || sessionId !== id || !connected.value) return false;
     subscriptions.value = [...subscriptions.value.filter(item => item.topic !== topic), { topic, qos: granted }];
     return true;
@@ -44,8 +44,7 @@ export function useMqtt() {
     busy.value = false;
     status.value = "connecting";
     subscriptions.value = [];
-    const events = new Channel<MqttNotice>();
-    events.onmessage = event => {
+    const onNotice = (event: MqttNotice) => {
       if (disposed || sessionId !== id) return;
       if (event.kind === "message") {
         addMessage({ direction: "received", topic: event.topic, ...decodePayload(event.payload), rawPayload: [...event.payload], bytes: event.payload.length, qos: event.qos, retain: event.retain });
@@ -59,8 +58,8 @@ export function useMqtt() {
       }
     };
     try {
-      await invoke("mqtt_connect", { id, config: { ...config, host: config.host.trim() }, events });
-      if (disposed || sessionId !== id) { await invoke("mqtt_disconnect", { id }); return; }
+      await mqttApi.connect(id, { ...config, host: config.host.trim() }, onNotice);
+      if (disposed || sessionId !== id) { await mqttApi.disconnect(id); return; }
       // 连接命令返回前也可能已收到网络断开事件。
       if (status.value === "connecting") {
         status.value = "connected";
@@ -98,7 +97,7 @@ export function useMqtt() {
     subscriptions.value = [];
     if (!id) { status.value = "disconnected"; return; }
     status.value = "disconnecting";
-    try { await invoke("mqtt_disconnect", { id }); }
+    try { await mqttApi.disconnect(id); }
     catch (error) { if (!disposed) showError(error); }
     finally { if (!disposed) status.value = "disconnected"; }
   };
@@ -120,7 +119,7 @@ export function useMqtt() {
     topics.value = [...topics.value.filter(s => s.topic !== topic), { topic, qos }];
   });
   const unsubscribe = (topic: string) => operate(async id => {
-    await invoke("mqtt_unsubscribe", { id, topic });
+    await mqttApi.unsubscribe(id, topic);
     if (sessionId === id) {
       subscriptions.value = subscriptions.value.filter(s => s.topic !== topic);
       topics.value = topics.value.filter(s => s.topic !== topic);
@@ -128,14 +127,14 @@ export function useMqtt() {
   });
   const publish = (topic: string, payload: string | Uint8Array, qos: QoS, retain: boolean, sent?: SentPayload) => operate(async id => {
     const bytes = Array.from(typeof payload === "string" ? new TextEncoder().encode(payload) : payload);
-    await invoke("mqtt_publish", { id, topic, payload: bytes, qos, retain });
+    await mqttApi.publish(id, topic, bytes, qos, retain);
     if (disposed || sessionId !== id) return;
     addMessage({ direction: "sent", topic, ...decodePayload(bytes), rawPayload: bytes, bytes: bytes.length, qos, retain, sent });
     recordToolUsage();
   });
   onBeforeUnmount(() => {
     disposed = true; wanted = false; clearReconnect();
-    if (sessionId) void invoke("mqtt_disconnect", { id: sessionId }).catch(showError);
+    if (sessionId) void mqttApi.disconnect(sessionId).catch(showError);
   });
   return { config, status, connected, subscriptions, topics, messages, busy, connect, disconnect, subscribe, unsubscribe, publish };
 }

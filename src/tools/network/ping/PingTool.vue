@@ -3,6 +3,7 @@ import { recordToolUsage } from "@/composables/toolLibrary";
 import { computed, nextTick, onBeforeUnmount, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { Play, Square, Trash2 } from "lucide-vue-next";
+import { networkApi } from "@/api/network";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { isValidHost, parsePingOutput, pingStats, type PingReply } from "./ping";
 
@@ -30,7 +31,6 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const start = async () => {
   if (!valid.value || running.value) return;
-  const { invoke } = await import("@tauri-apps/api/core");
   replies.value = [];
   target.value = host.value.trim();
   running.value = true;
@@ -40,7 +40,7 @@ const start = async () => {
     const startedAt = Date.now();
     let reply: PingReply;
     try {
-      reply = parsePingOutput(await invoke<string>("ping_once", { host: target.value, timeoutMs: TIMEOUT }));
+      reply = parsePingOutput(await networkApi.pingOnce(target.value, TIMEOUT));
       if (seq === 1) recordToolUsage();
     } catch (e) {
       reply = { ok: false, error: String(e) };

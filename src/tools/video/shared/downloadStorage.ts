@@ -1,8 +1,10 @@
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@tauri-apps/api/core";
+import { videoApi } from "@/api/video";
+import type { DownloadPlatform } from "@/types/video";
 import { saveIntoFolder } from "@/utils/saveFile";
 import { safeFileName } from "./fileName";
 
-export type DownloadPlatform = "douyin" | "bilibili" | "xhs" | "x" | "weibo";
+export type { DownloadPlatform };
 export interface SavedMedia {
   name: string;
   kind: "video" | "image";
@@ -16,7 +18,7 @@ export const downloadBaseName = (title: string, id: string) => `${safeFileName(t
 /** 原生端负责确定应用数据目录及访问权限。 */
 export async function saveDownloadedMedia(platform: DownloadPlatform, name: string, data: Uint8Array, kind: SavedMedia["kind"]): Promise<SavedMedia> {
   name = safeFileName(name);
-  const folder = await invoke<string>("video_download_dir", { platform });
+  const folder = await videoApi.downloadDir(platform);
   await saveIntoFolder(folder, name, data);
   const { join } = await import("@tauri-apps/api/path");
   const path = await join(folder, name);
