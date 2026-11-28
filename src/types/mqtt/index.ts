@@ -37,3 +37,44 @@ export interface ConnectionConfig {
 export type MqttNotice =
   | { kind: "message"; topic: string; payload: number[]; qos: QoS; retain: boolean }
   | { kind: "closed"; error: string | null };
+
+export interface MqttTopicItem {
+  topic: string;
+  qos: QoS;
+}
+
+export type MqttSessionConfig = Omit<ConnectionConfig, "password">;
+
+export interface MqttDraftDto {
+  config: MqttSessionConfig;
+  topics: MqttTopicItem[];
+  subscriptionQos: QoS;
+  publishTopic: string;
+  publishQos: QoS;
+  retain: boolean;
+  payload: string;
+  mode: "text" | "json" | "hex" | "base64";
+}
+
+export interface MqttFolderNode {
+  id: string;
+  parentId: string | null;
+  name: string;
+  kind: "folder";
+  collapsed: boolean;
+}
+
+export interface MqttSessionNode {
+  id: string;
+  parentId: string | null;
+  name: string;
+  kind: "session";
+  draft: MqttDraftDto;
+}
+
+export type MqttTreeNode = MqttFolderNode | MqttSessionNode;
+
+export interface MqttWorkspace {
+  nodes: MqttTreeNode[];
+  activeId: string;
+}

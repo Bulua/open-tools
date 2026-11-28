@@ -18,10 +18,10 @@ import {
   UserRound,
   X,
 } from "lucide-vue-next";
+import { videoApi } from "@/api/video";
 import AppSelect from "@/components/common/AppSelect.vue";
 import ProcessingMascot from "@/components/common/ProcessingMascot.vue";
 import ProgressBar from "@/components/common/ProgressBar.vue";
-import { useStoredRef } from "@/composables/useStoredRef";
 import { useWindowEvent } from "@/composables/useWindowEvent";
 import { downloadBaseName, revealDownloadedMedia, saveDownloadedMedia, type SavedMedia } from "../shared/downloadStorage";
 import { formatBytes } from "@/utils/format";
@@ -55,13 +55,22 @@ import {
  * 点封面优先播放下载好的本地文件；尚未下载时在线播放，多 P 可以切换。
  */
 
-// ---------- 登录（可选） ----------
-const sessdata = useStoredRef("bilibili.sessdata", "");
+// ---------- 登录与下载设置（SQLite 持久化） ----------
+const LEGACY_SESSDATA_KEY = "bilibili.sessdata";
+const LEGACY_QUALITY_KEY = "bilibili.downloadQuality";
+const LEGACY_CODEC_KEY = "bilibili.codec";
+
+const sessdata = ref("");
+const quality = ref(0);
+const codec = ref<CodecPreference>("avc");
+const settingsReady = ref(false);
 const session = computed<Session>(() => ({ sessdata: sessdata.value }));
 const login = ref<LoginInfo | null>(null);
 const checkingLogin = ref(false);
 const showLogin = ref(true);
 let loginTimer: ReturnType<typeof setTimeout> | undefined;
+let saveSettingsTimer: ReturnType<typeof setTimeout> | undefined;
+
 const checkLogin = async () => {
   checkingLogin.value = true;
   try {
@@ -72,16 +81,78 @@ const checkLogin = async () => {
     checkingLogin.value = false;
   }
 };
+
+function readLegacyJson<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw === null ? fallback : (JSON.parse(raw) as T);
+  } catch {
+    return fallback;
+  }
+}
+
+async function loadSettings() {
+  try {
+    const saved = await videoApi.getBilibiliSettings();
+    if (saved) {
+      sessdata.value = saved.sessdata;
+      quality.value = saved.downloadQuality;
+      codec.value = saved.codec;
+    } else {
+      const legacySessdata = readLegacyJson<string>(LEGACY_SESSDATA_KEY, "");
+      const legacyQuality = readLegacyJson<number>(LEGACY_QUALITY_KEY, 0);
+      const legacyCodec = readLegacyJson<CodecPreference>(LEGACY_CODEC_KEY, "avc");
+      const hasLegacy =
+        localStorage.getItem(LEGACY_SESSDATA_KEY) !== null ||
+        localStorage.getItem(LEGACY_QUALITY_KEY) !== null ||
+        localStorage.getItem(LEGACY_CODEC_KEY) !== null;
+      sessdata.value = typeof legacySessdata === "string" ? legacySessdata : "";
+      quality.value = typeof legacyQuality === "number" && Number.isFinite(legacyQuality) ? legacyQuality : 0;
+      codec.value = CODEC_PREFERENCES.includes(legacyCodec) ? legacyCodec : "avc";
+      if (hasLegacy) {
+        await videoApi.saveBilibiliSettings({
+          sessdata: sessdata.value,
+          downloadQuality: quality.value,
+          codec: codec.value,
+        });
+      }
+    }
+    localStorage.removeItem(LEGACY_SESSDATA_KEY);
+    localStorage.removeItem(LEGACY_QUALITY_KEY);
+    localStorage.removeItem(LEGACY_CODEC_KEY);
+  } catch (err) {
+    showError(err);
+  } finally {
+    settingsReady.value = true;
+    void checkLogin();
+  }
+}
+
 watch(sessdata, () => {
+  if (!settingsReady.value) return;
   clearTimeout(loginTimer);
   loginTimer = setTimeout(checkLogin, 600);
 });
-onMounted(checkLogin);
 
-// ---------- 下载设置 ----------
-const quality = useStoredRef("bilibili.downloadQuality", 0);
+watch([sessdata, quality, codec], () => {
+  if (!settingsReady.value) return;
+  clearTimeout(saveSettingsTimer);
+  saveSettingsTimer = setTimeout(() => {
+    void videoApi
+      .saveBilibiliSettings({
+        sessdata: sessdata.value,
+        downloadQuality: quality.value,
+        codec: codec.value,
+      })
+      .catch(showError);
+  }, 300);
+});
+
+onMounted(() => {
+  void loadSettings();
+});
+
 const { t, locale } = useI18n();
-const codec = useStoredRef<CodecPreference>("bilibili.codec", "avc");
 const CODECS = computed(() => CODEC_PREFERENCES.map((value) => ({ value, label: codecLabel(value) })));
 
 // ---------- 解析过的视频 ----------

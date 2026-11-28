@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { recordToolUsage } from "@/composables/toolLibrary";
-import { computed, ref, shallowRef, watch } from "vue";
+import { computed, onMounted, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Check, Copy, FileInput, History, Send, Square, Trash2, Upload, X } from "lucide-vue-next";
+import { httpClientApi } from "@/api/http-client";
 import AppSelect from "@/components/common/AppSelect.vue";
 import SplitPane from "@/components/common/SplitPane.vue";
 import TextPane from "@/components/common/TextPane.vue";
@@ -10,6 +11,7 @@ import { useClipboard } from "@/composables/useClipboard";
 import { usePopover } from "@/composables/usePopover";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { useWindowEvent } from "@/composables/useWindowEvent";
+import { formatDateTime, parseDateTimeMillis } from "@/utils/datetime";
 import { formatBytes } from "@/utils/format";
 import { showError } from "@/utils/errorToast";
 import HttpResponsePane from "./components/HttpResponsePane.vue";
@@ -109,15 +111,52 @@ const response = shallowRef<HttpResponse | null>(null);
 const sending = ref(false);
 let controller: AbortController | null = null;
 
-const history = useStoredRef<HistoryEntry[]>("http.history", []);
+const LEGACY_HISTORY_KEY = "http.history";
+const history = ref<HistoryEntry[]>([]);
+
+async function loadHistory() {
+  try {
+    const rows = await httpClientApi.listHistory();
+    if (rows.length > 0) {
+      history.value = rows;
+      localStorage.removeItem(LEGACY_HISTORY_KEY);
+      return;
+    }
+    const raw = localStorage.getItem(LEGACY_HISTORY_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      const entries = parsed
+        .filter((item): item is { time?: number; status?: number | null; request: RequestModel } =>
+          Boolean(item && item.request && typeof item.request.method === "string"))
+        .map((item) => ({
+          status: typeof item.status === "number" ? item.status : null,
+          request: forHistory(item.request),
+          updatedAt: typeof item.time === "number" ? formatDateTime(item.time) : undefined,
+        }));
+      if (entries.length > 0) {
+        history.value = await httpClientApi.importHistory(entries);
+      }
+    }
+    localStorage.removeItem(LEGACY_HISTORY_KEY);
+  } catch (e) {
+    showError(e);
+  }
+}
+
+onMounted(() => {
+  void loadHistory();
+});
+
 const send = async () => {
   if (sending.value) return;
   sending.value = true;
   controller = new AbortController();
-  const entry: HistoryEntry = { id: Date.now(), time: Date.now(), status: null, request: forHistory(req.value) };
+  const snapshot = forHistory(req.value);
+  let status: number | null = null;
   try {
     response.value = await sendRequest(req.value, controller.signal);
-    entry.status = response.value.status;
+    status = response.value.status;
     recordToolUsage();
   } catch (e) {
     response.value = null;
@@ -125,9 +164,12 @@ const send = async () => {
   } finally {
     sending.value = false;
     controller = null;
-    // 同样的请求只保留最新一条，最多 30 条
-    const key = (r: RequestModel) => `${r.method} ${r.url}`;
-    history.value = [entry, ...history.value.filter((h) => key(h.request) !== key(entry.request))].slice(0, 30);
+    void httpClientApi
+      .saveHistory({ status, request: snapshot })
+      .then((rows) => {
+        history.value = rows;
+      })
+      .catch(showError);
   }
 };
 const cancel = () => controller?.abort();
@@ -142,18 +184,28 @@ useWindowEvent("keydown", (e) => {
 const historyBtn = ref<HTMLButtonElement>();
 const historyPanel = ref<HTMLDivElement>();
 const { open: historyOpen, style: historyStyle, toggle: toggleHistory, close: closeHistory } = usePopover(historyBtn, historyPanel, { minWidth: 420, maxHeight: 420 });
+const clearHistory = () => {
+  void httpClientApi
+    .clearHistory()
+    .then(() => {
+      history.value = [];
+    })
+    .catch(showError);
+};
 const restore = (h: HistoryEntry) => {
   syncing = true;
   req.value = { ...newRequest(), ...JSON.parse(JSON.stringify(h.request)) };
   syncing = false;
   closeHistory();
 };
-const ago = (time: number) => {
-  const s = Math.round((Date.now() - time) / 1000);
+const ago = (time: string) => {
+  const millis = parseDateTimeMillis(time);
+  if (!millis) return "";
+  const s = Math.max(0, Math.round((Date.now() - millis) / 1000));
   if (s < 60) return t("network.justNow");
   if (s < 3600) return t("network.minutesAgo", { n: Math.floor(s / 60) });
   if (s < 86400) return t("network.hoursAgo", { n: Math.floor(s / 3600) });
-  return new Date(time).toLocaleDateString();
+  return new Date(millis).toLocaleDateString();
 };
 
 // ---------- 导入 / 复制 cURL ----------
@@ -316,7 +368,7 @@ const copyCurl = () => {
         <div v-if="historyOpen" ref="historyPanel" class="popover history" :style="historyStyle">
           <div class="pop-head">
             {{ t("network.historyTitle") }}
-            <button v-if="history.length" class="btn small subtle" @click="history = []"><Trash2 :size="12" />{{ t("network.clear") }}</button>
+            <button v-if="history.length" class="btn small subtle" @click="clearHistory"><Trash2 :size="12" />{{ t("network.clear") }}</button>
           </div>
           <p v-if="!history.length" class="pop-empty">{{ t("network.historyEmpty") }}</p>
           <button v-for="h in history" :key="h.id" class="history-item" @click="restore(h)">

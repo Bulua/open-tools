@@ -1,3 +1,9 @@
+import type {
+  HttpAuthType,
+  HttpBodyType,
+  HttpHistoryRecord,
+  HttpRequestSnapshot,
+} from "@/types/http-client";
 import { friendlyError } from "../shared/transport";
 import { locale, t } from "@/locales";
 
@@ -14,8 +20,8 @@ export interface KeyValue {
   file?: File | null;
 }
 
-export type BodyType = "none" | "json" | "text" | "form" | "multipart" | "binary";
-export type AuthType = "none" | "bearer" | "basic";
+export type BodyType = HttpBodyType;
+export type AuthType = HttpAuthType;
 
 export interface RequestModel {
   method: string;
@@ -453,22 +459,22 @@ export function fromParsed(p: { method: string; url: string; headers: [string, s
 
 // ---------- 历史记录 ----------
 
-export interface HistoryEntry {
-  id: number;
-  time: number;
-  status: number | null;
-  /** 不含文件（文件无法保存到历史记录中） */
-  request: RequestModel;
-}
+export type HistoryEntry = HttpHistoryRecord;
 
 /** 保存到历史记录时去掉文件 */
-export const forHistory = (m: RequestModel): RequestModel => ({
-  ...m,
-  params: m.params.map((r) => ({ ...r })),
-  headers: m.headers.map((r) => ({ ...r })),
+export const forHistory = (m: RequestModel): HttpRequestSnapshot => ({
+  method: m.method,
+  url: m.url,
+  params: m.params.map((r) => ({ enabled: r.enabled, key: r.key, value: r.value })),
+  headers: m.headers.map((r) => ({ enabled: r.enabled, key: r.key, value: r.value })),
   auth: { ...m.auth },
-  form: m.form.map((r) => ({ ...r })),
-  multipart: m.multipart.map((r) => ({ ...r, file: null })),
-  binary: null,
+  bodyType: m.bodyType,
+  bodyText: m.bodyText,
+  textType: m.textType,
+  form: m.form.map((r) => ({ enabled: r.enabled, key: r.key, value: r.value })),
+  multipart: m.multipart.map((r) => ({ enabled: r.enabled, key: r.key, value: r.value })),
+  timeout: m.timeout,
+  followRedirects: m.followRedirects,
+  insecure: m.insecure,
 });
 

@@ -3,7 +3,7 @@
  */
 import { requestBackend, requestBackendStream, unwrapApiResponse } from "@/api/common";
 import type { ApiResponsePayload } from "@/types/common";
-import type { ConnectionConfig, MqttNotice, QoS } from "@/types/mqtt";
+import type { ConnectionConfig, MqttNotice, MqttWorkspace, QoS } from "@/types/mqtt";
 
 export const mqttApi = {
   async connect(
@@ -57,5 +57,21 @@ export const mqttApi = {
       retain,
     });
     unwrapApiResponse(res);
+  },
+
+  async loadWorkspace(): Promise<MqttWorkspace | null> {
+    const res = await requestBackend<ApiResponsePayload<MqttWorkspace | null>>(
+      "mqtt_workspace_load",
+      undefined,
+      { fallback: () => ({ code: "ok", msg: "", data: null }) },
+    );
+    return unwrapApiResponse(res);
+  },
+
+  async saveWorkspace(workspace: MqttWorkspace): Promise<MqttWorkspace> {
+    const res = await requestBackend<ApiResponsePayload<MqttWorkspace>>("mqtt_workspace_save", {
+      workspace,
+    });
+    return unwrapApiResponse(res);
   },
 };

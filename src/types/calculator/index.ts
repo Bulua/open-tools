@@ -16,3 +16,17 @@ export interface BackendEvalResult {
   formatted?: string;
   error?: BackendEvalError;
 }
+
+export interface CalculatorHistoryItem {
+  id: string;
+  expression: string;
+  result: string;
+  angleUnit: AngleUnit;
+  createdAt: string;
+}
+
+export interface CalculatorHistoryImportItem {
+  expression: string;
+  result: string;
+  angleUnit?: AngleUnit;
+}

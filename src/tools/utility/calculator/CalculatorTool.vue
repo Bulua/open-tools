@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { useToolResult } from "@/composables/useToolUsage";
-import { nextTick, ref, watch } from "vue";
+import { nextTick, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Delete, Trash2 } from "lucide-vue-next";
+import { calculatorApi } from "@/api/calculator";
 import ToolActions from "@/components/tool/ToolActions.vue";
 import { useStoredRef } from "@/composables/useStoredRef";
 import { useClipboard } from "@/composables/useClipboard";
+import type { CalculatorHistoryItem } from "@/types/calculator";
 import { showError } from "@/utils/errorToast";
 import { evaluateExpression, type AngleUnit, type LiveEval } from "./calculator";
 
@@ -14,8 +16,38 @@ const { t, locale } = useI18n();
  * 计算器：可以直接用键盘输入整个算式，也可以点按键；输入时实时显示结果。
  * 回车或「=」把算式记入历史，点历史记录可以再次使用。
  */
+const LEGACY_HISTORY_KEY = "calculator.history";
 const angle = useStoredRef<AngleUnit>("calculator.angle", "deg");
-const history = useStoredRef<{ expr: string; result: string }[]>("calculator.history", []);
+const history = ref<CalculatorHistoryItem[]>([]);
+
+async function loadHistory() {
+  try {
+    const rows = await calculatorApi.listHistory();
+    if (rows.length > 0) {
+      history.value = rows;
+      localStorage.removeItem(LEGACY_HISTORY_KEY);
+      return;
+    }
+    const raw = localStorage.getItem(LEGACY_HISTORY_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      const valid = parsed
+        .filter((item): item is { expr: string; result: string } => Boolean(item && typeof item.expr === "string" && typeof item.result === "string"))
+        .map((item) => ({ expression: item.expr, result: item.result }));
+      if (valid.length > 0) {
+        history.value = await calculatorApi.importHistory(valid);
+      }
+    }
+    localStorage.removeItem(LEGACY_HISTORY_KEY);
+  } catch (e) {
+    showError(e);
+  }
+}
+
+onMounted(() => {
+  void loadHistory();
+});
 
 const expr = ref("");
 const inputEl = ref<HTMLInputElement>();
@@ -90,12 +122,21 @@ const equals = async () => {
     live.value = evaluated;
     if (!evaluated.ok || !evaluated.text) return;
     const result = evaluated.text;
-    history.value = [{ expr: currentExpr, result }, ...history.value].slice(0, 50);
+    history.value = await calculatorApi.addHistory(currentExpr, result, angle.value);
     expr.value = result;
     moveCaret(result.length);
   } catch (e) {
     showError(e);
   }
+};
+
+const clearHistory = () => {
+  void calculatorApi
+    .clearHistory()
+    .then(() => {
+      history.value = [];
+    })
+    .catch(showError);
 };
 
 const { copy } = useClipboard();
@@ -178,11 +219,11 @@ useToolResult(() => live.value.ok && live.value.text ? `${expr.value}|${angle.va
     <section class="card history">
       <header class="card-title">
         {{ t("utility.history") }}
-        <button v-if="history.length" class="icon-btn push" :title="t('utility.clearHistory')" @click="history = []"><Trash2 :size="14" /></button>
+        <button v-if="history.length" class="icon-btn push" :title="t('utility.clearHistory')" @click="clearHistory"><Trash2 :size="14" /></button>
       </header>
       <ul v-if="history.length" class="records">
-        <li v-for="(h, i) in history" :key="i" class="record">
-          <button class="record-expr" :title="t('utility.useExpr')" @click="expr = h.expr; focus()">{{ h.expr }}</button>
+        <li v-for="h in history" :key="h.id" class="record">
+          <button class="record-expr" :title="t('utility.useExpr')" @click="expr = h.expression; focus()">{{ h.expression }}</button>
           <button class="record-result" :title="t('utility.useResult')" @click="insert(h.result)" @contextmenu.prevent="copy(h.result)">
             = {{ h.result }}
           </button>

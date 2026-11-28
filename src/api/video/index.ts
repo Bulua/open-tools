@@ -3,7 +3,7 @@
  */
 import { requestBackend, unwrapApiResponse } from "@/api/common";
 import type { ApiResponsePayload } from "@/types/common";
-import type { DownloadPlatform, DouyinCaptureKind } from "@/types/video";
+import type { BilibiliSettings, DownloadPlatform, DouyinCaptureKind } from "@/types/video";
 
 export const videoApi = {
   async captureDouyin(id: string, kind: DouyinCaptureKind): Promise<string> {
@@ -42,5 +42,22 @@ export const videoApi = {
       fallback: () => ({ code: "ok", msg: "", data: null }),
     });
     unwrapApiResponse(res);
+  },
+
+  async getBilibiliSettings(): Promise<BilibiliSettings | null> {
+    const res = await requestBackend<ApiResponsePayload<BilibiliSettings | null>>(
+      "bilibili_get_settings",
+      undefined,
+      { fallback: () => ({ code: "ok", msg: "", data: null }) },
+    );
+    return unwrapApiResponse(res);
+  },
+
+  async saveBilibiliSettings(settings: BilibiliSettings): Promise<BilibiliSettings> {
+    const res = await requestBackend<ApiResponsePayload<BilibiliSettings>>(
+      "bilibili_save_settings",
+      { settings },
+    );
+    return unwrapApiResponse(res);
   },
 };

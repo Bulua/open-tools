@@ -32,8 +32,14 @@ export function parseDateTimeMillis(value: string | number | null | undefined): 
   return Number.isFinite(time) ? time : 0;
 }
 
+/** 将 `Date` 或毫秒时间戳格式化为本地时间字符串（`YYYY-MM-DD HH:MM:SS`）。 */
+export function formatDateTime(input: Date | number): string {
+  const date = typeof input === "number" ? new Date(input) : input;
+  const target = Number.isFinite(date.getTime()) ? date : new Date();
+  return `${target.getFullYear()}-${pad2(target.getMonth() + 1)}-${pad2(target.getDate())} ${pad2(target.getHours())}:${pad2(target.getMinutes())}:${pad2(target.getSeconds())}`;
+}
+
 /** 返回当前本地时间字符串（`YYYY-MM-DD HH:MM:SS`）。 */
 export function formatNowDateTime(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())} ${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`;
+  return formatDateTime(new Date());
 }

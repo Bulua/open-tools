@@ -6,6 +6,7 @@ export * from "./calendar";
 export * from "./clipboard";
 export * from "./clock";
 export * from "./document";
+export * from "./http-client";
 export * from "./id-card";
 export * from "./image-ai";
 export * from "./large-file";

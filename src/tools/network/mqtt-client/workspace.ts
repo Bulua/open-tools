@@ -1,4 +1,5 @@
 import { effectScope, ref, watch, type Ref } from "vue";
+import { mqttApi } from "@/api/mqtt";
 import { showError } from "@/utils/errorToast";
 import { t } from "@/locales";
 import { cleanDraft, createDraft, type MqttDraft } from "./draft";
@@ -127,23 +128,106 @@ export function migrateWorkspace(raw: LegacyWorkspace): MqttTree {
   return { nodes, activeId: activeId || nodes[0].id };
 }
 
-function loadTree(): MqttTree {
+function loadLegacyTree(): { tree: MqttTree; hasLegacy: boolean } {
+  const hasV2 = localStorage.getItem(TREE_KEY) !== null;
+  const hasV1 = localStorage.getItem(STORAGE_KEY) !== null;
   try {
     const tree = readTree(JSON.parse(localStorage.getItem(TREE_KEY) ?? "null"));
-    if (tree) return tree;
+    if (tree) return { tree, hasLegacy: hasV2 || hasV1 };
   } catch { /* 目录损坏时尝试恢复旧配置。 */ }
-  try { return migrateWorkspace(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null") ?? { profiles: [], draft: null }); }
-  catch { return migrateWorkspace({ profiles: [], draft: null }); }
+  try {
+    return {
+      tree: migrateWorkspace(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null") ?? { profiles: [], draft: null }),
+      hasLegacy: hasV2 || hasV1,
+    };
+  } catch {
+    return { tree: migrateWorkspace({ profiles: [], draft: null }), hasLegacy: hasV2 || hasV1 };
+  }
+}
+
+function clearLegacyKeys() {
+  localStorage.removeItem(TREE_KEY);
+  localStorage.removeItem(STORAGE_KEY);
 }
 
 let workspace: Ref<MqttTree> | undefined;
+let initialized = false;
+let reloading = false;
+let saveTimer: ReturnType<typeof setTimeout> | undefined;
+let saveChain: Promise<void> = Promise.resolve();
+
+function persistWorkspaceNow(target: Ref<MqttTree>) {
+  saveChain = saveChain
+    .then(async () => {
+      if (!target.value.nodes.length) return;
+      const clean = readTree(target.value);
+      if (!clean || !clean.nodes.length) return;
+      await mqttApi.saveWorkspace(clean);
+    })
+    .catch((error) => {
+      showError(error, t("network.mqtt.storageError"));
+    });
+  return saveChain;
+}
+
+async function initWorkspace(target: Ref<MqttTree>) {
+  try {
+    const stored = await mqttApi.loadWorkspace();
+    if (stored && stored.nodes.length > 0) {
+      reloading = true;
+      try {
+        target.value = readTree(stored) ?? stored;
+      } finally {
+        reloading = false;
+      }
+      clearLegacyKeys();
+      initialized = true;
+      return;
+    }
+
+    const { tree } = loadLegacyTree();
+    const saved = await mqttApi.saveWorkspace(tree);
+    reloading = true;
+    try {
+      target.value = readTree(saved) ?? saved;
+    } finally {
+      reloading = false;
+    }
+    clearLegacyKeys();
+    initialized = true;
+  } catch (error) {
+    // 非桌面运行时或读取失败时，退回本地默认树，确保界面可交互。
+    if (!target.value.nodes.length) {
+      reloading = true;
+      try {
+        target.value = loadLegacyTree().tree;
+      } finally {
+        reloading = false;
+      }
+    }
+    initialized = true;
+    showError(error, t("network.mqtt.storageError"));
+  }
+}
+
 export function useMqttTree() {
   if (!workspace) {
-    workspace = ref(loadTree());
-    effectScope(true).run(() => watch(workspace!, value => {
-      try { localStorage.setItem(TREE_KEY, JSON.stringify(value)); }
-      catch (error) { showError(error, t("network.mqtt.storageError")); }
-    }, { deep: true, flush: "sync", immediate: true }));
+    const current = ref<MqttTree>({ nodes: [], activeId: "" });
+    workspace = current;
+    effectScope(true).run(() =>
+      watch(
+        current,
+        () => {
+          if (reloading || !initialized) return;
+          clearTimeout(saveTimer);
+          saveTimer = setTimeout(() => {
+            void persistWorkspaceNow(current);
+          }, 250);
+        },
+        { deep: true },
+      ),
+    );
+    void initWorkspace(current);
   }
   return workspace;
 }

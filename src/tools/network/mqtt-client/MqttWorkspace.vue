@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onDeactivated, ref } from "vue";
+import { computed, nextTick, onDeactivated, ref, watch } from "vue";
 import { closePanelDialog, vPanelDismiss } from "@/utils/panelDialog";
 import { useI18n } from "vue-i18n";
 import { ChevronRight, Folder, FolderOpen, FolderPlus, Pencil, Plus, Radio, Trash2 } from "lucide-vue-next";
@@ -14,6 +14,15 @@ const { t } = useI18n();
 const tree = useMqttTree();
 const selectedId = ref(tree.value.activeId);
 const visited = ref(new Set(tree.value.activeId ? [tree.value.activeId] : []));
+watch(
+  () => tree.value,
+  (next) => {
+    if (next.activeId) visited.value.add(next.activeId);
+    if (!selectedId.value || !next.nodes.some((node) => node.id === selectedId.value)) {
+      selectedId.value = next.activeId;
+    }
+  },
+);
 const pending = ref<SessionNode>();
 const statuses = ref<Record<string, string>>({});
 const selected = computed(() => tree.value.nodes.find(node => node.id === selectedId.value));

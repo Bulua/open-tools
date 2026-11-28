@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import { useToolResult } from "@/composables/useToolUsage";
-import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Check, Copy, Trash2, X } from "lucide-vue-next";
+import { idCardApi } from "@/api/id-card";
 import { locale } from "@/locales";
 import { useClipboard } from "@/composables/useClipboard";
-import { useStoredRef } from "@/composables/useStoredRef";
 import { showError } from "@/utils/errorToast";
 import {
-  addHistory,
   formatId,
   parseIdCard,
   parseIdCards,
@@ -22,6 +21,7 @@ import {
  * 身份证号解析：校验号码，列出地区、出生日期、年龄、性别、生肖、星座等能从号码推算出的信息。
  * 解析与行政区划查表由本机 Rust 后端完成，不上传；最近查询的 10 个号码保存在本机，可以逐条删除或清空。
  */
+const LEGACY_HISTORY_KEY = "idCard.history";
 const { t } = useI18n();
 const input = ref("");
 const inputEl = ref<HTMLInputElement>();
@@ -48,14 +48,51 @@ watch(
 );
 
 // ---------- 最近查询 ----------
-const history = useStoredRef<string[]>("idCard.history", []);
+const history = ref<string[]>([]);
+
+async function loadHistory() {
+  try {
+    const rows = await idCardApi.listHistory();
+    if (rows.length > 0) {
+      history.value = rows;
+      localStorage.removeItem(LEGACY_HISTORY_KEY);
+      return;
+    }
+    const raw = localStorage.getItem(LEGACY_HISTORY_KEY);
+    if (!raw) return;
+    const parsedIds = JSON.parse(raw);
+    if (Array.isArray(parsedIds) && parsedIds.length > 0) {
+      const valid = parsedIds.filter((x): x is string => typeof x === "string" && x.trim().length > 0);
+      if (valid.length > 0) {
+        history.value = await idCardApi.importHistory(valid);
+      }
+    }
+    localStorage.removeItem(LEGACY_HISTORY_KEY);
+  } catch (e) {
+    showError(e);
+  }
+}
+
+onMounted(() => {
+  void loadHistory();
+});
+
 /** 输入完整的号码停留 1 秒后才记下，避免把改到一半的号码也记进去 */
 let timer: ReturnType<typeof setTimeout> | undefined;
 watch(
   () => info.value?.id18,
   (id18) => {
     clearTimeout(timer);
-    if (id18) timer = setTimeout(() => (history.value = addHistory(history.value, id18)), 1000);
+    if (id18) {
+      timer = setTimeout(() => {
+        void idCardApi
+          .addHistory(id18)
+          .then((rows) => {
+            history.value = rows;
+          })
+          .catch(showError);
+      }, 1000);
+    }
   },
 );
 onBeforeUnmount(() => clearTimeout(timer));
@@ -64,7 +101,22 @@ const pick = (id: string) => {
   input.value = id;
   inputEl.value?.focus();
 };
-const removeHistory = (id: string) => (history.value = history.value.filter((x) => x !== id));
+const removeHistory = (id: string) => {
+  void idCardApi
+    .deleteHistory(id)
+    .then((rows) => {
+      history.value = rows;
+    })
+    .catch(showError);
+};
+const clearHistory = () => {
+  void idCardApi
+    .clearHistory()
+    .then(() => {
+      history.value = [];
+    })
+    .catch(showError);
+};
 
 const historyInfos = shallowRef<Record<string, IdInfo | null>>({});
 let historySeq = 0;
@@ -207,7 +259,7 @@ useToolResult(() => parsed.value?.ok ? info.value?.id18 : "");
       <section class="card history">
         <div class="card-title">
           {{ t("encode.idHistory") }}
-          <button v-if="history.length" class="icon-btn push" :title="t('encode.idClearHistory')" @click="history = []"><Trash2 :size="14" /></button>
+          <button v-if="history.length" class="icon-btn push" :title="t('encode.idClearHistory')" @click="clearHistory"><Trash2 :size="14" /></button>
         </div>
         <ul v-if="history.length" class="records">
           <li v-for="row in historyRows" :key="row.id" :class="{ on: row.id === info?.id18 }" @click="pick(row.id)">
