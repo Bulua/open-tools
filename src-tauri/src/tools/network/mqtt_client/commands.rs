@@ -2,6 +2,7 @@ use super::config::{self, Config};
 use super::protocol::Action;
 pub(crate) use super::service::MqttState;
 use super::service::Notice;
+use crate::core::error::{api_result, ApiResult, AppError};
 use tauri::{ipc::Channel, State, WebviewWindow};
 
 fn key(window: &WebviewWindow, id: &str) -> Result<String, String> {
@@ -18,8 +19,9 @@ pub async fn mqtt_connect(
     id: String,
     config: Config,
     events: Channel<Notice>,
-) -> Result<(), String> {
-    state.connect(key(&window, &id)?, config, events).await
+) -> ApiResult<()> {
+    let res = async { state.connect(key(&window, &id)?, config, events).await }.await;
+    api_result(res.map_err(AppError::from))
 }
 
 #[tauri::command]
@@ -27,8 +29,9 @@ pub fn mqtt_disconnect(
     window: WebviewWindow,
     state: State<'_, MqttState>,
     id: String,
-) -> Result<(), String> {
-    state.disconnect(&key(&window, &id)?)
+) -> ApiResult<()> {
+    let res = (|| -> Result<(), String> { state.disconnect(&key(&window, &id)?) })();
+    api_result(res.map_err(AppError::from))
 }
 
 #[tauri::command]
@@ -38,16 +41,20 @@ pub async fn mqtt_subscribe(
     id: String,
     topic: String,
     qos: u8,
-) -> Result<Option<u8>, String> {
-    if !config::valid_topic(&topic, true) {
-        return Err("Invalid MQTT topic filter".into());
+) -> ApiResult<Option<u8>> {
+    let res = async {
+        if !config::valid_topic(&topic, true) {
+            return Err("Invalid MQTT topic filter".into());
+        }
+        state
+            .request(
+                &key(&window, &id)?,
+                Action::Subscribe(topic, config::qos(qos)?),
+            )
+            .await
     }
-    state
-        .request(
-            &key(&window, &id)?,
-            Action::Subscribe(topic, config::qos(qos)?),
-        )
-        .await
+    .await;
+    api_result(res.map_err(AppError::from))
 }
 
 #[tauri::command]
@@ -56,14 +63,18 @@ pub async fn mqtt_unsubscribe(
     state: State<'_, MqttState>,
     id: String,
     topic: String,
-) -> Result<(), String> {
-    if !config::valid_topic(&topic, true) {
-        return Err("Invalid MQTT topic filter".into());
+) -> ApiResult<()> {
+    let res = async {
+        if !config::valid_topic(&topic, true) {
+            return Err("Invalid MQTT topic filter".into());
+        }
+        state
+            .request(&key(&window, &id)?, Action::Unsubscribe(topic))
+            .await
+            .map(|_| ())
     }
-    state
-        .request(&key(&window, &id)?, Action::Unsubscribe(topic))
-        .await
-        .map(|_| ())
+    .await;
+    api_result(res.map_err(AppError::from))
 }
 
 #[tauri::command]
@@ -75,18 +86,22 @@ pub async fn mqtt_publish(
     payload: Vec<u8>,
     qos: u8,
     retain: bool,
-) -> Result<(), String> {
-    if !config::valid_topic(&topic, false) {
-        return Err("Invalid MQTT publish topic".into());
+) -> ApiResult<()> {
+    let res = async {
+        if !config::valid_topic(&topic, false) {
+            return Err("Invalid MQTT publish topic".into());
+        }
+        if payload.len() > config::MAX_PAYLOAD {
+            return Err("MQTT payload exceeds 256 KiB".into());
+        }
+        state
+            .request(
+                &key(&window, &id)?,
+                Action::Publish(topic, payload, config::qos(qos)?, retain),
+            )
+            .await
+            .map(|_| ())
     }
-    if payload.len() > config::MAX_PAYLOAD {
-        return Err("MQTT payload exceeds 256 KiB".into());
-    }
-    state
-        .request(
-            &key(&window, &id)?,
-            Action::Publish(topic, payload, config::qos(qos)?, retain),
-        )
-        .await
-        .map(|_| ())
+    .await;
+    api_result(res.map_err(AppError::from))
 }

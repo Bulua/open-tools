@@ -1,4 +1,5 @@
 //! 调用系统 Ping 命令，将原始输出交给前端解析。
+use crate::core::error::{api_result, ApiResult, AppError};
 use crate::core::process::decode_output;
 use std::process::Command;
 /// 只允许域名、IPv4、IPv6 的字符，且不能以 - 开头，防止被当成 ping 的参数
@@ -38,8 +39,12 @@ fn run_ping(host: &str, timeout_ms: u32) -> Result<String, String> {
 
 /// ping 一次，返回系统 ping 命令的原始输出
 #[tauri::command]
-pub async fn ping_once(host: String, timeout_ms: u32) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || run_ping(host.trim(), timeout_ms))
-        .await
-        .map_err(|e| e.to_string())?
+pub async fn ping_once(host: String, timeout_ms: u32) -> ApiResult<String> {
+    let res = async {
+        tauri::async_runtime::spawn_blocking(move || run_ping(host.trim(), timeout_ms))
+            .await
+            .map_err(|e| e.to_string())?
+    }
+    .await;
+    api_result(res.map_err(AppError::from))
 }

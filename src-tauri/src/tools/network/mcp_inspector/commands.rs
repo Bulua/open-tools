@@ -3,7 +3,10 @@
 use rmcp::model::{CallToolResult, GetPromptResult, JsonObject, ReadResourceResult};
 use serde_json::Value;
 
-use crate::core::db::Database;
+use crate::core::{
+    db::Database,
+    error::{api_ok, api_result, ApiResult, AppError},
+};
 
 use super::{
     config::McpConfig,
@@ -17,20 +20,16 @@ use super::{
 #[tauri::command]
 pub(crate) async fn mcp_read_connections(
     db: tauri::State<'_, Database>,
-) -> Result<Vec<StoredConnection>, String> {
-    load_stored_connections(db.inner())
-        .await
-        .map_err(Into::into)
+) -> ApiResult<Vec<StoredConnection>> {
+    api_result(load_stored_connections(db.inner()).await)
 }
 
 #[tauri::command]
 pub(crate) async fn mcp_save_connections(
     db: tauri::State<'_, Database>,
     connections: Vec<StoredConnection>,
-) -> Result<Vec<StoredConnection>, String> {
-    save_stored_connections(db.inner(), connections)
-        .await
-        .map_err(Into::into)
+) -> ApiResult<Vec<StoredConnection>> {
+    api_result(save_stored_connections(db.inner(), connections).await)
 }
 
 #[tauri::command]
@@ -39,24 +38,28 @@ pub(crate) async fn mcp_connect(
     sessions: tauri::State<'_, McpSessions>,
     session_id: String,
     config: McpConfig,
-) -> Result<McpServerInfo, String> {
-    connect_session(&app, sessions.inner(), session_id, config).await
+) -> ApiResult<McpServerInfo> {
+    api_result(
+        connect_session(&app, sessions.inner(), session_id, config)
+            .await
+            .map_err(AppError::from),
+    )
 }
 
 #[tauri::command]
 pub(crate) async fn mcp_disconnect(
     sessions: tauri::State<'_, McpSessions>,
     session_id: String,
-) -> Result<(), String> {
+) -> ApiResult<()> {
     disconnect_session(sessions.inner(), &session_id).await;
-    Ok(())
+    api_ok(())
 }
 
 #[tauri::command]
 pub(crate) async fn mcp_active_sessions(
     sessions: tauri::State<'_, McpSessions>,
-) -> Result<Vec<String>, String> {
-    Ok(active_session_ids(sessions.inner()).await)
+) -> ApiResult<Vec<String>> {
+    api_ok(active_session_ids(sessions.inner()).await)
 }
 
 #[tauri::command]
@@ -64,8 +67,12 @@ pub(crate) async fn mcp_list_entries(
     sessions: tauri::State<'_, McpSessions>,
     session_id: String,
     catalog: McpCatalog,
-) -> Result<Value, String> {
-    list_entries(sessions.inner(), &session_id, catalog).await
+) -> ApiResult<Value> {
+    api_result(
+        list_entries(sessions.inner(), &session_id, catalog)
+            .await
+            .map_err(AppError::from),
+    )
 }
 
 #[tauri::command]
@@ -74,8 +81,12 @@ pub(crate) async fn mcp_call_tool(
     session_id: String,
     name: String,
     arguments: JsonObject,
-) -> Result<CallToolResult, String> {
-    call_tool_on_session(sessions.inner(), &session_id, name, arguments).await
+) -> ApiResult<CallToolResult> {
+    api_result(
+        call_tool_on_session(sessions.inner(), &session_id, name, arguments)
+            .await
+            .map_err(AppError::from),
+    )
 }
 
 #[tauri::command]
@@ -84,8 +95,12 @@ pub(crate) async fn mcp_get_prompt(
     session_id: String,
     name: String,
     arguments: JsonObject,
-) -> Result<GetPromptResult, String> {
-    get_prompt(sessions.inner(), &session_id, name, arguments).await
+) -> ApiResult<GetPromptResult> {
+    api_result(
+        get_prompt(sessions.inner(), &session_id, name, arguments)
+            .await
+            .map_err(AppError::from),
+    )
 }
 
 #[tauri::command]
@@ -93,6 +108,10 @@ pub(crate) async fn mcp_read_resource(
     sessions: tauri::State<'_, McpSessions>,
     session_id: String,
     uri: String,
-) -> Result<ReadResourceResult, String> {
-    read_resource(sessions.inner(), &session_id, uri).await
+) -> ApiResult<ReadResourceResult> {
+    api_result(
+        read_resource(sessions.inner(), &session_id, uri)
+            .await
+            .map_err(AppError::from),
+    )
 }

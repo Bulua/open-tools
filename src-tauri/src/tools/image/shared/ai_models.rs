@@ -17,6 +17,7 @@ use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_http::reqwest;
 
+use crate::core::error::{api_ok, api_result, ApiResult, AppError};
 use crate::core::paths;
 
 /// 一个可下载的文件
@@ -209,20 +210,23 @@ pub struct AiStatus {
 
 /// 模型和运行环境的下载情况
 #[tauri::command]
-pub fn ai_status(app: AppHandle) -> Result<AiStatus, String> {
-    let dir = models_dir(&app)?;
-    let models = MODELS
-        .iter()
-        .filter(|(_, f)| complete(&dir.join(f.name()), f))
-        .map(|(id, _)| id.to_string())
-        .collect();
-    let missing = missing_runtime(&app)?;
-    Ok(AiStatus {
-        models,
-        runtime_ready: missing.is_empty(),
-        runtime_size: missing.iter().map(|(f, _)| f.size).sum(),
-        dir: paths::data_dir(&app)?.to_string_lossy().into_owned(),
-    })
+pub fn ai_status(app: AppHandle) -> ApiResult<AiStatus> {
+    let res = (|| -> Result<AiStatus, String> {
+        let dir = models_dir(&app)?;
+        let models = MODELS
+            .iter()
+            .filter(|(_, f)| complete(&dir.join(f.name()), f))
+            .map(|(id, _)| id.to_string())
+            .collect();
+        let missing = missing_runtime(&app)?;
+        Ok(AiStatus {
+            models,
+            runtime_ready: missing.is_empty(),
+            runtime_size: missing.iter().map(|(f, _)| f.size).sum(),
+            dir: paths::data_dir(&app)?.to_string_lossy().into_owned(),
+        })
+    })();
+    api_result(res.map_err(AppError::from))
 }
 
 // ---------- 下载 ----------
@@ -286,42 +290,46 @@ pub async fn ai_model_download(
     app: AppHandle,
     id: String,
     source: Option<String>,
-) -> Result<(), String> {
-    let model = model_file(&id)?;
-    let mut tracker = Tracker {
-        id: id.clone(),
-        finished: 0,
-        current: 0,
-        total: 0,
-    };
-    tracker.publish();
-    let _lock = DOWNLOADING.lock().await;
+) -> ApiResult<()> {
+    let res = async {
+        let model = model_file(&id)?;
+        let mut tracker = Tracker {
+            id: id.clone(),
+            finished: 0,
+            current: 0,
+            total: 0,
+        };
+        tracker.publish();
+        let _lock = DOWNLOADING.lock().await;
 
-    let mut jobs = missing_runtime(&app)?;
-    let target = models_dir(&app)?.join(model.name());
-    if !complete(&target, model) {
-        jobs.push((model, target));
-    }
-    tracker.total = jobs.iter().map(|(f, _)| f.size).sum();
-    tracker.publish();
-
-    let sources = source_order(source.as_deref());
-    let result = async {
-        let client = reqwest::Client::builder()
-            .user_agent("OpenTools")
-            .connect_timeout(Duration::from_secs(15))
-            .build()
-            .map_err(|e| e.to_string())?;
-        for (file, target) in jobs {
-            download_file(&client, file, &target, &sources, &mut tracker).await?;
+        let mut jobs = missing_runtime(&app)?;
+        let target = models_dir(&app)?.join(model.name());
+        if !complete(&target, model) {
+            jobs.push((model, target));
         }
-        Ok::<(), String>(())
+        tracker.total = jobs.iter().map(|(f, _)| f.size).sum();
+        tracker.publish();
+
+        let sources = source_order(source.as_deref());
+        let result = async {
+            let client = reqwest::Client::builder()
+                .user_agent("OpenTools")
+                .connect_timeout(Duration::from_secs(15))
+                .build()
+                .map_err(|e| e.to_string())?;
+            for (file, target) in jobs {
+                download_file(&client, file, &target, &sources, &mut tracker).await?;
+            }
+            Ok::<(), String>(())
+        }
+        .await;
+        if let Ok(mut map) = PROGRESS.lock() {
+            map.remove(&id);
+        }
+        result
     }
     .await;
-    if let Ok(mut map) = PROGRESS.lock() {
-        map.remove(&id);
-    }
-    result
+    api_result(res.map_err(AppError::from))
 }
 
 /// 依次尝试各个下载源，下载并校验一个文件
@@ -441,24 +449,29 @@ fn sha256_of(path: &Path) -> Result<String, String> {
 
 /// 正在下载的模型的进度；没有在下载时都是 0
 #[tauri::command]
-pub fn ai_model_progress(id: String) -> Progress {
-    PROGRESS
-        .lock()
-        .ok()
-        .and_then(|map| map.get(&id).copied())
-        .unwrap_or_default()
+pub fn ai_model_progress(id: String) -> ApiResult<Progress> {
+    api_ok(
+        PROGRESS
+            .lock()
+            .ok()
+            .and_then(|map| map.get(&id).copied())
+            .unwrap_or_default(),
+    )
 }
 
 /// 删除已下载的模型，释放空间（运行环境保留，其他模型还要用）
 #[tauri::command]
-pub fn ai_model_delete(app: AppHandle, id: String) -> Result<(), String> {
-    let file = model_file(&id)?;
-    // 先释放已加载的模型，否则文件可能被占用删不掉
-    super::inference::unload(&id);
-    let path = models_dir(&app)?.join(file.name());
-    let _ = std::fs::remove_file(path.with_file_name(format!("{}.part", file.name())));
-    if path.exists() {
-        std::fs::remove_file(path).map_err(|e| format!("Can't delete the model: {e}"))?;
-    }
-    Ok(())
+pub fn ai_model_delete(app: AppHandle, id: String) -> ApiResult<()> {
+    let res = (|| -> Result<(), String> {
+        let file = model_file(&id)?;
+        // 先释放已加载的模型，否则文件可能被占用删不掉
+        super::inference::unload(&id);
+        let path = models_dir(&app)?.join(file.name());
+        let _ = std::fs::remove_file(path.with_file_name(format!("{}.part", file.name())));
+        if path.exists() {
+            std::fs::remove_file(path).map_err(|e| format!("Can't delete the model: {e}"))?;
+        }
+        Ok(())
+    })();
+    api_result(res.map_err(AppError::from))
 }

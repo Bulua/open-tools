@@ -14,6 +14,7 @@ use tauri::ipc::{InvokeBody, Request, Response};
 use tauri::AppHandle;
 
 use super::ai_models;
+use crate::core::error::AppError;
 
 static ENV: OnceLock<Environment> = OnceLock::new();
 /// 加载运行库时加锁，避免两次识别同时初始化
@@ -157,7 +158,7 @@ fn split_inputs(
 /// x-dtype 是输入的数据类型，f32（默认，小端字节）或 u8。
 /// 返回第一个输出（float32 小端字节，或 uint8）
 #[tauri::command]
-pub async fn ai_run(app: AppHandle, request: Request<'_>) -> Result<Response, String> {
+pub async fn ai_run(app: AppHandle, request: Request<'_>) -> Result<Response, AppError> {
     let header = |name: &str| {
         request
             .headers()
@@ -165,26 +166,32 @@ pub async fn ai_run(app: AppHandle, request: Request<'_>) -> Result<Response, St
             .and_then(|v| v.to_str().ok())
             .map(str::to_string)
     };
-    let id = header("x-model").ok_or("Missing the model id")?;
+    let id = header("x-model").ok_or_else(|| AppError::invalid_input("Missing the model id"))?;
     let shapes = header("x-shape")
-        .ok_or("Missing the input shape")?
+        .ok_or_else(|| AppError::invalid_input("Missing the input shape"))?
         .split(';')
         .map(parse_shape)
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(AppError::invalid_input)?;
     let uint8 = match header("x-dtype").as_deref() {
         None | Some("f32") => false,
         Some("u8") => true,
-        Some(other) => return Err(format!("Unsupported input type: {other}")),
+        Some(other) => {
+            return Err(AppError::invalid_input(format!(
+                "Unsupported input type: {other}"
+            )))
+        }
     };
     let InvokeBody::Raw(bytes) = request.body() else {
-        return Err("The input must be binary data".into());
+        return Err(AppError::invalid_input("The input must be binary data"));
     };
-    let inputs = split_inputs(bytes, shapes, uint8)?;
-    let path = ai_models::model_path(&app, &id)?;
-    tauri::async_runtime::spawn_blocking(move || run(&app, &id, &path, inputs))
+    let inputs = split_inputs(bytes, shapes, uint8).map_err(AppError::invalid_input)?;
+    let path = ai_models::model_path(&app, &id).map_err(AppError::from)?;
+    let out = tauri::async_runtime::spawn_blocking(move || run(&app, &id, &path, inputs))
         .await
-        .map_err(err)?
-        .map(Response::new)
+        .map_err(|e| AppError::internal(e.to_string()))?
+        .map_err(AppError::from)?;
+    Ok(Response::new(out))
 }
 
 /// 供 Rust 内部模块（如 AI 抠图工具）直接复用的 float32 模型推理接口，共享同一份会话缓存。

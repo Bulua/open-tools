@@ -6,8 +6,9 @@ use std::path::PathBuf;
 
 use tauri::image::Image;
 use tauri::ipc::Response;
-use tauri::{AppHandle, Runtime};
-use tauri::Manager;
+use tauri::{AppHandle, Manager, Runtime};
+
+use crate::core::error::{api_ok, api_result, ApiResult, AppError};
 
 /// 单个图标文件的大小上限
 const MAX_SIZE: usize = 2 * 1024 * 1024;
@@ -51,8 +52,8 @@ pub fn apply_cached<R: Runtime>(app: &AppHandle<R>) {
 
 /// 正在使用的远程图标 id，前端据此判断要不要下载
 #[tauri::command]
-pub fn branding_current(app: AppHandle) -> Option<String> {
-    current_id(&app)
+pub fn branding_current(app: AppHandle) -> ApiResult<Option<String>> {
+    api_ok(current_id(&app))
 }
 
 /// 正在使用的远程图标（PNG），给顶栏的 Logo 用；用的是自带图标时返回空
@@ -66,42 +67,53 @@ pub fn branding_logo(app: AppHandle) -> Response {
 
 /// 换上图标。id 为空时换回程序自带的图标；png、ico 是前端下载并核对过校验值的文件内容
 #[tauri::command]
-pub fn branding_activate(app: AppHandle, id: Option<String>, png: Vec<u8>, ico: Vec<u8>) -> Result<(), String> {
-    let dir = branding_dir(&app)?;
-    let ico_path = match &id {
-        Some(id) => {
-            if !valid_id(id) {
-                return Err(format!("Invalid icon id: {id}"));
-            }
-            if png.len() > MAX_SIZE || ico.len() > MAX_SIZE {
-                return Err("The icon file is too large".into());
-            }
-            // ICO 文件以 00 00 01 00 开头
-            if !ico.starts_with(&[0, 0, 1, 0]) {
-                return Err("The icon is not a valid ICO file".into());
-            }
-            let icon = Image::from_bytes(&png).map_err(|e| format!("The icon is not a valid PNG file: {e}"))?;
-            let ico_path = dir.join(format!("{id}.ico"));
-            std::fs::write(dir.join(format!("{id}.png")), &png).map_err(|e| format!("Can't save the icon: {e}"))?;
-            std::fs::write(&ico_path, &ico).map_err(|e| format!("Can't save the icon: {e}"))?;
-            std::fs::write(dir.join("current.txt"), id).map_err(|e| format!("Can't save the icon: {e}"))?;
-            set_icon(&app, icon);
-            Some(ico_path)
-        }
-        None => {
-            let _ = std::fs::remove_file(dir.join("current.txt"));
-            if let Some(icon) = app.default_window_icon().cloned() {
+pub fn branding_activate(
+    app: AppHandle,
+    id: Option<String>,
+    png: Vec<u8>,
+    ico: Vec<u8>,
+) -> ApiResult<()> {
+    let res = (|| -> Result<(), String> {
+        let dir = branding_dir(&app)?;
+        let ico_path = match &id {
+            Some(id) => {
+                if !valid_id(id) {
+                    return Err(format!("Invalid icon id: {id}"));
+                }
+                if png.len() > MAX_SIZE || ico.len() > MAX_SIZE {
+                    return Err("The icon file is too large".into());
+                }
+                // ICO 文件以 00 00 01 00 开头
+                if !ico.starts_with(&[0, 0, 1, 0]) {
+                    return Err("The icon is not a valid ICO file".into());
+                }
+                let icon = Image::from_bytes(&png)
+                    .map_err(|e| format!("The icon is not a valid PNG file: {e}"))?;
+                let ico_path = dir.join(format!("{id}.ico"));
+                std::fs::write(dir.join(format!("{id}.png")), &png)
+                    .map_err(|e| format!("Can't save the icon: {e}"))?;
+                std::fs::write(&ico_path, &ico).map_err(|e| format!("Can't save the icon: {e}"))?;
+                std::fs::write(dir.join("current.txt"), id)
+                    .map_err(|e| format!("Can't save the icon: {e}"))?;
                 set_icon(&app, icon);
+                Some(ico_path)
             }
-            None
-        }
-    };
-    // 改写快捷方式要一两秒，放到后台；之后删掉不再使用的旧图标
-    tauri::async_runtime::spawn_blocking(move || {
-        update_shortcuts(ico_path);
-        remove_unused(&dir, id.as_deref());
-    });
-    Ok(())
+            None => {
+                let _ = std::fs::remove_file(dir.join("current.txt"));
+                if let Some(icon) = app.default_window_icon().cloned() {
+                    set_icon(&app, icon);
+                }
+                None
+            }
+        };
+        // 改写快捷方式要一两秒，放到后台；之后删掉不再使用的旧图标
+        tauri::async_runtime::spawn_blocking(move || {
+            update_shortcuts(ico_path);
+            remove_unused(&dir, id.as_deref());
+        });
+        Ok(())
+    })();
+    api_result(res.map_err(AppError::from))
 }
 
 /// 删除除了 keep 以外的已下载图标

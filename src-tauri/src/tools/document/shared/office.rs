@@ -1,4 +1,5 @@
 //! 检测本机可用的 Office 转换引擎，供文档转换工具共用。
+use crate::core::error::{api_ok, ApiResult};
 use crate::core::script::hide_window;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -26,8 +27,8 @@ fn has_com(prog_id: &str) -> bool {
 
 /// 本机可用于转换的软件，按尝试顺序排列
 #[tauri::command]
-pub async fn office_engines() -> Vec<String> {
-    tauri::async_runtime::spawn_blocking(|| {
+pub async fn office_engines() -> ApiResult<Vec<String>> {
+    let engines = tauri::async_runtime::spawn_blocking(|| {
         let mut engines = Vec::new();
         if has_com("Word.Application") {
             engines.push("Microsoft Word".to_string());
@@ -41,5 +42,6 @@ pub async fn office_engines() -> Vec<String> {
         engines
     })
     .await
-    .unwrap_or_default()
+    .unwrap_or_default();
+    api_ok(engines)
 }

@@ -5,30 +5,38 @@ use tauri::{
     AppHandle,
 };
 
+use crate::core::error::{api_result, ApiResult, AppError};
+
 use super::store;
 
 #[tauri::command]
-pub async fn notebook_read(app: AppHandle) -> Result<Option<String>, String> {
-    store::read_snapshot(&app)
+pub async fn notebook_read(app: AppHandle) -> ApiResult<Option<String>> {
+    api_result(store::read_snapshot(&app).map_err(AppError::from))
 }
 
 #[tauri::command]
-pub async fn notebook_write(app: AppHandle, data: String) -> Result<(), String> {
-    store::write_snapshot(&app, &data)
+pub async fn notebook_write(app: AppHandle, data: String) -> ApiResult<()> {
+    api_result(store::write_snapshot(&app, &data).map_err(AppError::from))
 }
 
 #[tauri::command]
-pub async fn notebook_save_image(app: AppHandle, request: Request<'_>) -> Result<String, String> {
+pub async fn notebook_save_image(app: AppHandle, request: Request<'_>) -> ApiResult<String> {
     let InvokeBody::Raw(data) = request.body() else {
-        return Err("Expected binary notebook image data".into());
+        return api_result(Err(AppError::invalid_input(
+            "Expected binary notebook image data",
+        )));
     };
-    let id = request
+    let Some(id) = request
         .headers()
         .get("x-note-id")
         .and_then(|value| STANDARD.decode(value.as_bytes()).ok())
         .and_then(|value| String::from_utf8(value).ok())
-        .ok_or("Missing or invalid notebook note ID")?;
-    store::save_image(&app, &id, data)
+    else {
+        return api_result(Err(AppError::invalid_input(
+            "Missing or invalid notebook note ID",
+        )));
+    };
+    api_result(store::save_image(&app, &id, data).map_err(AppError::from))
 }
 
 #[tauri::command]
@@ -36,20 +44,25 @@ pub async fn notebook_read_image(
     app: AppHandle,
     id: String,
     name: String,
-) -> Result<Response, String> {
-    store::read_image(&app, &id, &name).map(Response::new)
+) -> Result<Response, AppError> {
+    store::read_image(&app, &id, &name)
+        .map(Response::new)
+        .map_err(AppError::from)
 }
 
 #[cfg(windows)]
 #[tauri::command]
-pub async fn notebook_reveal(app: AppHandle, id: String) -> Result<(), String> {
+pub async fn notebook_reveal(app: AppHandle, id: String) -> ApiResult<()> {
     use tauri_plugin_opener::OpenerExt;
-    let (path, is_folder) = store::entry_path(&app, &id)?;
-    if is_folder {
-        app.opener()
-            .open_path(path.to_string_lossy().into_owned(), None::<&str>)
-    } else {
-        app.opener().reveal_item_in_dir(path)
-    }
-    .map_err(|e| e.to_string())
+    let res = (|| -> Result<(), String> {
+        let (path, is_folder) = store::entry_path(&app, &id)?;
+        if is_folder {
+            app.opener()
+                .open_path(path.to_string_lossy().into_owned(), None::<&str>)
+        } else {
+            app.opener().reveal_item_in_dir(path)
+        }
+        .map_err(|e| e.to_string())
+    })();
+    api_result(res.map_err(AppError::from))
 }

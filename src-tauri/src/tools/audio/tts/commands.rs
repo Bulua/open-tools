@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use tauri::ipc::Response;
 
+use crate::core::error::{api_result, ApiResult, AppError};
 use crate::core::script::{run_powershell, TempDir};
 
 const SCRIPT: &str = include_str!("tts.ps1");
@@ -46,10 +47,14 @@ fn list_voices() -> Result<Vec<Voice>, String> {
 
 /// 本机可用的语音
 #[tauri::command]
-pub async fn tts_voices() -> Result<Vec<Voice>, String> {
-    tauri::async_runtime::spawn_blocking(list_voices)
-        .await
-        .map_err(|e| e.to_string())?
+pub async fn tts_voices() -> ApiResult<Vec<Voice>> {
+    let res = async {
+        tauri::async_runtime::spawn_blocking(list_voices)
+            .await
+            .map_err(|e| e.to_string())?
+    }
+    .await;
+    api_result(res.map_err(AppError::from))
 }
 
 fn synthesize(text: String, voice: String, rate: i32) -> Result<Vec<u8>, String> {
@@ -88,17 +93,22 @@ fn synthesize(text: String, voice: String, rate: i32) -> Result<Vec<u8>, String>
 
 /// 把文字转成 WAV 音频
 #[tauri::command]
-pub async fn tts_synthesize(text: String, voice: String, rate: i32) -> Result<Response, String> {
+pub async fn tts_synthesize(
+    text: String,
+    voice: String,
+    rate: i32,
+) -> Result<Response, AppError> {
     if text.trim().is_empty() {
-        return Err("Enter the text to read aloud".into());
+        return Err(AppError::invalid_input("Enter the text to read aloud"));
     }
     if text.chars().count() > MAX_CHARS {
-        return Err(format!(
+        return Err(AppError::invalid_input(format!(
             "The text is too long (at most {MAX_CHARS} characters at a time)"
-        ));
+        )));
     }
     let wav = tauri::async_runtime::spawn_blocking(move || synthesize(text, voice, rate))
         .await
-        .map_err(|e| e.to_string())??;
+        .map_err(|e| AppError::internal(e.to_string()))?
+        .map_err(AppError::from)?;
     Ok(Response::new(wav))
 }

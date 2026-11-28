@@ -6,6 +6,8 @@ use std::path::PathBuf;
 use serde::Serialize;
 use tauri::AppHandle;
 
+use crate::core::error::{api_result, ApiResult, AppError};
+
 fn vault_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(crate::core::paths::data_dir(app)?.join("vault.dat"))
 }
@@ -19,28 +21,34 @@ pub struct VaultFile {
 }
 
 #[tauri::command]
-pub fn vault_read(app: AppHandle) -> Result<VaultFile, String> {
-    let path = vault_path(&app)?;
-    let data = match std::fs::read_to_string(&path) {
-        Ok(s) => Some(s),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
-        Err(e) => return Err(format!("Failed to read the vault: {e}")),
-    };
-    Ok(VaultFile {
-        path: path.to_string_lossy().into_owned(),
-        data,
-    })
+pub fn vault_read(app: AppHandle) -> ApiResult<VaultFile> {
+    let res = (|| -> Result<VaultFile, String> {
+        let path = vault_path(&app)?;
+        let data = match std::fs::read_to_string(&path) {
+            Ok(s) => Some(s),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+            Err(e) => return Err(format!("Failed to read the vault: {e}")),
+        };
+        Ok(VaultFile {
+            path: path.to_string_lossy().into_owned(),
+            data,
+        })
+    })();
+    api_result(res.map_err(AppError::from))
 }
 
 /// 先写到临时文件再替换，写到一半断电也不会损坏原文件；替换前把原文件备份为 vault.dat.bak
 #[tauri::command]
-pub fn vault_write(app: AppHandle, data: String) -> Result<(), String> {
-    let path = vault_path(&app)?;
-    let tmp = path.with_extension("dat.tmp");
-    std::fs::write(&tmp, data).map_err(|e| format!("Failed to save the vault: {e}"))?;
-    if path.exists() {
-        std::fs::copy(&path, path.with_extension("dat.bak"))
-            .map_err(|e| format!("Failed to back up the vault: {e}"))?;
-    }
-    std::fs::rename(&tmp, &path).map_err(|e| format!("Failed to save the vault: {e}"))
+pub fn vault_write(app: AppHandle, data: String) -> ApiResult<()> {
+    let res = (|| -> Result<(), String> {
+        let path = vault_path(&app)?;
+        let tmp = path.with_extension("dat.tmp");
+        std::fs::write(&tmp, data).map_err(|e| format!("Failed to save the vault: {e}"))?;
+        if path.exists() {
+            std::fs::copy(&path, path.with_extension("dat.bak"))
+                .map_err(|e| format!("Failed to back up the vault: {e}"))?;
+        }
+        std::fs::rename(&tmp, &path).map_err(|e| format!("Failed to save the vault: {e}"))
+    })();
+    api_result(res.map_err(AppError::from))
 }

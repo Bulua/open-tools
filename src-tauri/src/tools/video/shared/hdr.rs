@@ -154,22 +154,25 @@ mod imp {
     pub fn restore() {}
 }
 
+use crate::core::error::{api_ok, ApiResult};
+
 pub use imp::restore;
 
 /// 是否有屏幕开着 HDR
 #[tauri::command]
-pub fn hdr_enabled() -> bool {
-    imp::any_enabled()
+pub fn hdr_enabled() -> ApiResult<bool> {
+    api_ok(imp::any_enabled())
 }
 
 /// 临时关闭 HDR（录屏前），返回关掉的屏幕数量
 #[tauri::command]
-pub fn hdr_disable() -> u32 {
-    imp::disable()
+pub fn hdr_disable() -> ApiResult<u32> {
+    api_ok(imp::disable())
 }
 
 /// 恢复被临时关闭的 HDR（录屏结束后）
 #[tauri::command]
-pub fn hdr_restore() {
-    imp::restore()
+pub fn hdr_restore() -> ApiResult<()> {
+    imp::restore();
+    api_ok(())
 }

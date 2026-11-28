@@ -1,13 +1,14 @@
 //! 调用 Microsoft Word 将 PDF 转换为可编辑的 Word 文档。
 use super::super::shared::conversion::run_conversion;
+use crate::core::error::AppError;
 use tauri::ipc::{InvokeBody, Request, Response};
 const PDF_TO_WORD_SCRIPT: &str = include_str!("pdf_to_word.ps1");
 
 /// 用 Word 把 PDF 转换为 .docx。请求体是 PDF 内容；返回 .docx 内容
 #[tauri::command]
-pub async fn pdf_to_word(request: Request<'_>) -> Result<Response, String> {
+pub async fn pdf_to_word(request: Request<'_>) -> Result<Response, AppError> {
     let InvokeBody::Raw(data) = request.body() else {
-        return Err("Invalid request".into());
+        return Err(AppError::invalid_input("Invalid request"));
     };
     let data = data.clone();
     let docx = tauri::async_runtime::spawn_blocking(move || {
@@ -21,6 +22,7 @@ pub async fn pdf_to_word(request: Request<'_>) -> Result<Response, String> {
         )
     })
     .await
-    .map_err(|e| e.to_string())??;
+    .map_err(|e| AppError::internal(e.to_string()))?
+    .map_err(AppError::from)?;
     Ok(Response::new(docx))
 }

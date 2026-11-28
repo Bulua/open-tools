@@ -76,5 +76,5 @@ pub(crate) fn calendar_wake() -> ApiResult<()> {
 #[cfg(windows)]
 #[tauri::command]
 pub(crate) fn calendar_notify(app: AppHandle, title: String, body: String) -> ApiResult<()> {
-    api_result(crate::core::notifications::desktop_notify(app, title, body).map_err(AppError::from))
+    api_result(crate::core::notifications::send_desktop_notify(&app, &title, &body))
 }

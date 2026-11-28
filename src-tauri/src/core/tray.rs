@@ -6,6 +6,8 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{App, AppHandle, Manager, Runtime, Window, WindowEvent};
 
+use crate::core::error::{api_result, ApiResult, AppError};
+
 /// 显示并聚焦主窗口（从托盘恢复、再次打开程序时调用）
 pub fn show_main<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window("main") {
@@ -105,26 +107,29 @@ pub fn set_tray_text(
     tooltip: String,
     clipboard: Option<String>,
     clipboard_toggle: Option<String>,
-) -> Result<(), String> {
-    #[cfg(not(windows))]
-    let _ = (clipboard, clipboard_toggle);
-    let Some(tray) = app.tray_by_id("main") else {
-        return Ok(());
-    };
-    let menu = build_menu(
-        &app,
-        &show,
-        &quit,
-        #[cfg(windows)]
-        clipboard.as_deref().unwrap_or("剪贴板历史"),
-        #[cfg(windows)]
-        clipboard_toggle
-            .as_deref()
-            .unwrap_or("暂停或恢复剪贴板记录"),
-    )
-    .map_err(|e| e.to_string())?;
-    tray.set_menu(Some(menu)).map_err(|e| e.to_string())?;
-    tray.set_tooltip(Some(tooltip)).map_err(|e| e.to_string())
+) -> ApiResult<()> {
+    let res = (|| -> Result<(), String> {
+        #[cfg(not(windows))]
+        let _ = (clipboard, clipboard_toggle);
+        let Some(tray) = app.tray_by_id("main") else {
+            return Ok(());
+        };
+        let menu = build_menu(
+            &app,
+            &show,
+            &quit,
+            #[cfg(windows)]
+            clipboard.as_deref().unwrap_or("剪贴板历史"),
+            #[cfg(windows)]
+            clipboard_toggle
+                .as_deref()
+                .unwrap_or("暂停或恢复剪贴板记录"),
+        )
+        .map_err(|e| e.to_string())?;
+        tray.set_menu(Some(menu)).map_err(|e| e.to_string())?;
+        tray.set_tooltip(Some(tooltip)).map_err(|e| e.to_string())
+    })();
+    api_result(res.map_err(AppError::from))
 }
 
 /// 关闭主窗口时改为隐藏
