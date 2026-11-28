@@ -4,12 +4,18 @@ import { charGroups, type PasswordOptions } from "../shared/password";
  */
 import { locale, t } from "@/locales";
 
+/** 根据熵（比特）评级密码强度 */
+export function strengthFromBits(bits: number): { bits: number; level: 0 | 1 | 2 | 3; label: string } {
+  const rounded = Math.max(0, Math.round(bits));
+  const level = rounded < 40 ? 0 : rounded < 60 ? 1 : rounded < 90 ? 2 : 3;
+  return { bits: rounded, level, label: t(`encode.${(["weak", "fair", "strong", "veryStrong"] as const)[level]}`) };
+}
+
 /** 密码强度：按字符集大小和长度估算的熵（比特） */
 export function passwordStrength(o: PasswordOptions): { bits: number; level: 0 | 1 | 2 | 3; label: string } {
   const size = charGroups(o).join("").length;
-  const bits = size > 1 ? Math.round(o.length * Math.log2(size)) : 0;
-  const level = bits < 40 ? 0 : bits < 60 ? 1 : bits < 90 ? 2 : 3;
-  return { bits, level, label: t(`encode.${(["weak", "fair", "strong", "veryStrong"] as const)[level]}`) };
+  const bits = size > 1 ? o.length * Math.log2(size) : 0;
+  return strengthFromBits(bits);
 }
 
 /** 暴力破解所需时间的大致描述（按每秒一百亿次尝试估算） */

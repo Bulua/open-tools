@@ -44,7 +44,24 @@ export default defineModuleLocales({
         "uDay": "天",
         "uHour": "小时",
         "uMinute": "分钟",
-        "uSecond": "秒"
+        "uSecond": "秒",
+        "pwMode": "生成格式",
+        "pwModeChars": "随机字符",
+        "pwModeHex": "Hex 密钥",
+        "pwModeBase64": "Base64 密钥",
+        "pwModeUuid": "UUID v4",
+        "excludePlaceholder": "排除指定字符，例如 +-/",
+        "groupDash": "每 4 位用 - 分隔",
+        "presetRecovery": "恢复码 4×6",
+        "hexLength": "Hex 字符长度",
+        "hexUppercase": "大写十六进制（A-F）",
+        "base64Bytes": "随机字节数",
+        "base64BytesUnit": "{n} 字节",
+        "base64UrlSafe": "URL 安全（- _ 无 =）",
+        "uuidUppercase": "大写字母（A-F）",
+        "uuidCompact": "紧凑格式（去掉 -）",
+        "charsetSize": "字符集 {n} 个",
+        "bitsUnit": "{n} 位密钥"
       }
     },
     "en": {
@@ -75,7 +92,24 @@ export default defineModuleLocales({
         "uDay": "days",
         "uHour": "hours",
         "uMinute": "minutes",
-        "uSecond": "seconds"
+        "uSecond": "seconds",
+        "pwMode": "Format",
+        "pwModeChars": "Characters",
+        "pwModeHex": "Hex key",
+        "pwModeBase64": "Base64 key",
+        "pwModeUuid": "UUID v4",
+        "excludePlaceholder": "Exclude characters, e.g. +-/",
+        "groupDash": "Group every 4 chars with -",
+        "presetRecovery": "Recovery 4×6",
+        "hexLength": "Hex length",
+        "hexUppercase": "Uppercase hex (A-F)",
+        "base64Bytes": "Random bytes",
+        "base64BytesUnit": "{n} B",
+        "base64UrlSafe": "URL-safe (- _ no =)",
+        "uuidUppercase": "Uppercase (A-F)",
+        "uuidCompact": "Compact (no -)",
+        "charsetSize": "Charset: {n}",
+        "bitsUnit": "{n}-bit"
       }
     },
     "ja": {
@@ -106,7 +140,24 @@ export default defineModuleLocales({
         "uDay": "日",
         "uHour": "時間",
         "uMinute": "分",
-        "uSecond": "秒"
+        "uSecond": "秒",
+        "pwMode": "生成形式",
+        "pwModeChars": "ランダム文字",
+        "pwModeHex": "Hex キー",
+        "pwModeBase64": "Base64 キー",
+        "pwModeUuid": "UUID v4",
+        "excludePlaceholder": "除外する文字（例：+-/）",
+        "groupDash": "4 文字ごとに - で区切る",
+        "presetRecovery": "リカバリ 4×6",
+        "hexLength": "Hex 文字長",
+        "hexUppercase": "大文字（A-F）",
+        "base64Bytes": "ランダムバイト数",
+        "base64BytesUnit": "{n} B",
+        "base64UrlSafe": "URL セーフ（- _ 末尾 = なし）",
+        "uuidUppercase": "大文字（A-F）",
+        "uuidCompact": "ハイフンなし",
+        "charsetSize": "文字種 {n}",
+        "bitsUnit": "{n} ビット"
       }
     }
   }
