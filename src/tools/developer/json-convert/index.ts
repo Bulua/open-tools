@@ -9,7 +9,6 @@ const tool: Tool = {
   desc: "JSON 与 YAML 互转，或根据 JSON 生成 TypeScript 类型定义",
   icon: FileCode2,
   inputPlaceholder: "粘贴 JSON（或 YAML），再点击下方按钮转换",
-  sessions: true,
   component: defineAsyncComponent(() => import("./JsonConvert.vue")),
   actions: [
     { label: "JSON 转 YAML", primary: true, run: jsonToYaml },

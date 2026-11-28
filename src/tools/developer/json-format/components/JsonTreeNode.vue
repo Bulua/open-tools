@@ -88,19 +88,21 @@ const onClick = () => {
   display: flex;
   align-items: center;
   gap: 4px;
-  min-height: 24px;
+  min-height: 26px;
   padding-right: 8px;
   border-radius: 6px;
   font-family: var(--font-mono);
   font-size: 13px;
   white-space: nowrap;
   cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
 }
 .row:hover {
   background: var(--hover);
 }
 .row.selected {
   background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 .row.closing {
   cursor: default;
@@ -111,7 +113,7 @@ const onClick = () => {
 .caret {
   flex-shrink: 0;
   color: var(--text-3);
-  transition: transform 0.12s;
+  transition: transform var(--dur-fast) var(--ease-out);
 }
 .caret.open {
   transform: rotate(90deg);
@@ -132,9 +134,12 @@ const onClick = () => {
 }
 .summary {
   font-family: var(--font-sans);
-  font-size: 12px;
-  color: var(--text-3);
-  padding: 0 4px;
+  font-size: 11px;
+  color: var(--text-2);
+  padding: 0 6px;
+  margin: 0 2px;
+  border-radius: 4px;
+  background: var(--active);
 }
 .value {
   overflow: hidden;

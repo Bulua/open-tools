@@ -8,7 +8,6 @@ const tool: Tool = {
   desc: "美化、压缩、树形查看 JSON，实时校验并定位错误",
   icon: Braces,
   component: defineAsyncComponent(() => import("./JsonFormat.vue")),
-  sessions: true,
 };
 
 export default tool;

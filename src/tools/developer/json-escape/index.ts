@@ -10,7 +10,6 @@ const tool: Tool = {
   desc: "把日志里 {\\\"a\\\":1} 这种被转义的 JSON 还原，或反过来转义",
   icon: Quote,
   inputPlaceholder: '例如 {\\"name\\":\\"Open Tools\\"}',
-  sessions: true,
   component: defineAsyncComponent(() => import("./JsonEscape.vue")),
   actions: [
     {

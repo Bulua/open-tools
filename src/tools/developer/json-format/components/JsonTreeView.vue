@@ -51,19 +51,21 @@ defineExpose({
 .tree {
   flex: 1;
   overflow: auto;
-  padding: 2px 8px 10px;
+  padding: 8px 10px 12px;
 }
 .path {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 36px;
-  padding: 0 8px 0 16px;
+  min-height: 40px;
+  padding: 0 10px 0 14px;
+  background: var(--bg-sunken);
   border-top: 1px solid var(--border);
-  border-radius: 0 0 var(--radius) var(--radius);
 }
 .path-label {
+  flex-shrink: 0;
   font-size: 12px;
+  font-weight: 500;
   color: var(--text-3);
 }
 .path-hint {
@@ -73,6 +75,11 @@ defineExpose({
 .path code {
   flex: 1;
   min-width: 0;
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
   font-family: var(--font-mono);
   font-size: 12px;
   overflow: hidden;

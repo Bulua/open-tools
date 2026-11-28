@@ -56,15 +56,19 @@ const onCopy = async (item: CopyItem) => {
 .copy-list {
   list-style: none;
   margin: 0;
-  padding: 4px 8px 8px;
+  padding: 6px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 .row {
   display: flex;
   align-items: center;
   gap: 14px;
-  min-height: 36px;
-  padding: 4px 8px;
+  min-height: 38px;
+  padding: 6px 10px;
   border-radius: 8px;
+  transition: background var(--dur-fast) var(--ease-out);
 }
 .row:hover {
   background: var(--hover);
@@ -73,13 +77,16 @@ const onCopy = async (item: CopyItem) => {
   flex-shrink: 0;
   flex-grow: 0;
   font-size: 12px;
-  color: var(--text-3);
+  font-weight: 500;
+  color: var(--text-2);
 }
 code {
   flex: 1;
   min-width: 0;
   font-family: var(--font-mono);
   font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
   word-break: break-all;
   white-space: pre-wrap;
   user-select: text;
@@ -95,7 +102,8 @@ em {
   color: var(--text-3);
 }
 .icon-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: default;
+  pointer-events: none;
 }
 </style>

@@ -8,7 +8,6 @@ const tool: Tool = {
   desc: "对比两段 JSON，列出新增、删除和修改的字段",
   icon: GitCompare,
   component: defineAsyncComponent(() => import("./JsonDiff.vue")),
-  sessions: true,
 };
 
 export default tool;

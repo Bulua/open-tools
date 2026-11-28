@@ -8,7 +8,6 @@ const tool: Tool = {
   desc: "实时高亮匹配结果，查看分组，预览替换效果",
   icon: Regex,
   component: defineAsyncComponent(() => import("./RegexTester.vue")),
-  sessions: true,
 };
 
 export default tool;

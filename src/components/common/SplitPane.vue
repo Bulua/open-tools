@@ -85,6 +85,7 @@ const onKey = (e: KeyboardEvent) => {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
 .side {
@@ -98,11 +99,17 @@ const onKey = (e: KeyboardEvent) => {
 .right {
   flex: 1;
 }
-/* 拼在一起的面板：去掉各自的边框、圆角 */
-.side > :deep(.pane) {
+/* 拼在一起的面板：去掉各自的边框、圆角和阴影 */
+.side > :deep(.pane),
+.side > :deep(.card) {
   flex: 1;
   border: none;
   border-radius: 0;
+  box-shadow: none;
+}
+.side > :deep(.dropzone) {
+  flex: 1;
+  margin: 14px;
 }
 /* 分隔线：1px 细线，左右各有 4px 的拖动区域 */
 .divider {
@@ -127,7 +134,7 @@ const onKey = (e: KeyboardEvent) => {
   width: 3px;
   background: var(--accent);
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity var(--dur-fast) var(--ease-out);
 }
 .divider:hover::after,
 .divider:focus-visible::after,
@@ -147,6 +154,7 @@ const onKey = (e: KeyboardEvent) => {
     overflow: visible;
     border: none;
     background: none;
+    box-shadow: none;
   }
   .side,
   .left,
@@ -155,9 +163,14 @@ const onKey = (e: KeyboardEvent) => {
     width: 100%;
     min-height: 280px;
   }
-  .side > :deep(.pane) {
+  .side > :deep(.pane),
+  .side > :deep(.card) {
     border: 1px solid var(--border);
     border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+  }
+  .side > :deep(.dropzone) {
+    margin: 0;
   }
   .divider {
     display: none;
