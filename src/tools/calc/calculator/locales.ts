@@ -37,7 +37,26 @@ export default defineModuleLocales({
         "clearHistory": "清空历史",
         "useExpr": "使用这个算式",
         "useResult": "使用这个结果（右键复制）",
-        "historyEmpty": "按回车或「=」后，算式会记录在这里。点算式可以重新编辑，点结果可以插入到当前算式，右键结果可以复制。"
+        "historyEmpty": "按回车或「=」后，算式会记录在这里。点算式可以重新编辑，点结果可以插入到当前算式，右键结果可以复制。",
+        "tabSci": "科学函数",
+        "tabAdv": "进阶 · 统计",
+        "secondFn": "切换反函数 / 扩展函数（2nd）",
+        "memClear": "清除内存（MC）",
+        "memRecall": "读取内存（MR）",
+        "memAdd": "内存加当前结果（M+）",
+        "memSub": "内存减当前结果（M-）",
+        "memStore": "存入内存（MS）",
+        "memValue": "内存：{value}",
+        "ans": "插入上次计算结果",
+        "copyResult": "复制当前结果",
+        "kMod": "取余（mod）",
+        "kFloorDiv": "整除（向下取整）",
+        "kCube": "立方",
+        "kCbrt": "立方根",
+        "kExp": "自然指数 e^x",
+        "kLog2": "以 2 为底的对数",
+        "kSignToggle": "切换正负号",
+        "kComma": "参数分隔逗号（用于多参函数）"
       }
     },
     "en": {
@@ -61,7 +80,26 @@ export default defineModuleLocales({
         "clearHistory": "Clear history",
         "useExpr": "Use this expression",
         "useResult": "Use this result (right-click to copy)",
-        "historyEmpty": "Expressions are recorded here when you press Enter or “=”. Click an expression to edit it again, click a result to insert it, right-click a result to copy it."
+        "historyEmpty": "Expressions are recorded here when you press Enter or “=”. Click an expression to edit it again, click a result to insert it, right-click a result to copy it.",
+        "tabSci": "Scientific",
+        "tabAdv": "Advanced · Stats",
+        "secondFn": "Toggle inverse / secondary functions (2nd)",
+        "memClear": "Clear memory (MC)",
+        "memRecall": "Recall memory (MR)",
+        "memAdd": "Add current result to memory (M+)",
+        "memSub": "Subtract current result from memory (M-)",
+        "memStore": "Store current result in memory (MS)",
+        "memValue": "Memory: {value}",
+        "ans": "Insert previous answer",
+        "copyResult": "Copy current result",
+        "kMod": "Modulo (mod)",
+        "kFloorDiv": "Floor division (//)",
+        "kCube": "Cube",
+        "kCbrt": "Cube root",
+        "kExp": "Natural exponential e^x",
+        "kLog2": "Base-2 logarithm",
+        "kSignToggle": "Toggle sign",
+        "kComma": "Argument separator comma"
       }
     },
     "ja": {
@@ -85,7 +123,26 @@ export default defineModuleLocales({
         "clearHistory": "履歴をクリア",
         "useExpr": "この式を使う",
         "useResult": "この結果を使う（右クリックでコピー）",
-        "historyEmpty": "Enter または「=」を押すと式がここに記録されます。式をクリックで再編集、結果をクリックで現在の式に挿入、結果を右クリックでコピーできます。"
+        "historyEmpty": "Enter または「=」を押すと式がここに記録されます。式をクリックで再編集、結果をクリックで現在の式に挿入、結果を右クリックでコピーできます。",
+        "tabSci": "関数電卓",
+        "tabAdv": "拡張・統計",
+        "secondFn": "逆関数・拡張関数を切り替え（2nd）",
+        "memClear": "メモリをクリア（MC）",
+        "memRecall": "メモリを呼び出す（MR）",
+        "memAdd": "現在の結果をメモリに加算（M+）",
+        "memSub": "現在の結果をメモリから減算（M-）",
+        "memStore": "現在の結果をメモリに保存（MS）",
+        "memValue": "メモリ：{value}",
+        "ans": "前回の答えを挿入",
+        "copyResult": "現在の結果をコピー",
+        "kMod": "剰余（mod）",
+        "kFloorDiv": "切り捨て除算（//）",
+        "kCube": "3 乗",
+        "kCbrt": "立方根",
+        "kExp": "自然指数 e^x",
+        "kLog2": "底 2 の対数",
+        "kSignToggle": "符号を切り替え",
+        "kComma": "複数引数の区切りカンマ"
       }
     }
   }

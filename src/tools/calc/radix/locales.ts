@@ -28,7 +28,16 @@ export default defineModuleLocales({
         "value": "数值",
         "radixHint": "修改任意一行，其他进制自动换算",
         "chooseBase": "选择进制",
-        "copy": "复制"
+        "copy": "复制",
+        "radixOptions": "选项",
+        "uppercaseHex": "十六进制大写（A-F）",
+        "quickOps": "快捷运算",
+        "bitBoard": "二进制位面板（点击翻转）",
+        "bitBoardHint": "支持 64 位以内的非负整数",
+        "radixHistory": "换算记录",
+        "clearRadixHistory": "清空记录",
+        "radixHistoryEmpty": "输入数值后会自动记录在这里，点击可恢复",
+        "clearRadix": "清空"
       }
     },
     "en": {
@@ -43,7 +52,16 @@ export default defineModuleLocales({
         "value": "Value",
         "radixHint": "Edit any row and the others update automatically",
         "chooseBase": "Choose a base",
-        "copy": "Copy"
+        "copy": "Copy",
+        "radixOptions": "Options",
+        "uppercaseHex": "Uppercase hex (A-F)",
+        "quickOps": "Quick ops",
+        "bitBoard": "Binary bits (click to toggle)",
+        "bitBoardHint": "Supports non-negative integers up to 64 bits",
+        "radixHistory": "History",
+        "clearRadixHistory": "Clear history",
+        "radixHistoryEmpty": "Converted values appear here. Click to restore.",
+        "clearRadix": "Clear"
       }
     },
     "ja": {
@@ -58,7 +76,16 @@ export default defineModuleLocales({
         "value": "数値",
         "radixHint": "どの行を編集しても他の進数が自動で換算されます",
         "chooseBase": "進数を選択",
-        "copy": "コピー"
+        "copy": "コピー",
+        "radixOptions": "オプション",
+        "uppercaseHex": "16 進数を大文字（A-F）",
+        "quickOps": "クイック演算",
+        "bitBoard": "ビットパネル（クリックで反転）",
+        "bitBoardHint": "64 ビット以下の非負整数に対応",
+        "radixHistory": "履歴",
+        "clearRadixHistory": "履歴をクリア",
+        "radixHistoryEmpty": "換算した数値がここに記録され、クリックで復元できます",
+        "clearRadix": "クリア"
       }
     }
   }
