@@ -103,8 +103,3 @@ export function appendMessage(messages: Message[], message: Message): Message[] 
   while (bytes > MAX_LOG_BYTES && next.length > 1) bytes -= next.shift()!.bytes;
   return next;
 }
-
-export function displayPayload(payload: string, json: boolean): string {
-  if (json) { try { return JSON.stringify(JSON.parse(payload), null, 2); } catch { /* 非 JSON 消息保留原文。 */ } }
-  return payload;
-}

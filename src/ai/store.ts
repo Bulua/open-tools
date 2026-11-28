@@ -905,18 +905,6 @@ export async function deleteMessage(messageId: string): Promise<void> {
   }
 }
 
-export async function clearConversationMessages(): Promise<void> {
-  const conv = activeConversation.value;
-  if (!conv || streamingIds[conv.id]) return;
-  conv.messages = [];
-  conv.updatedAt = formatNowDateTime();
-  try {
-    conversations.value = await aiApi.clearMessages(conv.id);
-  } catch (error) {
-    showError(error);
-  }
-}
-
 export function useAiStore() {
   return {
     config,
@@ -962,7 +950,6 @@ export function useAiStore() {
     regenerateMessage,
     editAndResendMessage,
     deleteMessage,
-    clearConversationMessages,
     isConversationStreaming,
   };
 }

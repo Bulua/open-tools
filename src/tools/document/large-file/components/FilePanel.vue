@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, ref, toRef, watch } from "vue";
 import type { ChangeSet } from "@codemirror/state";
 import { useI18n } from "vue-i18n";
-import { Save, X, Undo2, Redo2, Search, Hash, Info, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, FileText, Square } from "lucide-vue-next";
+import { Save, X, Undo2, Redo2, Search, Hash, Info, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Square } from "lucide-vue-next";
 import AppSelect from "@/components/common/AppSelect.vue";
 import { formatBytes } from "@/utils/format";
 import { showError, showNotice } from "@/utils/errorToast";

@@ -43,7 +43,6 @@ interface Item {
 }
 const items = shallowRef<Item[]>([]);
 let nextId = 1;
-const dropZone = ref<InstanceType<typeof FileDropZone>>();
 
 const addFiles = async (files: File[]) => {
   const loaded: Item[] = [];
@@ -603,7 +602,6 @@ const toNumber = (e: Event, max: number) => Math.min(max, Math.max(0, Math.round
     <section class="card main">
       <FileDropZone
         v-if="!items.length"
-        ref="dropZone"
         class="drop"
         accept="image/*"
         multiple
@@ -661,7 +659,7 @@ const toNumber = (e: Event, max: number) => Math.min(max, Math.max(0, Math.round
               <button v-if="direction !== 'free'" :title="t('image.moveBack')" :disabled="i === items.length - 1" @click="move(i, 1)"><ChevronRight :size="12" /></button>
             </div>
           </figure>
-          <FileDropZone ref="dropZone" compact class="add" accept="image/*" multiple title="" :aria-label="t('image.addImages')" @files="addFiles" />
+          <FileDropZone compact class="add" accept="image/*" multiple title="" :aria-label="t('image.addImages')" @files="addFiles" />
         </div>
       </template>
     </section>

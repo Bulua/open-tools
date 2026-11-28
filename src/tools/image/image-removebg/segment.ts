@@ -37,11 +37,3 @@ export async function segment(image: CanvasImageSource, width: number, height: n
   for (let i = 0; i < alpha.length; i++) alpha[i] = data[i * 4];
   return alpha;
 }
-
-/** 把蒙版应用到原图像素：蒙版作为透明度 */
-export function applyMask(rgba: Uint8ClampedArray, alpha: Uint8ClampedArray): Uint8ClampedArray<ArrayBuffer> {
-  const out = new Uint8ClampedArray(rgba.length);
-  out.set(rgba);
-  for (let i = 0; i < alpha.length; i++) out[i * 4 + 3] = Math.round((rgba[i * 4 + 3] * alpha[i]) / 255);
-  return out;
-}

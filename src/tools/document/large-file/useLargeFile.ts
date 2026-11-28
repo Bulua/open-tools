@@ -51,7 +51,6 @@ async function closeFiles(controllers: TextController[], fallbackKey?: number): 
     return true;
   } catch (e) { showError(e); return false; } finally { confirming.value = false; }
 }
-export const closeFile = (controller: TextController) => closeFiles([controller]);
 export const closeAllFiles = () => closeFiles(textWorkspace.tabs.map((tab) => tab.controller));
 /** 左右以打开菜单的标签为基准，不包含该标签本身。 */
 export const closeTabGroup = (key: number, scope: TabCloseScope) =>

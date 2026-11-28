@@ -159,50 +159,6 @@ export type Rgb = [number, number, number];
 
 const MAX_DISTANCE = Math.sqrt(3 * 255 * 255);
 
-/**
- * 统计四条边上的颜色，返回最主要的几种作为背景色（从多到少）。
- * 相近的颜色会合并；占边缘像素不到 5% 的颜色忽略（多半是主体碰到了边缘）。
- */
-export function detectBackgroundColors(data: Uint8ClampedArray, width: number, height: number, max = 3): Rgb[] {
-  const buckets = new Map<number, { r: number; g: number; b: number; n: number }>();
-  const add = (x: number, y: number) => {
-    const i = (y * width + x) * 4;
-    const [r, g, b] = [data[i], data[i + 1], data[i + 2]];
-    const key = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
-    const bucket = buckets.get(key) ?? { r: 0, g: 0, b: 0, n: 0 };
-    bucket.r += r;
-    bucket.g += g;
-    bucket.b += b;
-    bucket.n++;
-    buckets.set(key, bucket);
-  };
-  for (let x = 0; x < width; x++) {
-    add(x, 0);
-    add(x, height - 1);
-  }
-  for (let y = 0; y < height; y++) {
-    add(0, y);
-    add(width - 1, y);
-  }
-  const total = (width + height) * 2;
-  const picked: { r: number; g: number; b: number; n: number }[] = [];
-  for (const bucket of [...buckets.values()].sort((a, b) => b.n - a.n)) {
-    const c = { r: bucket.r / bucket.n, g: bucket.g / bucket.n, b: bucket.b / bucket.n, n: bucket.n };
-    const near = picked.find((p) => Math.hypot(p.r - c.r, p.g - c.g, p.b - c.b) < 40);
-    if (near) near.n += c.n;
-    else picked.push(c);
-  }
-  const result = picked
-    .sort((a, b) => b.n - a.n)
-    .filter((c, i) => i === 0 || c.n / total >= 0.05)
-    .slice(0, max);
-  return result.map((c) => [Math.round(c.r), Math.round(c.g), Math.round(c.b)] as Rgb);
-}
-
-/** 边缘最主要的一种颜色 */
-export const detectBackgroundColor = (data: Uint8ClampedArray, width: number, height: number): Rgb =>
-  detectBackgroundColors(data, width, height, 1)[0];
-
 export interface RemoveBackgroundOptions {
   /** 背景色，可以有多种；像素与其中任意一种接近就视为背景 */
   colors: Rgb[];

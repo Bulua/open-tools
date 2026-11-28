@@ -4,7 +4,6 @@
 import { i18n, locale, LOCALES, t, type Locale } from "@/locales";
 import type { CountdownItem, Repeat } from "@/types/clock";
 import { parseDateTimeMillis } from "@/utils/datetime";
-import type { AlarmSchedule } from "./alarm";
 
 export type { CountdownItem, Repeat };
 
@@ -12,15 +11,6 @@ export type { CountdownItem, Repeat };
 const translateIn = (i18n.global as unknown as {
   t: (key: string, named: Record<string, unknown>, options: { locale: Locale }) => string;
 }).t;
-
-/** 重复方式，名称见文案 utility.repeatNone 等 */
-export const REPEATS: { value: Repeat; label: string }[] = [
-  { value: "none", label: "repeatNone" },
-  { value: "daily", label: "repeatDaily" },
-  { value: "weekly", label: "repeatWeekly" },
-  { value: "monthly", label: "repeatMonthly" },
-  { value: "yearly", label: "repeatYearly" },
-];
 
 export interface Remaining {
   total: number;
