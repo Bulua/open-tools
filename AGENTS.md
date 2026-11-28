@@ -28,7 +28,11 @@ npm run build      # 前端构建
 - **界面效果由用户自己验证**：改完界面不要用浏览器面板去截图检查，告诉用户改了什么、在哪里看即可。
 - **Rust 验证**：Windows 专用代码需要在 Windows 环境运行 `cargo test --locked --manifest-path src-tauri/Cargo.toml`，可由 GitHub Actions 验证。改 Rust 前先跟用户说明改法；Rust 改动尽量单独一个提交，编译出错时容易单独修。
 - **换行符**：仓库统一 LF（见 `.gitattributes`），在 Windows 上编辑时不要引入 CRLF 差异。
-- **数据和 AI 模型**：程序数据的位置统一用 `src-tauri/src/core/paths.rs`（Windows 上是安装目录下的 `data`）；AI 模型在 Rust 里推理。Windows 安装包附带运行库，模型按需下载。详见 [数据存放与 AI 模型](docs/development/STORAGE.md)。
+- **数据和 AI 模型**：程序数据的位置统一用 `src-tauri/src/core/paths.rs`（Windows 上是安装目录下的 `data`）；结构化本地数据统一存放在 `data/open-tools.db`（由 `src-tauri/src/core/db/` 维护，雪花 ID 统一由 `core/id.rs` 生成，时间字符串统一使用 `YYYY-MM-DD HH:MM:SS` 本地时间格式）；AI 模型在 Rust 里推理。Windows 安装包附带运行库，模型按需下载。详见 [数据存放与 AI 模型](docs/development/STORAGE.md)。
+- **前后端通信（API 与类型）**：
+  - 前后端共享 DTO 类型统一写在 `src/types/<模块>/` 并在 `src/types/index.ts` 汇总导出。
+  - 前端所有与 Rust 后端的 IPC 调用、流式 Channel 与事件订阅统一收口在 `src/api/<模块>/`（经由 `src/api/common/request.ts` 的 `executeGeneratedCommand` / `requestBackend` / `requestBackendStream` / `subscribeBackendEvent` 与 `unwrapApiResponse`），禁止在页面、组件或工具逻辑中直接调用 `@tauri-apps/api/core` 的 `invoke`、`Channel` 或 `@tauri-apps/api/event` 的 `listen`。
+  - Rust 命令统一放在所属模块的 `commands.rs` 并返回 `ApiResult<T>`（`{ code, msg, data }`，见 `src-tauri/src/core/error.rs`）；大块二进制数据传输保留 `Result<Response, AppError>`（或不可失败的 `Response`）。
 - **样式**：颜色只用 `src/styles/theme.css` 里的 CSS 变量（深色模式自动适配）；按钮、分段选择、复选框等用 `src/styles/controls.css` 里的公共类。
 
 ## 前端交互
@@ -45,7 +49,7 @@ npm run build      # 前端构建
 
 - 与前端一样按领域和工具组织：`src-tauri/src/tools/<模块>/<工具ID>/`，工具 ID 中的短横线改为下划线，例如 `clipboard_history`。只为需要原生能力的工具建目录。
 - `mod.rs` 只声明模块；工具命令放 `commands.rs`。专用脚本与工具放在一起，复杂工具再按状态、系统 API、存储等职责拆文件。
-- 多工具共用的实现放领域模块 `shared/`；全应用基础能力放 `core/`，`core/` 不依赖具体工具。统一命令注册仍在 `src-tauri/src/lib.rs`。
+- 多工具共用的实现放领域模块 `shared/`；全应用基础能力放 `core/`（含 `core/db/` SQLite 基座、`core/error.rs` 统一响应体、`core/id.rs` 雪花 ID 等），`core/` 不依赖具体工具。统一命令注册仍在 `src-tauri/src/lib.rs`。
 - 目录重构保持 IPC 命令名、参数、返回字段、事件名和数据文件位置稳定；Windows 专用模块继续使用 `#[cfg(windows)]` 限定。
 
 ## 多语言（改界面时必看）

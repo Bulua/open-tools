@@ -4,22 +4,22 @@
 
 应用通过 [core/paths.rs](../../src-tauri/src/core/paths.rs) 的 `data_dir()` 和 `sub_dir()` 统一定位文件。Windows 优先使用 EXE 所在目录下的 `data`，目录不可写时使用 `%LOCALAPPDATA%\com.opentools.app`。直接从调试或发布目录运行 EXE 也适用这套规则，清理构建目录前应先保留其中的用户数据。
 
-启动时，`paths::migrate()` 会搬迁旧版密码本、模型和远程图标。目标已有同名文件时保留旧文件，避免覆盖现有数据。时钟在尚无 `countdowns.json` 时读取旧版 WebView2 的 `countdowns` 并写入文件。
+启动时，`paths::migrate()` 会搬迁旧版密码本、模型和远程图标；[core/db/mod.rs](../../src-tauri/src/core/db/mod.rs) 会打开统一数据库 `open-tools.db` 并执行幂等表迁移，首次初始化时也会无损导入旧版文件数据。结构化主键采用 [core/id.rs](../../src-tauri/src/core/id.rs) 生成的雪花 ID，时间字段统一使用 `YYYY-MM-DD HH:MM:SS` 本地时间字符串。
 
-| 数据 | 相对于应用数据目录的位置 | 保存方式 |
-| --- | --- | --- |
-| 密码本 | `vault.dat`、`vault.dat.bak` | 前端用主密码派生密钥并以 AES-256-GCM 加密，Rust 写入密文并保留上一版 |
-| 笔记本 | `notebook/index.json`、`notebook/notes/` | JSON 索引、独立 Markdown 正文；图片存于正文同目录的 `assets/`，正文使用相对引用 |
-| 剪贴板历史 | `clipboard/history.dat` | 文本、时间及采集设置由当前 Windows 用户的 DPAPI 加密 |
-| 截图与贴图 | `screenshots/<日期>/<小时>/` | 每张截图保存为 PNG |
-| 时钟 | `countdowns.json` | 闹钟、计时器和旧版提醒 |
-| 日历 | `calendar-notes.json` | 按日期保存备注和提醒事项 |
-| MCP 工具查看器 | `mcp-connections.dat` | 连接配置由当前 Windows 用户的 DPAPI 加密 |
-| AI 工作台 | `ai/config.dat`、`ai/conversations/` | 模型提供商与 API Key 由当前 Windows 用户的 DPAPI 加密；会话索引与单条历史独立存为 JSON |
-| B 站、抖音、小红书与 X 下载 | `videos/bilibili/`、`videos/douyin/`、`videos/xhs/`、`videos/x/` | 保存下载成品，播放器经 Tauri asset 协议读取 |
-| AI 模型与补下载的运行库 | `models/`、`runtime/<版本>/` | 按需下载并校验的文件 |
-| 远程图标 | `branding/` | 图标及当前图标记录 |
-| 大文件编辑器 | `large-text/` | 临时编辑片段，正常关闭会话时清理 |
+| 数据 | 存储位置与方式 |
+| --- | --- |
+| AI 工作台 | `open-tools.db`（模型配置、API Key 由 DPAPI 加密存储，以及文件夹、会话、消息、审批策略等表）；附件与工作区文件位于 `ai/` |
+| MCP 工具查看器 | `open-tools.db`（连接配置由当前 Windows 用户的 DPAPI 加密后入库） |
+| 剪贴板历史 | `open-tools.db`（历史记录与采集设置，敏感内容由 DPAPI 加密） |
+| 时钟 | `open-tools.db`（闹钟与计时器表） |
+| 日历 | `open-tools.db`（备注和提醒事项表） |
+| 密码本 | `vault.dat`、`vault.dat.bak`（前端主密码派生密钥并以 AES-256-GCM 加密，Rust 写入密文并保留上一版） |
+| 笔记本 | `notebook/index.json`、`notebook/notes/`（JSON 索引、独立 Markdown 正文；图片存于正文同目录 `assets/`，正文使用相对引用） |
+| 截图与贴图 | `screenshots/<日期>/<小时>/`（每张截图保存为 PNG，按目录扫描展示） |
+| B 站、抖音、小红书、微博与 X 下载 | `videos/bilibili/`、`videos/douyin/`、`videos/xhs/`、`videos/weibo/`、`videos/x/`（保存下载成品，播放器经 Tauri asset 协议读取） |
+| AI 模型与补下载的运行库 | `models/`、`runtime/<版本>/`（按需下载并校验的文件） |
+| 远程图标 | `branding/`（图标及当前图标记录） |
+| 大文件编辑器 | `large-text/`（临时编辑片段，正常关闭会话时清理） |
 
 普通工具导出时由「另存为」对话框选择目标。视频下载工具使用 [downloadStorage.ts](../../src/tools/video/shared/downloadStorage.ts)，Rust 为对应平台目录开放写入与本地播放权限。
 

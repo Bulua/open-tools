@@ -8,6 +8,12 @@ open-tools/
 ├── scripts/                 # 发布脚本：同步版本到 Gitee
 ├── src/                     # 前端代码，界面全部在这里
 │   ├── main.ts              # 入口
+│   ├── ai/                  # AI 助手工作台页面、状态管理、附件与提示词预设
+│   ├── api/                 # 统一后端 IPC 接口层（按模块拆分，经 common/request.ts 收口）
+│   │   ├── common/          # 请求封装、错误归一化与响应解包
+│   │   ├── generated/       # tauri-specta 自动生成的强类型命令绑定
+│   │   └── <模块>/          # 各模块后端命令与事件订阅封装
+│   ├── types/               # 全应用共享的前后端 DTO 与领域类型（按模块拆分并统一导出）
 │   ├── locales/             # 多语言：vue-i18n 初始化、各语言的公共文案（zh-CN.ts、en.ts、ja.ts）、工具列表的翻译
 │   ├── App.vue              # 整体布局：顶栏 + 侧栏 + 工具区；记住上次打开的工具
 │   ├── styles/
@@ -70,8 +76,9 @@ open-tools/
 │   ├── capabilities/        # 前端可调用的系统能力（权限白名单）
 │   ├── icons/               # 应用图标（由 app-icon.png 生成）
 │   └── src/                 # Rust 入口与插件注册
-│       ├── core/            # 全应用基础能力：路径、进程输出、脚本、托盘、图标
+│       ├── core/            # 全应用基础能力：db（SQLite）、error（统一 ApiResult）、id（雪花 ID）、路径、进程输出、脚本、托盘、图标、通知
 │       └── tools/           # 只为需要原生能力的工具建立目录
+│           ├── ai/                      # AI 工作台命令、多模型流式引擎、工具注册表与 SQLite 存储
 │           ├── audio/
 │           │   └── tts/                 # commands.rs、tts.ps1
 │           ├── document/
@@ -107,12 +114,13 @@ open-tools/
 - 多个工具共用的实现放模块 `shared/`；全应用通用的组件、组合函数、函数分别放 `src/components/`、`src/composables/`、`src/utils/`。工具之间不直接依赖对方私有文件。
 - 压缩与格式转换、屏幕与摄像头录制等工具各有独立 Vue 入口，通过固定参数复用 `shared/components/` 的页面，避免复制实现。
 - 逻辑测试用 `*.test.ts`；组件测试用 `*.component.test.ts`，与被测文件放在一起，避免 Windows 下仅大小写不同的文件名冲突。
+- **接口与类型边界**：前后端共享类型统一放在 `src/types/<模块>/`；前端所有 `invoke`、`Channel`、`listen` 调用统一收口在 `src/api/<模块>/`，通过 `src/api/common/request.ts` 处理桌面运行时检查、响应解包和错误归一化，工具页面与组件不再直调 Tauri IPC。
 - 翻译加载器自动收集 `src/tools/*/*/locales.ts`，递归合并同一命名空间中的文案，原有 key 保持稳定。
 
 ## Rust 工具目录约定
 
 - Rust 工具按 `src-tauri/src/tools/<模块>/<工具ID>/` 组织，与前端对应。模块名尽量一致；Rust 目录使用下划线，例如前端 `clipboard-history` 对应 Rust `clipboard_history`。
-- 只有需要原生能力的工具才建立 Rust 目录。`mod.rs` 只声明模块；前端调用入口放 `commands.rs`。简单工具可将内部辅助逻辑保留在该文件，复杂工具再拆分职责。
+- 只有需要原生能力的工具才建立 Rust 目录。`mod.rs` 只声明模块；前端调用入口放 `commands.rs`，JSON 命令统一返回 `ApiResult<T>`（`{ code, msg, data }`），二进制流式传输保留 `Result<Response, AppError>`（或 `Response`）。简单工具可将内部辅助逻辑保留在该文件，复杂工具再拆分职责。
 - 专用 PowerShell / JavaScript 脚本与所属工具一起存放，通过同目录的 `include_str!` 嵌入。多个工具共用的能力放领域模块 `shared/`，全应用基础能力放 `core/`。
 - 截图工具的 `commands.rs` 协调命令，`capture.rs` 负责 Windows 捕获，`clipboard.rs` 负责复制图片，`windows.rs` 管理截图层与贴图窗口，`state.rs` 管理草稿与并发状态，`store.rs` 管理历史文件，`types.rs` 定义序列化数据。
 - `core/` 不依赖具体工具的实现。托盘的工具动作由 `lib.rs` 注入回调；外部进程输出解码在 `core/process.rs`，供脚本执行和 Ping 共用；数据路径继续统一使用 `core/paths.rs`。
