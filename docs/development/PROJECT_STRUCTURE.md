@@ -48,11 +48,11 @@ open-tools/
 │   │       ├── FileDropZone.vue    # 文件拖放 / 选择 / 粘贴
 │   │       ├── EmptyState.vue
 │   │       └── CommandPalette.vue  # Ctrl+K 全局搜索
-│   └── tools/               # 模块 / 工具 ID 两级目录
-│       ├── index.ts         # 汇总工具，按用途配置展示分类
+│   └── tools/               # 与界面 9 个分类一一对应的两级目录
+│       ├── index.ts         # 汇总 9 个分类，统一排序与导出
 │       ├── types.ts         # Tool / Category 类型定义
-│       ├── json/
-│       │   ├── index.ts     # 只聚合本模块工具
+│       ├── developer/
+│       │   ├── index.ts     # 只聚合本分类工具
 │       │   ├── json-diff/
 │       │   │   ├── index.ts       # 工具注册，默认导出 Tool
 │       │   │   ├── JsonDiff.vue   # 工具页面
@@ -64,11 +64,16 @@ open-tools/
 │       │   │   ├── JsonFormat.vue
 │       │   │   ├── locales.ts
 │       │   │   └── components/    # 仅该工具使用的子组件
-│       │   └── shared/            # 多个 JSON 工具复用的解析、格式化和文案
-│       ├── encode/
-│       ├── convert/
-│       └── image/
-│           └── screenshot-history/ # 截图工具的逻辑、测试、页面与多窗口子组件
+│       │   └── shared/            # 同分类工具复用的解析、格式化与文案
+│       ├── daily/
+│       │   └── screenshot-history/ # 截图工具的逻辑、测试、页面与多窗口子组件
+│       ├── time/
+│       ├── calc/
+│       ├── image/
+│       ├── audio/
+│       ├── video/
+│       ├── document/
+│       └── network/
 ├── src-tauri/               # Tauri 原生端（Rust），Windows 原生能力
 │   ├── tauri.conf.json      # 窗口、应用名、更新配置（版本号读取 package.json）
 │   ├── tauri.release.conf.json  # 发布版本时额外启用的配置（生成更新文件）
@@ -81,6 +86,16 @@ open-tools/
 │           ├── ai/                      # AI 工作台命令、多模型流式引擎、工具注册表与 SQLite 存储
 │           ├── audio/
 │           │   └── tts/                 # commands.rs、tts.ps1
+│           ├── calc/
+│           │   └── calculator/          # 计算器历史存储与内置 AI 工具
+│           ├── daily/
+│           │   ├── clipboard_history/   # 命令协调、Windows API、SQLite 存储
+│           │   ├── id_card/             # 身份证解析历史加密存储
+│           │   ├── notebook/            # 笔记本索引、正文与资源文件读写
+│           │   ├── password_vault/      # 密码本文件读写
+│           │   └── screenshot_history/  # 截图命令、捕获、窗口、剪贴板、状态与存储
+│           ├── developer/
+│           │   └── mcp_inspector/       # MCP 会话管理、stdio/HTTP 连接与配置存储
 │           ├── document/
 │           │   ├── large_file/          # 大文件分块读写、编码与稀疏行索引
 │           │   ├── pdf_content_editor/  # 系统字体枚举与 sfnt 重建
@@ -88,23 +103,14 @@ open-tools/
 │           │   ├── shared/              # Office 引擎检测与通用转换流程
 │           │   ├── word_to_markdown/    # DOCX 解析、表格/公式/图片转换
 │           │   └── word_to_pdf/         # Office 转 PDF 命令与脚本
-│           ├── encode/
-│           │   ├── clipboard_history/   # 命令协调、Windows API、SQLite 存储
-│           │   ├── id_card/             # 身份证解析历史加密存储
-│           │   └── password_vault/      # 密码本文件读写
 │           ├── image/
-│           │   ├── screenshot_history/  # 截图命令、捕获、窗口、剪贴板、状态与存储
 │           │   └── shared/              # AI 模型管理、ONNX 推理
-│           ├── markdown/
-│           │   └── notebook/            # 笔记本索引、正文与资源文件读写
 │           ├── network/
 │           │   ├── http_client/         # HTTP 请求发送与请求历史存储
 │           │   ├── ip_lookup/           # 本机局域网 IP
-│           │   ├── mcp_inspector/       # MCP 会话管理、stdio/HTTP 连接与配置存储
 │           │   ├── mqtt_client/         # MQTT TCP/TLS、WebSocket 连接、订阅与工作区存储
 │           │   └── ping/                # 系统 Ping
-│           ├── utility/
-│           │   ├── calculator/          # 计算器历史存储与内置 AI 工具
+│           ├── time/
 │           │   ├── calendar/            # 日历备注与通知
 │           │   └── clock/               # 时钟提醒读写与内置 AI 工具
 │           └── video/

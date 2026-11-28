@@ -8,6 +8,6 @@
 
 程序运行时检查闹钟和计时器。到期时显示全局提醒、播放提示音，并尝试发送 Windows 系统通知。关闭程序期间到期的提醒在下次启动时补发一次。重复闹钟随后排到下一次选中时刻。桌面通知失败不会中断应用内提醒或重复排期。
 
-前端代码在 `src/tools/utility/clock/`，原生读写在 `src-tauri/src/tools/utility/clock/`。闹钟和计时器保存在统一数据库 `data/open-tools.db` 的 `clock_items` 表中，首次启动可自动从旧版 `countdowns.json` 或 WebView2 的 `countdowns` 无损迁移，详见 [数据存放](../development/STORAGE.md)。旧版提醒保留显示和删除入口；收藏、最近使用、分类选择自动从旧工具 ID 迁移到 `clock`。
+前端代码在 `src/tools/time/clock/`，原生读写在 `src-tauri/src/tools/time/clock/`。闹钟和计时器保存在统一数据库 `data/open-tools.db` 的 `clock_items` 表中，首次启动可自动从旧版 `countdowns.json` 或 WebView2 的 `countdowns` 无损迁移，详见 [数据存放](../development/STORAGE.md)。旧版提醒保留显示和删除入口；收藏、最近使用、分类选择自动从旧工具 ID 迁移到 `clock`。
 
 [返回开发指南](../DEVELOPMENT.md)

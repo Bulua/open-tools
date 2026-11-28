@@ -5,7 +5,7 @@
 ## 项目概况
 
 - Open Tools 使用 Vue 3 + TypeScript + Vite 编写界面，由 Tauri 2 提供原生能力。项目仅面向 Windows，使用 WebView2，发布 NSIS 安装包并支持在线更新。
-- 界面按 9 个分类组织工具。每个工具独立放在 `src/tools/<模块>/<工具ID>/`，工具定义在该目录的 `index.ts`，模块 `index.ts` 只聚合工具，分类在 `src/tools/index.ts` 的 `categories` 里按工具 id 挑选。
+- 界面按 9 个分类组织工具。每个工具独立放在 `src/tools/<分类>/<工具ID>/`，工具定义在该目录的 `index.ts`，分类模块 `index.ts` 只聚合本分类工具，`src/tools/index.ts` 与这 9 个分类目录一一对应。
 - 界面支持简体中文、English、日本語（vue-i18n），默认跟随系统语言。
 - 自动更新：GitHub Releases 和 Gitee（`updater` 分支）各放一份 `latest.json`，程序优先读 Gitee。
 

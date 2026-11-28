@@ -4,13 +4,13 @@
 
 ## 新增一个工具
 
-工具定义放在 `src/tools/<模块>/<工具ID>/index.ts`，模块 `index.ts` 只负责导入并汇总工具，界面分类由 `src/tools/index.ts` 统一注册。
+工具定义放在 `src/tools/<分类>/<工具ID>/index.ts`，分类模块 `index.ts` 只负责导入并汇总工具，`src/tools/index.ts` 与界面 9 个分类保持一一对应。
 
 工具界面有两种写法。
 
 ### 简单的文本转换
 
-「输入 → 点按钮 → 输出」可复用 `src/components/tool/TextTransform.vue`。工具目录仍需提供独立 Vue 入口（参考 `src/tools/json/json-escape/`），函数写在该工具的 TS 文件中，`actions` 保留按钮元数据和转换函数：
+「输入 → 点按钮 → 输出」可复用 `src/components/tool/TextTransform.vue`。工具目录仍需提供独立 Vue 入口（参考 `src/tools/developer/json-escape/`），函数写在该工具的 TS 文件中，`actions` 保留按钮元数据和转换函数：
 
 ```ts
 {
@@ -26,7 +26,7 @@
 
 ### 自定义界面
 
-在工具目录中写 Vue 页面（如 `src/tools/json/json-diff/JsonDiff.vue`），然后在同目录的 `index.ts` 定义工具：
+在工具目录中写 Vue 页面（如 `src/tools/developer/json-diff/JsonDiff.vue`），然后在同目录的 `index.ts` 定义工具：
 
 ```ts
 {
@@ -80,10 +80,10 @@ const sort = ref(false);
 
 ## 分类与排序
 
-工具代码按 `src/tools/<模块>/<工具ID>/` 组织，目录名与工具 ID 一致，顶部显示的分类则按用途在 `src/tools/index.ts` 的 `categories` 中用工具 id 挑选，两者可以不同（例如「时间」分类包含来自 `convert/` 和 `utility/` 的工具）。
+工具代码按 `src/tools/<分类>/<工具ID>/` 组织，与顶部分类在 `src/tools/index.ts` 中保持一一对应。
 
-- 新增工具：在工具目录的 `index.ts` 定义，从模块 `index.ts` 聚合，再把 id 加到 `categories` 的某个分类中。测试会检查每个工具都恰好出现在一个分类里。
-- 新增分类：在 `categories` 数组里加一项，数组顺序就是顶部分类的顺序。
+- 新增工具：在对应分类的工具目录 `index.ts` 定义，从该分类的 `index.ts` 聚合导出。测试会检查每个工具都恰好出现在一个分类里。
+- 新增分类：新建 `src/tools/<分类ID>/index.ts` 并在 `src/tools/index.ts` 中加入一项，数组顺序就是顶部分类的顺序。
 - 分类内的工具自动按名称排序（中文按拼音、英文按字母，按首字母混排），定义时的顺序不影响显示。英文和日文界面按对应语言的排序规则排列。
 - 新增分类时，在 `src/locales/tools.ts` 的 `CATEGORY_NAMES` 里写上分类在各语言的名称。
 
