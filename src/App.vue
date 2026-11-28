@@ -16,13 +16,13 @@ import UpdateDialog from "@/components/layout/UpdateDialog.vue";
 import { useUpdater } from "@/composables/useUpdater";
 import ClockAlerts from "@/components/layout/ClockAlerts.vue";
 import AppToast from "@/components/layout/AppToast.vue";
-import { startCountdownTicker } from "@/tools/utility/clock/clockStore";
-import { startCalendarReminders } from "@/tools/utility/calendar/calendarStore";
+import { startCountdownTicker } from "@/tools/time/clock/clockStore";
+import { startCalendarReminders } from "@/tools/time/calendar/calendarStore";
 import { startBrandingSync } from "@/utils/branding";
 import { categories as allCategories } from "@/tools";
 import { restoreCategorySelection } from "@/tools/categorySelection";
-import { registerScreenshotShortcut } from "@/tools/image/screenshot-history/screenshot";
-import { registerClipboardShortcut } from "@/tools/encode/clipboard-history/clipboardHistory";
+import { registerScreenshotShortcut } from "@/tools/daily/screenshot-history/screenshot";
+import { registerClipboardShortcut } from "@/tools/daily/clipboard-history/clipboardHistory";
 import { showError } from "@/utils/errorToast";
 
 const { t } = useI18n();

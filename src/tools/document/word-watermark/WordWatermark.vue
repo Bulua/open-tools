@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { fontLabel } from "@/tools/markdown/shared/markdown";
+import { fontLabel } from "../shared/markdown";
 import AppSelect from "@/components/common/AppSelect.vue";
 import { Download, FileText, Plus, X } from "lucide-vue-next";
 import ColorPicker from "@/components/common/ColorPicker.vue";

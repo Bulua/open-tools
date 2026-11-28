@@ -1,5 +1,4 @@
 import type { Category } from "../types";
-import screenshotHistory from "./screenshot-history";
 import imageCompress from "./image-compress";
 import imageConvert from "./image-convert";
 import imageCrop from "./image-crop";
@@ -11,13 +10,29 @@ import imageWatermark from "./image-watermark";
 import imageRemovebg from "./image-removebg";
 import imageInpaint from "./image-inpaint";
 import imageColor from "./image-color";
+import color from "./color";
 import imageDpi from "./image-dpi";
 import ico from "./ico";
 
 const image: Category = {
   id: "image",
   name: "图片",
-  tools: [screenshotHistory, imageCompress, imageConvert, imageCrop, imageRotate, imageAdjust, imageStitch, imageMosaic, imageWatermark, imageRemovebg, imageInpaint, imageColor, imageDpi, ico],
+  tools: [
+    imageCompress,
+    imageConvert,
+    imageCrop,
+    imageRotate,
+    imageAdjust,
+    imageStitch,
+    imageMosaic,
+    imageWatermark,
+    imageRemovebg,
+    imageInpaint,
+    imageColor,
+    color,
+    imageDpi,
+    ico,
+  ],
 };
 
 export default image;

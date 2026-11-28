@@ -63,6 +63,10 @@ const zhCN = {
     reportBug: "反馈问题",
     githubIssues: "GitHub 提交问题",
     giteeIssues: "Gitee 提交问题",
+    minimize: "最小化",
+    maximize: "最大化",
+    restore: "还原",
+    close: "关闭",
   },
   sidebar: {
     search: "搜索 {name}",

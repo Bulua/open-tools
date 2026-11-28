@@ -8,9 +8,9 @@ import ToolActivity from "./ToolActivity.vue";
 import FavoriteToolButton from "@/components/common/FavoriteToolButton.vue";
 import type { Category } from "@/tools";
 import { favoriteToolIds, recentToolIds } from "@/composables/toolLibrary";
-import { countdowns, now } from "@/tools/utility/clock/clockStore";
-import { countdownTitle, formatRemaining } from "@/tools/utility/clock/reminders";
-import { calendarNotes, loadCalendarNotes } from "@/tools/utility/calendar/calendarStore";
+import { countdowns, now } from "@/tools/time/clock/clockStore";
+import { countdownTitle, formatRemaining } from "@/tools/time/clock/reminders";
+import { calendarNotes, loadCalendarNotes } from "@/tools/time/calendar/calendarStore";
 import {
   calendarCrossDayRemindersOn,
   calendarDateKey,
@@ -19,7 +19,7 @@ import {
   calendarReminderParts,
   calendarReminderTargetDate,
   localCalendarDate,
-} from "@/tools/utility/calendar/calendar";
+} from "@/tools/time/calendar/calendar";
 import { showError } from "@/utils/errorToast";
 const props = defineProps<{ categories: Category[] }>();
 const emit = defineEmits<{ select: [categoryId: string, toolId: string]; search: [] }>();

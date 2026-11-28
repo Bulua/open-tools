@@ -1,31 +1,24 @@
 /**
  * 工具注册表：决定顶部有哪些分类、每个分类下有哪些工具。
  *
- * 工具的代码按 tools/<模块>/<工具ID>/ 组织，每个工具的 index.ts 定义入口，模块 index.ts 只做聚合，
- * 显示时按用途重新归类：在下面的 categories 中用工具 id 挑选。新增工具后记得把它的 id 加到某个分类里，
- * 测试会检查每个工具都恰好出现在一个分类中。
+ * 工具的代码按 tools/<分类>/<工具ID>/ 组织，与顶部分类一一对应。每个工具的 index.ts 定义入口，
+ * 分类模块 index.ts 负责汇总，下面的 categories 与之保持一致。
  */
 import type { Category, Tool } from "./types";
-import json from "./json";
-import encode from "./encode";
-import convert from "./convert";
+import developer from "./developer";
+import daily from "./daily";
+import time from "./time";
+import calc from "./calc";
 import image from "./image";
-import network from "./network";
-import document from "./document";
-import markdown from "./markdown";
-import utility from "./utility";
 import audio from "./audio";
 import video from "./video";
+import document from "./document";
+import network from "./network";
+
+const moduleCategories: Category[] = [developer, daily, time, calc, image, audio, video, document, network];
 
 /** 所有模块中的工具 */
-export const allTools: Tool[] = [json, encode, convert, image, audio, video, network, document, markdown, utility].flatMap((m) => m.tools);
-
-const pick = (...ids: string[]): Tool[] =>
-  ids.map((id) => {
-    const tool = allTools.find((t) => t.id === id);
-    if (!tool) throw new Error(`没有 id 为「${id}」的工具`);
-    return tool;
-  });
+export const allTools: Tool[] = moduleCategories.flatMap((m) => m.tools);
 
 /**
  * 每个分类下的工具按名称排序：中文按拼音，英文按字母，两者按首字母混排（如 Base64、Cron、倒计时）。
@@ -46,20 +39,6 @@ export const compareNames = (a: string, b: string) => initialOf(a).localeCompare
 const sortTools = (c: Category): Category => ({ ...c, tools: [...c.tools].sort((x, y) => compareNames(x.name, y.name)) });
 
 /** 顶部分类，数组顺序就是显示顺序 */
-export const categories: Category[] = [
-  { id: "developer", name: "开发工具", tools: [...json.tools, ...pick("base64", "text-escape", "hash", "jwt", "regex", "naming", "mcp-inspector")] },
-  { id: "daily", name: "日常工具", tools: pick("password", "password-vault", "clipboard-history", "screenshot-history", "id-card", "notebook") },
-  { id: "time", name: "时间", tools: pick("timestamp", "timezone", "cron", "clock", "calendar") },
-  { id: "calc", name: "计算换算", tools: pick("calculator", "units", "radix") },
-  { id: "image", name: "图片", tools: [...image.tools.filter(tool => tool.id !== "screenshot-history"), ...pick("color")] },
-  { id: "audio", name: "音频", tools: audio.tools },
-  { id: "video", name: "视频", tools: video.tools },
-  {
-    id: "document",
-    name: "文档与文件",
-    tools: pick("large-file", "word-to-pdf", "word-to-markdown", "pdf-to-word", "word-watermark", "word-unwatermark", "pdf-content-editor", "pdf-page-manager", "pdf-unwatermark", "markdown-to-word", "archive", "extract"),
-  },
-  { id: "network", name: "网络", tools: network.tools.filter((tool) => tool.id !== "mcp-inspector") },
-].map(sortTools);
+export const categories: Category[] = moduleCategories.map(sortTools);
 
 export * from "./types";

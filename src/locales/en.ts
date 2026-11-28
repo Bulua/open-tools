@@ -62,6 +62,10 @@ const en: Messages<typeof zhCN> = {
     reportBug: "Report a bug",
     githubIssues: "Report on GitHub",
     giteeIssues: "Report on Gitee",
+    minimize: "Minimize",
+    maximize: "Maximize",
+    restore: "Restore",
+    close: "Close",
   },
   sidebar: {
     search: "Search {name}",

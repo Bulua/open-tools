@@ -110,10 +110,12 @@
   border-radius: 8px;
   background: var(--active);
 }
-/* 分类标签下面的强调色横线 */
-.glide-line {
-  border-radius: 2px;
-  background: var(--accent);
+/* 顶栏分类标签的暖色胶囊滑块 */
+.glide-nav {
+  border: 1px solid var(--header-pill-border);
+  border-radius: 9px;
+  background: var(--header-pill-bg);
+  box-shadow: var(--header-pill-shadow);
 }
 
 /* 复制成功的对勾：从小放大出现 */

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Bug, Check, ChevronLeft, ChevronRight, Github, House, Languages, Moon, Sparkles, Sun } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
+import { hasDesktopRuntime } from "@/api/common";
 import type { Category } from "@/tools";
 import { usePopover } from "@/composables/usePopover";
 import { LOCALES, useLocale, type LocalePref } from "@/locales";
@@ -20,6 +22,33 @@ const props = defineProps<{
 defineEmits<{ home: []; ai: []; select: [id: string]; toggleTheme: []; openSearch: [] }>();
 
 const { t } = useI18n();
+
+// 窗口最大化状态同步与基础窗口控制（一体化自定义标题栏）
+const isMaximized = ref(false);
+let unlistenResize: (() => void) | undefined;
+let disposed = false;
+
+const syncMaximized = async () => {
+  if (!hasDesktopRuntime()) return;
+  isMaximized.value = await getCurrentWindow().isMaximized().catch(() => isMaximized.value);
+};
+
+const minimizeWindow = () => {
+  if (!hasDesktopRuntime()) return;
+  void getCurrentWindow().minimize().catch(() => {});
+};
+
+const toggleMaximizeWindow = async () => {
+  if (!hasDesktopRuntime()) return;
+  const win = getCurrentWindow();
+  await win.toggleMaximize().catch(() => {});
+  isMaximized.value = await win.isMaximized().catch(() => isMaximized.value);
+};
+
+const closeWindow = () => {
+  if (!hasDesktopRuntime()) return;
+  void getCurrentWindow().close().catch(() => {});
+};
 
 // 语言切换菜单：跟随系统，或固定某种语言
 const { pref: localePref } = useLocale();
@@ -79,23 +108,36 @@ onMounted(() => {
   observer = new ResizeObserver(update);
   observer.observe(scroller.value!);
   update();
-});
-onBeforeUnmount(() => observer?.disconnect());
 
-// 切换分类时，下面的强调色横线从旧标签滑到新标签（横线左右各缩进 12px，与 .tab.active::after 一致）
-const lineOf = (tab: HTMLElement) => {
-  const b = boxOf(tab);
-  return { left: b.left + 12, top: b.top + b.height - 1, width: b.width - 24, height: 2 };
-};
+  if (hasDesktopRuntime()) {
+    void syncMaximized();
+    void getCurrentWindow()
+      .onResized(() => {
+        void syncMaximized();
+      })
+      .then((unlisten) => {
+        if (disposed) unlisten();
+        else unlistenResize = unlisten;
+      })
+      .catch(() => {});
+  }
+});
+onBeforeUnmount(() => {
+  disposed = true;
+  observer?.disconnect();
+  unlistenResize?.();
+});
+
+// 切换分类时，暖色胶囊底框从旧标签平滑滑到新标签
 watch(
   () => props.activeId,
   async () => {
     const old = scroller.value?.querySelector<HTMLElement>(".tab.active");
     if (!old) return;
-    const from = lineOf(old);
+    const from = boxOf(old);
     await nextTick();
     const now = scroller.value?.querySelector<HTMLElement>(".tab.active");
-    if (scroller.value && now && now !== old) glide(scroller.value, from, lineOf(now), "line");
+    if (scroller.value && now && now !== old) glide(scroller.value, from, boxOf(now), "nav");
   },
   { flush: "pre" },
 );
@@ -112,19 +154,29 @@ watch(
 </script>
 
 <template>
-  <header class="topbar">
-    <button class="brand" :class="{ compact }" :aria-label="t('home.title')" @click="$emit('home')">
-      <AppLogo :size="22" />
-      <span v-if="!compact" class="name">Open Tools</span>
-    </button>
-
-    <div class="tabs-wrap" :class="{ 'fade-left': canLeft, 'fade-right': canRight }">
-      <button v-show="canLeft" class="arrow left" :aria-label="t('header.scrollLeft')" @click="scrollBy(-1)">
-        <ChevronLeft :size="16" />
+  <header class="topbar" data-tauri-drag-region>
+    <div class="brand-wrap" :class="{ compact }" data-tauri-drag-region>
+      <button class="brand" :title="t('home.title')" :aria-label="t('home.title')" @click="$emit('home')">
+        <span class="logo-shell">
+          <AppLogo :size="20" />
+        </span>
+        <span v-if="!compact" class="name">Open Tools</span>
       </button>
-      <nav ref="scroller" class="tabs" @scroll="update" @wheel.prevent="onWheel">
-        <button data-id="home" class="tab home-tab" :class="{ active: activeId === 'home' }" @click="$emit('home')"><House :size="15" />{{ t('home.title') }}</button>
-        <button data-id="ai" class="tab ai-tab" :class="{ active: activeId === 'ai' }" @click="$emit('ai')"><Sparkles :size="15" />{{ t('ai.navTitle') }}</button>
+    </div>
+
+    <div class="tabs-wrap" :class="{ 'fade-left': canLeft, 'fade-right': canRight }" data-tauri-drag-region>
+      <button v-show="canLeft" class="arrow left" :aria-label="t('header.scrollLeft')" @click="scrollBy(-1)">
+        <ChevronLeft :size="15" />
+      </button>
+      <nav ref="scroller" class="tabs" data-tauri-drag-region @scroll="update" @wheel.prevent="onWheel">
+        <button data-id="home" class="tab home-tab" :class="{ active: activeId === 'home' }" @click="$emit('home')">
+          <House :size="15" />
+          <span>{{ t('home.title') }}</span>
+        </button>
+        <button data-id="ai" class="tab ai-tab" :class="{ active: activeId === 'ai' }" @click="$emit('ai')">
+          <Sparkles :size="15" />
+          <span>{{ t('ai.navTitle') }}</span>
+        </button>
         <button
           v-for="c in categories"
           :key="c.id"
@@ -133,31 +185,56 @@ watch(
           :class="{ active: c.id === activeId }"
           @click="$emit('select', c.id)"
         >
-          {{ c.name }}<sup>{{ c.tools.length }}</sup>
+          <span>{{ c.name }}</span>
+          <span class="count">{{ c.tools.length }}</span>
         </button>
       </nav>
       <button v-show="canRight" class="arrow right" :aria-label="t('header.scrollRight')" @click="scrollBy(1)">
-        <ChevronRight :size="16" />
+        <ChevronRight :size="15" />
       </button>
     </div>
 
-    <div class="actions">
+    <div class="actions" data-tauri-drag-region>
       <div class="search-slot" :class="{ hidden: activeId === 'home' }" :inert="activeId === 'home'" :aria-hidden="activeId === 'home'">
         <ToolSearchButton @search="$emit('openSearch')" />
       </div>
-      <button ref="langBtn" class="theme-btn" :class="{ active: langOpen }" :title="t('locale.title')" @click="showLangMenu">
-        <Languages :size="16" />
-      </button>
-      <button class="theme-btn" :title="theme === 'dark' ? t('header.lightMode') : t('header.darkMode')" @click="$emit('toggleTheme')">
-        <Sun v-if="theme === 'dark'" :size="16" />
-        <Moon v-else :size="16" />
-      </button>
-      <button class="theme-btn" :title="t('header.github', { url: REPO_URL })" :aria-label="t('header.github', { url: REPO_URL })" @click="openExternal(REPO_URL)">
-        <Github :size="16" />
-      </button>
-      <button ref="issueBtn" class="theme-btn desktop-extra" :class="{ active: issueOpen }" :title="t('header.reportBug')" :aria-label="t('header.reportBug')" :aria-expanded="issueOpen" aria-haspopup="menu" @click="showIssueMenu">
-        <Bug :size="16" />
-      </button>
+      <div class="action-group">
+        <button ref="langBtn" class="theme-btn" :class="{ active: langOpen }" :title="t('locale.title')" :aria-label="t('locale.title')" @click="showLangMenu">
+          <Languages :size="15" />
+        </button>
+        <button class="theme-btn" :title="theme === 'dark' ? t('header.lightMode') : t('header.darkMode')" :aria-label="theme === 'dark' ? t('header.lightMode') : t('header.darkMode')" @click="$emit('toggleTheme')">
+          <Sun v-if="theme === 'dark'" :size="15" />
+          <Moon v-else :size="15" />
+        </button>
+        <button class="theme-btn" :title="t('header.github', { url: REPO_URL })" :aria-label="t('header.github', { url: REPO_URL })" @click="openExternal(REPO_URL)">
+          <Github :size="15" />
+        </button>
+        <button ref="issueBtn" class="theme-btn desktop-extra" :class="{ active: issueOpen }" :title="t('header.reportBug')" :aria-label="t('header.reportBug')" :aria-expanded="issueOpen" aria-haspopup="menu" @click="showIssueMenu">
+          <Bug :size="15" />
+        </button>
+      </div>
+      <span class="win-divider" data-tauri-drag-region aria-hidden="true" />
+      <div class="window-controls">
+        <button class="win-btn" :title="t('header.minimize')" :aria-label="t('header.minimize')" @click="minimizeWindow">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M1 5h8" />
+          </svg>
+        </button>
+        <button class="win-btn" :title="isMaximized ? t('header.restore') : t('header.maximize')" :aria-label="isMaximized ? t('header.restore') : t('header.maximize')" @click="toggleMaximizeWindow">
+          <svg v-if="isMaximized" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 3V1.5h5.5V7H7" />
+            <rect x="1.5" y="3" width="5.5" height="5.5" rx="0.8" />
+          </svg>
+          <svg v-else width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="1.5" y="1.5" width="7" height="7" rx="1" />
+          </svg>
+        </button>
+        <button class="win-btn close" :title="t('header.close')" :aria-label="t('header.close')" @click="closeWindow">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M1.5 1.5l7 7M8.5 1.5l-7 7" />
+          </svg>
+        </button>
+      </div>
     </div>
 
     <Teleport to="body">
@@ -189,41 +266,68 @@ watch(
 </template>
 
 <style scoped>
-.home-tab,
-.ai-tab { display: flex; align-items: center; gap: 7px; }
 .topbar {
   height: 52px;
   flex-shrink: 0;
   display: flex;
   align-items: stretch;
-  padding: 0 16px 0 0;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-sunken);
+  padding: 0;
+  border-bottom: 1px solid var(--header-border);
+  background: var(--header-glow), var(--header-bg);
+  box-shadow: var(--header-top-highlight);
+  user-select: none;
 }
 
-/* 品牌区与左侧栏同宽（240px），分类标签正好对齐下方工具区 */
-/* 图标和名称在侧栏宽度内居中 */
-.brand {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--text);
-  cursor: pointer;
+/* 品牌区与左侧栏同宽（240px），周围留白支持拖拽移动窗口 */
+.brand-wrap {
+  flex: 0 0 240px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 9px;
-  flex: 0 0 240px;
-  border-right: 1px solid var(--border);
+  padding: 0 12px;
+  border-right: 1px solid var(--header-border);
   transition: flex-basis var(--dur-slow) var(--ease-out);
 }
-.brand.compact {
+.brand-wrap.compact {
   flex-basis: 56px;
+  padding: 0 6px;
+}
+.brand {
+  padding: 4px 10px 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.brand-wrap.compact .brand {
+  padding: 4px;
+}
+.brand:hover {
+  background: var(--hover);
+  border-color: var(--header-border);
+}
+.logo-shell {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: var(--header-logo-bg);
+  border: 1px solid var(--header-logo-border);
+  flex-shrink: 0;
 }
 .name {
   font-family: var(--font-sans);
-  font-size: 17px;
+  font-size: 16px;
+  font-weight: 600;
   letter-spacing: -0.2px;
+  white-space: nowrap;
 }
 
 .tabs-wrap {
@@ -236,8 +340,9 @@ watch(
   position: relative;
   flex: 1;
   display: flex;
+  align-items: center;
   gap: 4px;
-  padding-left: 12px;
+  padding: 0 14px;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -256,74 +361,103 @@ watch(
 
 .tab {
   position: relative;
+  z-index: 1;
   flex-shrink: 0;
-  padding: 0 12px;
-  border: none;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 11px;
+  border: 1px solid transparent;
+  border-radius: 9px;
   background: none;
   color: var(--text-2);
+  font-size: 13.5px;
   white-space: nowrap;
-  transition: color 0.15s;
+  transition: color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.ai-tab svg {
+  color: var(--accent);
+  opacity: 0.85;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.ai-tab:hover svg,
+.ai-tab.active svg {
+  opacity: 1;
 }
 .tab:hover {
+  background: var(--hover);
   color: var(--text);
 }
 .tab.active {
+  background: var(--header-pill-bg);
+  border-color: var(--header-pill-border);
+  box-shadow: var(--header-pill-shadow);
   color: var(--text);
   font-weight: 600;
 }
-.tab sup {
-  margin-left: 3px;
-  font-size: 10px;
-  font-weight: 400;
-  color: var(--text-3);
-}
-.tab.active sup {
+.tab.active svg {
   color: var(--accent);
 }
-/* 横线滑动期间隐藏标签自己的横线 */
-.gliding .tab.active::after {
-  visibility: hidden;
+/* 胶囊滑块移动期间隐藏目标标签自己的底框，避免重影 */
+.gliding .tab.active {
+  background: none;
+  border-color: transparent;
+  box-shadow: none;
 }
-.tab.active::after {
-  content: "";
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: -1px;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--accent);
+.tab .count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--header-badge-bg);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 500;
+  color: var(--text-3);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.tab.active .count {
+  background: var(--header-badge-active-bg);
+  color: var(--accent);
+  font-weight: 600;
 }
 
 .arrow {
   position: absolute;
   top: 50%;
-  z-index: 1;
-  width: 24px;
-  height: 24px;
+  z-index: 2;
+  width: 26px;
+  height: 26px;
   transform: translateY(-50%);
   display: grid;
   place-items: center;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
   color: var(--text-2);
+  transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
 .arrow:hover {
   color: var(--text);
   border-color: var(--border-strong);
 }
 .arrow.left {
-  left: 0;
+  left: 4px;
 }
 .arrow.right {
-  right: 0;
+  right: 4px;
 }
 
 .actions {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding-left: 8px;
   flex-shrink: 0;
 }
 .search-slot {
@@ -337,20 +471,82 @@ watch(
   transition: width var(--dur-slow) var(--ease-out), visibility 0s var(--dur-slow);
 }
 .search-slot :deep(.tool-search-button) { max-width: none; }
+
+.action-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--header-border);
+  border-radius: 9px;
+  background: var(--header-group-bg);
+}
 .theme-btn {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   display: grid;
   place-items: center;
   border: none;
-  border-radius: 8px;
+  border-radius: 7px;
   background: none;
   color: var(--text-2);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
-.theme-btn:hover,
-.theme-btn.active {
+.theme-btn:hover {
   background: var(--hover);
   color: var(--text);
+}
+.theme-btn.active {
+  background: var(--header-pill-bg);
+  color: var(--accent);
+}
+
+.win-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--header-border);
+  margin-left: 2px;
+  flex-shrink: 0;
+}
+
+.window-controls {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+}
+.win-btn {
+  width: 42px;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.win-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.win-btn:active {
+  background: var(--active);
+}
+.win-btn.close:hover {
+  background: var(--win-close-hover);
+  color: var(--on-accent);
+}
+.win-btn.close:active {
+  background: var(--win-close-active);
+  color: var(--on-accent);
+}
+
+@media (max-width: 1140px) {
+  .search-slot:not(.hidden) {
+    width: 156px;
+  }
+  .search-slot :deep(.tool-search-button) {
+    width: 100%;
+  }
 }
 
 /* 语言菜单（Teleport 到 body 下，scoped 样式仍然生效） */

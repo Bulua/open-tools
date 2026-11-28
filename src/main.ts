@@ -1,7 +1,7 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { createApp, defineAsyncComponent } from "vue";
 import App from "./App.vue";
-import ScreenshotWindow from "./tools/image/screenshot-history/components/ScreenshotWindow.vue";
+import ScreenshotWindow from "./tools/daily/screenshot-history/components/ScreenshotWindow.vue";
 import "./styles/index.css";
 import { installSegGlide } from "./utils/motion";
 import { i18n, initLocale } from "./locales";
@@ -15,7 +15,7 @@ if (windowKind === "screenshot-overlay") {
 }
 const isClipboardWindow = windowKind === "clipboard-history";
 const root = isClipboardWindow
-  ? defineAsyncComponent(() => import("./tools/encode/clipboard-history/ClipboardHistory.vue"))
+  ? defineAsyncComponent(() => import("./tools/daily/clipboard-history/ClipboardHistory.vue"))
   : windowKind ? ScreenshotWindow : App;
 createApp(root, isClipboardWindow ? { popup: true } : {}).use(i18n).mount("#app");
 if (!windowKind) installSegGlide();

@@ -4,12 +4,11 @@ import ipLookup from "./ip-lookup";
 import ping from "./ping";
 import headers from "./headers";
 import mqttClient from "./mqtt-client";
-import mcpInspector from "./mcp-inspector";
 
 const network: Category = {
   id: "network",
   name: "网络",
-  tools: [httpClient, ipLookup, ping, headers, mqttClient, mcpInspector],
+  tools: [httpClient, ipLookup, ping, headers, mqttClient],
 };
 
 export default network;

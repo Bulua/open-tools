@@ -62,6 +62,10 @@ const ja: Messages<typeof zhCN> = {
     reportBug: "不具合を報告",
     githubIssues: "GitHub で報告",
     giteeIssues: "Gitee で報告",
+    minimize: "最小化",
+    maximize: "最大化",
+    restore: "元に戻す",
+    close: "閉じる",
   },
   sidebar: {
     search: "{name}を検索",

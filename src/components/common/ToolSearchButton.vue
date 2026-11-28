@@ -22,7 +22,7 @@ defineEmits<{ search: [] }>();
   height: 32px;
   padding: 0 6px 0 10px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 9px;
   background: var(--bg);
   color: var(--text-3);
   font-size: 13px;
@@ -40,15 +40,22 @@ defineEmits<{ search: [] }>();
 .tool-search-button svg, kbd {
   flex-shrink: 0;
 }
+.tool-search-button kbd {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--bg-sunken);
+  font-size: 11px;
+}
 .tool-search-button svg {
-  transition: transform var(--dur) var(--ease-out);
+  transition: transform var(--dur) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 .tool-search-button:hover {
-  border-color: var(--border-strong);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border-strong));
   color: var(--text-2);
   background: var(--surface);
 }
 .tool-search-button:hover svg {
+  color: var(--accent);
   transform: scale(1.12);
 }
 .tool-search-button:focus-visible {

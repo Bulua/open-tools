@@ -39,6 +39,22 @@
   --radius: 10px;
   --tool-search-width: 208px;
 
+  /* 顶栏一体化配色：暖纸渐层 + 柔和陶土橙胶囊 */
+  --header-bg: linear-gradient(180deg, #faf7f0 0%, #f3efe6 100%);
+  --header-glow: radial-gradient(340px 92px at 110px 0%, rgba(201, 100, 66, 0.11), transparent 72%);
+  --header-top-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  --header-border: rgba(31, 30, 29, 0.1);
+  --header-pill-bg: rgba(201, 100, 66, 0.11);
+  --header-pill-border: rgba(201, 100, 66, 0.24);
+  --header-pill-shadow: 0 1px 2px rgba(201, 100, 66, 0.08);
+  --header-badge-bg: rgba(31, 30, 29, 0.06);
+  --header-badge-active-bg: rgba(201, 100, 66, 0.16);
+  --header-group-bg: rgba(31, 30, 29, 0.035);
+  --header-logo-bg: rgba(201, 100, 66, 0.09);
+  --header-logo-border: rgba(201, 100, 66, 0.18);
+  --win-close-hover: #c42b1c;
+  --win-close-active: #a82215;
+
   /* 动效：平滑减速、不回弹（见 motion.css） */
   --ease-out: cubic-bezier(0.32, 0.72, 0, 1);
   --dur-fast: 120ms;
@@ -83,5 +99,20 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
   --shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
   --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.5);
+
+  --header-bg: linear-gradient(180deg, #252321 0%, #1d1c1a 100%);
+  --header-glow: radial-gradient(360px 96px at 110px 0%, rgba(217, 119, 87, 0.15), transparent 72%);
+  --header-top-highlight: inset 0 1px 0 rgba(255, 245, 236, 0.06);
+  --header-border: rgba(235, 224, 212, 0.1);
+  --header-pill-bg: rgba(217, 119, 87, 0.16);
+  --header-pill-border: rgba(217, 119, 87, 0.34);
+  --header-pill-shadow: 0 1px 6px rgba(217, 119, 87, 0.12), inset 0 1px 0 rgba(255, 232, 220, 0.08);
+  --header-badge-bg: rgba(250, 249, 245, 0.07);
+  --header-badge-active-bg: rgba(217, 119, 87, 0.22);
+  --header-group-bg: rgba(250, 249, 245, 0.04);
+  --header-logo-bg: rgba(217, 119, 87, 0.12);
+  --header-logo-border: rgba(217, 119, 87, 0.24);
+  --win-close-hover: #c42b1c;
+  --win-close-active: #a82215;
   color-scheme: dark;
 }
