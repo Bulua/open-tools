@@ -2,6 +2,8 @@ use super::config::{self, Config};
 use super::protocol::Action;
 pub(crate) use super::service::MqttState;
 use super::service::Notice;
+use super::store::{self, MqttWorkspaceDto};
+use crate::core::db::Database;
 use crate::core::error::{api_result, ApiResult, AppError};
 use tauri::{ipc::Channel, State, WebviewWindow};
 
@@ -104,4 +106,19 @@ pub async fn mqtt_publish(
     }
     .await;
     api_result(res.map_err(AppError::from))
+}
+
+#[tauri::command]
+pub(crate) async fn mqtt_workspace_load(
+    db: State<'_, Database>,
+) -> ApiResult<Option<MqttWorkspaceDto>> {
+    api_result(store::load_workspace(db.inner()).await)
+}
+
+#[tauri::command]
+pub(crate) async fn mqtt_workspace_save(
+    db: State<'_, Database>,
+    workspace: MqttWorkspaceDto,
+) -> ApiResult<MqttWorkspaceDto> {
+    api_result(store::save_workspace(db.inner(), workspace).await)
 }

@@ -18,16 +18,25 @@ use crate::tools::{
         word_to_pdf::commands as word_to_pdf,
         word_to_markdown::commands as word_to_markdown,
     },
-    encode::{id_card::commands as id_card, password_vault::commands as vault},
+    encode::{
+        id_card::{commands as id_card, store as id_card_store},
+        password_vault::commands as vault,
+    },
     image::shared::{ai_models, inference},
     markdown::notebook::commands as notebook,
-    network::{ip_lookup::commands as ip_lookup, mqtt_client::commands as mqtt, ping::commands as ping},
+    network::{
+        http_client::{commands as http_client, store as http_client_store},
+        ip_lookup::commands as ip_lookup,
+        mqtt_client::{commands as mqtt, store as mqtt_store},
+        ping::commands as ping,
+    },
     utility::{
-        calculator::commands as calculator,
+        calculator::{commands as calculator, store as calculator_store},
         calendar::{commands as calendar, store as calendar_store},
         clock::{commands as clock, store as clock_store},
     },
     video::{
+        bilibili_download::{commands as bilibili, store as bilibili_store},
         douyin_download::commands as douyin,
         shared::{hdr, storage},
         xiaohongshu_download::commands as xiaohongshu,
@@ -144,6 +153,13 @@ pub fn run() {
             mqtt::mqtt_subscribe,
             mqtt::mqtt_unsubscribe,
             mqtt::mqtt_publish,
+            mqtt::mqtt_workspace_load,
+            mqtt::mqtt_workspace_save,
+            http_client::http_history_list,
+            http_client::http_history_save,
+            http_client::http_history_import,
+            http_client::http_history_delete,
+            http_client::http_history_clear,
             notebook::notebook_read,
             notebook::notebook_write,
             notebook::notebook_save_image,
@@ -157,6 +173,8 @@ pub fn run() {
             pdf_to_word::pdf_to_word,
             douyin::douyin_capture,
             storage::video_download_dir,
+            bilibili::bilibili_get_settings,
+            bilibili::bilibili_save_settings,
             xiaohongshu::xiaohongshu_capture,
             tts::tts_voices,
             tts::tts_synthesize,
@@ -166,9 +184,19 @@ pub fn run() {
             ai_models::ai_model_delete,
             inference::ai_run,
             id_card::id_card_parse,
+            id_card::id_card_history_list,
+            id_card::id_card_history_add,
+            id_card::id_card_history_import,
+            id_card::id_card_history_delete,
+            id_card::id_card_history_clear,
             vault::vault_read,
             vault::vault_write,
             calculator::calculator_eval,
+            calculator::calculator_history_list,
+            calculator::calculator_history_add,
+            calculator::calculator_history_import,
+            calculator::calculator_history_delete,
+            calculator::calculator_history_clear,
             clock::clock_list,
             clock::clock_upsert,
             clock::clock_delete,
@@ -238,6 +266,11 @@ pub fn run() {
             mcp_store::init_mcp_storage(&db)?;
             clock_store::init_clock_storage(&db)?;
             calendar_store::init_calendar_storage(&db)?;
+            calculator_store::init_calculator_storage(&db)?;
+            id_card_store::init_id_card_storage(&db)?;
+            bilibili_store::init_bilibili_storage(&db)?;
+            http_client_store::init_http_history_storage(&db)?;
+            mqtt_store::init_mqtt_storage(&db)?;
             #[cfg(windows)]
             clipboard_store::init_clipboard_storage(&db)?;
             use tauri::Manager;

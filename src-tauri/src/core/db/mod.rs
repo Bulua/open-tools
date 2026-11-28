@@ -7,6 +7,7 @@
 //! - `settings` / `folders`：全应用共享的通用 KV 设置表与通用文件夹表。
 
 pub(crate) mod folders;
+pub(crate) mod secret;
 pub(crate) mod settings;
 
 use std::path::Path;
@@ -169,6 +170,14 @@ impl Database {
                 "Could not open SQLite database {}: {err}",
                 path.display()
             ))
+        })?;
+        Self::init_connection(conn)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn open_in_memory() -> AppResult<Self> {
+        let conn = Connection::open_in_memory().map_err(|err| {
+            AppError::io(format!("Could not open in-memory SQLite database: {err}"))
         })?;
         Self::init_connection(conn)
     }
