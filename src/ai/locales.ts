@@ -70,6 +70,8 @@ export default defineModuleLocales({
         you: "我",
         assistant: "AI",
         durationSec: "{sec}s",
+        tokensCount: "{count} tokens",
+        tokensDetail: "输入 {input} · 输出 {output} · 总计 {total} tokens",
         builtinToolBadge: "内置",
         workspace: {
           defaultLabel: "默认工作区",
@@ -312,6 +314,8 @@ export default defineModuleLocales({
         you: "You",
         assistant: "AI",
         durationSec: "{sec}s",
+        tokensCount: "{count} tokens",
+        tokensDetail: "Input {input} · Output {output} · Total {total} tokens",
         builtinToolBadge: "Built-in",
         workspace: {
           defaultLabel: "Default workspace",
@@ -554,6 +558,8 @@ export default defineModuleLocales({
         you: "あなた",
         assistant: "AI",
         durationSec: "{sec}s",
+        tokensCount: "{count} tokens",
+        tokensDetail: "入力 {input} · 出力 {output} · 合計 {total} tokens",
         builtinToolBadge: "組み込み",
         workspace: {
           defaultLabel: "既定の作業フォルダー",

@@ -740,6 +740,15 @@ async function runAssistantTurn(conv: Conversation): Promise<void> {
       handleBackendEvent,
     );
     assistantMsg.durationMs = runResult.durationMs;
+    if (runResult.inputTokens !== undefined) {
+      assistantMsg.inputTokens = runResult.inputTokens;
+    }
+    if (runResult.outputTokens !== undefined) {
+      assistantMsg.outputTokens = runResult.outputTokens;
+    }
+    if (runResult.totalTokens !== undefined) {
+      assistantMsg.totalTokens = runResult.totalTokens;
+    }
     if (runResult.aborted) {
       assistantMsg.aborted = true;
     }

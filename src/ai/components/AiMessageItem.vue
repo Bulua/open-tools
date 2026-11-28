@@ -35,7 +35,7 @@ const emit = defineEmits<{
   openFile: [ref: ParsedFileLink];
 }>();
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const { copy } = useClipboard();
 
 const copied = ref(false);
@@ -239,6 +239,25 @@ const durationLabel = computed(() => {
   if (!props.message.durationMs) return "";
   const sec = (props.message.durationMs / 1000).toFixed(1);
   return t("ai.durationSec", { sec });
+});
+
+const tokenUsageSummary = computed(() => {
+  const { inputTokens, outputTokens, totalTokens } = props.message;
+  const total =
+    totalTokens ??
+    (inputTokens !== undefined && outputTokens !== undefined
+      ? inputTokens + outputTokens
+      : outputTokens ?? inputTokens);
+  if (total === undefined) return null;
+  const formatter = new Intl.NumberFormat(locale.value);
+  return {
+    label: t("ai.tokensCount", { count: formatter.format(total) }),
+    detail: t("ai.tokensDetail", {
+      input: inputTokens !== undefined ? formatter.format(inputTokens) : "-",
+      output: outputTokens !== undefined ? formatter.format(outputTokens) : "-",
+      total: formatter.format(total),
+    }),
+  };
 });
 
 async function copyMessage() {
@@ -527,6 +546,9 @@ async function onMarkdownClick(event: MouseEvent) {
           {{ message.providerName ? `${message.providerName} · ${message.modelName || message.modelId}` : (message.modelName || message.modelId) }}
         </span>
         <span v-if="durationLabel" class="foot-meta">{{ durationLabel }}</span>
+        <span v-if="tokenUsageSummary" class="foot-meta" :title="tokenUsageSummary.detail">
+          {{ tokenUsageSummary.label }}
+        </span>
         <span v-if="message.aborted" class="foot-meta">{{ t("ai.stopped") }}</span>
       </footer>
     </div>
@@ -737,6 +759,7 @@ async function onMarkdownClick(event: MouseEvent) {
 
 .assistant-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   margin-top: 2px;

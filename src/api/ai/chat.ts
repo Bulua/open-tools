@@ -12,8 +12,12 @@ import {
   type AiConversationDetail_Serialize,
   type AiConversationMetaDto_Serialize,
   type AiFolderDto,
+  type AiMessageAttachmentDto_Deserialize,
+  type AiMessageAttachmentDto_Serialize,
   type AiMessageDto_Deserialize,
   type AiMessageDto_Serialize,
+  type AiMessagePartDto_Deserialize,
+  type AiMessagePartDto_Serialize,
   type AiModelView_Serialize,
   type ConversationIndexEntry_Serialize,
 } from "@/api/generated/ai";
@@ -44,19 +48,11 @@ import type {
   ThinkingEffort,
   ThinkingSupportMode,
   ToolApprovalDecision,
+  ToolCallStatus,
 } from "@/types/ai";
 
 function stripTrailingSlash(url: string): string {
   return url.trim().replace(/\/+$/, "");
-}
-
-function parseJsonField<T>(raw?: string | null): T | undefined {
-  if (!raw) return undefined;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return undefined;
-  }
 }
 
 function toThinkingSupport(raw?: string | null): ThinkingSupportMode | undefined {
@@ -116,36 +112,107 @@ function toConversationSummary(item: ConversationIndexEntry_Serialize): Conversa
   };
 }
 
-function normalizeLegacyParts(
-  rawParts: ChatMessagePart[] | undefined,
-  reasoning: string | undefined,
-  legacyToolCalls: ChatToolCall[] | undefined,
-  content: string,
-): ChatMessagePart[] | undefined {
-  if (rawParts?.length) return rawParts;
-  if (!legacyToolCalls?.length) return undefined;
-  const parts: ChatMessagePart[] = [];
-  if (reasoning) {
-    parts.push({ id: "legacy-reasoning", type: "reasoning", text: reasoning });
+function toAttachmentKind(raw: string): ChatAttachment["kind"] {
+  return raw === "image" || raw === "text" ? raw : "file";
+}
+
+function toToolCallStatus(raw: string): ChatToolCall["status"] {
+  if (raw === "running" || raw === "done" || raw === "error") {
+    return raw as "running" | ToolCallStatus;
   }
-  for (const call of legacyToolCalls) {
-    parts.push({ id: `legacy-tool-${call.id}`, type: "tool", call });
+  return "done";
+}
+
+function toChatAttachment(dto: AiMessageAttachmentDto_Serialize): ChatAttachment {
+  return {
+    id: dto.id,
+    name: dto.name,
+    mimeType: dto.mimeType,
+    size: dto.size ?? 0,
+    kind: toAttachmentKind(dto.kind),
+    ...(dto.filePath ? { filePath: dto.filePath } : {}),
+    ...(dto.dataUrl ? { dataUrl: dto.dataUrl } : {}),
+    ...(dto.textContent !== undefined ? { textContent: dto.textContent } : {}),
+    ...(dto.truncated !== undefined ? { truncated: dto.truncated } : {}),
+  };
+}
+
+function toAttachmentDto(att: ChatAttachment): AiMessageAttachmentDto_Deserialize {
+  return {
+    id: att.id,
+    name: att.name,
+    mimeType: att.mimeType,
+    size: att.size,
+    kind: att.kind,
+    filePath: att.filePath ?? null,
+    dataUrl: att.dataUrl ?? null,
+    textContent: att.textContent ?? null,
+    truncated: att.truncated ?? null,
+  };
+}
+
+function toChatPart(dto: AiMessagePartDto_Serialize): ChatMessagePart {
+  if (dto.type === "tool") {
+    return {
+      id: dto.id,
+      type: "tool",
+      call: {
+        id: dto.call.id,
+        serverId: dto.call.serverId,
+        serverName: dto.call.serverName,
+        toolName: dto.call.toolName,
+        argumentsText: dto.call.argumentsText,
+        ...(dto.call.resultText !== undefined ? { resultText: dto.call.resultText } : {}),
+        status: toToolCallStatus(dto.call.status),
+        ...(dto.call.outputFile
+          ? {
+              outputFile: {
+                path: dto.call.outputFile.path,
+                content: dto.call.outputFile.content,
+                ...(dto.call.outputFile.kind ? { kind: dto.call.outputFile.kind } : {}),
+                ...(dto.call.outputFile.sizeBytes !== null &&
+                dto.call.outputFile.sizeBytes !== undefined
+                  ? { sizeBytes: dto.call.outputFile.sizeBytes }
+                  : {}),
+              },
+            }
+          : {}),
+      },
+    };
   }
-  if (content) {
-    parts.push({ id: "legacy-text", type: "text", text: content });
+  return dto;
+}
+
+function toPartDto(part: ChatMessagePart): AiMessagePartDto_Deserialize {
+  if (part.type === "tool") {
+    return {
+      id: part.id,
+      type: "tool",
+      call: {
+        id: part.call.id,
+        serverId: part.call.serverId,
+        serverName: part.call.serverName,
+        toolName: part.call.toolName,
+        argumentsText: part.call.argumentsText,
+        resultText: part.call.resultText ?? null,
+        status: part.call.status,
+        outputFile: part.call.outputFile
+          ? {
+              path: part.call.outputFile.path,
+              content: part.call.outputFile.content,
+              kind: part.call.outputFile.kind ?? null,
+              sizeBytes: part.call.outputFile.sizeBytes ?? null,
+            }
+          : null,
+      },
+    };
   }
-  return parts;
+  return part;
 }
 
 function toChatMessage(dto: AiMessageDto_Serialize): ChatMessage {
-  const attachments = parseJsonField<ChatAttachment[]>(dto.attachmentsJson);
-  const legacyToolCalls = parseJsonField<ChatToolCall[]>(dto.toolCallsJson);
-  const parts = normalizeLegacyParts(
-    parseJsonField<ChatMessagePart[]>(dto.partsJson),
-    dto.reasoning || undefined,
-    legacyToolCalls,
-    dto.content,
-  );
+  const attachments = dto.attachments?.map(toChatAttachment);
+  const parts = dto.parts?.map(toChatPart);
   return {
     id: dto.id,
     role: dto.role === "assistant" ? "assistant" : "user",
@@ -159,27 +226,34 @@ function toChatMessage(dto: AiMessageDto_Serialize): ChatMessage {
     ...(dto.modelId ? { modelId: dto.modelId } : {}),
     ...(dto.modelName ? { modelName: dto.modelName } : {}),
     ...(dto.durationMs !== null && dto.durationMs !== undefined ? { durationMs: dto.durationMs } : {}),
+    ...(dto.inputTokens !== null && dto.inputTokens !== undefined ? { inputTokens: dto.inputTokens } : {}),
+    ...(dto.outputTokens !== null && dto.outputTokens !== undefined ? { outputTokens: dto.outputTokens } : {}),
+    ...(dto.totalTokens !== null && dto.totalTokens !== undefined ? { totalTokens: dto.totalTokens } : {}),
     ...(dto.error ? { error: dto.error } : {}),
     ...(dto.aborted ? { aborted: true } : {}),
   };
 }
 
 function toMessageDto(msg: ChatMessage): AiMessageDto_Deserialize {
-  const attachments = msg.attachments?.map(({ previewUrl: _p, rawFile: _r, ...rest }) => rest);
+  const attachments = msg.attachments?.map(({ previewUrl: _p, rawFile: _r, ...rest }) =>
+    toAttachmentDto(rest),
+  );
+  const parts = msg.parts?.map(toPartDto);
   return {
     id: msg.id,
     role: msg.role,
     content: msg.content,
     reasoning: msg.reasoning ?? null,
-    attachmentsJson: attachments?.length ? JSON.stringify(attachments) : null,
-    // 工具调用统一以 partsJson 为唯一持久化真源，不再双份序列化写入 toolCallsJson
-    toolCallsJson: null,
-    partsJson: msg.parts?.length ? JSON.stringify(msg.parts) : null,
+    ...(attachments?.length ? { attachments } : {}),
+    ...(parts?.length ? { parts } : {}),
     modelConfigId: msg.modelConfigId ?? null,
     providerName: msg.providerName ?? null,
     modelId: msg.modelId ?? null,
     modelName: msg.modelName ?? null,
     durationMs: msg.durationMs ?? null,
+    inputTokens: msg.inputTokens ?? null,
+    outputTokens: msg.outputTokens ?? null,
+    totalTokens: msg.totalTokens ?? null,
     error: msg.error ?? null,
     aborted: Boolean(msg.aborted),
     createdAt: msg.createdAt,
@@ -439,6 +513,15 @@ export const aiApi = {
     return {
       aborted: res.aborted,
       durationMs: res.durationMs ?? 0,
+      ...(res.inputTokens !== null && res.inputTokens !== undefined
+        ? { inputTokens: res.inputTokens }
+        : {}),
+      ...(res.outputTokens !== null && res.outputTokens !== undefined
+        ? { outputTokens: res.outputTokens }
+        : {}),
+      ...(res.totalTokens !== null && res.totalTokens !== undefined
+        ? { totalTokens: res.totalTokens }
+        : {}),
     };
   },
 

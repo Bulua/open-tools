@@ -219,6 +219,9 @@ export interface ChatMessage {
   modelId?: string;
   modelName?: string;
   durationMs?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
   error?: string;
   aborted?: boolean;
 }
@@ -313,4 +316,7 @@ export type BackendChatEvent =
 export interface BackendChatRunResult {
   aborted: boolean;
   durationMs: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
 }

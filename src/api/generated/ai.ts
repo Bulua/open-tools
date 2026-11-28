@@ -113,7 +113,7 @@ export const commands = {
 	aiChatRun: (request: AiChatRunRequest_Deserialize, onEvent: Channel<AiChatEvent_Deserialize>, options?: InvokeOptions) => __TAURI_INVOKE<{
 	code: ApiCode,
 	msg: string,
-	data: AiChatRunResult | null,
+	data: AiChatRunResult_Serialize | null,
 }>("ai_chat_run", { request, onEvent }, options),
 	aiChatApprove: (conversationId: string, decision: ToolApprovalDecision, options?: InvokeOptions) => __TAURI_INVOKE<{
 	code: ApiCode,
@@ -183,9 +183,22 @@ export type AiChatRunRequest_Serialize = {
 	builtinToolBadge: string | null,
 };
 
-export type AiChatRunResult = {
+export type AiChatRunResult = AiChatRunResult_Serialize | AiChatRunResult_Deserialize;
+
+export type AiChatRunResult_Deserialize = {
 	aborted: boolean,
 	durationMs: number | null,
+	inputTokens?: number | null,
+	outputTokens?: number | null,
+	totalTokens?: number | null,
+};
+
+export type AiChatRunResult_Serialize = {
+	aborted: boolean,
+	durationMs: number | null,
+	inputTokens?: number | null,
+	outputTokens?: number | null,
+	totalTokens?: number | null,
 };
 
 export type AiConversationDetail = AiConversationDetail_Serialize | AiConversationDetail_Deserialize;
@@ -326,6 +339,32 @@ export type AiInitialState_Serialize = {
 	conversations: ConversationIndexEntry_Serialize[],
 };
 
+export type AiMessageAttachmentDto = AiMessageAttachmentDto_Serialize | AiMessageAttachmentDto_Deserialize;
+
+export type AiMessageAttachmentDto_Deserialize = {
+	id?: string,
+	name?: string,
+	mimeType?: string,
+	size?: number | null,
+	kind?: string,
+	filePath?: string | null,
+	dataUrl?: string | null,
+	textContent?: string | null,
+	truncated?: boolean | null,
+};
+
+export type AiMessageAttachmentDto_Serialize = {
+	id: string,
+	name: string,
+	mimeType: string,
+	size: number | null,
+	kind: string,
+	filePath?: string,
+	dataUrl?: string,
+	textContent?: string,
+	truncated?: boolean,
+};
+
 export type AiMessageDto = AiMessageDto_Serialize | AiMessageDto_Deserialize;
 
 export type AiMessageDto_Deserialize = {
@@ -333,14 +372,16 @@ export type AiMessageDto_Deserialize = {
 	role: string,
 	content?: string,
 	reasoning?: string | null,
-	attachmentsJson?: string | null,
-	toolCallsJson?: string | null,
-	partsJson?: string | null,
+	attachments?: AiMessageAttachmentDto_Deserialize[],
+	parts?: AiMessagePartDto_Deserialize[],
 	modelConfigId?: string | null,
 	providerName?: string | null,
 	modelId?: string | null,
 	modelName?: string | null,
 	durationMs?: number | null,
+	inputTokens?: number | null,
+	outputTokens?: number | null,
+	totalTokens?: number | null,
 	error?: string | null,
 	aborted?: boolean,
 	createdAt?: string,
@@ -351,17 +392,49 @@ export type AiMessageDto_Serialize = {
 	role: string,
 	content: string,
 	reasoning?: string,
-	attachmentsJson?: string,
-	toolCallsJson?: string,
-	partsJson?: string,
+	attachments?: AiMessageAttachmentDto_Serialize[],
+	parts?: AiMessagePartDto_Serialize[],
 	modelConfigId?: string,
 	providerName?: string,
 	modelId?: string,
 	modelName?: string,
 	durationMs?: number | null,
+	inputTokens?: number | null,
+	outputTokens?: number | null,
+	totalTokens?: number | null,
 	error?: string,
 	aborted: boolean,
 	createdAt: string,
+};
+
+export type AiMessagePartDto = AiMessagePartDto_Serialize | AiMessagePartDto_Deserialize;
+
+export type AiMessagePartDto_Deserialize = { type: "reasoning"; id: string; text: string } | { type: "text"; id: string; text: string } | { type: "tool"; id: string; call: AiMessageToolCallDto_Deserialize };
+
+export type AiMessagePartDto_Serialize = { type: "reasoning"; id: string; text: string } | { type: "text"; id: string; text: string } | { type: "tool"; id: string; call: AiMessageToolCallDto_Serialize };
+
+export type AiMessageToolCallDto = AiMessageToolCallDto_Serialize | AiMessageToolCallDto_Deserialize;
+
+export type AiMessageToolCallDto_Deserialize = {
+	id?: string,
+	serverId?: string,
+	serverName?: string,
+	toolName?: string,
+	argumentsText?: string,
+	resultText?: string | null,
+	status?: string,
+	outputFile?: AiToolOutputFile_Deserialize | null,
+};
+
+export type AiMessageToolCallDto_Serialize = {
+	id: string,
+	serverId: string,
+	serverName: string,
+	toolName: string,
+	argumentsText: string,
+	resultText?: string,
+	status: string,
+	outputFile?: AiToolOutputFile_Serialize,
 };
 
 export type AiMessageUpsertResult = AiMessageUpsertResult_Serialize | AiMessageUpsertResult_Deserialize;
