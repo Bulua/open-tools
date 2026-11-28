@@ -33,6 +33,7 @@ npm run build      # 前端构建
   - 前后端共享 DTO 类型统一写在 `src/types/<模块>/` 并在 `src/types/index.ts` 汇总导出。
   - 前端所有与 Rust 后端的 IPC 调用、流式 Channel 与事件订阅统一收口在 `src/api/<模块>/`（经由 `src/api/common/request.ts` 的 `executeGeneratedCommand` / `requestBackend` / `requestBackendStream` / `subscribeBackendEvent` 与 `unwrapApiResponse`），禁止在页面、组件或工具逻辑中直接调用 `@tauri-apps/api/core` 的 `invoke`、`Channel` 或 `@tauri-apps/api/event` 的 `listen`。
   - Rust 命令统一放在所属模块的 `commands.rs` 并返回 `ApiResult<T>`（`{ code, msg, data }`，见 `src-tauri/src/core/error.rs`）；大块二进制数据传输保留 `Result<Response, AppError>`（或不可失败的 `Response`）。
+  - 修改带 `#[specta::specta]` 的 Rust 命令或 DTO 后，运行 `cargo run --locked --manifest-path src-tauri/Cargo.toml --bin export_bindings` 重新生成 `src/api/generated/ai.ts`（并保持 LF 换行）。
 - **样式**：颜色只用 `src/styles/theme.css` 里的 CSS 变量（深色模式自动适配）；按钮、分段选择、复选框等用 `src/styles/controls.css` 里的公共类。
 
 ## 前端交互

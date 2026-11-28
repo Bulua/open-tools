@@ -82,26 +82,36 @@ open-tools/
 │           ├── audio/
 │           │   └── tts/                 # commands.rs、tts.ps1
 │           ├── document/
-│           │   ├── word_to_pdf/         # Office 转 PDF 命令与脚本
+│           │   ├── large_file/          # 大文件分块读写、编码与稀疏行索引
+│           │   ├── pdf_content_editor/  # 系统字体枚举与 sfnt 重建
 │           │   ├── pdf_to_word/         # PDF 转 Word 命令与脚本
-│           │   └── shared/              # Office 引擎检测与通用转换流程
+│           │   ├── shared/              # Office 引擎检测与通用转换流程
+│           │   ├── word_to_markdown/    # DOCX 解析、表格/公式/图片转换
+│           │   └── word_to_pdf/         # Office 转 PDF 命令与脚本
 │           ├── encode/
-│           │   ├── password_vault/      # 密码本文件读写
-│           │   └── clipboard_history/   # 命令协调、Windows API、加密存储
+│           │   ├── clipboard_history/   # 命令协调、Windows API、SQLite 存储
+│           │   ├── id_card/             # 身份证解析历史加密存储
+│           │   └── password_vault/      # 密码本文件读写
 │           ├── image/
 │           │   ├── screenshot_history/  # 截图命令、捕获、窗口、剪贴板、状态与存储
 │           │   └── shared/              # AI 模型管理、ONNX 推理
+│           ├── markdown/
+│           │   └── notebook/            # 笔记本索引、正文与资源文件读写
 │           ├── network/
-│           │   ├── ping/                # 系统 Ping
+│           │   ├── http_client/         # HTTP 请求发送与请求历史存储
 │           │   ├── ip_lookup/           # 本机局域网 IP
-│           │   └── mqtt_client/         # MQTT TCP/TLS 连接、订阅与发布
+│           │   ├── mcp_inspector/       # MCP 会话管理、stdio/HTTP 连接与配置存储
+│           │   ├── mqtt_client/         # MQTT TCP/TLS、WebSocket 连接、订阅与工作区存储
+│           │   └── ping/                # 系统 Ping
 │           ├── utility/
+│           │   ├── calculator/          # 计算器历史存储与内置 AI 工具
 │           │   ├── calendar/            # 日历备注与通知
-│           │   └── clock/               # 时钟提醒读写
+│           │   └── clock/               # 时钟提醒读写与内置 AI 工具
 │           └── video/
+│               ├── bilibili_download/   # B 站设置与 SESSDATA 加密存储
 │               ├── douyin_download/     # 抖音信息获取命令与页面脚本
-│               ├── xiaohongshu_download/ # 小红书分享页读取命令与脚本
-│               └── shared/              # HDR 状态管理与平台下载目录
+│               ├── shared/              # HDR 状态管理与平台下载目录
+│               └── xiaohongshu_download/ # 小红书分享页读取命令与脚本
 ├── branding/                # 远程图标：不发新版本也能换图标，历史图标都在这里
 └── app-icon.png             # 图标源文件（1024×1024，四角透明）
 ```

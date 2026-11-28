@@ -10,7 +10,7 @@
 | --- | --- |
 | AI 工作台 | `open-tools.db`（模型配置、API Key 由 DPAPI 加密存储，以及文件夹、会话、拆分后的消息主表/分段/附件表与 token 统计、审批策略等）；附件与工作区文件位于 `ai/` |
 | MCP 工具查看器 | `open-tools.db`（`mcp_connections` 表，按列存放 `stdio` 与 `streaming_http` 连接配置） |
-| 剪贴板历史 | `open-tools.db`（历史记录与采集设置，敏感内容由 DPAPI 加密） |
+| 剪贴板历史 | `open-tools.db`（`clipboard_items` 表按内容哈希去重并保留最近 7 天与上限内的文本记录，采集开关与上限复用 `app_settings`） |
 | 时钟 | `open-tools.db`（闹钟与计时器表） |
 | 日历 | `open-tools.db`（备注和提醒事项表） |
 | MQTT 连接 | `open-tools.db`（复用 `folders` 与 `mqtt_sessions` / `mqtt_session_topics` 关系表，保存目录、连接参数、预设订阅与发布草稿；连接密码与收发日志仅运行期使用） |

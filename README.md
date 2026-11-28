@@ -27,6 +27,7 @@ Formatting JSON, decoding Base64, converting timestamps, or compressing images o
 
 - **Local processing:** Your files and content are processed on your computer. See [Privacy](#privacy) for the features that access the network.
 - **Ready to use:** The Windows installer includes the AI runtime. Models download on demand, and image inference runs locally.
+- **AI Workspace:** Built-in AI chat supporting OpenAI, Anthropic, and Gemini APIs with built-in tool and MCP tool calling plus latency and token usage tracking; conversations and API keys stay local on your PC.
 - **One workspace:** Switch categories at the top, choose tools in the sidebar, or press `Ctrl K` to search.
 - **Keep your work:** Switching tools preserves recent inputs and results.
 - **Home page:** Access favorites and recent tools, view usage activity, and check upcoming reminders.
@@ -95,6 +96,7 @@ Processing is local unless a feature explicitly needs network access:
 - **Ping:** Send a ping to the host you enter.
 - **MQTT:** Connect to the broker you specify and send connection credentials, subscriptions, and published messages. Connection passwords and message logs are kept in memory.
 - **MCP Tool Viewer:** Connect to the configured MCP server over HTTP or launch the configured local program over stdio.
+- **AI Workspace:** Sends prompts, context, and attached files only to the model API endpoints you configure; API keys are encrypted locally using Windows DPAPI.
 - **Video downloads:** Contact the selected video platform and its media servers. If a direct RedNote request fails, the desktop app loads the share page in a hidden window; share URL parameters are sent to RedNote.
 - **AI model downloads (background removal and inpainting):** Download a model only when you request it (the AI runtime, ONNX Runtime, ships with the installer), from ModelScope first and Hugging Face if that fails. Your images are processed locally.
 - **Remote images in Markdown:** When exporting Markdown that references an HTTP(S) image to Word, the app fetches that image from its URL.
